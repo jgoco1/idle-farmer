@@ -8,11 +8,11 @@ This repo builds **Hearthfield Idle** (working title), a cozy idle farming, fish
 3. If the docs and the code disagree, the code is what ships: fix the doc or the code in the same PR and note it under *Deviations*.
 
 ## Architecture rules
-- **Game logic lives in `src/systems/`** as deterministic functions of `(state, ctx, dt)` where `ctx = { data, rng, mods, events }` (see `docs/DATA_SCHEMAS.md` §7). A system may mutate only the `state` passed to it. **No DOM, canvas, audio, `localStorage`, `Date.now()`, `Math.random()` or event-bus imports in systems.** Systems push `GameEvent`s to `ctx.events`; the loop flushes them to the bus.
+- **Game logic lives in `src/systems/`** as deterministic functions of `(state, ctx, dt)` where `ctx = { data, rng, mods, events, calendar }` (see `docs/DATA_SCHEMAS.md` §7). A system may mutate only the `state` passed to it. **No DOM, canvas, audio, `localStorage`, `Date.now()`, `Math.random()` or event-bus imports in systems.** Systems push `GameEvent`s to `ctx.events`; the loop flushes them to the bus.
 - **Content lives only in `src/data/`**, typed with the id unions in `src/data/ids.ts`. No gameplay numbers hard-coded in systems, UI or rendering; constants that are formula parameters live in `src/data/balance.ts`.
 - **Rendering lives in `src/render/`, UI in `src/ui/`.** Both read state and send actions through `dispatch()`. They never mutate state directly.
 - **All randomness goes through the seeded RNG in `src/core/rng.ts`**, whose state is stored in `GameState.rngState`. Cosmetic-only randomness (particles, butterflies) uses a separate render-side RNG and must never touch game state.
-- **Time:** simulated time is integer milliseconds (`clock.totalMs`); data durations are in-game minutes (1 in-game minute = 500 ms). Never use floats for timers in state.
+- **Time:** there are two clocks (see `docs/GDD.md` §4). The **calendar** (time of day, day, season) follows the real local clock and reaches systems only as `ctx.calendar`, built in `src/core/time.ts` from an injected `now` so tests can fix the date and time zone. **Simulated time** (`clock.simMs`, integer ms) drives every timer; data durations are in seconds of simulated time. Never use floats for timers in state, and never call `Date` outside `src/core/`.
 - **Modifiers:** multipliers from buffs, perks and upgrades are gathered in `computeModifiers()` and read by systems through `ctx.mods`. Add a new seam there rather than reading buffs inside a system.
 - **Offline correctness:** anything timed must give the same result in one large step as in many small steps (within a stated tolerance). Every timed system has a test for this.
 - **Derived values are computed, not stored** (day, season, stage, farm level, slots).

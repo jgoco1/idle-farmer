@@ -10,23 +10,39 @@ Every id listed here also appears in the BALANCE.md tables and the GDD. If you a
 
 | Quantity | Unit | Notes |
 |---|---|---|
-| Durations **in data** (`growMinutes`, `cookMinutes`, …) | in-game minutes, integer | 1 in-game minute = 500 real ms at 1× speed. |
-| Timers **in state** (`growthMs`, `remainingMs`, …) | simulated milliseconds, integer | Avoids float drift. Round with `Math.round` once per step when a modifier is applied. |
-| Clock | `clock.totalMs`, integer simulated ms since the save was created | Everything else (day, season, time of day) is derived from it. |
+| Durations **in data** (`growSec`, `cookSec`, `intervalSec`, …) | seconds of simulated time, integer | Simulated time runs at real speed while playing and at the capped offline rate while away (BALANCE.md §1). |
+| Timers **in state** (`growthMs`, `remainingMs`, `waterMsLeft`, …) | simulated milliseconds, integer | Avoids float drift. Round with `Math.round` once per step when a modifier is applied. |
+| Simulated clock | `clock.simMs`, integer ms of simulated time since the save was created | Drives every timer. Never derived from `Date`. |
+| Calendar | computed from the real local time (`now`) by `src/core/time.ts` | Time of day, day, season and year. Systems receive it as `ctx.calendar`; they never read `Date` themselves. |
 | Gold | integer | Never fractional. Prices are floored to an integer at the moment of sale, minimum 1. |
 | Percent modifiers | multipliers as numbers, `1.0` = no change | A +20% bonus is stored as `0.2` in data and applied as `1 + 0.2`. |
 | Probabilities | `0..1` | |
 
-Constants (defined once in `src/core/time.ts`):
+Constants and calendar types (defined once in `src/core/time.ts`):
 
 ```ts
-export const GAME_MINUTE_MS = 500;                 // real ms per in-game minute at 1× speed
-export const GAME_HOUR_MS = 60 * GAME_MINUTE_MS;   // 30 000 ms = 30 real seconds
-export const GAME_DAY_MS = 24 * GAME_HOUR_MS;      // 720 000 ms = 12 real minutes
-export const DAYS_PER_SEASON = 10;
-export const SEASONS: readonly SeasonId[] = ['spring', 'summer', 'autumn', 'winter'];
-export const DAY_START_HOUR = 6;                   // a new day (and all "morning" events) begins at 06:00
 export const TICK_MS = 100;                        // fixed simulation step, 10 ticks per second
+export const SEASONS: readonly SeasonId[] = ['spring', 'summer', 'autumn', 'winter'];
+export const DAY_START_HOUR = 6;                   // daily calendar events fire at 06:00 local
+export const NIGHT_START_HOUR = 20;                // night is 20:00–06:00 local
+export const MIN_FIRST_SEASON_DAYS = 3;            // the first spring lasts at least this long
+
+/** Everything a system may know about real-world time. Built by the core from `now`, never inside systems. */
+export interface Calendar {
+  nowMs: number;            // real epoch ms (only for display and the collection log)
+  hour: number;             // 0..23 local
+  minute: number;           // 0..59 local
+  weekday: number;          // 0 = Sunday … 6 = Saturday, local
+  dayKey: string;           // 'YYYY-MM-DD' of (now − 6 h), local: one "day" runs 06:00 → 06:00
+  weekIndex: number;        // 0 = the first (possibly longer) spring; +1 at each counted Sunday 00:00
+  season: SeasonId;         // SEASONS[weekIndex % 4]
+  year: number;             // floor(weekIndex / 4) + 1
+  isNight: boolean;
+  msToSeasonChange: number; // real ms until the next counted Sunday 00:00
+}
+
+/** Wraps the time zone so tests can run in a fixed zone. */
+export interface LocalClock { parts(epochMs: number): { y: number; mo: number; d: number; h: number; mi: number; wd: number } }
 ```
 
 ---
@@ -50,7 +66,8 @@ export type FishLocationId = 'pond' | 'river' | 'ocean';
 export type FishId =
   | 'bluegill' | 'carp' | 'catfish' | 'koi'              // pond
   | 'trout' | 'perch' | 'salmon' | 'sturgeon'            // river
-  | 'sardine' | 'mackerel' | 'tuna' | 'pufferfish' | 'moonfin'; // ocean
+  | 'sardine' | 'mackerel' | 'tuna' | 'pufferfish'                // ocean
+  | 'petal_koi' | 'ember_salmon' | 'sun_marlin' | 'moonfin';       // legendaries: spring pond, autumn river, summer ocean, winter ocean
 
 export type JunkId = 'old_boot' | 'seaweed' | 'driftwood';
 
@@ -64,7 +81,7 @@ export type RecipeId =
   // T3
   | 'seafood_stew' | 'pumpkin_soup' | 'cranberry_pie' | 'catfish_gumbo' | 'scholars_stew'
   // T4
-  | 'harvest_feast' | 'royal_sturgeon' | 'moonfin_sushi' | 'melon_sorbet_tower';
+  | 'garden_banquet' | 'royal_sturgeon' | 'harvest_feast' | 'moonfin_sushi';   // spring, summer, autumn, winter
 
 /** A cooked dish is an item whose id is the recipe id. */
 export type DishId = RecipeId;
@@ -120,9 +137,10 @@ Helpers that go with them: `seedOf(crop: CropId): SeedId`, `cropOfSeed(seed: See
 
 ```ts
 /** An inclusive hour window on the 24h clock. Wraps past midnight when start > end (e.g. 20 → 6). */
-export interface HourWindow { start: number; end: number }   // 0..24
+export interface HourWindow { start: number; end: number }   // 0..24, local time
 
-export interface ItemStack { item: ItemId; qty: number }
+/** `hearty`: a dish finished cooking in winter (BALANCE.md §7). Stacks only merge when `hearty` matches. */
+export interface ItemStack { item: ItemId; qty: number; hearty?: true }
 
 /**
  * Something that must be true before content is visible/usable. All entries in an array must hold.
@@ -172,8 +190,8 @@ export interface CropDef {
   id: CropId;
   name: string;
   seasons: readonly SeasonId[];        // multi-season crops survive the change between listed seasons
-  growMinutes: number;                 // seed → ready, watered, at 1× growth
-  regrowMinutes: number | null;        // null = single harvest; else time from harvest back to ready
+  growSec: number;                     // seed → ready, watered, at 1× growth
+  regrowSec: number | null;            // null = single harvest; else time from harvest back to ready
   stages: 5;                           // seed, sprout, mid, near-ready, ready (fixed in v1)
   regrowToStage: 2 | null;             // regrowing crops drop back to stage index 2 (mid) after harvest
   yield: { min: number; max: number }; // inclusive, rolled with the seeded RNG
@@ -184,7 +202,7 @@ export interface CropDef {
 }
 ```
 
-Stage shown on screen: `stage = min(4, floor(5 * progress))` for a first growth, where `progress = growthMs / (growMinutes * GAME_MINUTE_MS)`, and stage 4 means ready. After a regrow harvest, the regrow cycle maps its progress onto stages 2 → 4.
+Stage shown on screen: `stage = min(4, floor(5 * progress))` for a first growth, where `progress = growthMs / (growSec * 1000)`, and stage 4 means ready. After a regrow harvest, the regrow cycle maps its progress onto stages 2 → 4.
 
 ### 4.3 `FishDef` (`fish.ts`) and junk
 
@@ -194,7 +212,7 @@ export interface FishDef {
   name: string;
   location: FishLocationId;
   seasons: readonly SeasonId[];
-  hours: HourWindow;               // when it bites; {start:0,end:24} = any time
+  hours: HourWindow;               // when it bites (local time); {start:0,end:24} = any time. Traps ignore it.
   rarity: Rarity;
   difficulty: number;              // 0..100, drives the reel minigame
   sizeCm: { min: number; max: number };
@@ -217,7 +235,7 @@ export interface RecipeDef {
   id: RecipeId;
   name: string;
   ingredients: readonly ItemStack[];   // crops, fish and seaweed only in v1 (no dish-in-dish)
-  cookMinutes: number;                 // in-game minutes at 1× cook speed
+  cookSec: number;                     // seconds of simulated time at 1× cook speed
   tier: RecipeTier;                    // declared, and verified against recipeTier() by a unit test
   buff: BuffType;
   basePrice: number;                   // = round(ingredientValue * TIER_SELL_MULT[tier]), see BALANCE.md §7
@@ -273,7 +291,7 @@ export interface UpgradeEffect {
   radius?: number;                // sprinkler/scarecrow area (Chebyshev radius; 'plus' = orthogonal only)
   shape?: 'plus' | 'square';
   growthBonus?: number;           // scarecrow
-  intervalMinutes?: number;       // farmhand, fish trap
+  intervalSec?: number;           // farmhand, fish trap
   capacity?: number;              // farmhand plots per visit, trap slots, cook-queue slots
   toolArea?: 1 | 3 | 9 | 25;      // watering can / hoe tiles per click
   inventorySlots?: number;        // backpack
@@ -286,7 +304,21 @@ export interface UpgradeEffect {
 }
 ```
 
-### 4.7 `ExpansionDef` (`expansions.ts`)
+### 4.7 `SeasonDef` (`seasons.ts`)
+
+```ts
+export interface SeasonDef {
+  id: SeasonId;
+  name: string;
+  effects: {
+    heartyDishes?: boolean;        // dishes finishing in this season are marked hearty (winter)
+    cookingXpBonus?: number;       // +0.5 in winter
+    dishSellBonus?: number;        // +0.25 in winter
+  };
+}
+```
+
+### 4.8 `ExpansionDef` (`expansions.ts`)
 
 ```ts
 export interface ExpansionDef {
@@ -305,7 +337,7 @@ export interface ExpansionDef {
 
 The starting grid (4 × 2) is a constant, `START_GRID`, not an expansion.
 
-### 4.8 Progression (`skills.ts`, `quests.ts`), phase 07
+### 4.9 Progression (`skills.ts`, `quests.ts`), phase 07
 
 ```ts
 export interface SkillPerkDef {
@@ -375,7 +407,7 @@ export type BundleReward =
   | { kind: 'goldenScarecrow' };
 ```
 
-### 4.9 The data bundle
+### 4.10 The data bundle
 
 ```ts
 /** Everything in src/data, gathered once. Systems receive it as an argument; they never import data files directly. */
@@ -386,6 +418,7 @@ export interface GameData {
   junk: Record<JunkId, JunkDef>;
   recipes: Record<RecipeId, RecipeDef>;
   buffs: Record<BuffType, BuffDef>;
+  seasons: Record<SeasonId, SeasonDef>;
   upgrades: Record<UpgradeId, UpgradeDef>;
   expansions: Record<ExpansionId, ExpansionDef>;
   perks: readonly SkillPerkDef[];                        // phase 07
@@ -412,11 +445,13 @@ export interface Modifiers {
   cookSpeedModifier: number;        // × cooking speed              (phase 06 seam; sources: kitchen 06, buff 06, perks 07)
   automationSpeedModifier: number;  // × farmhand/planter speed     (phase 04 seam; source: buff 06)
   xpModifier: number;               // × XP gained                  (phase 06 stub; used by 07)
+  dishSellBonus: number;            // additive on dish prices      (season effect, phase 06)
+  cookingXpBonus: number;           // additive on Cooking XP       (season effect, phase 07)
 }
 
 export const NO_MODIFIERS: Modifiers = {
   growthModifier: 1, sellPriceModifier: 1, fishingLuckModifier: 0, fishingSpeedModifier: 1,
-  cookSpeedModifier: 1, automationSpeedModifier: 1, xpModifier: 1,
+  cookSpeedModifier: 1, automationSpeedModifier: 1, xpModifier: 1, dishSellBonus: 0, cookingXpBonus: 0,
 };
 ```
 
@@ -431,7 +466,14 @@ This is the **full v1 target shape**. Each field is tagged with the phase that i
 ```ts
 export interface GameState {
   // ---- core (@01)
-  clock: { totalMs: number; speed: number };      // speed: 1, or 60 with the debug time warp (never saved as ≠1)
+  clock: { simMs: number; speed: number };        // speed: 1, or 60 with the debug time warp (never saved as ≠1)
+  calendar: {
+    createdAt: number;                            // real epoch ms of save creation
+    seasonEpoch: number;                          // real epoch ms of the first counted Sunday 00:00 (BALANCE.md §1)
+    maxWeekIndex: number;                         // highest week index seen; the season never goes backwards
+    lastDayKey: string;                           // last '06:00 day' whose daily events have fired
+    debugOffsetMs: number;                        // debug time warp only; always 0 in normal play
+  };
   rngState: number;                               // mulberry32 state; the ONLY source of randomness
   gold: number;                                   // @01 (always 0 until 02 gives starting gold)
   settings: Settings;                             // @01, extended in 05 and 08
@@ -454,7 +496,7 @@ export interface GameState {
     specials: { item: ItemId; bonus: number }[];   // today's specials
     lastRolledDay: number;
   };
-  shippingBin: ItemStack[];
+  shippingBin: { items: ItemStack[]; msToPickup: number };   // collected every 60 min of simulated time
   expansions: ExpansionId[];                       // bought, in order
   stats: Stats;                                    // @03, extended by later phases
 
@@ -469,7 +511,7 @@ export interface GameState {
   fishing: {
     unlocked: FishLocationId[];                    // ['pond'] at start
     traps: TrapState[];
-    collection: Partial<Record<FishId, { firstCaughtDay: number; bestSizeCm: number; count: number }>>;
+    collection: Partial<Record<FishId, { firstCaughtAt: string; bestSizeCm: number; count: number }>>;  // firstCaughtAt = dayKey
     session: FishingSession | null;                // an in-progress cast/reel, so saving mid-minigame is safe
   };
 
@@ -503,13 +545,13 @@ export interface Plot {
   crop: CropId | null;
   growthMs: number;          // effective growth accumulated in the current cycle
   harvests: number;          // completed harvests of this planting (regrowers)
-  watered: boolean;          // reset at 06:00 each day
+  waterMsLeft: number;       // hand watering left (2 h per watering); sprinkler/greenhouse plots count as watered regardless
 }
 
 export interface MarketItemState {
   demand: number;            // 0.5 .. 1.3
-  lastSoldDay: number;       // -1 if never sold
-  history: number[];         // effective price multiplier at each of the last 7 day starts (sparkline)
+  lastSoldSimMs: number;     // clock.simMs of the last sale, -1 if never sold
+  history: number[];         // effective price multiplier at each of the last 7 daily (06:00) calendar events (sparkline)
 }
 
 export interface PlacedObject {
@@ -574,7 +616,7 @@ export interface Settings {
 }
 ```
 
-Derived values (current day, season, stage of a plot, buff slot count, farm level, inventory capacity) are **computed by functions, never stored**, so they can't disagree with the state they come from.
+Derived values (the calendar, stage of a plot, whether a plot is watered, buff slot count, farm level, inventory capacity) are **computed by functions, never stored**, so they can't disagree with the state they come from.
 
 ---
 
@@ -599,6 +641,7 @@ UI / render │  dispatch(action) ─► actions.ts ─► systems/*.ts ◄─�
    export interface SimContext {
      data: GameData;
      rng: Rng;               // wraps state.rngState; advancing it updates state.rngState
+     calendar: Calendar;     // real-world time of day and season, fixed for the duration of the step
      mods: Modifiers;        // computed once per step
      events: GameEvent[];    // systems push events here; the loop flushes them to the bus
    }
@@ -606,7 +649,7 @@ UI / render │  dispatch(action) ─► actions.ts ─► systems/*.ts ◄─�
    export type ActionResult = { ok: true } | { ok: false; reason: string };
    ```
 
-   A system may mutate the `state` it is given, and nothing else. It never touches the DOM, canvas, `Date.now()`, `Math.random()`, `localStorage` or the event bus. Given the same state, context and input, it always produces the same result, which is what makes offline simulation and tests reliable. Tests build a state, call the function, and assert on the state and `ctx.events`.
+   A system may mutate the `state` it is given, and nothing else. It never touches the DOM, canvas, `Date` / `Date.now()`, `Math.random()`, `localStorage` or the event bus; real-world time arrives only through `ctx.calendar`. Given the same state, context and input, it always produces the same result, which is what makes offline simulation and tests reliable. Tests build a state, call the function, and assert on the state and `ctx.events`.
 3. **The UI never edits state.** It calls `dispatch({ type: 'harvest', plot: 7 })`. `actions.ts` validates the action, calls the system, and returns the `ActionResult` so the UI can show a message.
 4. **Events flow outward.** Systems describe what happened (`{ type: 'harvested', crop: 'turnip', qty: 2, plot: 7 }`); the UI, renderer, audio and (from phase 07) progression listen. Progression updates its state from events inside the same step, so offline events count toward goals.
 5. **Modifiers flow inward.** Buffs, perks and upgrades are turned into one `Modifiers` struct (§5) before systems run.
@@ -615,8 +658,9 @@ UI / render │  dispatch(action) ─► actions.ts ─► systems/*.ts ◄─�
 
 ```ts
 export type GameEvent =
-  | { type: 'dayStarted'; day: number; season: SeasonId }
+  | { type: 'dayStarted'; dayKey: string }
   | { type: 'seasonChanged'; season: SeasonId; withered: number }
+  | { type: 'binCollected'; gold: number; items: number }
   | { type: 'tilled' | 'watered'; plots: number[] }
   | { type: 'planted'; crop: CropId; plots: number[] }
   | { type: 'harvested'; crop: CropId; qty: number; plot: number; auto: boolean }
@@ -626,7 +670,7 @@ export type GameEvent =
   | { type: 'inventoryFull'; item: ItemId }
   | { type: 'bite' | 'escaped'; location: FishLocationId }
   | { type: 'caught'; catch: FishId | JunkId; sizeCm: number; location: FishLocationId; viaTrap: boolean }
-  | { type: 'cooked'; recipe: RecipeId; tier: RecipeTier }
+  | { type: 'cooked'; recipe: RecipeId; tier: RecipeTier; hearty: boolean }
   | { type: 'ate'; recipe: RecipeId; buff: BuffType }
   | { type: 'buffStarted' | 'buffExpired'; buff: BuffType }
   | { type: 'levelUp'; skill: SkillId; level: number }

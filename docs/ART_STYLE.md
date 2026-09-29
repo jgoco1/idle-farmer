@@ -158,7 +158,7 @@ Rules: never write a hex colour outside `palette.ts`. CSS uses the same colours 
 
 - Sprites are rasterised once to offscreen canvases at 1× and cached (`spriteCache.ts`). They are drawn with `drawImage` at integer positions × `scale`. Positions are always whole logical pixels.
 - Sprites shown in the DOM (item icons in panels) are drawn to a small canvas or converted to a data URL once, and displayed at 2× (32 px) with the pixelated rule.
-- Day/night is one full-scene overlay: `night_tint` with `multiply` at up to 55% opacity at midnight, and `dusk_tint` with `soft-light` at up to 25% at dawn and dusk. The HUD and panels are never tinted.
+- Day/night is one full-scene overlay: `night_tint` with `multiply`, rising from 0% at 20:00 to 55% at midnight and falling back to 0% by 06:00 (local time), and `dusk_tint` with `soft-light` at up to 25% during dusk (18:30–20:00) and dawn (06:00–07:30). The tint is driven by the real local clock (`ctx.calendar`), not by simulated time. The HUD and panels are never tinted.
 
 ---
 
