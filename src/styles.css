@@ -1,0 +1,453 @@
+/* Hearthfield Idle — UI styles (docs/ART_STYLE.md §4).
+   Colours come only from the palette via --c-<name> variables set in src/render/palette.ts.
+   No web fonts: the stack uses a pixel font only if the player already has one installed. */
+
+:root {
+  --font-ui:
+    'Pixelify Sans', 'Silkscreen', 'Press Start 2P', ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo,
+    Consolas, 'Liberation Mono', monospace;
+  --hud-h: 52px;
+  --toolbar-h: 60px;
+  --panel-w: 340px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--c-grass_dark);
+  color: var(--c-outline);
+  font-family: var(--font-ui);
+  font-weight: 700;
+  font-size: 15px;
+  -webkit-font-smoothing: none;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.pixel,
+canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+#app {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: 1fr;
+  height: 100dvh;
+  width: 100vw;
+}
+
+/* ---------- wood strip (HUD and toolbar) */
+.hud,
+.toolbar {
+  background: var(--c-wood_mid);
+  color: var(--c-white_warm);
+  border: 2px solid var(--c-outline);
+  box-shadow:
+    inset 2px 2px 0 var(--c-wood_light),
+    inset -2px -2px 0 var(--c-wood_dark);
+}
+
+.hud {
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: var(--hud-h);
+  padding: 4px 10px;
+  flex-wrap: wrap;
+}
+
+.hud-gold,
+.hud-clock {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hud-icon {
+  width: 32px;
+  height: 32px;
+  flex: none;
+}
+
+.gold-amount {
+  color: var(--c-gold);
+  font-size: 18px;
+  text-shadow:
+    1px 0 0 var(--c-outline),
+    -1px 0 0 var(--c-outline),
+    0 1px 0 var(--c-outline),
+    0 -1px 0 var(--c-outline);
+  min-width: 3ch;
+}
+
+.hud-clock-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+
+.season-note {
+  font-size: 12px;
+  color: var(--c-yellow_light);
+}
+
+.hud-buffs {
+  flex: 1;
+  min-width: 40px;
+  min-height: 32px;
+}
+
+.hud-right {
+  display: flex;
+  gap: 6px;
+}
+
+.hud-btn {
+  font: inherit;
+  font-size: 20px;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+  color: var(--c-white_warm);
+  background: var(--c-wood_light);
+  border: 2px solid var(--c-outline);
+  box-shadow: inset 0 -3px 0 var(--c-wood_dark);
+}
+
+/* ---------- scene */
+.scene {
+  grid-row: 2;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--c-grass_dark);
+}
+
+#scene-canvas {
+  display: block;
+  touch-action: manipulation;
+}
+
+.toasts {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  width: min(92%, 420px);
+}
+
+.toast {
+  background: var(--c-ui_parchment);
+  border: 2px solid var(--c-outline);
+  box-shadow:
+    inset 0 0 0 2px var(--c-ui_parchment_dark),
+    0 2px 0 var(--c-shadow);
+  padding: 6px 12px;
+  text-align: center;
+  transition:
+    opacity 0.3s,
+    transform 0.3s;
+}
+.toast-good {
+  background: var(--c-grass_3);
+}
+.toast-warn {
+  background: var(--c-orange_light);
+}
+.toast-out {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+/* ---------- toolbar */
+.toolbar {
+  grid-row: 3;
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px;
+  overflow-x: auto;
+  min-height: var(--toolbar-h);
+}
+
+.tool-btn {
+  font: inherit;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 4px 10px;
+  cursor: pointer;
+  color: var(--c-outline);
+  background: var(--c-wood_pale);
+  border: 2px solid var(--c-outline);
+  box-shadow: inset 0 -4px 0 var(--c-wood_light);
+}
+.tool-btn[aria-pressed='true'] {
+  background: var(--c-grass_3);
+  box-shadow: inset 0 3px 0 var(--c-grass_2);
+  transform: translateY(2px);
+}
+.tool-icon {
+  font-size: 18px;
+}
+
+/* ---------- panels: parchment inside a wood frame */
+.panel-host {
+  position: fixed;
+  top: calc(var(--hud-h) + 8px);
+  right: 8px;
+  bottom: calc(var(--toolbar-h) + 8px);
+  width: min(var(--panel-w), calc(100vw - 16px));
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  z-index: 10;
+}
+
+.panel {
+  pointer-events: auto;
+  background: var(--c-ui_parchment);
+  color: var(--c-outline);
+  border: 2px solid var(--c-outline);
+  box-shadow:
+    inset 0 0 0 2px var(--c-wood_light),
+    inset 0 0 0 4px var(--c-wood_mid),
+    inset -2px -2px 0 4px var(--c-wood_dark),
+    inset 0 0 0 6px var(--c-wood_mid),
+    inset 0 0 0 8px var(--c-ui_parchment_dark);
+  padding: 8px;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px 6px;
+  margin: 0 0 4px;
+  border-bottom: 2px solid var(--c-ui_parchment_dark);
+}
+.panel-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.panel-close {
+  font: inherit;
+  width: 36px;
+  height: 36px;
+  cursor: pointer;
+  color: var(--c-white_warm);
+  background: var(--c-roof_light);
+  border: 2px solid var(--c-outline);
+  box-shadow: inset 0 -3px 0 var(--c-roof_dark);
+}
+
+.panel-body {
+  overflow-y: auto;
+  padding: 4px 6px 6px;
+}
+.panel-body h3 {
+  margin: 14px 0 6px;
+  font-size: 15px;
+}
+
+.coming-soon {
+  font-size: 20px;
+  margin: 12px 0 4px;
+}
+.muted {
+  opacity: 0.75;
+  font-weight: 400;
+}
+
+/* ---------- buttons and forms */
+.btn {
+  font: inherit;
+  min-height: 40px;
+  padding: 6px 12px;
+  cursor: pointer;
+  color: var(--c-white_warm);
+  background: var(--c-wood_light);
+  border: 2px solid var(--c-outline);
+  box-shadow: inset 0 -4px 0 var(--c-wood_dark);
+}
+.btn:active {
+  box-shadow: inset 0 2px 0 var(--c-wood_dark);
+  transform: translateY(2px);
+}
+.btn-primary {
+  background: var(--c-grass_2);
+  box-shadow: inset 0 -4px 0 var(--c-grass_dark);
+}
+.btn-danger {
+  background: var(--c-roof_light);
+  box-shadow: inset 0 -4px 0 var(--c-roof_dark);
+}
+.btn:disabled {
+  background: var(--c-ui_parchment_dark);
+  color: var(--c-outline);
+  opacity: 0.6;
+  cursor: default;
+}
+
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+.panel:focus-visible {
+  outline: 3px solid var(--c-gold);
+  outline-offset: 1px;
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.field input[type='range'] {
+  flex: 1;
+  accent-color: var(--c-grass_2);
+}
+
+.save-text {
+  width: 100%;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  background: var(--c-white_warm);
+  color: var(--c-outline);
+  border: 2px solid var(--c-ui_parchment_dark);
+  margin: 4px 0;
+  resize: vertical;
+}
+
+.form-msg {
+  min-height: 1.2em;
+  margin: 4px 0;
+}
+.form-error {
+  color: var(--c-roof_dark);
+}
+.form-ok {
+  color: var(--c-leaf_dark);
+}
+
+/* ---------- modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--c-outline) 55%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  z-index: 50;
+}
+.modal {
+  width: min(420px, 100%);
+  max-height: 90dvh;
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 6px;
+}
+.away p {
+  margin: 6px 0;
+}
+
+/* ---------- debug overlay */
+.debug {
+  position: fixed;
+  left: 8px;
+  top: calc(var(--hud-h) + 8px);
+  z-index: 40;
+  background: color-mix(in srgb, var(--c-outline) 85%, transparent);
+  color: var(--c-white_warm);
+  padding: 8px;
+  border: 2px solid var(--c-gold_dark);
+  font-size: 12px;
+  max-width: calc(100vw - 16px);
+}
+.debug-stats {
+  margin: 0 0 6px;
+  font-family: var(--font-ui);
+  white-space: pre-wrap;
+}
+.debug .btn {
+  font-size: 12px;
+  min-height: 32px;
+}
+
+/* ---------- phones */
+@media (max-width: 600px) {
+  :root {
+    --hud-h: 76px;
+    --toolbar-h: 56px;
+  }
+  body {
+    font-size: 14px;
+  }
+  .hud {
+    gap: 8px;
+    padding: 4px 8px;
+  }
+  .hud-buffs {
+    display: none;
+  }
+  .hud-right {
+    margin-left: auto;
+  }
+  .tool-label {
+    display: none;
+  }
+  .toolbar {
+    gap: 4px;
+    padding: 4px;
+  }
+  .tool-btn {
+    min-width: 44px;
+    padding: 4px;
+    justify-content: center;
+  }
+  .panel-host {
+    top: auto;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    max-height: 70dvh;
+  }
+}

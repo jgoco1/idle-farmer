@@ -1,0 +1,78 @@
+// A tiny typed event bus. Systems push GameEvents to ctx.events; the core flushes them here; the
+// UI, renderer and (later) audio subscribe. Systems never import the UI or this bus.
+
+import type {
+  BuffType,
+  CropId,
+  ExpansionId,
+  FishId,
+  FishLocationId,
+  GoalTemplateId,
+  ItemId,
+  JunkId,
+  MilestoneId,
+  RecipeId,
+  RecipeTier,
+  SeasonId,
+  SeedId,
+  SkillId,
+  UpgradeId,
+} from '../data/ids';
+
+export type GameEvent =
+  | { type: 'dayStarted'; dayKey: string }
+  | { type: 'seasonChanged'; season: SeasonId; withered: number }
+  | { type: 'binCollected'; gold: number; items: number }
+  | { type: 'tilled' | 'watered'; plots: number[] }
+  | { type: 'planted'; crop: CropId; plots: number[] }
+  | { type: 'harvested'; crop: CropId; qty: number; plot: number; auto: boolean }
+  | { type: 'sold'; item: ItemId; qty: number; gold: number; via: 'market' | 'bin' }
+  | { type: 'goldEarned'; amount: number; source: 'sale' | 'quest' | 'other' }
+  | { type: 'purchased'; what: UpgradeId | ExpansionId | SeedId | RecipeId; gold: number }
+  | { type: 'inventoryFull'; item: ItemId }
+  | { type: 'bite' | 'escaped'; location: FishLocationId }
+  | { type: 'caught'; catch: FishId | JunkId; sizeCm: number; location: FishLocationId; viaTrap: boolean }
+  | { type: 'cooked'; recipe: RecipeId; tier: RecipeTier; hearty: boolean }
+  | { type: 'ate'; recipe: RecipeId; buff: BuffType }
+  | { type: 'buffStarted' | 'buffExpired'; buff: BuffType }
+  | { type: 'levelUp'; skill: SkillId; level: number }
+  | { type: 'questDone'; id: MilestoneId | GoalTemplateId }
+  | { type: 'unlocked'; what: string }
+  | { type: 'notify'; text: string; tone: 'info' | 'good' | 'warn' };
+
+export type GameEventType = GameEvent['type'];
+export type EventOf<T extends GameEventType> = Extract<GameEvent, { type: T }>;
+
+type Handler<E> = (event: E) => void;
+
+export class EventBus {
+  private readonly handlers = new Map<string, Set<Handler<GameEvent>>>();
+  private readonly anyHandlers = new Set<Handler<GameEvent>>();
+
+  /** Subscribe to one event type. Returns an unsubscribe function. */
+  on<T extends GameEventType>(type: T, handler: Handler<EventOf<T>>): () => void {
+    let set = this.handlers.get(type);
+    if (!set) {
+      set = new Set();
+      this.handlers.set(type, set);
+    }
+    const h = handler as Handler<GameEvent>;
+    set.add(h);
+    return () => set.delete(h);
+  }
+
+  /** Subscribe to every event. Returns an unsubscribe function. */
+  onAny(handler: Handler<GameEvent>): () => void {
+    this.anyHandlers.add(handler);
+    return () => this.anyHandlers.delete(handler);
+  }
+
+  emit(event: GameEvent): void {
+    this.handlers.get(event.type)?.forEach((h) => h(event));
+    this.anyHandlers.forEach((h) => h(event));
+  }
+
+  emitAll(events: readonly GameEvent[]): void {
+    for (const e of events) this.emit(e);
+  }
+}

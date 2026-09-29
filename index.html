@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="A cozy idle farming, fishing and cooking game in pixel art." />
+    <link rel="icon" href="data:," />
+    <title>Hearthfield Idle</title>
+  </head>
+  <body>
+    <div id="app">
+      <header id="hud" class="hud" aria-label="Status"></header>
+      <main id="scene" class="scene">
+        <canvas id="scene-canvas" class="pixel" aria-label="Your farm" role="img"></canvas>
+        <div id="toasts" class="toasts" aria-live="polite"></div>
+      </main>
+      <aside id="panel-host" class="panel-host"></aside>
+      <nav id="toolbar" class="toolbar" aria-label="Panels"></nav>
+    </div>
+    <div id="modal-host"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
