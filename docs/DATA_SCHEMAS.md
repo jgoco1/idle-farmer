@@ -29,11 +29,11 @@ export const MIN_FIRST_SEASON_DAYS = 3;            // the first spring lasts at 
 
 /** Everything a system may know about real-world time. Built by the core from `now`, never inside systems. */
 export interface Calendar {
-  nowMs: number;            // real epoch ms (only for display and the collection log)
+  nowMs: number;            // calendar epoch ms = real now + calendar.debugOffsetMs (only for display and logs)
   hour: number;             // 0..23 local
   minute: number;           // 0..59 local
   weekday: number;          // 0 = Sunday … 6 = Saturday, local
-  dayKey: string;           // 'YYYY-MM-DD' of (now − 6 h), local: one "day" runs 06:00 → 06:00
+  dayKey: string;           // 'YYYY-MM-DD' local date, minus a day before 06:00: one "day" runs 06:00 → 06:00
   weekIndex: number;        // 0 = the first (possibly longer) spring; +1 at each counted Sunday 00:00
   season: SeasonId;         // SEASONS[weekIndex % 4]
   year: number;             // floor(weekIndex / 4) + 1

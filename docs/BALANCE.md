@@ -16,26 +16,28 @@ Units follow `docs/DATA_SCHEMAS.md` §1. There are **two clocks**. The **calenda
 // computed in src/core/time.ts from an injected `now` and the local time zone; systems receive it as ctx.calendar
 hour, minute, weekday     = local wall-clock parts of now
 isNight                   = hour >= 20 || hour < 6
-dayKey                    = local date of (now - 6h)          // a "day" runs 06:00 → 06:00 local
+dayKey                    = local date of now, minus one day if hour < 6   // a "day" runs 06:00 → 06:00 local (DST-safe)
 localDay(t)               = whole local calendar days since 1970-01-01 (DST-safe; built from local Y/M/D)
 
 // seasons change at local Saturday → Sunday midnight, counted from the save's creation
-firstSunday   = the first local Sunday 00:00 after createdAt
+firstSunday   = the first local Sunday 00:00 after createdAt   // if DST skips that midnight: the moment of the jump
 seasonEpoch   = (firstSunday - createdAt < 3 days) ? firstSunday + 7 days : firstSunday
-weekIndex     = now < seasonEpoch ? 0 : floor((localDay(now) - localDay(seasonEpoch)) / 7) + 1
+sundayWeek(d) = floor((d - 3) / 7)                            // day 3 = 1970-01-04, a Sunday: +1 at every Sunday
+epochWeek     = sundayWeek(utcDay(seasonEpoch + 14h))         // the epoch's Sunday, whatever zone the save was made in
+weekIndex     = max(0, sundayWeek(localDay(now)) - epochWeek + 1)
 weekIndex     = max(weekIndex, state.calendar.maxWeekIndex)  // never goes backwards (clock set back)
 season        = SEASONS[weekIndex % 4]                        // every save starts in spring
 year          = floor(weekIndex / 4) + 1
 ```
 
-A new save always starts in **spring**, and the first spring lasts at least 3 real days (up to 10). After that each season is one real week (Sunday–Saturday) and a year is 4 weeks.
+A new save always starts in **spring**, and the first spring lasts at least 3 real days (up to 10). Counting Sunday-to-Sunday weeks in the *current* zone (rather than days since the epoch) means a player who changes time zone sees the season change at their new local Sunday midnight, and never loses or gains a week; flying west cannot move the season back because of `maxWeekIndex`. After that each season is one real week (Sunday–Saturday) and a year is 4 weeks.
 
 HUD format: `Spring · Year 1 · Tue 9:40 PM`.
 
 Day/night visuals: dawn 06:00–07:30, day 07:30–18:30, dusk 18:30–20:00, night 20:00–06:00.
 
 **Calendar events** (fired by the core when a boundary is crossed, including while away):
-- **Daily, 06:00 local:** roll market specials, record a market-history point, reset `goldToday` and per-day goal counters, `daysPassed += 1`. If several days passed while away, these fire **once** (the latest day).
+- **Daily, 06:00 local:** roll market specials, record a market-history point, reset `goldToday` and per-day goal counters, `daysPassed += 1`. If several days passed while away, the refresh does not fire once per day: it fires at each 06:00 inside the part of the absence that still counts (the first 24 h, so at most twice, because later simulated time depends on it) and then **once** more for the latest day if the absence went beyond that.
 - **Weekly, Sunday 00:00 local (season change):** crops that cannot grow in the new season wither (greenhouse excepted). If several season changes passed while away, each one is applied in order (withering is idempotent, so at most 4 need processing).
 
 Clock tampering: if `now` is earlier than `meta.lastSavedAt`, away time is 0, no calendar events fire, and the week index is held at `maxWeekIndex`. Moving the clock forward is limited by the offline cap below, although the calendar does jump.

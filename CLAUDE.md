@@ -17,6 +17,15 @@ This repo builds **Hearthfield Idle** (working title), a cozy idle farming, fish
 - **Offline correctness:** anything timed must give the same result in one large step as in many small steps (within a stated tolerance). Every timed system has a test for this.
 - **Derived values are computed, not stored** (day, season, stage, farm level, slots).
 
+## Code conventions (from phase 01)
+- **Where things plug in:** a new system is a `tickX(state, ctx, dtMs)` in `src/systems/x.ts`, called from `tickSystems` in `src/systems/index.ts`. Any timer that changes a rate mid-step (water running out, a buff expiring) must be reported by `msToNextSimEvent` so the core splits steps there. Daily and seasonal reactions go in `onDayStarted` / `onSeasonChanged`.
+- **Adding an action:** add a variant to `Action` in `src/core/actions.ts`, handle it in `applyAction` by calling a system function, return an `ActionResult`. UI code calls `game.dispatch(action)` and shows `result.reason` on failure.
+- **Adding a panel:** its id is in `PanelId` (`src/data/ids.ts`); replace its stub in `src/ui/panels.ts` with a `PanelDef` whose `build(body)` creates the DOM once and returns an optional `refresh()` run on every open. `PanelManager` handles open/close/ESC/focus; panels never edit state.
+- **Adding a sprite:** a `SpriteDef` string grid in `src/render/sprites/*.ts`, included in `ALL_SPRITES` (`src/render/sprites/index.ts`); `tests/sprites.test.ts` checks it. Draw with `spriteFrame(id, timeMs)`, or `spriteDataUrl(id)` for DOM icons. Scene placement lives in `src/render/scene.ts`.
+- **Time in the core:** only `src/main.ts` reads `Date.now()` (injected into `Game` as `now`). Tests use `zoneClock('America/New_York')` and the `at()` helper in `tests/helpers.ts`.
+- **Debugging:** `?debug` (or any dev build) enables the overlay on `` ` ``; `window.__game` exposes the `Game` for e2e tests and the console.
+- **e2e:** `npm run test:e2e` builds and serves the app and uses the Chromium in `PLAYWRIGHT_BROWSERS_PATH`; never run `playwright install` in cloud sessions. Look at `test-results/farm.png` after visual changes.
+
 ## Save rules
 - Any change to the shape of `GameState` needs a `SAVE_VERSION` bump **and** a migration in `src/core/save.ts` **and** a test that migrates a fixture save of the previous version (`tests/fixtures/save-vN.json`). Add the new fixture for your version too.
 - Never break an existing save. Never silently discard a save that fails to load; show an error and offer an export.
