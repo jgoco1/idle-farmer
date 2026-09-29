@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "savedAt": 1767835800000,
+  "state": {
+    "clock": {
+      "simMs": 5432100,
+      "speed": 1
+    },
+    "calendar": {
+      "createdAt": 1767798000000,
+      "seasonEpoch": 1768107600000,
+      "maxWeekIndex": 0,
+      "lastDayKey": "2026-01-07",
+      "debugOffsetMs": 0
+    },
+    "rngState": 3735928559,
+    "gold": 0,
+    "settings": {
+      "masterVolume": 0.6
+    },
+    "meta": {
+      "createdAt": 1767798000000,
+      "lastSavedAt": 1767835800000,
+      "playTimeMs": 5432100
+    }
+  }
+}
