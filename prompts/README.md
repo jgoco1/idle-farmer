@@ -16,6 +16,16 @@ This folder holds the prompts that build a cozy idle farming and cooking browser
 | Workflow | **Sequential.** One session and one PR per phase, merged before the next phase starts. |
 | Stack | Vite, TypeScript, Vitest and Playwright. Canvas 2D draws the scene and plain DOM/CSS draws the panels. No framework and no game engine. Deploys to GitHub Pages. |
 
+### Phase 00 owner decisions (recorded in `docs/GDD.md` §11)
+- **Two clocks.**
+  - A real-time **calendar** follows the player's local clock. Night runs from 20:00 to 06:00, there's a daily refresh at 06:00, and seasons change **weekly** at Saturday → Sunday midnight. Every save starts in spring.
+  - Every timer (growth, cooking, buffs, traps) runs on short **simulated time**, measured in minutes.
+- **Timers:** watering lasts 2 h (dry plots grow at half speed), the shipping bin is collected hourly, and sprinklers keep plots permanently watered.
+- **Food buffs:** 7 buff types (Quick Bite, `fishingSpeed`, was added) and 3 starting buff slots.
+- **Content:** 16 fish, including one legendary per season. 22 recipes. Winter is cooking season: dishes cooked in winter are "hearty", with +50% buff duration.
+
+**Docs win.** The prompts were written before phase 00. They have been updated to match these decisions, and each one also says that where it conflicts with `docs/`, the session follows `docs/` and records the difference in `docs/PROGRESS.md`.
+
 ---
 
 ## Execution order and model choice

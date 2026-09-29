@@ -14,7 +14,7 @@ Add new content to the cozy idle farming game in this repo. **Only add data and 
 
 Instructions:
 1. Read `CLAUDE.md`, `docs/DATA_SCHEMAS.md`, `docs/ART_STYLE.md` and the relevant tables in `docs/BALANCE.md`.
-2. Add entries to the right `src/data/*.ts` files, following the existing entries exactly. Derive the numbers from the BALANCE.md formulas, not by guessing. Put new crops at a similar value per in-game hour to other crops of the same season and tier.
+2. Add entries to the right `src/data/*.ts` files, following the existing entries exactly. Derive the numbers from the BALANCE.md formulas, not by guessing. Put new crops at a similar value per hour of simulated time to other crops of the same season and tier.
 3. For every new item, add sprites in `src/render/sprites/` using the existing string-grid format and **palette keys only**. Crops need every growth stage plus an item icon. Keep silhouettes distinct from existing sprites.
 4. If you add recipes, check that the tier-derivation test still passes and that each new recipe's buff type fits its theme.
 5. Add the new rows to the tables in `docs/BALANCE.md`.

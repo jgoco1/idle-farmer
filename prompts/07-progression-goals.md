@@ -2,6 +2,7 @@
 
 > **Recommended model:** Sonnet 5.5. This phase ties existing systems together through events and data. It needs broad awareness of the codebase more than deep algorithmic work.
 > **Depends on:** Phase 06 merged.
+> **Docs win:** the phase 00 owner decisions (`docs/GDD.md` §11) changed some details, including a real-time calendar with weekly seasons, timers in simulated minutes, and 7 buff types. Where this prompt conflicts with `docs/`, follow `docs/` and note the difference in `docs/PROGRESS.md`.
 
 ## Role and goal
 You are adding **long-term progression** to a cozy idle farming and cooking browser game. All the core systems now exist: farming, the market, automation, fishing and cooking. This phase gives the player **direction and a sense of growth**: levels, skills, gentle goals, and collections to complete. It must also gate unlocks so that content is revealed at a satisfying pace.
@@ -11,17 +12,17 @@ You are adding **long-term progression** to a cozy idle farming and cooking brow
 
 ## Requirements
 1. **Skills and XP (`src/systems/progression.ts`).**
-   - Add three skills, **Farming**, **Fishing** and **Cooking**, each with its own XP and level (1 to 10). Each earns XP from its matching events (harvest, catch, cook), scaled by the value or tier of the item.
+   - Add three skills, **Farming**, **Fishing** and **Cooking**, each with its own XP and level (1 to 10). Each earns XP from its matching events (harvest, catch, cook), scaled by the value, rarity or tier of the item. Cooking XP is +50% in winter (GDD §6.5).
    - The `xpModifier` seam from phase 06 (the Scholar's Snack buff) now takes effect.
-   - Every level gives a small, clearly shown perk, taken from a data table (`src/data/skills.ts`). Examples: Farming 5 gives a chance of double harvest, Fishing 3 gives a wider reel zone, and Cooking 7 gives +1 buff slot.
-   - Add an overall **Farm Level** made up of the skill levels plus milestones. It gates content unlocks, such as seeds, fishing locations, recipes and upgrades. Wire in the unlock conditions that already exist in the data, and replace any temporary unlock logic.
+   - Every level gives a small, clearly shown perk, taken from the BALANCE.md §8 table (`src/data/skills.ts`). For example, Farming 4 gives a 5% chance of double harvest, and Cooking 7 gives +1 buff slot.
+   - Add an overall **Farm Level** made up of the skill levels plus milestones. It gates content unlocks, such as seeds, fishing locations, recipes and upgrades. Wire in the unlock conditions that already exist in the data (BALANCE.md §9), and replace the provisional lifetime-gold farm level used before this phase.
 2. **Goals and quests (`src/data/quests.ts`).**
-   - **Goal board:** 3 active goals at a time, drawn from a pool. Examples: "Harvest 20 parsnips", "Earn 500g in a day", "Catch a rare fish" and "Cook 3 different T2 dishes". Completing one gives gold, items or recipe cards, and a new goal is drawn. Goals must always be achievable at the player's current unlock level.
-   - **Story milestones:** a short chain of 10 to 15 fixed milestones that act as a gentle tutorial for the whole game. Examples: plant your first seed, sell your first crop, buy a sprinkler, catch a fish, cook a meal, reach Farm Level 5. Each one comes with a short, warm line of flavour text. This chain is the player's main sense of direction.
-3. **Collections (a "Community Board" in the style of Stardew's bundles).** Add 5 or 6 bundles, each a themed set of items to donate: a Spring Crops bundle, a Pond Fish bundle, a Cozy Dinner bundle, and so on. Completing a bundle gives a meaningful permanent reward, such as unlocking the Greenhouse, an extra buff slot, a new fishing location, or a golden scarecrow. Show donated items as filled-in slots.
+   - **Goal board:** 3 active goals at a time, drawn from the 9 goal templates in BALANCE.md and sized for 5 to 15 minutes. "Per-day" goals reset at the 06:00 local refresh. Examples: "Harvest 20 parsnips", "Earn 500g in a day", "Catch a rare fish" and "Cook 3 different T2 dishes". Completing one gives gold, items or recipe cards, and a new goal is drawn. Goals must always be achievable at the player's current unlock level.
+   - **Story milestones:** the fixed chain of 15 milestones from BALANCE.md, that act as a gentle tutorial for the whole game. Examples: plant your first seed, sell your first crop, buy a sprinkler, catch a fish, cook a meal, reach Farm Level 5. Each one comes with a short, warm line of flavour text. This chain is the player's main sense of direction.
+3. **Collections (a "Community Board" in the style of Stardew's bundles).** Add the 6 bundles from BALANCE.md, each a themed set of items to donate: a Spring Crops bundle, a Pond Fish bundle, a Cozy Dinner bundle, and so on. Completing a bundle gives the permanent reward listed in BALANCE.md (golden scarecrow, inventory slots, greenhouse unlock, extra traps, fishing luck, or +1 buff slot from Cozy Dinner). Show donated items as filled-in slots.
 4. **Goals panel.** Replace the stub with tabs for Goals, Milestones, Skills, Collections, and the Fish Collection from phase 05 (move it here or link to it). Show clear progress bars.
 5. **Feedback.** Add toasts for level-ups and goal completion, a small celebration effect (pixel confetti or sparkles through the event bus), and an unlock notification that points at the new thing, for example "New seeds in the shop!".
-6. **Statistics.** Add a Stats tab with lifetime gold, crops harvested, fish caught, dishes cooked, time played and days passed. The phase-09 balance work will use these.
+6. **Statistics.** Add a Stats tab with lifetime gold, crops harvested, fish caught, dishes cooked, time played, and real days and seasons since the farm was started. The phase-09 balance work will use these.
 7. **Pacing check.** Extend the simulation so the greedy bot follows the milestones. Record roughly when each milestone is reached, check the result against the BALANCE.md targets, and tune.
 
 ## Save

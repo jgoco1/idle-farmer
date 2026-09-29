@@ -2,6 +2,7 @@
 
 > **Recommended model:** Sonnet 5.5. The work is broad but shallow: many small UX improvements across the existing UI.
 > **Depends on:** Phase 07 merged.
+> **Docs win:** the phase 00 owner decisions (`docs/GDD.md` §11) changed some details, including a real-time calendar with weekly seasons, timers in simulated minutes, and 7 buff types. Where this prompt conflicts with `docs/`, follow `docs/` and note the difference in `docs/PROGRESS.md`.
 
 ## Role and goal
 All the systems now exist. This phase makes the game **feel** cozy. The work falls into four areas:
@@ -20,7 +21,7 @@ Aim for the warm, tactile feel of Stardew Valley: every click should respond wit
    - Generate every sound procedurally with the **Web Audio API**: oscillators, noise and envelopes. There are no audio files and nothing is fetched over the network.
    - Write a small synth helper, plus named sounds for: hoe, plant, water, harvest pop, coin (with pitch that varies by amount), purchase, the fishing cast, the bite "!", reeling, the catch jingle, the fish escaping, cooking sizzle, dish ready, eating, buff gained, level up, goal complete, and panel open/close. Add a UI click for every button.
    - Audio starts only after the first user interaction, as browsers require.
-2. **Music (`src/audio/music.ts`).** Add a gentle procedural or sequenced chiptune loop for each season (4 short themes), plus a softer night variation. Crossfade between them. It should be quiet by default and must never get grating. Short loops with slight variation work better than long compositions.
+2. **Music (`src/audio/music.ts`).** Add a gentle procedural or sequenced chiptune loop for each season (4 short themes), plus a softer night variation that plays during the local-clock night (20:00–06:00). Crossfade between them. It should be quiet by default and must never get grating. Short loops with slight variation work better than long compositions.
 3. **Settings.** Add master, SFX and music volume sliders and a mute toggle, and persist them in the save or a separate prefs key. Add a reduced-motion toggle, which also follows `prefers-reduced-motion`. Add the "Relaxed fishing" toggle from phase 05, a UI scale option (1×, 1.5×, 2×), and number formatting (full numbers or 1.2K/3.4M).
 4. **Juice.**
    - Particles through a small pooled particle system on the render layer: soil puffs when tilling, water droplets, a leaf burst on harvest, coins flying to the HUD gold counter on sales, splash ripples, cooking steam, and sparkle bursts for level-ups.
