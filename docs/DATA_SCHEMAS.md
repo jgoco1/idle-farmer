@@ -480,7 +480,7 @@ export interface GameState {
   };
   buffs: {
     active: ActiveBuff[];
-    baseSlots: number;                             // 2; perks and bundles add on top (@07)
+    baseSlots: number;                             // 3; perks and bundles add on top (@07)
   };
 
   // ---- progression (@07)

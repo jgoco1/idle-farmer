@@ -23,7 +23,7 @@ Each phase appends a section with **Built / Deviations / Known issues / Next-pha
 ### Known issues
 - All numbers are first drafts from formulas and a hand check of the first 10 minutes; nothing has been simulated yet. Phase 03 runs the first pacing simulation.
 - Seed prices are unrounded formula outputs (39, 67, 71…); phase 03 may tidy them.
-- Open questions for the owner are listed at the end of `docs/GDD.md` (name, day length, offline cap, withering, the seventh buff, starting buff slots, winter).
+- Owner decisions and the remaining open questions (real-time calendar, winter cooking bonuses) are in `docs/GDD.md` §11. Buff slots were changed to start at 3 (max 5) after owner feedback.
 
 ### Next-phase notes (for phase 01)
 - Implement only the `@01` fields of `GameState` (`clock`, `rngState`, `gold`, `settings` with `masterVolume`, `meta`) and start `SAVE_VERSION` at **1** with an empty `migrations` record, plus a `tests/fixtures/save-v1.json`.

@@ -353,7 +353,7 @@ durationMs   = 720 * 2 ** (tier - 1) * GAME_MINUTE_MS * (1 + buffDurationPerk)
 ### Stacking
 
 ```ts
-BASE_BUFF_SLOTS = 2        // +1 from Cooking level 7, +1 from bundle cozy_dinner → max 4
+BASE_BUFF_SLOTS = 3        // +1 from Cooking level 7, +1 from bundle cozy_dinner → max 5
 eat(dish):
   existing = active buff of the same type
   if existing:

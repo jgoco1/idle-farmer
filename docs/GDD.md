@@ -204,7 +204,7 @@ Tier T1–T4 is **computed from the recipe's inputs**: `score = ingredient units
 
 ### Stacking
 - **One buff per type.** Eating a dish of a type you already have keeps the **stronger** magnitude and the **longer** remaining time. It never weakens or shortens anything.
-- **Slots:** 2 at the start, +1 at Cooking level 7, +1 from the Cozy Dinner bundle (max 4). If all slots are full and you eat a new type, a confirmation offers to replace the buff with the least time left.
+- **Slots:** 3 at the start, +1 at Cooking level 7, +1 from the Cozy Dinner bundle (max 5 of the 7 types). If all slots are full and you eat a new type, a confirmation offers to replace the buff with the least time left.
 - Buffs tick in in-game time, keep running offline, and expire exactly (offline steps split at the expiry moment).
 - Buffs are **nice, not needed**: kept up well they speed progression by about 10–25% (a phase 09 target).
 
@@ -243,12 +243,15 @@ Ideas like these go to `docs/IDEAS.md`.
 | 09 | simulator, balance, QA, performance |
 | 10 | optional Fullness meter |
 
-## 11. Questions for the owner
+## 11. Owner decisions and open questions
 
-1. **Name.** Keep "Hearthfield Idle" as the title (it is used in the save key `hearthfield-idle/save` from phase 01), or pick another before phase 01 ships?
-2. **Day length.** A 12-real-minute day and 2-hour season are recommended. Would you prefer a slower day (for example 20 minutes) that makes early crops feel longer but seasons rarer?
-3. **Offline cap.** Full rate for 8 hours, 25% for the next 16, nothing after 24 hours. Is that generous enough, or should a full day count at 100%?
-4. **Seasons withering crops.** Crops that are still growing at a season change turn into dead crops (with warnings, and the planter never plants out of season). Is that acceptable, or should out-of-season crops merely pause?
-5. **Seventh buff type.** Is adding Quick Bite (fishing speed) alongside the six buffs in the phase-06 prompt OK?
-6. **Buff slots.** Start with 2 slots (max 4), or start with 3 as the phase-00 example suggested?
-7. **Winter.** Winter has only three crops (garlic, kale, leek) and leans on fishing and cooking. Is a quieter winter the feel you want?
+Decided (after the first review of this document):
+1. **Name:** keep "Hearthfield Idle" for now; it may change later. The save key is `hearthfield-idle/save`.
+2. **Offline cap:** as designed (8 h full, then 16 h at 25%, nothing after 24 h).
+3. **Withering:** crops still growing at a season change wither, as designed.
+4. **Seventh buff type:** Quick Bite (`fishingSpeed`) is in.
+5. **Buff slots:** start with **3** (max 5).
+6. **Winter:** quiet on crops is fine; the owner wants winter to lean into **cooking**. Proposals are under evaluation (see the PR discussion) and will be written into §6.5, §7 and BALANCE.md once confirmed.
+
+Still open:
+7. **Real-time calendar.** The owner suggested tying time of day to the player's system clock (night 20:00–06:00) and changing seasons weekly (local Saturday → Sunday midnight). This would change the time model in §4 and BALANCE.md §1 and affects watering, the shipping bin, fish time windows, recipe pacing and the phase 01 clock. It is being evaluated before the docs are rewritten.
