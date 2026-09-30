@@ -2,7 +2,7 @@
 
 This is the type contract for all content (`src/data/`) and the save state (`src/core/state.ts`, `src/core/save.ts`). It is written as TypeScript so it can be copied into code almost directly. The numbers live in `docs/BALANCE.md`; this document only defines shapes and ids.
 
-Every id listed here also appears in the BALANCE.md tables and the GDD. If you add an id, add it in all three places. If code and this document disagree, fix one of them in the same PR and say so in `docs/PROGRESS.md`.
+Every id listed here also appears in the BALANCE.md tables and the GDD. If you add an id, add it in all three places. If code and this document disagree, fix one of them in the same PR and say so in `docs/PROGRESS.md`. **v2** (world coordinates, decorations, trees, animals and the save plan to version 11) is §9.
 
 ---
 
@@ -741,7 +741,7 @@ Phase 07 reads these events in `runProgression` (`src/systems/progression.ts`), 
 ## 8. `SaveFile` and migrations (`src/core/save.ts`)
 
 ```ts
-export const SAVE_VERSION = 3;                 // phase 01 started at 1, phase 02 → 2, phase 03 → 3; every GameState change bumps it
+export const SAVE_VERSION = 7;                 // phase 01 started at 1, … phase 07 → 7 (v1 final); v2 goes to 8–11 (§9.10); every GameState change bumps it
 export const SAVE_KEY = 'hearthfield-idle/save';
 
 export interface SaveFile {
@@ -763,3 +763,463 @@ Rules:
 - Every migration has a test that loads a fixture save of the old version (kept in `tests/fixtures/save-vN.json`) and checks the result.
 - A save with a **newer** version than the code, or one that fails to parse, is never overwritten. The game shows an error and offers to export the raw text (phase 08 makes this screen friendly).
 - Export/import uses `btoa(JSON.stringify(saveFile))` with UTF-8 safe encoding.
+
+---
+
+## 9. v2: world, decorations, orchard and animals
+
+Written by v2 phase 00. Numbers are in BALANCE.md §13 and behaviour in GDD §12; this section fixes ids, shapes, coordinates and the save plan. Each item is tagged with the v2 phase that builds it (`@v2-01` … `@v2-04`). As in §2, every id here appears in BALANCE.md and the GDD, and a data table keyed by an id union is a full `Record`, so a missing entry is a compile error.
+
+### 9.1 New id unions (`src/data/ids.ts`)
+
+```ts
+export type ParcelId = 'orchard' | 'yard' | 'meadow';                                        // @v2-01
+
+export type DecorSetId = 'cottage' | 'seaside' | 'harvest_fair';                             // @v2-02
+export type DecorId =                                                                         // @v2-02
+  // cottage (12)
+  | 'cobble_path' | 'picket_fence' | 'flower_bed' | 'garden_lamp' | 'wooden_bench' | 'birdbath'
+  | 'rose_arch' | 'paint_sage' | 'paint_sky' | 'roof_thatch' | 'roof_slate' | 'farmhouse_loft'
+  // seaside (10)
+  | 'plank_path' | 'rope_fence' | 'sandcastle' | 'lobster_pots' | 'deck_chair' | 'beach_umbrella'
+  | 'harbour_lamp' | 'rowboat' | 'driftwood_arch' | 'ship_figurehead'
+  // harvest_fair (10)
+  | 'brick_path' | 'rail_fence' | 'straw_bale' | 'pumpkin_stack' | 'sunflower_patch' | 'lantern_string'
+  | 'apple_cart' | 'stone_well' | 'fair_stall' | 'windmill';
+
+export type TownProjectId =                                                                   // @v2-02
+  | 'old_bridge' | 'fountain' | 'bakery' | 'bandstand' | 'lighthouse' | 'community_hall';
+
+export type FruitId = 'cherry' | 'apricot' | 'peach' | 'apple' | 'pear' | 'persimmon' | 'lemon';   // @v2-03
+export type TreeId = `${FruitId}_tree`;                  // 'cherry_tree', …: the TreeDef key       @v2-03
+export type SaplingId = `sapling_${FruitId}`;            // the bag item bought in Shop › Trees     @v2-03
+
+export type AnimalId = 'chicken' | 'cow';                                                     // @v2-04
+export type AnimalProductId = 'egg' | 'large_egg' | 'milk';                                   // @v2-04
+export type FeedId = 'hay' | 'corn_feed';                                                     // @v2-04
+export type BuildingId = 'coop' | 'barn' | 'silo';                                            // @v2-04
+
+// Extended unions
+export type ItemId = CropId | SeedId | FishId | JunkId | DishId
+  | FruitId | SaplingId | AnimalProductId | FeedId;                                           // @v2-03, @v2-04
+export type RecipeId = /* the 22 v1 ids */
+  | 'baked_apple' | 'cherry_jam' | 'pear_crumble' | 'peach_cobbler'                           // @v2-03
+  | 'fried_egg' | 'soft_cheese' | 'garden_omelette' | 'apricot_custard'
+  | 'lemon_meringue_pie' | 'persimmon_pudding';                                               // @v2-04
+export type UpgradeId = /* the 15 v1 ids */ | 'ranch_collector';                              // @v2-04
+export type MilestoneId = /* m01 … m15 */
+  | 'm16_first_parcel' | 'm17_first_decor' | 'm18_charm_25' | 'm19_first_project' | 'm23_charm_100'   // @v2-02
+  | 'm20_first_fruit'                                                                          // @v2-03
+  | 'm21_first_egg' | 'm22_first_milk';                                                        // @v2-04
+export type GoalTemplateId = /* the 9 v1 ids */
+  | 'raise_charm'                                                                               // @v2-02
+  | 'pick_fruit'                                                                                // @v2-03
+  | 'collect_produce';                                                                          // @v2-04
+export type BundleId = /* the 6 v1 ids */ | 'orchard_basket' | 'barnyard';                     // @v2-03, @v2-04
+export type PanelId = /* the 8 v1 ids */ | 'ranch';                                             // @v2-04
+```
+
+Helpers alongside the v1 ones: `treeOfFruit(f: FruitId): TreeId`, `fruitOfTree(t: TreeId): FruitId`, `saplingOf(f: FruitId): SaplingId`, `fruitOfSapling(s: SaplingId): FruitId`, and the guards `isFruitId`, `isSaplingId`, `isAnimalProductId`, `isFeedId`. The fruit item id is the fruit's own id (like a crop), so `'apple'` is both the `FruitId` and the `ItemId`.
+
+**Name clash to fix in v2-01:** `src/render/scene.ts` already has a `Decor` interface, a `DECOR` table and `decorFor()` for the scenery that expansions change. Rename them `Scenery`, `SCENERY` and `sceneryFor()` before v2-02 adds player decorations, so "decor" means only the new placeable pieces.
+
+### 9.2 Shared building blocks, extended
+
+```ts
+export type ItemCategory = 'seed' | 'crop' | 'fish' | 'junk' | 'dish'
+  | 'fruit' | 'sapling' | 'animal' | 'feed';                 // animal = egg, large egg, milk
+// fruit and animal: sellable; sapling and feed: not sellable, like seeds.
+
+export type UnlockCondition = /* the v1 kinds */
+  | { kind: 'parcel'; id: ParcelId }                                  // @v2-01
+  | { kind: 'charm'; amount: number }                                 // @v2-02 (derived charm ≥ amount)
+  | { kind: 'townProject'; id: TownProjectId; stage?: number }        // @v2-02 (stages done ≥ stage; omitted = complete)
+  | { kind: 'building'; id: BuildingId; level: number };              // @v2-04
+
+export type UpgradeCategory = 'farm' | 'tools' | 'storage' | 'fishing' | 'kitchen' | 'ranch';   // @v2-04
+// UpgradeEffect.flags gains nothing: ranch_collector uses the existing 'autoCollect' flag.
+
+export type QuestObjective = /* the v1 kinds */
+  | { kind: 'ownParcel'; count: number }                              // @v2-02, checks state (like reachFarmLevel)
+  | { kind: 'placeDecor'; count: number }                             // @v2-02, counts 'decorPlaced'
+  | { kind: 'reachCharm'; amount: number }                            // @v2-02, checks derived charm
+  | { kind: 'gainCharm'; amount: number }                             // @v2-02, sums positive 'charmChanged' deltas
+  | { kind: 'projectStage'; count: number }                           // @v2-02, counts 'projectStageDone'
+  | { kind: 'pickFruit'; fruit?: FruitId; count: number }             // @v2-03, counts 'fruitPicked'
+  | { kind: 'collectProduct'; product?: AnimalProductId; count: number };   // @v2-04, counts 'collected'
+
+export type QuestReward = /* the v1 kinds */
+  | { kind: 'decor'; id: DecorId; qty: number };                      // @v2-02, goes to decoration stock
+
+export type BundleReward = /* the v1 kinds */
+  | { kind: 'treeSpots'; count: number }                              // @v2-03, Orchard Basket
+  | { kind: 'troughBonus'; bonus: number };                           // @v2-04, Barnyard
+
+export type RecipeDiscovery = /* unchanged */;
+// RecipeDef.ingredients may now also hold fruit and animal products (still never a dish).
+```
+
+### 9.3 World coordinates (@v2-01)
+
+This is the change most likely to break things, so it is kept as small as possible: **the v1 scene is the world's top-left corner at the same tile coordinates.**
+
+```ts
+// src/data/world.ts
+export const WORLD_COLS = 36;
+export const WORLD_ROWS = 22;
+export const HOME_ORIGIN = { col: 0, row: 0 } as const;           // where the v1 20 × 12 scene sits; never changes
+export const HOME_RECT: TileRect = { col: 0, row: 0, cols: 20, rows: 12 };
+// world tile (c, r) of a v1 scene tile (c1, r1) = (HOME_ORIGIN.col + c1, HOME_ORIGIN.row + r1) = (c1, r1)
+```
+
+There are four coordinate spaces. Each stored position uses exactly one of them:
+
+| Space | Units | Used by | Stored in the save as |
+|---|---|---|---|
+| **World tile** | integer (col 0..35, row 0..21) | zones, scenery, parcels, decorations, buildings, hit-testing | `{ col, row }` of a footprint's **top-left** tile (decorations, buildings) |
+| **Plot coordinates** | (col, row) inside the field grid; plot index = `row * cols + col` | plots, sprinklers and scarecrows (`placed[].at`), `lastPlantedCrop` | unchanged from v1: world tile = `PLOT_ORIGIN + (col, row)`; greenhouse plots stay `GREENHOUSE_BASE + n` with `GREENHOUSE_LAYOUT` |
+| **Slots and spots** | an index into a fixed table in `src/data/world.ts` | fish traps (`TRAP_TILES`, unchanged), tree spots (`TREE_SPOTS`, 10 entries) | `slot` (traps, unchanged), `spot` (trees) |
+| **World pixels → screen** | logical px = tile × 16; screen px through the camera | rendering, pointer input | never stored; the camera is in **prefs** |
+
+Consequences:
+- **Plot indexes do not change**, and nothing in a v7 save holds a scene coordinate (`placed[].at` is in plot coordinates, traps are slots), so the v7 → v8 migration moves nothing.
+- `PLOT_ORIGIN`, `BIN_TILE`, `PET_TILE`, `TRAP_TILES`, `GREENHOUSE_ORIGIN` and every zone rect keep their values; they are now world tiles. `SCENE_COLS`/`SCENE_ROWS` (20 × 12) become `HOME_RECT`; `tileAt()` and the ground cache use `WORLD_COLS × WORLD_ROWS`.
+- **The world may only grow right and down.** Never move `HOME_ORIGIN` or shift a region: decorations and buildings are stored in world tiles, and a shift would need a migration of every placed piece.
+- Trees use **spot indexes**, not tiles, so the orchard's layout can be redrawn without a migration (as trap tiles can).
+- The layout itself (regions, parcel rects, lanes, sea, town sites, tree spots, blocked tiles) is **data** in `src/data/world.ts`:
+
+```ts
+export type RegionId = 'home' | ParcelId | 'town' | 'lanes' | 'sea';
+
+export interface WorldLayout {
+  cols: number; rows: number;                                   // WORLD_COLS, WORLD_ROWS
+  regions: readonly { id: RegionId; rect: TileRect }[];         // home, the three parcels, town
+  lanes: readonly { col: number; row: number }[];               // scenery path tiles outside home
+  sea: readonly TileRect[];                                     // always-drawn sea (the dock water is one of them)
+  bridge: TileRect;                                             // the Old Bridge over the inlet (15, 12) 5 × 1
+  townSites: Readonly<Record<TownProjectId, TileRect>>;         // where each project's building stands
+  boardTile: { col: number; row: number };                      // the Community Board sign (4, 16)
+  treeSpots: readonly { col: number; row: number }[];           // 10 top-left tiles of 2 × 2 spots; the last 2 need the bundle
+  forSaleSigns: Readonly<Record<ParcelId, { col: number; row: number }>>;
+}
+```
+
+Hit-testing order in the world: edge pips and scene controls (DOM, above the canvas) → placement preview (placement or Decorate mode) → animals (petting) → trees → buildings → decorations → v1 zones (`buildZones`) → town sites and the board → "For sale" signs → nothing.
+
+### 9.4 Content definitions (v2)
+
+```ts
+// src/data/parcels.ts  @v2-01
+export interface ParcelDef {
+  id: ParcelId;
+  name: string;                            // 'Hilltop Orchard'
+  description: string;                     // one cozy line for Upgrades › Land
+  rect: TileRect;                          // world tiles (BALANCE.md §13.1)
+  price: number;
+  requires: readonly UnlockCondition[];    // e.g. [{ kind: 'parcel', id: 'orchard' }, { kind: 'farmLevel', level: 7 }]
+  opens: string;                           // what it is for, shown on the sign ('Room for fruit trees')
+}
+
+// src/data/decor.ts  @v2-02
+export interface DecorSetDef {
+  id: DecorSetId;
+  name: string;                            // 'Cottage'
+  description: string;
+  unlock: readonly UnlockCondition[];      // [] for cottage; [{ kind: 'townProject', id: 'old_bridge' }] for seaside
+}
+
+export type DecorKind =
+  | 'place'                                // stands on the ground
+  | 'paint' | 'roof' | 'loft';             // restyle the farmhouse; never placed, never use a slot
+
+export interface DecorDef {
+  id: DecorId;
+  set: DecorSetId;
+  name: string;
+  description: string;
+  kind: DecorKind;
+  size: { cols: number; rows: number };    // footprint in tiles; farmhouse pieces: { cols: 0, rows: 0 }
+  price: number;
+  charm: number;
+  counted: number;                         // copies that count toward charm (paths and fences 20); farmhouse pieces 1
+  unlock: readonly UnlockCondition[];      // e.g. [{ kind: 'charm', amount: 25 }]; the set's unlock also applies
+  autotile?: 'path' | 'fence';             // joins with same-id neighbours (4-neighbour mask, ART_STYLE.md §6)
+  glows?: true;                            // has a lit frame and a night halo
+  flips?: true;                            // may be mirrored when placed
+  seasonal?: true;                         // has per-season sprites (`decor_<id>_<season>`)
+  sprite: string;                          // base sprite id, 'decor_garden_lamp'
+}
+
+// src/data/townProjects.ts  @v2-02
+export interface TownProjectStage {
+  gold: number;                            // before TOWN_PROJECT_SCALE
+  items: readonly ItemStack[];             // may be []
+  sceneChange: string;                     // note for the renderer: 'planks laid across the inlet'
+}
+
+export type TownProjectReward =
+  | { kind: 'decorSet'; set: DecorSetId }
+  | { kind: 'decorSlots'; count: number }
+  | { kind: 'musicTrack'; id: 'town_square' }
+  | { kind: 'goalSlot'; count: number }
+  | { kind: 'cosmetic'; what: 'bakerySmoke' | 'bandSaturday' | 'lighthouseBeam' | 'festivalLights' };
+
+export interface TownProjectDef {
+  id: TownProjectId;
+  name: string;                            // 'Mend the Old Bridge'
+  flavor: string;
+  site: TileRect;                          // = WORLD_LAYOUT.townSites[id] (the bridge: WORLD_LAYOUT.bridge)
+  stages: readonly TownProjectStage[];     // 3, or 4 for the hall
+  rewards: readonly TownProjectReward[];   // given when the last stage completes
+  rewardText: string;
+  requires: readonly UnlockCondition[];
+}
+
+// src/data/trees.ts  @v2-03 (fruit and sapling items generated in items.ts, like crops and seeds)
+export interface TreeDef {
+  id: TreeId;
+  fruit: FruitId;
+  name: string;                            // 'Apple'
+  fruitName: string;                       // 'Apple' / plural via the existing `plural` convention
+  description: string;
+  seasons: readonly SeasonId[];            // when it bears
+  saplingPrice: number;
+  matureDays: number;                      // real calendar days from planting
+  fruitPerDay: number;                     // added at each bearing day's 06:00 refresh
+  fruitCap: number;                        // = FRUIT_CAP_DAYS × fruitPerDay (declared; a test checks it)
+  fruitPrice: number;                      // market base price of one fruit
+  xp: number;                              // Farming XP per fruit picked
+  shape: 'round' | 'tall' | 'spread';      // canopy family for sprites (ART_STYLE.md §6)
+}
+
+// src/data/animals.ts  @v2-04 (product and feed items generated in items.ts)
+export interface AnimalDef {
+  id: AnimalId;
+  name: string;                            // 'Hen', 'Cow'
+  building: BuildingId;                    // 'coop' | 'barn'
+  price: number;
+  feed: FeedId;                            // one portion per cycle
+  intervalSec: number;                     // simulated seconds per production cycle
+  product: AnimalProductId;
+  largeProduct?: { id: AnimalProductId; chance: number };   // hens: large_egg at LARGE_EGG_CHANCE
+  names: readonly string[];                // default names, used in order (never random)
+}
+
+export interface BuildingLevelDef {
+  price: number;
+  capacity: number;                        // animals housed (silo: 0)
+  trough: number;                          // feed portions (silo: 0)
+  store: number;                           // products held (silo: 0)
+  requires: readonly UnlockCondition[];
+  flags?: readonly ('autoFeed' | 'autoMill')[];   // silo levels 1 and 2
+}
+
+export interface BuildingDef {
+  id: BuildingId;
+  name: string;                            // 'Coop'
+  description: string;
+  footprint: { cols: number; rows: number };   // coop 3 × 2, barn 4 × 3, silo 2 × 2
+  houses: AnimalId | null;                 // silo: null
+  levels: readonly BuildingLevelDef[];     // index 0 = level 1
+  placeIn: ParcelId;                       // 'yard'
+  sprite: string;                          // 'obj_coop' → obj_coop_1..3
+}
+
+export interface FeedDef { id: FeedId; from: CropId; perUnit: number; buyPrice: number }   // hay from wheat ×2, corn_feed from corn ×3
+```
+
+**`GameData` gains** (each a full `Record` except the layout):
+
+```ts
+parcels: Record<ParcelId, ParcelDef>;                  // @v2-01
+world: WorldLayout;                                    // @v2-01
+decorSets: Record<DecorSetId, DecorSetDef>;            // @v2-02
+decor: Record<DecorId, DecorDef>;                      // @v2-02
+townProjects: Record<TownProjectId, TownProjectDef>;   // @v2-02
+trees: Record<TreeId, TreeDef>;                        // @v2-03
+animals: Record<AnimalId, AnimalDef>;                  // @v2-04
+buildings: Record<BuildingId, BuildingDef>;            // @v2-04
+feeds: Record<FeedId, FeedDef>;                        // @v2-04
+```
+
+`items` grows with a fruit item and a sapling item per tree (@v2-03), and the three products and two feeds (@v2-04), all generated in `items.ts`.
+
+### 9.5 The calendar day index (@v2-03)
+
+```ts
+// Calendar (src/core/time.ts) gains:
+dayIndex: number;   // real days since the save's day zero, counted in 06:00 → 06:00 days; never decreases
+
+// CalendarState gains:
+dayZeroKey: string;     // the dayKey that is day 0 (a new save: its first dayKey)
+maxDayIndex: number;    // the highest dayIndex seen, like maxWeekIndex
+
+dayIndex = max(state.calendar.maxDayIndex, civilDay(calendar.dayKey) − civilDay(state.calendar.dayZeroKey))
+// civilDay: whole days since 1970-01-01 of a 'YYYY-MM-DD' key (daysFromCivil), DST-safe
+
+/** The season of real day d (by the §1 week rule applied to that day's date). Pure; used for fruit on missed days. */
+export function seasonOfDay(cal: CalendarState, d: number): SeasonId;
+```
+
+Moving the clock back or flying west holds `dayIndex` at `maxDayIndex`; a DST change never skips or repeats a day (days are keyed by date, not by 24 h). The core updates `maxDayIndex` with `maxWeekIndex`. The v10 migration sets `dayZeroKey` to the save's `calendar.lastDayKey` and `maxDayIndex` to 0: day zero only has to be consistent, because every tree's age is a difference of two day indexes.
+
+### 9.6 `GameState` additions
+
+```ts
+export interface GameState {
+  /* … all v1 fields … */
+
+  // ---- world (@v2-01, save 8)
+  land: {
+    parcels: ParcelId[];                        // bought, in order
+  };
+
+  // ---- decorations and town (@v2-02, save 9)
+  decor: {
+    owned: Partial<Record<DecorId, number>>;    // bought in total; stock = owned − placed count (like upgrades vs placed)
+    placed: PlacedDecor[];
+    farmhouse: { paint: DecorId | null; roof: DecorId | null; loft: boolean };   // applied; null = the v1 look
+  };
+  town: {
+    projects: Partial<Record<TownProjectId, TownProjectState>>;   // no entry = not started
+  };
+
+  // ---- orchard (@v2-03, save 10)
+  orchard: {
+    trees: TreeState[];
+  };
+  // calendar gains dayZeroKey and maxDayIndex (§9.5); saplings are bag items
+
+  // ---- animals (@v2-04, save 11)
+  ranch: {
+    buildings: BuildingState[];
+    animals: AnimalState[];
+  };
+  // products and feed are bag items; autoSell gains entries for egg, large_egg, milk (missing = off) and fruit (missing = on)
+}
+
+// Stats gains fruitPicked (@v2-03) and productsCollected (@v2-04) for the Stats tab; the migrations set them to 0.
+
+export interface PlacedDecor {
+  id: number;                    // unique, monotonically increasing (max + 1)
+  decor: DecorId;
+  at: { col: number; row: number };   // world tile of the footprint's top-left
+  flipped?: true;
+}
+// The auto-tile mask of a path or fence is derived from its neighbours when drawn, never stored.
+
+export interface TownProjectState {
+  stagesDone: number;            // 0 … stages.length
+  gold: number;                  // gold donated toward the current stage
+  items: ItemStack[];            // items donated toward the current stage
+}
+
+export interface TreeState {
+  id: number;
+  tree: TreeId;
+  spot: number;                  // index into WORLD_LAYOUT.treeSpots
+  plantedDay: number;            // calendar.dayIndex on the day it was planted
+  fruit: number;                 // hanging now, 0 … fruitCap
+  lastFruitDay: number;          // the last day index whose fruit has been added (starts at plantedDay)
+}
+// stage, age and "ripe" are derived (BALANCE.md §13.5)
+
+export interface BuildingState {
+  id: number;
+  kind: BuildingId;
+  level: number;                 // 1 … levels.length
+  at: { col: number; row: number };   // world tile, top-left of the footprint, inside the yard
+  trough: number;                // feed portions (0 for the silo)
+  store: ItemStack[];            // products waiting; total ≤ the level's store size (the Barnyard bonus is for troughs only)
+  cycleMs: number;               // simulated ms into the current cycle
+}
+
+export interface AnimalState {
+  id: number;
+  kind: AnimalId;
+  name: string;                  // default from AnimalDef.names, renamable
+  building: number;              // BuildingState.id
+}
+```
+
+Derived, never stored: charm, decoration stock and slots used and slot cap, tree stage and age and ripeness, a building's capacity, trough size and store size (from level and the Barnyard bundle), the number of free tree spots.
+
+### 9.7 Prefs additions (@v2-01)
+
+The camera is per device, in `Prefs` (`src/core/prefs.ts`), never in the save (phase 08's rule for settings that belong to the browser):
+
+```ts
+export interface Prefs {
+  /* … v1 fields … */
+  camera: { x: number; y: number; zoom: number } | null;   // centre in world px and integer zoom; null = the default view
+}
+// sanitizePrefs: x and y finite numbers, zoom an integer 1..8, else null. Out-of-world values are clamped when used.
+```
+
+### 9.8 Actions and events
+
+New `Action` variants (each handled in `applyAction` by a system function returning `ActionResult`):
+
+```ts
+| { type: 'buyParcel'; parcel: ParcelId }                                               // @v2-01
+| { type: 'buyDecor'; decor: DecorId; qty: number }                                     // @v2-02
+| { type: 'placeDecor'; decor: DecorId; col: number; row: number; flipped?: boolean }   // @v2-02
+| { type: 'moveDecor'; id: number; col: number; row: number; flipped?: boolean }        // @v2-02
+| { type: 'pickUpDecor'; id: number }                                                   // @v2-02
+| { type: 'styleFarmhouse'; paint?: DecorId | null; roof?: DecorId | null; loft?: boolean }   // @v2-02
+| { type: 'donateProject'; project: TownProjectId; gold?: number; item?: ItemId; qty?: number }   // @v2-02
+| { type: 'buySapling'; fruit: FruitId; qty: number }                                   // @v2-03
+| { type: 'plantTree'; fruit: FruitId; spot: number }                                   // @v2-03
+| { type: 'pickTree'; id: number }                                                      // @v2-03
+| { type: 'moveTree'; id: number; spot: number }                                        // @v2-03 (UI confirms first)
+| { type: 'removeTree'; id: number }                                                    // @v2-03 (UI confirms first)
+| { type: 'buildBuilding'; building: BuildingId; col: number; row: number }             // @v2-04 (buys level 1 and places it)
+| { type: 'upgradeBuilding'; id: number }                                               // @v2-04
+| { type: 'moveBuilding'; id: number; col: number; row: number }                        // @v2-04
+| { type: 'buyAnimal'; animal: AnimalId; building: number }                             // @v2-04
+| { type: 'renameAnimal'; id: number; name: string }                                    // @v2-04
+| { type: 'makeFeed'; feed: FeedId; qty: number }                                       // @v2-04 (qty of crop used)
+| { type: 'buyFeed'; feed: FeedId; qty: number }                                        // @v2-04
+| { type: 'fillTrough'; building: number }                                              // @v2-04
+| { type: 'collectBuilding'; building: number }                                         // @v2-04
+```
+
+Petting is not an action: it is render and audio only and never reaches state.
+
+New `GameEvent` variants (adding variants never needs a migration):
+
+```ts
+| { type: 'parcelBought'; parcel: ParcelId }                                            // @v2-01
+| { type: 'decorPlaced' | 'decorMoved' | 'decorPickedUp'; decor: DecorId; id: number }  // @v2-02
+| { type: 'charmChanged'; from: number; to: number }                                   // @v2-02, pushed by decor and project actions
+| { type: 'projectDonated'; project: TownProjectId; gold: number; items: number }      // @v2-02
+| { type: 'projectStageDone'; project: TownProjectId; stage: number; complete: boolean }   // @v2-02
+| { type: 'treePlanted' | 'treeRemoved' | 'treeMoved'; tree: TreeId; id: number }      // @v2-03
+| { type: 'treeMatured'; tree: TreeId; id: number }                                    // @v2-03, at the refresh it turns mature
+| { type: 'fruitGrown'; fruit: FruitId; qty: number }                                  // @v2-03, at a refresh (for the away summary)
+| { type: 'fruitPicked'; fruit: FruitId; qty: number; tree: number; auto: boolean }    // @v2-03
+| { type: 'buildingBuilt' | 'buildingUpgraded'; building: BuildingId; level: number } // @v2-04
+| { type: 'animalBought'; animal: AnimalId; id: number }                               // @v2-04
+| { type: 'produced'; product: AnimalProductId; qty: number; building: number }       // @v2-04, into the store
+| { type: 'collected'; product: AnimalProductId; qty: number; auto: boolean }         // @v2-04, out of the store
+| { type: 'troughEmpty'; building: number }                                            // @v2-04, once per emptying (away summary: "The hens would love some feed")
+```
+
+`purchased.what` widens to include `ParcelId | DecorId | SaplingId | BuildingId | AnimalId | FeedId`.
+
+### 9.9 Modifiers
+
+**No new `Modifiers` fields in v2.** Charm, decorations and town projects are never read by `computeModifiers()`, and a v2-02 test asserts that placing every decoration and completing every project leaves `computeModifiers(state, data)` unchanged. Trees and animals read no modifier for their timing (trees are calendar-driven; animal cycles are fixed). Fruit and animal products sell through the normal price formula, so `sellPriceModifier` and the specials apply to them as to any item; the category bonuses (`cropSellBonus`, `fishSellBonus`, `dishSellBonus`) do not.
+
+### 9.10 `SAVE_VERSION` plan and migration contracts
+
+Each v2 phase bumps the version once, adds `migrations[n]`, adds `tests/fixtures/save-v(n+1).json`, and adds a test that loads `save-vn.json` and checks the result (and `tests/qa.test.ts` "a fixture for every save version" keeps passing).
+
+| Version | Phase | Adds | Migration `migrations[n]` (raw JSON of version n → n + 1) |
+|---|---|---|---|
+| **8** | v2-01 | `land.parcels` | 7 → 8: `{ ...old, land: { parcels: [] } }`. Nothing else changes: plots, `placed`, traps and every other v1 field already mean the same thing in the world (§9.3). The test also checks that every v1 zone, plot and trap spot of the fixture hit-tests to the same thing as before. |
+| **9** | v2-02 | `decor`, `town` | 8 → 9: `decor: { owned: {}, placed: [], farmhouse: { paint: null, roof: null, loft: false } }`, `town: { projects: {} }`. Milestones `m16`–`m19`, `m23` are checked on the next step (a v8 player who owns a parcel gets `m16` at once). |
+| **10** | v2-03 | `orchard`, `calendar.dayZeroKey`, `calendar.maxDayIndex` | 9 → 10: `orchard: { trees: [] }`, `calendar: { ...old.calendar, dayZeroKey: old.calendar.lastDayKey, maxDayIndex: 0 }`, `stats.fruitPicked: 0`. |
+| **11** | v2-04 | `ranch` | 10 → 11: `ranch: { buildings: [], animals: [] }`, `stats.productsCollected: 0`. `autoSell` needs no entries (missing means off for animal products). |
+
+Rules that carry over from §8: migrations take raw JSON and do not import current types; a save newer than the code or one that fails to load is never overwritten (show the error and offer an export); adding content (new decorations, trees, recipes) needs no migration unless the state shape changes. The camera is not in the save, so no migration ever touches it.

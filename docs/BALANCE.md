@@ -1,6 +1,6 @@
 # Balance: Formulas and Starting Numbers
 
-Every number in `src/data/` comes from this file. Formulas are written as TypeScript-like expressions so they can be ported directly. The tables are **first drafts**: phase 03 tunes the economy, phases 04–07 add tuning notes for their systems, and phase 09 did the final pass with the simulator ("Phase 09 balance report" at the end). When you change a number in code, change it here in the same PR.
+Every number in `src/data/` comes from this file. Formulas are written as TypeScript-like expressions so they can be ported directly. The tables are **first drafts**: phase 03 tunes the economy, phases 04–07 add tuning notes for their systems, and phase 09 did the final pass with the simulator ("Phase 09 balance report" at the end). When you change a number in code, change it here in the same PR. **v2** (world, decorations, orchard, animals) is §13.
 
 Units follow `docs/DATA_SCHEMAS.md` §1. There are **two clocks**. The **calendar** (time of day, day, season) follows the player's real local clock. **Timers** (growth, cooking, buffs, traps, the farmhand, the shipping bin) run on **simulated time**, which is real time while playing and a capped amount while away. Data durations are in **real seconds** of simulated time.
 
@@ -880,3 +880,359 @@ Gold per simulated hour on real day *n* (the gold-per-hour curve):
 - **Summer and winter buffs are mostly not about gold** (XP, fishing, cooking); the buff check uses the first week, when gold buys the farm. Day 14 (autumn, with Harvest Feast) is +8%.
 - **Seeds for the planter are the idle bottleneck.** An automated farm of single-harvest crops needs a seed per cycle; the bots stock seeds for the whole absence before leaving (up to 80% of their gold). A regrower field needs none, which is the "plant once, forget" role §2 gives regrowers.
 - **Levers, in order**, if a later phase wants to move things: `BUFF_BASE_DURATION_MS` / `BUFF_DURATION_GROWTH` (buff value), `AUTO_HARVEST_XP_FRACTION` and the top of `FARM_LEVEL_POINTS` (level pace), the farmhand / planter / Auto-Seller / Sprinkler Tech cost curves (automation pace), `OFFLINE_*` (idle vs active). Rerun `npm run simulate` and `tests/simulate.test.ts` after any change.
+
+---
+
+## 13. v2: world, decorations, orchard and animals
+
+Written by v2 phase 00 as **starting numbers**. v2 phases 01–04 implement them and tune them with `npm run simulate`; a phase that moves a number updates this section and adds a dated note under §13.12. Ids match DATA_SCHEMAS.md §9 and GDD §12. Every price here uses `roundNice` unless it is already round.
+
+**The problem v2 solves** (Phase 09 balance report): the Greedy Farmer has 3.4M lifetime gold on day 7, 10.5M on day 14 and 24.6M on day 30; the Active Player 0.71M, 5.4M and 14.7M. Everything v1 sells costs about **0.52M**. Income levels off at 40–50k gold per simulated hour from day 5, and about 35–40% of what a farm earns goes back into seeds for the planter, so the gold a player can really spend by day 30 is roughly 9–10M (Active Player) to 15M (Greedy Farmer). v2 adds **about 13.2M** of things to buy (13.8M with v1, §13.4) so that gold keeps buying something visible through day 30, with the orchard and animals adding a modest side income (≈ 10% each at most).
+
+### 13.1 Land parcels (v2-01)
+
+| id | Name | World rect (col, row, cols × rows) | Price | Requires | Opens |
+|---|---|---|---|---|---|
+| `orchard` | Hilltop Orchard | (21, 0) 15 × 7 | 30,000 | Farm Level 5, expansion `farm_3` | 8 tree spots (10 with the Orchard Basket bundle) |
+| `yard` | Old Paddock | (21, 8) 15 × 7 | 150,000 | parcel `orchard`, Farm Level 7 | coop, barn, silo |
+| `meadow` | Seaside Meadow | (21, 16) 15 × 4 | 500,000 | parcel `yard` | decoration space |
+
+Total **680,000**. The Orchard lands on day 2–3 for a keen player and day 3–4 for the Active Player (Farm Level 5 and `farm_3` come on day 1–2; 30k is under a day's income by then). The Paddock's 150k is day 4–6; the Meadow is the first "save up for it" purchase of v2, day 7–10.
+
+### 13.2 Decorations (v2-02)
+
+**Price bands.**
+
+| Band | Pieces | Price per piece | Charm | Counted copies |
+|---|---|---|---|---|
+| Bulk | paths, fences (auto-tiled) | 300 – 1,200 | 1 | 20 |
+| Small | beds, bales, pots, chairs, sandcastle | 3,000 – 15,000 | 2 – 3 | 3 |
+| Medium | lamps, benches, birdbath, arches, carts, boat | 12,000 – 90,000 | 3 – 6 | 1 – 3 |
+| Showpiece | well, stall, figurehead, windmill | 120,000 – 450,000 | 8 – 15 | 1 |
+| Farmhouse | paint 40,000; roof 90,000 – 120,000; loft 600,000 | | 5 / 8 / 20 | applied only |
+
+**Every piece.** Size is the footprint in tiles (cols × rows). "Charm needed" is the charm that unlocks the piece once its set is open. Glow pieces light up at night; seasonal pieces change sprite by season.
+
+| id | Set | Size | Price | Charm | Counted | Charm needed | Notes |
+|---|---|---|---|---|---|---|---|
+| `cobble_path` | cottage | 1 × 1 | 300 | 1 | 20 | 0 | auto-tiled path |
+| `picket_fence` | cottage | 1 × 1 | 500 | 1 | 20 | 0 | auto-tiled fence |
+| `flower_bed` | cottage | 2 × 1 | 4,000 | 3 | 3 | 0 | flowers follow the season |
+| `garden_lamp` | cottage | 1 × 1 | 12,000 | 3 | 3 | 10 | glows |
+| `wooden_bench` | cottage | 2 × 1 | 8,000 | 3 | 3 | 10 | flips |
+| `birdbath` | cottage | 1 × 1 | 20,000 | 4 | 2 | 25 | |
+| `rose_arch` | cottage | 2 × 1 | 45,000 | 6 | 1 | 25 | |
+| `paint_sage` | cottage | farmhouse | 40,000 | 5 | applied | 10 | wall paint |
+| `paint_sky` | cottage | farmhouse | 40,000 | 5 | applied | 25 | wall paint |
+| `roof_thatch` | cottage | farmhouse | 90,000 | 8 | applied | 50 | roof |
+| `roof_slate` | cottage | farmhouse | 120,000 | 8 | applied | 80 | roof |
+| `farmhouse_loft` | cottage | farmhouse | 600,000 | 20 | applied | 120 | extension: a second storey |
+| `plank_path` | seaside | 1 × 1 | 600 | 1 | 20 | 0 | auto-tiled boardwalk |
+| `rope_fence` | seaside | 1 × 1 | 900 | 1 | 20 | 0 | auto-tiled |
+| `sandcastle` | seaside | 1 × 1 | 5,000 | 2 | 3 | 0 | seasonal (snow castle in winter) |
+| `lobster_pots` | seaside | 1 × 1 | 7,000 | 2 | 3 | 0 | |
+| `deck_chair` | seaside | 1 × 1 | 10,000 | 3 | 3 | 25 | flips |
+| `beach_umbrella` | seaside | 1 × 1 | 15,000 | 3 | 3 | 50 | |
+| `harbour_lamp` | seaside | 1 × 1 | 40,000 | 4 | 3 | 80 | glows |
+| `rowboat` | seaside | 2 × 1 | 70,000 | 6 | 1 | 100 | flips |
+| `driftwood_arch` | seaside | 2 × 1 | 90,000 | 6 | 1 | 120 | |
+| `ship_figurehead` | seaside | 2 × 2 | 250,000 | 12 | 1 | 175 | |
+| `brick_path` | harvest_fair | 1 × 1 | 800 | 1 | 20 | 0 | auto-tiled |
+| `rail_fence` | harvest_fair | 1 × 1 | 1,200 | 1 | 20 | 0 | auto-tiled |
+| `straw_bale` | harvest_fair | 1 × 1 | 3,000 | 2 | 3 | 0 | |
+| `pumpkin_stack` | harvest_fair | 1 × 1 | 6,000 | 2 | 3 | 0 | seasonal (snow cap in winter) |
+| `sunflower_patch` | harvest_fair | 2 × 1 | 9,000 | 3 | 3 | 50 | |
+| `lantern_string` | harvest_fair | 2 × 1 | 25,000 | 4 | 3 | 50 | glows |
+| `apple_cart` | harvest_fair | 2 × 1 | 60,000 | 6 | 1 | 80 | flips |
+| `stone_well` | harvest_fair | 2 × 2 | 120,000 | 8 | 1 | 100 | |
+| `fair_stall` | harvest_fair | 2 × 2 | 180,000 | 10 | 1 | 120 | |
+| `windmill` | harvest_fair | 2 × 2 | 450,000 | 15 | 1 | 175 | tall sprite, sails turn |
+
+32 pieces: Cottage 12, Seaside 10, Harvest Fair 10. Sets (`DecorSetId`) open by town project (GDD §12.2): Cottage (`cottage`) at once, Seaside (`seaside`) with `old_bridge`, Harvest Fair (`harvest_fair`) with `bakery`.
+
+**Catalogue cost of decorations** (one of each piece, the counted copies of each placeable, **40** path and **30** fence tiles per set, one of each farmhouse piece):
+
+| Set | One of each | Catalogue |
+|---|---|---|
+| Cottage | 979,800 | 1,074,000 |
+| Harvest Fair | 855,000 | 1,007,000 |
+| Seaside | 488,500 | 692,000 |
+| **All** | 2,323,300 | **2,773,000** |
+
+**Charm.**
+
+```ts
+charm = Σ over placeable pieces p: p.charm × min(placedCount(p), p.counted)
+      + Σ over the applied farmhouse paint, roof and loft: their charm        // the default red walls and tiled roof: 0
+      + CHARM_PER_PROJECT_STAGE (10) × completed town-project stages
+```
+
+Maximum from decorations 332 (Cottage 114, Harvest Fair 112, Seaside 106), from projects 190 (19 stages): **522** in all. Thresholds used: 10, 25, 50, 80, 100, 120, 175 (pieces), 25 and 100 (milestones). A player who places what they buy passes 25 on the first day of decorating, 100 around the first finished project, and 175 near the end of the Seaside and Harvest Fair sets.
+
+**Placement cap.** `DECOR_BASE_SLOTS = 100` placed pieces, `+40` each from `old_bridge`, `fountain`, `bandstand` and `lighthouse` (260 in all). Stock is unlimited. The farmhouse pieces do not use slots.
+
+### 13.3 Town projects (v2-02)
+
+Each stage is gold plus, for some stages, items. Gold may be donated in parts; items fill like bundle slots. `TOWN_PROJECT_SCALE = 1.0` in `balance.ts` multiplies every gold figure (the one lever for the gold-sink check).
+
+| Project | Stage 1 | Stage 2 | Stage 3 | Stage 4 | Total gold | Opens |
+|---|---|---|---|---|---|---|
+| `old_bridge` | 60,000 + driftwood ×10 | 120,000 | 220,000 | – | 400,000 | Farm Level 7 |
+| `fountain` | 120,000 | 200,000 + seaweed ×20 | 280,000 + koi ×1 | – | 600,000 | Farm Level 7 |
+| `bakery` | 200,000 + wheat ×100 | 300,000 + egg ×30 | 400,000 + apple ×30 | – | 900,000 | `old_bridge` complete |
+| `bandstand` | 300,000 | 400,000 + corn ×50 | 500,000 + pumpkin ×10 | – | 1,200,000 | `fountain` complete |
+| `lighthouse` | 400,000 + driftwood ×20 | 600,000 + sardine ×20 | 800,000 + tuna ×5 | – | 1,800,000 | `bakery` complete |
+| `community_hall` | 600,000 + milk ×30 | 800,000 + persimmon ×20 | 1,000,000 + large_egg ×10 | 1,200,000 + harvest_feast ×1 | 3,600,000 | the other five complete |
+| **All** (19 stages) | | | | | **8,500,000** | |
+
+Rewards (GDD §12.2) are never income: the Seaside and Harvest Fair sets, +40 decoration slots (bridge, fountain, bandstand, lighthouse), a music loop, the lighthouse beam, the festival lights and a 4th goal slot (the goal board's `GOAL_SLOTS` becomes 3 + 1; goal gold is ~1% of income, BALANCE §10).
+
+### 13.4 Gold still to spend
+
+**Catalogue.** Everything a player can buy once or up to a natural count, at list price:
+
+| Part | Cost |
+|---|---|
+| v1: every upgrade level, placeable, expansion and recipe card | ≈ 523,000 |
+| Land parcels (§13.1) | 680,000 |
+| Saplings: one of each tree, plus a second apricot, apple and persimmon to fill 10 spots (§13.5) | 137,300 |
+| Ranch: every building level, the Collecting Basket, 12 hens and 6 cows (§13.6) | 1,113,000 |
+| Decorations (§13.2) | 2,773,000 |
+| v2 recipe cards (§13.8) | 42,000 |
+| Town projects (§13.3) | 8,500,000 |
+| **Total** | **≈ 13,770,000** |
+
+Seeds, feed and anything consumed are not in the catalogue.
+
+```ts
+toSpend(day) = catalogueTotal − Σ catalogue items bought by that day (donations count as bought)
+share(day)   = toSpend(day) / catalogueTotal
+```
+
+**Target curve** (medians over the seeds, real days since the save was made; ±10 points is fine):
+
+| Day | 1 | 3 | 7 | 14 | 21 | 30 |
+|---|---|---|---|---|---|---|
+| Active Player: share still to spend | ≥ 99% | ≥ 97% | 85–95% | 55–75% | 30–55% | 5–30% |
+| Greedy Farmer: share still to spend | ≥ 99% | 90–97% | 65–85% | 30–55% | 5–30% | 0–10% |
+
+Reading it: v1 is bought out in the first week as now; the parcels, the orchard and the ranch take days 2–10; decorations and town projects carry days 7–30. A keen player finishes the last stage of the Community Hall in the last week, and the one-hour-a-day player still has projects to save for on day 30.
+
+**Checks** (in `scripts/sim/report.ts`, v2 phase 02 adds them, later phases keep them green):
+1. **Gold stays meaningful:** for every strategy bot, `toSpend(day 21) > 0`; for the Active Player `toSpend(day 30) > 0` and greater than its gold in hand on day 30.
+2. **The curve:** the Active Player's and Greedy Farmer's shares fall inside the table's bands (±10 points).
+3. **No hoard:** after day 7, while `toSpend > 0`, no bot ends a day holding more than 3 days' income unspent (it would mean the brain is not spending or the catalogue has a hole).
+
+The simulator reports `toSpend` and `share` for days 1/3/7/14/21/30 per bot (a new table "Gold still to spend"), and the day each bot's `toSpend` reaches 0. If check 1 or 2 fails, the lever is `TOWN_PROJECT_SCALE`, then the decoration prices.
+
+### 13.5 Trees and fruit (v2-03)
+
+**Formulas.**
+
+```ts
+age(tree)        = calendar.dayIndex − tree.plantedDay            // whole real days (06:00 → 06:00), monotonic
+stage(tree)      = age < ceil(matureDays / 2) ? 'sapling' : age < matureDays ? 'young' : 'mature'
+bearsOn(tree, d) = d − tree.plantedDay >= matureDays && seasonOfDay(d) ∈ tree.seasons
+// at each daily refresh (and on load, after the offline walk), for each tree:
+for d in (tree.lastFruitDay, calendar.dayIndex]:
+    if bearsOn(tree, d): tree.fruit = min(cap, tree.fruit + fruitPerDay)
+tree.lastFruitDay = calendar.dayIndex
+cap              = FRUIT_CAP_DAYS (4) × fruitPerDay
+V                = fruitPerDay × fruitPrice                         // gold per bearing day at base price
+saplingPrice     = roundNice(4 × V × seasons.length)                // repays in ~4 bearing days of its first season
+fruitXp          = max(1, round(fruitPrice ** 0.6 / 2))             // the crop formula (§8); ×0.25 when the farmhand picks
+```
+
+`seasonOfDay(d)` is the season of real day `d` by the same week rule as §1 (the week of that day's date), so missed days are counted exactly however the offline walk split them. A tree planted today has age 0; it bears on the refresh of the day its age reaches `matureDays`, if that day is in one of its seasons. Nothing (buffs, water, perks, the offline cap) changes a tree's age or fruit.
+
+**Tree table (7 trees).**
+
+| Tree id | Fruit id | Name | Seasons | Sapling | Days to mature | Fruit / bearing day | Cap | Fruit price | Farming XP / fruit | V (g / day) | Market depth |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| `cherry_tree` | `cherry` | Cherry | spring | 6,000 | 3 | 10 | 40 | 150 | 10 | 1,500 | 55 |
+| `apricot_tree` | `apricot` | Apricot | spring, summer | 13,000 | 4 | 8 | 32 | 210 | 12 | 1,680 | 46 |
+| `peach_tree` | `peach` | Peach | summer | 8,300 | 4 | 8 | 32 | 260 | 14 | 2,080 | 42 |
+| `apple_tree` | `apple` | Apple | summer, autumn | 14,000 | 5 | 10 | 40 | 180 | 11 | 1,800 | 50 |
+| `pear_tree` | `pear` | Pear | autumn | 9,000 | 5 | 8 | 32 | 280 | 15 | 2,240 | 40 |
+| `persimmon_tree` | `persimmon` | Persimmon | autumn, winter | 20,000 | 6 | 7 | 28 | 360 | 17 | 2,520 | 35 |
+| `lemon_tree` | `lemon` | Lemon | winter, spring | 20,000 | 7 | 8 | 32 | 320 | 16 | 2,560 | 38 |
+
+Every season has trees: spring 3 (cherry, apricot, lemon), summer 3 (apricot, peach, apple), autumn 3 (apple, pear, persimmon), winter 2 (persimmon, lemon). Stages (sapling → young → mature) by age: cherry 0–1 / 2 / 3+, apricot and peach 0–1 / 2–3 / 4+, apple and pear 0–2 / 3–4 / 5+, persimmon 0–2 / 3–5 / 6+, lemon 0–3 / 4–6 / 7+.
+
+**What an orchard is worth.** A full orchard (10 trees) in a season with three bearing kinds earns about 10–20k gold a day at base price: about 10% of the Active Player's daily gold on day 7 and 1–3% of a keen player's by day 14. It is a side income and a stream of recipe ingredients, never the main farm. Each sapling repays in about 4 bearing days of its first season; two-season trees cost twice as much and bear twice as long. Fruit follows the ordinary market rules (demand, specials from the day the player owns a mature tree of that fruit, the sparkline).
+
+**Farmhand.** Each tree with fruit uses one of the farmhand's per-visit capacity and is picked whole. Fruit appears only at 06:00, so on an ordinary day the first visit after the refresh picks everything.
+
+### 13.6 Animals and buildings (v2-04)
+
+**Buildings.**
+
+| Building | Footprint | Level | Price | Capacity | Trough (portions) | Store (products) | Requires |
+|---|---|---|---|---|---|---|---|
+| `coop` | 3 × 2 | 1 | 25,000 | 4 hens | 64 | 64 | parcel `yard` |
+| | | 2 | 60,000 | 8 hens | 128 | 128 | – |
+| | | 3 | 150,000 | 12 hens | 192 | 192 | – |
+| `barn` | 4 × 3 | 1 | 60,000 | 2 cows | 24 | 24 | `coop` Level 1 |
+| | | 2 | 150,000 | 4 cows | 48 | 48 | – |
+| | | 3 | 350,000 | 6 cows | 72 | 72 | – |
+| `silo` | 2 × 2 | 1 | 40,000 | – | – | – | `coop` Level 1 |
+| | | 2 | 120,000 | – | – | – | – |
+
+A full trough and an empty store last **8 hours** of simulated time at full capacity (a hen eats 2 portions an hour, a cow 1.5), so a full night away needs no automation. The Barnyard bundle raises every trough by 50% (12 hours).
+
+**Upgrade** `ranch_collector` (Collecting Basket, category `ranch`, leveled, max 1): **50,000**, requires `coop` Level 1. `autoCollect` at every shipping-bin pickup: each store is emptied into the bag, or into the bin for products the Auto-Seller ships (like `trap_collector`).
+
+**Silo.** Level 1 (`autoFeed`): at every shipping-bin pickup, top up each trough from the bag's feed of its kind. Level 2 (`autoMill`): before that, if the bag lacks feed, convert wheat and corn from the bag (keeping `SILO_RESERVE = 10` of each) into as much feed as the troughs need.
+
+**Animals.**
+
+| Animal | Building | Price | Eats (1 portion per cycle) | Cycle (simulated) | Product | Product price | Farming XP | Gross / hour |
+|---|---|---|---|---|---|---|---|---|
+| `chicken` (hen) | coop | 3,000 | `corn_feed` | 1,800 s (30 min) | `egg`, or `large_egg` with chance `LARGE_EGG_CHANCE = 0.10` | egg 90, large egg 200 | egg 7, large egg 12 | 202 |
+| `cow` | barn | 12,000 | `hay` | 2,400 s (40 min) | `milk` | 240 | 13 | 360 |
+
+Farming XP per product (the crop formula), a quarter when the Collecting Basket collects. Animal prices are flat (the fifth hen costs what the first did).
+
+**Per animal, per simulated hour** (base prices, feed valued at the crop it was made from):
+
+| Animal | Gross | Home-made feed | Net | Bought feed | Net | Pays back its price in |
+|---|---|---|---|---|---|---|
+| hen | 202 | 27 (⅔ corn) | 175 | 80 | 122 | 17 h (1.5 days of play-and-away) |
+| cow | 360 | 19 (¾ wheat) | 341 | 60 | 300 | 35 h (3 days) |
+
+A full ranch (12 hens, 6 cows) nets about **4,150 gold per simulated hour**, about 10% of a late farm's 40–50k, and eats 8 corn and 4.5 wheat an hour: less than one corn plot and a few wheat plots.
+
+**Production rule** (per building, exact for any step size):
+
+```ts
+// building.cycleMs counts up in simulated ms; buildings tick in id order
+cycles = floor((building.cycleMs + dtMs) / (intervalSec * 1000));  building.cycleMs = (building.cycleMs + dtMs) % (intervalSec * 1000)
+repeat cycles times:
+  for each animal of the building, in id order:
+    if storeCount(building) < store && building.trough > 0:
+       building.trough -= 1
+       product = kind === 'chicken' && rng.chance(LARGE_EGG_CHANCE) ? 'large_egg' : def.product
+       add product to building.store
+    // else: nothing happens to this animal this cycle; nothing is lost or reduced
+```
+
+`msToNextSimEvent` need not split at cycles (they are batched in order, like trap rolls); the only mid-step rate changes are trough refills, which happen on actions or at bin pickups, and those are already step boundaries. No modifier changes cycle length or output in v2 (Busy Bees does not apply; see §13.12).
+
+### 13.7 Feed (v2-04)
+
+| Feed | Made from | Portions per unit | Ranch price | Item base price | Sellable |
+|---|---|---|---|---|---|
+| `hay` | `wheat` | 2 (`FEED_PER_WHEAT`) | 40 (`FEED_BUY_PRICE.hay`) | 13 | no |
+| `corn_feed` | `corn` | 3 (`FEED_PER_CORN`) | 40 (`FEED_BUY_PRICE.corn_feed`) | 13 | no |
+
+Making feed is instant and free (the crop is the cost). Wheat and corn are summer and autumn crops, so spring and winter feed comes from stock, the greenhouse or the Ranch's shelf; bought feed roughly halves a hen's profit and leaves a cow's almost untouched, so it is a fallback, never a trap.
+
+### 13.8 New recipes (v2-03 and v2-04)
+
+Scores use §7's formula (`units + value / 50 + cookSec / 30`, thresholds 8 / 15 / 28) with the fruit and product prices above; prices are `round(value × TIER_SELL_MULT[tier])`. Every T3 is cookable from one season's fresh ingredients (animal products count as fresh in every season once the animal is owned). There is **no new T4**, so each season keeps its one T4 feast and the phase 06 test of T4s stays as it is.
+
+| id | Name | Ingredients | Cook (s) | Units | Value | Score | Tier | Base price | Buff | Magnitude | Duration (min) | Cookable in | Discovery | Phase |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `fried_egg` | Fried Egg | egg ×2 | 30 | 2 | 180 | 6.60 | T1 | 225 | `cookSpeed` | +15% | 15 | all | milestone `m21_first_egg` | 04 |
+| `baked_apple` | Baked Apple | apple ×1 | 30 | 1 | 180 | 5.60 | T1 | 225 | `xp` | +15% | 15 | summer, autumn | milestone `m20_first_fruit` | 03 |
+| `cherry_jam` | Cherry Jam | cherry ×3 | 60 | 3 | 450 | 14.00 | T2 | 630 | `sellPrice` | +10% | 45 | spring | card 3,000 · parcel `orchard` | 03 |
+| `soft_cheese` | Soft Cheese | milk ×2 | 60 | 2 | 480 | 13.60 | T2 | 672 | `automationSpeed` | +20% | 45 | all | milestone `m22_first_milk` | 04 |
+| `pear_crumble` | Pear Crumble | pear ×1, wheat ×2 | 45 | 3 | 330 | 11.10 | T2 | 462 | `growth` | +20% | 45 | autumn | card 4,000 · parcel `orchard` | 03 |
+| `garden_omelette` | Garden Omelette | egg ×2, kale ×1 | 45 | 3 | 267 | 9.84 | T2 | 374 | `fishingSpeed` | +20% | 45 | autumn, winter | experiment | 04 |
+| `peach_cobbler` | Peach Cobbler | peach ×2, wheat ×2 | 60 | 4 | 570 | 17.40 | T3 | 912 | `sellPrice` | +15% | 135 | summer | card 8,000 · parcel `orchard` | 03 |
+| `apricot_custard` | Apricot Custard | apricot ×2, egg ×2, milk ×1 | 90 | 5 | 840 | 24.80 | T3 | 1,344 | `xp` | +45% | 135 | spring, summer | experiment | 04 |
+| `lemon_meringue_pie` | Lemon Meringue Pie | lemon ×1, egg ×3 | 90 | 4 | 590 | 18.80 | T3 | 944 | `cookSpeed` | +45% | 135 | winter, spring | card 12,000 · building `coop` L1 | 04 |
+| `persimmon_pudding` | Persimmon Pudding | persimmon ×1, milk ×1, egg ×1 | 90 | 3 | 690 | 19.80 | T3 | 1,104 | `sellPrice` | +15% | 135 | autumn, winter | card 15,000 · building `barn` L1 | 04 |
+
+**One line per buff choice:**
+- Fried Egg → Quick Hands: a quick comfort breakfast for the cook (GDD §7: comfort food helps the cook).
+- Baked Apple → Scholar's Snack: an apple a day is brain food.
+- Cherry Jam → Silver Tongue: a sweet, sellable treat, and **spring's** first gold dish from the orchard.
+- Soft Cheese → Busy Bees: a wedge for the farmhand's lunch (hearty energy food helps workers).
+- Pear Crumble → Green Thumb: a warm, earthy autumn pudding, like the vegetable dishes.
+- Garden Omelette → Quick Bite: a quick bite before heading to the dock (the pun is the theme).
+- Peach Cobbler → Silver Tongue: **summer's** T3 gold dish (summer had only the T2 Blueberry Muffin).
+- Apricot Custard → Scholar's Snack: a rich, careful dessert that rewards attention.
+- Lemon Meringue Pie → Quick Hands: a baker's showpiece that trains the cook's hands.
+- Persimmon Pudding → Silver Tongue: **the winter gold-buff dish** (IDEAS.md). Cooked in winter it is hearty: +15% prices for 3 h 22 min, enough to cover a good part of a winter night away.
+
+**Counts after v2:** 32 recipes: 8 × T1, 11 × T2, 9 × T3, 4 × T4. Buffs: growth 4, sellPrice 7, fishingLuck 4, fishingSpeed 3, cookSpeed 5, automationSpeed 4, xp 5. Discovery: 3 starter, 6 experiment, 8 milestone, 15 card. The v2 cards cost 42,000 in all.
+
+**What changes in `tests/cooking.test.ts`** (v2-03 and v2-04 update it; the design rules stay): the counts (22 → 27 after v2-03, 32 after v2-04; tiers and buff and discovery counts as above), the ingredient-category rule (also `fruit` and `animal`), and the "fresh" helper (fruit by its tree's seasons, animal products in every season). The tier-match, price and "every T3/T4 cookable in one season, each season its own T4" rules are unchanged and must pass.
+
+### 13.9 Milestones, goals and bundles
+
+**Milestones** (appended to the chain; **no farm points**: `farmPoints` counts only `m01`–`m15`, so §8's table is unchanged):
+
+| id | Objective | Reward | Phase |
+|---|---|---|---|
+| `m16_first_parcel` | Own a land parcel | decorations: 10 × `cobble_path`, 1 × `flower_bed` | 02 (checked from state, so earlier buyers get it at once) |
+| `m17_first_decor` | Place a decoration | 1 × `garden_lamp` | 02 |
+| `m18_charm_25` | Reach charm 25 | 10,000 gold | 02 |
+| `m19_first_project` | Complete a town-project stage | 20,000 gold | 02 |
+| `m20_first_fruit` | Pick a fruit | recipe `baked_apple` | 03 |
+| `m21_first_egg` | Collect an egg | recipe `fried_egg` | 04 |
+| `m22_first_milk` | Collect milk | recipe `soft_cheese` | 04 |
+| `m23_charm_100` | Reach charm 100 | 1 × `rose_arch` | 02 |
+
+**Goal templates** (goal gold as in §10):
+
+| Template | Example | Target | Requires |
+|---|---|---|---|
+| `raise_charm` | Raise your charm by 10 | `max(3, niceTarget(0.1 × charm))` | `m17_first_decor`, a piece in stock or affordable |
+| `pick_fruit` | Pick 16 peaches | one day of the bearing trees of that fruit | a mature tree in season |
+| `collect_produce` | Collect 12 eggs | about one hour of the animals' production | an animal |
+
+**Bundles** (Community Board):
+
+| id | Slots | Reward |
+|---|---|---|
+| `orchard_basket` | cherry ×10, peach ×10, apple ×10, pear ×10, lemon ×5 | the 2 extra tree spots (`treeSpots`, 8 → 10) |
+| `barnyard` | egg ×20, large_egg ×3, milk ×10, hay ×20 | troughs hold 50% more (`troughBonus: 0.5`) |
+
+### 13.10 Pacing targets (v2)
+
+Read as §11 does: "day n" is the n-th real day of the simulator's schedule (the Active Player plays one hour each evening). Season dates in the simulator: spring until Sunday 1 March (day 4), then summer, autumn (day 11), winter (day 18), spring (day 25).
+
+| Moment | Active Player | Greedy Farmer | Notes |
+|---|---|---|---|
+| Hilltop Orchard bought | day 2–4 | day 2–3 | |
+| First sapling planted | the same session | the same session | the brain picks a tree that bears in the season it will mature in |
+| First mature tree | ≤ 5 real days after planting | same | cherry 3 days, apricot and peach 4 |
+| First fruit picked | day 5–9 | day 5–8 | |
+| Old Paddock bought | day 4–7 | day 3–5 | |
+| First egg | ≤ 45 min of simulated time after the coop and a hen | same | one 30-minute cycle |
+| First milk | day 5–9 | day 4–7 | |
+| Seaside Meadow bought | day 7–12 | day 5–8 | |
+| First town-project stage | day 5–9 | day 4–7 | |
+| First town project complete | day 7–12 | day 5–9 | usually `old_bridge` |
+| All town projects complete | after day 30 | day 21–30 | §13.4 |
+| Charm 100 | day 10–18 | day 8–14 | |
+| Orchard income (full orchard, in season) | 5–15% of gold per day at day 7–14 | ≤ 5% at day 14 | side income |
+| Animal income (full ranch) | ≤ 15% of gold per simulated hour | ≤ 15% | side income |
+| Longest wait with nothing to do, first 30 min | ≤ 2 min | ≤ 2 min | v2 adds nothing to the first session |
+
+The phase 09 checks stay: **no strategy dominates** (≤ 1.5× at days 3, 7 and 30), **buffs kept up are worth +10–25%** (Chef vs Chef who sells, paired by seed, days 3 and 7; the new gold dishes should also lift day 14 toward the band), **no early dead time**, **no runaway growth** (gold per hour at most ~3× the day before after day 3; week 4 not far above week 2), and the **Casual Idler ≥ 40%** of the Active Player on day 3.
+
+### 13.11 Simulator changes
+
+The bots still act only through `Game.dispatch`. What each phase teaches `scripts/sim/brain.ts` (new `Want` kinds and behaviours) and adds to `scripts/sim/report.ts`:
+
+| Phase | Brain learns | Report adds | Checks added |
+|---|---|---|---|
+| v2-01 | `{ kind: 'parcel'; id }` wants after the v1 wish list (orchard, then yard, then meadow); the camera is irrelevant to bots | moments: each parcel bought; the "Gold still to spend" table (v1 + parcels so far) | none new; all phase 09 checks rerun |
+| v2-02 | spend on decorations and projects: after the v1 list and the next parcel, each session puts up to `V2_SPEND_SHARE = 0.6` of the gold above its seed reserve into, alternately, the next open project stage (gold in parts, items it has) and decorations (cheapest unowned piece first, then counted copies, then 40 paths and 30 fences a set, then farmhouse pieces), placing each piece on the first free tile in a spiral from the farmhouse (then the meadow) | moments: first decoration, first stage, each project complete, charm 25/100; charm by day; the full `toSpend` / `share` table; the day `toSpend` hits 0 | §13.4 checks 1–3 |
+| v2-03 | buy saplings (a tree whose seasons include the season on its maturity day; then fill spots with two-season trees), plant, pick fruit each session (the farmhand also picks), cook the new fruit recipes, give fruit to the Orchard Basket | moments: first sapling, first mature tree, first fruit; orchard gold per day | orchard share (§13.10) |
+| v2-04 | build coop → hens → silo → barn → cows → Collecting Basket → levels; make feed from wheat and corn it keeps (plant a little of each in summer and autumn; buy feed only when out), fill troughs, collect, cook egg and milk recipes, feed the Barnyard bundle, and eat Persimmon Pudding in winter (the Chef) | moments: coop, first egg, barn, first milk; animal gold per simulated hour; "hungry" hours (time any trough was empty while animals had room) | animal share (§13.10); every phase 09 check; gold still to spend through day 30 |
+
+Every v2 phase also keeps `tests/simulate.test.ts` green (determinism, speed: one bot's 30 days in under 10 s, the first session, the tuning criteria on 7-day runs) and records its report summary in §13.12.
+
+### 13.12 v2 constants and tuning notes
+
+Constants that are formula parameters go in `src/data/balance.ts`: `DECOR_BASE_SLOTS = 100`, `DECOR_SLOTS_PER_PROJECT = 40`, `CHARM_PER_PROJECT_STAGE = 10`, `TOWN_PROJECT_SCALE = 1`, `FRUIT_CAP_DAYS = 4`, `SAPLING_PRICE_FACTOR = 4`, `LARGE_EGG_CHANCE = 0.1`, `FEED_PER_WHEAT = 2`, `FEED_PER_CORN = 3`, `FEED_BUY_PRICE = { hay: 40, corn_feed: 40 }`, `SILO_RESERVE = 10`, `BARNYARD_TROUGH_BONUS = 0.5`, `ORCHARD_BONUS_SPOTS = 2`, `GOAL_SLOTS_HALL_BONUS = 1`. Content tables (parcels, decorations, projects, trees, animals, buildings) live in their data files. Camera numbers (drag threshold 6 CSS px, zoom limits) are UI constants in `src/render/camera.ts`, not balance.
+
+**v2 phase 00 notes.**
+- Decoration and project prices were set from the phase 09 report's lifetime-gold curve, less roughly 40% spent on seeds. They are a first cut: v2 phase 02's simulator run sets `TOWN_PROJECT_SCALE` so the §13.4 curve holds, and phases 03–04 recheck it after the orchard and animals add income.
+- Tree numbers come from `saplingPrice = 4 × V × seasons` and a target of a full orchard ≈ 10% of the Active Player's day-7 income. Animal numbers aim at a full ranch ≈ 10% of a late farm's hourly income. Neither should move a strategy past the 1.5× spread, because every bot gets them.
+- Busy Bees (`automationSpeed`) still does nothing for animals or trees; making it matter late is still an IDEAS.md item, not v2 scope.
+- No v1 number changes in v2 phase 00.
