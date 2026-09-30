@@ -102,13 +102,14 @@ test('till, plant, water, grow and harvest a turnip', async ({ page }) => {
   expect((await plots(page)).filter((p) => p.state === 'planted')).toHaveLength(5);
   await expect(page.getByTestId('seed-count')).toHaveText('1');
 
-  // The temporary Seed Crate sells a potato seed.
+  // The Shop sells a potato seed; locked seeds show how to unlock them; summer seeds are not stocked.
   await page.getByRole('button', { name: /Shop/ }).click();
   const shop = page.getByRole('dialog', { name: 'Shop' });
-  await expect(shop).toContainText('Seed Crate');
-  await shop.getByRole('button', { name: 'Buy 1 Potato seeds for 25 gold' }).click();
-  await expect(page.getByTestId('gold')).toHaveText('35g');
-  await expect(shop.locator('[data-seed="wheat"] button').first()).toBeDisabled(); // out of season
+  await shop.getByRole('button', { name: 'Buy 1 Potato seeds for 19 gold' }).click();
+  await expect(page.getByTestId('gold')).toHaveText('41g');
+  await expect(shop.locator('[data-seed="garlic"]')).toContainText('Reach Farm Level 2');
+  await expect(shop.locator('[data-seed="garlic"] button')).toHaveCount(0);
+  await expect(shop.locator('[data-seed="wheat"]')).toHaveCount(0);
   await page.keyboard.press('Escape');
 
   // Drag the hoe down plots 3 → 7, then plant the potato with the seed picker.
@@ -151,8 +152,53 @@ test('till, plant, water, grow and harvest a turnip', async ({ page }) => {
   await expect(inventory.locator('[data-item="turnip"] .inv-qty')).toHaveText('1');
   await expect(inventory.locator('[data-item="seed_turnip"] .inv-qty')).toHaveText('1');
   await inventory.locator('[data-item="turnip"]').hover();
-  await expect(inventory).toContainText('Sell value: 22g each');
+  await expect(inventory).toContainText(/Sells for \d+g each at the Market right now/);
   await page.screenshot({ path: 'test-results/inventory.png' });
+  await page.keyboard.press('Escape');
+
+  // Sell it at the Market: the button shows the exact gold, and the gold counter counts up to it.
+  await page.getByRole('button', { name: /Market/ }).click();
+  const market = page.getByRole('dialog', { name: 'Market' });
+  await expect(market).toContainText(/Today's specials|No specials today/);
+  const row = market.locator('[data-item="turnip"]');
+  await expect(row).toContainText('Turnip ×1');
+  const label = (await row.locator('[data-sell="all"]').textContent()) ?? '';
+  const price = Number(/(\d+)g/.exec(label)?.[1]);
+  expect(price).toBeGreaterThan(0);
+  const goldBefore = await page.evaluate(
+    () => (window as unknown as { __game: { state: { gold: number } } }).__game.state.gold,
+  );
+  await row.locator('[data-sell="all"]').click();
+  await expect(page.getByTestId('gold')).toHaveText(`${goldBefore + price}g`);
+  await expect(page.locator('.gold-popup')).toHaveText(`+${price}g`);
+  await expect(market).toContainText('Nothing to sell yet');
+  await expect(market).toContainText(/The bin is empty\. Next pickup in \d+m/);
+  await page.screenshot({ path: 'test-results/market.png' });
+  await page.keyboard.press('Escape');
+
+  // The Shipping Bin in the scene (tile 18,7) opens the Market too.
+  const binAt = await tileCenter(canvas, 18, 7);
+  await canvas.click({ position: binAt });
+  await expect(market).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  // Buy the first expansion from Upgrades. (Test shortcut: top up the gold instead of farming for it.)
+  await page.evaluate(() => {
+    (window as unknown as { __game: { state: { gold: number } } }).__game.state.gold += 400;
+  });
+  await page.getByRole('button', { name: /Upgrades/ }).click();
+  const upgrades = page.getByRole('dialog', { name: 'Upgrades' });
+  await upgrades.getByRole('button', { name: 'Buy Clear the Weeds for 400 gold' }).click();
+  await expect(upgrades).toContainText('your field is now 4 × 3 plots');
+  expect(await plots(page)).toHaveLength(12);
+  expect((await plots(page))[8]?.state).toBe('untilled');
+  await page.keyboard.press('Escape');
+  // The new row is at tile row 4 and can be tilled.
+  await tools.locator('[data-tool="hoe"]').click();
+  await clickPlot(canvas, 8);
+  expect((await plots(page))[8]?.state).toBe('tilled');
+  await page.mouse.move(0, 0);
+  await page.screenshot({ path: 'test-results/farm-expanded.png' });
 
   expect(errors).toEqual([]);
 });

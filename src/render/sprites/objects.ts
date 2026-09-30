@@ -275,3 +275,149 @@ export const objFlowerB: SpriteDef = {
     ],
   ],
 };
+
+/** 1 tile at (18,7): the Shipping Bin, a lidded crate with a gold coin plate (phase 03). */
+export const objShippingBin: SpriteDef = {
+  id: 'obj_shipping_bin',
+  anchor: 'top-left',
+  frames: [
+    [
+      '................',
+      '..kkkkkkkkkkkk..',
+      '.kPPPPPPPPPPPPk.',
+      'kPppppppppppppPk',
+      'kMMMMMMMMMMMMMMk',
+      'kkkkkkkkkkkkkkkk',
+      'kPpppppppppppPMk',
+      'kPppppkkkkppppMk',
+      'kPpppkfUfFkpppMk',
+      'kPppppkkkkppppMk',
+      'kMMMMMMMMMMMMMMk',
+      'kPpppppppppppPMk',
+      'kPpppppppppppPMk',
+      'kMMMMMMMMMMMMMmk',
+      '.kkkkkkkkkkkkkk.',
+      '..KKKKKKKKKKKK..',
+    ],
+  ],
+};
+
+/** Weeds south of the starting field; cleared by the first expansion. */
+export const objWeeds: SpriteDef = {
+  id: 'obj_weeds',
+  anchor: 'top-left',
+  frames: [
+    [
+      '................',
+      '................',
+      '................',
+      '.......k........',
+      '......khk...k...',
+      '..k...khk..khk..',
+      '.khk.khhhk.khk..',
+      '.khhkkhGhk.khhk.',
+      '..khhhhGhkkhhk..',
+      '..khGhhhhhhGhk..',
+      '...khhGhhhhhk...',
+      '...kkhhhhhhkk...',
+      '....kkkkkkkk....',
+      '................',
+      '................',
+      '................',
+    ],
+  ],
+};
+
+/** An old tree stump beside the weeds; cleared by the first expansion. */
+export const objStump: SpriteDef = {
+  id: 'obj_stump',
+  anchor: 'top-left',
+  frames: [
+    [
+      '................',
+      '................',
+      '................',
+      '................',
+      '................',
+      '....kkkkkkkk....',
+      '...kPPPPPPPPk...',
+      '..kPpPPmmPPpPk..',
+      '..kPPmPPPPmPPk..',
+      '..kmPPPPPPPPmk..',
+      '..kMmMMmMMmMMk..',
+      '..kMmMMmMMmMMk..',
+      '.kmMmMMmMMmMMmk.',
+      'kmmkkmkkkkmkkmmk',
+      '.kk..k....k..kk.',
+      '................',
+    ],
+  ],
+};
+
+/** Flat stepping stones laid on the paths by the second expansion. */
+export const objStones: SpriteDef = {
+  id: 'obj_stones',
+  anchor: 'top-left',
+  frames: [
+    [
+      '................',
+      '................',
+      '...kkkk.........',
+      '..kNNNNk........',
+      '..kNNNnk........',
+      '...knnk.........',
+      '...........kkk..',
+      '..........kNNNk.',
+      '..........kNnnk.',
+      '...........kkk..',
+      '....kkkk........',
+      '...kNNNNk.......',
+      '...kNNnnk.......',
+      '....kkkk........',
+      '................',
+      '................',
+    ],
+  ],
+};
+
+/** A straw-hatted scarecrow post, a decoration for the full farm (phase 04's scarecrows are placed on plots). */
+export const objScarecrowPost: SpriteDef = {
+  id: 'obj_scarecrow_post',
+  anchor: 'bottom-center',
+  frames: [
+    [
+      '................',
+      '................',
+      '................',
+      '......kkkk......',
+      '.....kyyyyk.....',
+      '....kyYYYYyk....',
+      '..kkkkkkkkkkkk..',
+      '..kyyyyyyyyyyk..',
+      '...kkkxxxxkkk...',
+      '.....kxkkxk.....',
+      '.....kxxxxk.....',
+      '......kkkk......',
+      'kkkkkkkqqkkkkkkk',
+      'kyyqqqqqqqqqqyyk',
+      'kkkkqqQqqQqqkkkk',
+      '...kqqqqqqqqk...',
+      '...kqqQqqQqqk...',
+      '...kqqqqqqqqk...',
+      '...kkkkMmkkkk...',
+      '......kMmk......',
+      '......kMmk......',
+      '......kMmk......',
+      '......kMmk......',
+      '......kMmk......',
+      '......kMmk......',
+      '......kMmk......',
+      '......kMmk......',
+      '......kMmk......',
+      '......kMmk......',
+      '......kMmk......',
+      '.....kMMmmk.....',
+      '.....kkkkkk.....',
+    ],
+  ],
+};

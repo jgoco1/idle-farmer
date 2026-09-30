@@ -17,6 +17,8 @@ export interface PanelDef {
   toolbar?: boolean;
   /** Re-run `refresh` while open when the game state changes (Inventory, Shop). */
   live?: boolean;
+  /** Also re-run `refresh` this often while open (the Market, whose prices drift every tick). */
+  refreshMs?: number;
 }
 
 interface PanelEntry {
@@ -28,6 +30,7 @@ interface PanelEntry {
 export class PanelManager {
   private readonly panels = new Map<PanelId, PanelEntry>();
   private openId: PanelId | null = null;
+  private lastTimedRefresh = 0;
   private returnFocus: HTMLElement | null = null;
   private readonly listeners = new Set<(id: PanelId | null) => void>();
 
@@ -99,6 +102,15 @@ export class PanelManager {
   refreshOpen(): void {
     const entry = this.openId ? this.panels.get(this.openId) : undefined;
     if (entry?.def.live) entry.refresh?.();
+  }
+
+  /** Runs the open panel's timed refresh when it is due (call every frame). */
+  tickOpen(timeMs: number): void {
+    const entry = this.openId ? this.panels.get(this.openId) : undefined;
+    const every = entry?.def.refreshMs;
+    if (!entry || !every || timeMs - this.lastTimedRefresh < every) return;
+    this.lastTimedRefresh = timeMs;
+    entry.refresh?.();
   }
 
   toggle(id: PanelId): void {

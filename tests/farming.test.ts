@@ -27,7 +27,7 @@ import {
 } from '../src/systems/farming';
 import { addItem, countItem } from '../src/systems/inventory';
 import { NO_MODIFIERS } from '../src/systems/modifiers';
-import { buySeeds } from '../src/systems/seedCrate';
+import { buySeeds } from '../src/systems/shop';
 import { at, HOUR, NY } from './helpers';
 
 // Wednesday 7 Jan 2026. Spring until Sunday 11 Jan 00:00, then summer, autumn (18th), winter (25th).
@@ -69,10 +69,10 @@ describe('crop data', () => {
     expect(regrowers.sort()).toEqual(['blueberry', 'corn', 'cranberry', 'strawberry', 'tomato']);
     const multi = CROP_IDS.filter((c) => CROPS[c].seasons.length > 1);
     expect(multi.sort()).toEqual(['corn', 'garlic', 'kale', 'tomato', 'wheat']);
-    expect(CROPS.turnip).toMatchObject({ growSec: 120, seedPrice: 10, basePrice: 22 });
+    expect(CROPS.turnip).toMatchObject({ growSec: 120, seedPrice: 8, basePrice: 22 });
     expect(CROPS.pumpkin).toMatchObject({
       growSec: 1200,
-      seedPrice: 290,
+      seedPrice: 220,
       basePrice: 639,
       seasons: ['autumn'],
     });
@@ -419,6 +419,7 @@ describe('harvest', () => {
   it('rolls the yield with the seeded RNG', () => {
     const rolls = (seed: number): number[] => {
       const s = createInitialState(CREATED, NY, seed);
+      s.rngState = seed; // a new save has already rolled its first specials
       for (let i = 0; i < 8; i++) put(s, i, 'potato', 240_000);
       harvestPlots(s, ctxAt(s), [0, 1, 2, 3, 4, 5, 6, 7]);
       return s.inventory.slots.filter((x) => x?.item === 'potato').map((x) => x!.qty);
@@ -518,20 +519,20 @@ describe('tools', () => {
   });
 });
 
-describe('seed crate (temporary, phase 03 replaces it)', () => {
+describe('seed shop', () => {
   it('sells in-season, unlocked seeds for gold', () => {
     const s = farmAt();
     const events: GameEvent[] = [];
     const ctx = ctxAt(s, CREATED, events);
-    expect(buySeeds(s, ctx, 'potato', 2).ok).toBe(true);
-    expect(s.gold).toBe(10);
-    expect(countItem(s.inventory, 'seed_potato')).toBe(2);
-    expect(events).toEqual([{ type: 'purchased', what: 'seed_potato', gold: 50 }]);
-    expect(buySeeds(s, ctx, 'potato', 1)).toEqual({ ok: false, reason: 'You need 25g for that.' });
+    expect(buySeeds(s, ctx, 'potato', 3).ok).toBe(true);
+    expect(s.gold).toBe(3);
+    expect(countItem(s.inventory, 'seed_potato')).toBe(3);
+    expect(events).toEqual([{ type: 'purchased', what: 'seed_potato', gold: 57 }]);
+    expect(buySeeds(s, ctx, 'potato', 1)).toEqual({ ok: false, reason: 'You need 19g for that.' });
     expect(buySeeds(s, ctx, 'wheat', 1)).toEqual({ ok: false, reason: 'Wheat seeds are out of season.' });
     expect(buySeeds(s, ctx, 'strawberry', 1)).toEqual({
       ok: false,
-      reason: 'Strawberry seeds are not available yet.',
+      reason: 'Strawberry seeds are locked. Reach Farm Level 3 (earn 900g more).',
     });
     expect(buySeeds(s, ctx, 'turnip', 0).ok).toBe(false);
   });

@@ -1,17 +1,21 @@
 // Panel definitions. Phase 01 shipped every panel as a "Coming soon" stub except Settings; each
-// phase replaces its stub's `build` with the real content (phase 02: Inventory, Shop's Seed Crate).
+// phase replaces its stub's `build` with the real content (phase 02: Inventory; phase 03: Shop,
+// plus the Market and Upgrades panels in marketPanel.ts and upgradesPanel.ts).
 
 import type { GameState } from '../core/state';
-import type { Calendar } from '../core/time';
+import { capitalize, seasonOfWeek, type Calendar } from '../core/time';
 import type { GameData } from '../data';
+import { SHOP_BUY_AMOUNTS } from '../data/balance';
 import { CROP_IDS, type CropId, type PanelId } from '../data/ids';
 import type { ItemDef } from '../data/types';
 import { spriteDataUrl } from '../render/spriteCache';
 import type { ActionResult } from '../systems/context';
 import { inSeason } from '../systems/farming';
 import { usedSlots } from '../systems/inventory';
+import { unitPrice } from '../systems/market';
 import type { Modifiers } from '../systems/modifiers';
-import { isUnlocked } from '../systems/unlocks';
+import { maxAffordableSeeds, seedStock } from '../systems/shop';
+import { farmLevel } from '../systems/unlocks';
 import { h } from './dom';
 import { seedNote } from './farmTools';
 import type { PanelDef } from './panel';
@@ -31,10 +35,8 @@ function stub(id: PanelId, title: string, icon: string, blurb: string): PanelDef
 }
 
 export const STUB_PANELS: readonly PanelDef[] = [
-  stub('market', 'Market', '⚖', 'Sell crops, fish and dishes at the day’s prices.'),
   stub('kitchen', 'Kitchen', '🍲', 'Cook what you grow and catch into dishes with gentle buffs.'),
   stub('fishing', 'Fishing', '🎣', 'Cast a line in the pond, and later the river and the sea.'),
-  stub('upgrades', 'Upgrades', '⚙', 'Sprinklers, a farmhand and better tools will live here.'),
   stub('goals', 'Goals', '★', 'Milestones and the Community Board will point the way.'),
 ];
 
@@ -169,9 +171,14 @@ export interface GameViewHooks {
   mods(): Modifiers;
 }
 
-function itemTooltip(def: ItemDef): string {
-  const value = def.sellable ? `Sells for about ${def.basePrice}g` : "Seeds can't be sold";
-  return `${def.name}\n${def.description}\n${value}`;
+function sellText(hooks: GameViewHooks, def: ItemDef): string {
+  if (!def.sellable) return "Seeds can't be sold.";
+  const now = unitPrice(hooks.state(), hooks.data, hooks.mods(), def.id);
+  return `Sells for ${now}g each at the Market right now.`;
+}
+
+function itemTooltip(hooks: GameViewHooks, def: ItemDef): string {
+  return `${def.name}\n${def.description}\n${sellText(hooks, def)}`;
 }
 
 /** Inventory: a grid of slots with icons and counts; hovering or focusing a slot shows its details. */
@@ -197,10 +204,7 @@ export function inventoryPanel(hooks: GameViewHooks): PanelDef {
         detail.replaceChildren(
           h('p', { class: 'inv-name', text: `${def.name} ×${qty}` }),
           h('p', { text: def.description }),
-          h('p', {
-            class: def.sellable ? 'inv-value' : 'muted',
-            text: def.sellable ? `Sell value: ${def.basePrice}g each` : "Seeds can't be sold.",
-          }),
+          h('p', { class: def.sellable ? 'inv-value' : 'muted', text: sellText(hooks, def) }),
         );
       };
 
@@ -217,7 +221,7 @@ export function inventoryPanel(hooks: GameViewHooks): PanelDef {
               role: 'listitem',
               'data-item': stack?.item,
               'aria-label': stack && def ? `${def.name}, ${stack.qty}` : 'Empty slot',
-              title: def ? itemTooltip(def) : undefined,
+              title: def ? itemTooltip(hooks, def) : undefined,
             });
             if (stack && def) {
               slot.append(
@@ -246,8 +250,11 @@ export interface ShopHooks extends GameViewHooks {
   buySeeds(crop: CropId, qty: number): ActionResult;
 }
 
-/** TODO(phase03): the Shop is only the temporary Seed Crate for now; the real shop replaces it. */
-export function shopPanel(hooks: ShopHooks, amounts: readonly number[]): PanelDef {
+/**
+ * The Shop (GDD §6.2): this season's seeds. Unlocked ones can be bought by 1, 5, 10 or as many as
+ * gold and bag space allow; locked ones show how to unlock them. The stock changes with the season.
+ */
+export function shopPanel(hooks: ShopHooks): PanelDef {
   return {
     id: 'shop',
     title: 'Shop',
@@ -256,65 +263,62 @@ export function shopPanel(hooks: ShopHooks, amounts: readonly number[]): PanelDe
     build(body) {
       const gold = h('p', { class: 'shop-gold' });
       const list = h('div', { class: 'crate-list' });
+      const later = h('p', { class: 'muted' });
       const msg = h('p', { class: 'form-msg', role: 'status' });
-      body.append(
-        h('h3', { text: 'Seed Crate' }),
-        h('p', { class: 'muted', text: 'A few starter seeds, until the market opens.' }),
-        gold,
-        list,
-        msg,
-      );
+      body.append(h('h3', { text: 'Seeds' }), gold, list, msg, later);
 
       const render = (): void => {
         // The list is rebuilt, so remember which buy button had focus and restore it after.
         const focused = document.activeElement;
         const focusLabel =
-          focused instanceof HTMLElement && list.contains(focused)
-            ? focused.getAttribute('aria-label')
-            : null;
+          focused instanceof HTMLElement && list.contains(focused) ? focused.dataset.buy : null;
         const state = hooks.state();
         const cal = hooks.calendar();
         const mods = hooks.mods();
-        gold.textContent = `You have ${state.gold}g`;
+        gold.textContent = `You have ${state.gold.toLocaleString('en-US')}g · Farm Level ${farmLevel(state)}`;
         list.replaceChildren();
-        const crops = CROP_IDS.filter((c) => isUnlocked(state, hooks.data.crops[c].unlock));
-        // In-season seeds first, then the rest in table order.
-        crops.sort(
-          (a, b) =>
-            Number(inSeason(hooks.data.crops[b], cal.season)) -
-            Number(inSeason(hooks.data.crops[a], cal.season)),
-        );
-        for (const crop of crops) {
-          const def = hooks.data.crops[crop];
-          const note = seedNote(hooks.data, crop, cal, mods);
-          const seasonal = inSeason(def, cal.season);
-          const buttons = amounts.map((n) => {
-            const cost = def.seedPrice * n;
-            const b = h('button', {
-              type: 'button',
-              class: 'btn btn-small',
-              text: `×${n} · ${cost}g`,
-              'aria-label': `Buy ${n} ${def.name} seeds for ${cost} gold`,
-              disabled: !seasonal || state.gold < cost,
-            });
-            b.addEventListener('click', () => {
-              const r = hooks.buySeeds(crop, n);
-              msg.textContent = r.ok ? `Bought ${n} ${def.name} seeds.` : r.reason;
-              msg.className = r.ok ? 'form-msg form-ok' : 'form-msg form-error';
-              render();
-            });
-            return b;
-          });
+        const stock = seedStock(state, hooks.data, cal.season);
+        if (stock.length === 0) list.append(h('p', { class: 'muted', text: 'No seeds this season.' }));
+        for (const s of stock) {
+          const def = hooks.data.crops[s.crop];
+          const note = s.unlocked
+            ? seedNote(hooks.data, s.crop, cal, mods)
+            : { ok: false, text: `Locked. ${s.hint ?? ''}` };
+          const max = maxAffordableSeeds(state, hooks.data, s.crop);
+          const buttons = s.unlocked
+            ? [...SHOP_BUY_AMOUNTS, 'max' as const].map((n) => {
+                const qty = n === 'max' ? max : n;
+                const cost = def.seedPrice * qty;
+                const b = h('button', {
+                  type: 'button',
+                  class: 'btn btn-small',
+                  'data-buy': `${s.crop}:${n}`,
+                  text: n === 'max' ? `Max ×${qty}` : `×${n} · ${cost}g`,
+                  'aria-label': `Buy ${qty} ${def.name} seeds for ${cost} gold`,
+                  disabled: qty <= 0 || state.gold < cost,
+                });
+                b.addEventListener('click', () => {
+                  const r = hooks.buySeeds(s.crop, qty);
+                  msg.textContent = r.ok ? `Bought ${qty} ${def.name} seeds for ${cost}g.` : r.reason;
+                  msg.className = r.ok ? 'form-msg form-ok' : 'form-msg form-error';
+                  render();
+                });
+                return b;
+              })
+            : [];
           list.append(
             h(
               'div',
-              { class: `crate-row${note.ok ? '' : ' is-warn'}`, 'data-seed': crop },
+              {
+                class: `crate-row${note.ok ? '' : ' is-warn'}${s.unlocked ? '' : ' is-locked'}`,
+                'data-seed': s.crop,
+              },
               h('img', {
                 class: 'pixel',
                 alt: '',
                 width: 32,
                 height: 32,
-                src: spriteDataUrl(`item_seed_${crop}`),
+                src: spriteDataUrl(`item_seed_${s.crop}`),
               }),
               h(
                 'div',
@@ -322,14 +326,20 @@ export function shopPanel(hooks: ShopHooks, amounts: readonly number[]): PanelDe
                 h('span', { text: `${def.name} · ${def.seedPrice}g` }),
                 h('span', { class: 'seed-note', text: note.text }),
               ),
-              h('div', { class: 'btn-row' }, ...buttons),
+              buttons.length > 0 ? h('div', { class: 'btn-row' }, ...buttons) : null,
             ),
           );
         }
+        const next = seasonOfWeek(cal.weekIndex + 1);
+        later.textContent = `The stock changes with the seasons. ${capitalize(next)} brings ${
+          CROP_IDS.filter(
+            (c) => inSeason(hooks.data.crops[c], next) && !inSeason(hooks.data.crops[c], cal.season),
+          )
+            .map((c) => hooks.data.crops[c].name.toLowerCase())
+            .join(', ') || 'no new seeds'
+        }.`;
         if (focusLabel) {
-          [...list.querySelectorAll<HTMLButtonElement>('button')]
-            .find((b) => b.getAttribute('aria-label') === focusLabel && !b.disabled)
-            ?.focus();
+          list.querySelector<HTMLButtonElement>(`[data-buy="${focusLabel}"]:not([disabled])`)?.focus();
         }
       };
       return {

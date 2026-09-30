@@ -246,6 +246,7 @@ export function harvestPlots(state: GameState, ctx: SimContext, plots: readonly 
       continue;
     }
     addItem(state.inventory, crop.id, qty);
+    state.stats.cropsHarvested += qty;
     if (crop.regrowSec !== null) {
       plot.harvests += 1;
       plot.growthMs = 0;

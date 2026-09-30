@@ -101,7 +101,7 @@ One screen. The scene is a 320 × 192 logical-pixel canvas (20 × 12 tiles) scal
 | Farmhouse | (1,1)–(4,3) | opens **Kitchen** |
 | Pond | (1,7)–(4,10) | opens **Fishing** (pond) |
 | Market stall | (15,6)–(17,8) | opens **Market** |
-| Shipping bin | (18,7) | opens the bin (drop items to sell at the next hourly pickup) |
+| Shipping bin | (18,7) | opens the Market panel, whose Shipping Bin section holds items for the next hourly pickup |
 | Greenhouse | (15,1)–(18,4) | locked lot → hint; built → greenhouse plots |
 | River | row 10–11, cols 6–14 | locked → hint + price; unlocked → **Fishing** (river) |
 | Dock | (15,10)–(19,11) | locked → hint + price; unlocked → **Fishing** (ocean) |
@@ -127,7 +127,7 @@ Each section lists: player actions · idle behaviour · unlocks · the phase tha
 - **Selling, two ways:** the **Market** panel sells instantly at 90% of the current price; the **Shipping Bin** pays 100% at the next hourly pickup, at that moment's prices. Auto-sell (phase 04) feeds the bin.
 - **Dynamic prices:** each item has a demand multiplier (0.5–1.3). Selling lowers it a little per unit (cheap bulk crops have deep markets, pricey ones shallow), and it recovers toward 1.0 within about half an hour. Items left unsold for 3+ hours climb toward 1.3 ("the town misses your pumpkins"). Each morning at 06:00 local, 1–3 **Today's specials** get +20–50%. The Market shows a trend arrow and a 7-day sparkline. The system nudges toward variety without ever making one crop worthless.
 - **Shop:** seeds (in-season, unlocked; locked ones show the unlock hint), recipe cards (phase 06), and later nothing else: upgrades live in the Upgrades panel.
-- **Farm expansion:** 4 steps from 4 × 2 to 8 × 6 plots on a geometric price curve. Each one visibly changes the scene. Fishing locations are bought the same way (river, ocean).
+- **Farm expansion:** 4 steps from 4 × 2 to 8 × 6 plots on a geometric price curve, bought in the Upgrades panel. Each one visibly changes the scene (weeds and a stump cleared, the fence moved, stepping stones, two old trees cleared, a scarecrow post). Fishing locations are bought the same way (river, ocean) from phase 05.
 - **Inventory:** 12 slots of stacks up to 99 at the start. Backpack adds slots (phase 03); barn storage raises the stack size (phase 04).
 - **Seams:** `sellPriceModifier`, `goldEarned` event.
 

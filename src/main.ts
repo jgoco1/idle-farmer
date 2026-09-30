@@ -19,11 +19,10 @@ import {
 import { createInitialState } from './core/state';
 import { systemLocalClock } from './core/time';
 import { GAME_DATA } from './data';
-import { SEED_CRATE_BUY_AMOUNTS } from './data/balance';
 import type { CropId } from './data/ids';
 import { applyPaletteCssVars } from './render/palette';
 import { Renderer } from './render/renderer';
-import { plotSprites } from './render/scene';
+import { BIN_TILE, plotSprites } from './render/scene';
 import { autoToolFor, isReady, plotStage, type ConcreteTool } from './systems/farming';
 import { computeModifiers } from './systems/modifiers';
 import { showAwaySummary } from './ui/awaySummary';
@@ -32,7 +31,10 @@ import { FarmTools } from './ui/farmTools';
 import { Hud } from './ui/hud';
 import { showModal } from './ui/modal';
 import { PanelManager } from './ui/panel';
+import { goldPopupAt } from './ui/goldFx';
+import { marketPanel } from './ui/marketPanel';
 import { inventoryPanel, settingsPanel, shopPanel, STUB_PANELS, type GameViewHooks } from './ui/panels';
+import { upgradesPanel } from './ui/upgradesPanel';
 import { Toasts } from './ui/toast';
 import { buildToolbar } from './ui/toolbar';
 
@@ -83,14 +85,30 @@ const view: GameViewHooks = {
   calendar: () => game.calendar(),
   mods: () => computeModifiers(game.state, GAME_DATA),
 };
+const stubPanel = (id: string) => STUB_PANELS.find((d) => d.id === id)!;
+// Registration order is the toolbar order.
 panels.register(inventoryPanel(view));
 panels.register(
-  shopPanel(
-    { ...view, buySeeds: (crop, qty) => game.dispatch({ type: 'buySeeds', crop, qty }) },
-    SEED_CRATE_BUY_AMOUNTS,
-  ),
+  shopPanel({ ...view, buySeeds: (crop, qty) => game.dispatch({ type: 'buySeeds', crop, qty }) }),
 );
-for (const def of STUB_PANELS) panels.register(def);
+panels.register(
+  marketPanel({
+    ...view,
+    sell: (item, qty) => game.dispatch({ type: 'sell', item, qty }),
+    ship: (item, qty) => game.dispatch({ type: 'ship', item, qty }),
+    unship: (item) => game.dispatch({ type: 'unship', item }),
+  }),
+);
+panels.register(stubPanel('kitchen'));
+panels.register(stubPanel('fishing'));
+panels.register(
+  upgradesPanel({
+    ...view,
+    buyExpansion: (id) => game.dispatch({ type: 'buyExpansion', id }),
+    buyUpgrade: (id) => game.dispatch({ type: 'buyUpgrade', id }),
+  }),
+);
+panels.register(stubPanel('goals'));
 panels.register(
   settingsPanel({
     getVolume: () => game.state.settings.masterVolume,
@@ -133,7 +151,20 @@ game.bus.on('seasonChanged', (e) => {
     );
   }
 });
-// Live panels (Inventory, Shop) follow the state; refreshed at most once per frame.
+// The Shipping Bin pickup: "+N" over the bin in the scene, and a toast.
+game.bus.on('binCollected', (e) => {
+  const at = renderer.tileClientCenter(BIN_TILE.col, BIN_TILE.row);
+  goldPopupAt(e.gold, at.x, at.y);
+  toasts.show(
+    `The Shipping Bin was collected: ${e.items} item${e.items === 1 ? '' : 's'} for ${e.gold}g.`,
+    'good',
+  );
+});
+game.bus.on('purchased', (e) => {
+  if (e.what in GAME_DATA.expansions)
+    toasts.show('The farm grows! New soil is waiting to be tilled.', 'good');
+});
+// Live panels (Inventory, Shop, Market) follow the state; refreshed at most once per frame.
 let panelsDirty = false;
 game.bus.onAny(() => (panelsDirty = true));
 
@@ -176,11 +207,16 @@ const renderer = new Renderer({
       case 'pond':
         return panels.open('fishing');
       case 'market':
+      case 'bin':
         return panels.open('market');
       case 'plots':
         return; // handled by the stroke callbacks below
       case 'greenhouse':
-        return toasts.show('An empty lot. Something could be built here one day.');
+        return toasts.show(
+          game.state.expansions.includes('farm_3')
+            ? 'An empty lot. Something could be built here one day.'
+            : 'Old trees crowd this lot. The Old Orchard Plot expansion would clear them.',
+        );
       case 'river':
         return toasts.show('Tall reeds hide a river bank. Maybe later…');
       case 'dock':
@@ -211,7 +247,7 @@ const renderer = new Renderer({
     flushStrokeToasts();
   },
 });
-renderer.setGrid(game.state.farm.grid);
+renderer.setScene(game.state.farm.grid, game.state.expansions);
 
 // ---- offline catch-up for the time since the last save
 function readyPlots(): number {
@@ -257,7 +293,7 @@ if (loaded.kind === 'error') {
 const loop = startLoop(game, {
   render() {
     const cal = game.calendar();
-    renderer.setGrid(game.state.farm.grid);
+    renderer.setScene(game.state.farm.grid, game.state.expansions);
     renderer.render(
       performance.now(),
       cal,
@@ -269,6 +305,7 @@ const loop = startLoop(game, {
       panelsDirty = false;
       panels.refreshOpen();
     }
+    panels.tickOpen(performance.now());
   },
   onHide: save,
   onResume,
