@@ -27,7 +27,8 @@ export const EXPANSIONS: Readonly<Record<ExpansionId, ExpansionDef>> = Object.fr
     requires: [{ kind: 'expansion', id: 'farm_1' }],
     grid: { cols: 5, rows: 4 },
     sceneChange: 'the fence is rebuilt 1 tile east and south; the paths gain stepping stones',
-    description: 'Rebuild the sagging fence a little wider, and lay some stepping stones while you are at it.',
+    description:
+      'Rebuild the sagging fence a little wider, and lay some stepping stones while you are at it.',
   },
   farm_3: {
     id: 'farm_3',

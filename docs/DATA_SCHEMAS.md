@@ -334,8 +334,11 @@ export interface ExpansionDef {
   /** fishing: the location it opens. */
   location?: FishLocationId;
   sceneChange: string;                    // short note for the renderer, e.g. 'fence moves east 1 tile'
+  description: string;                    // one cozy line for the Upgrades panel (phase 03)
 }
 ```
+
+Phase 03: `EXPANSIONS` (`src/data/expansions.ts`) is a full `Record<ExpansionId, ExpansionDef>`; prices of the farm steps come from `FARM_EXPANSION_COST` with `roundNice`. `buyExpansion` refuses the fishing kinds until phase 05. What each step changes in the scene is `DECOR` in `src/render/scene.ts` (shown `until` / `from` an expansion).
 
 The starting grid (4 × 2) is a constant, `START_GRID`, not an expansion.
 
@@ -432,6 +435,8 @@ export interface GameData {
 
 Passing `GameData` in (rather than importing it inside systems) lets tests use tiny fake tables.
 
+Phase 03 status: `GameData` also has `expansions` (full record) and `upgrades` (`Partial<Record<UpgradeId, UpgradeDef>>`, only `backpack` so far; `UpgradeEffect` has only `inventorySlots` until phase 04 adds its fields). `CostCurve`, `UpgradeDef`, `UpgradeEffect` and `ExpansionDef` live in `src/data/types.ts`.
+
 Phase 02 status: `GameData` has `startGrid`, `crops` and `items`. `items` is `Partial<Record<ItemId, ItemDef>>` until phases 05/06 add fish, junk and dishes; it holds a crop item and a `seed_<crop>` item per crop, generated in `src/data/items.ts`.
 
 ---
@@ -496,16 +501,16 @@ export interface GameState {
 
   // ---- economy (@03)
   market: {
-    items: Partial<Record<ItemId, MarketItemState>>;
-    specials: { item: ItemId; bonus: number }[];   // today's specials
-    lastRolledDay: number;
+    items: Partial<Record<ItemId, MarketItemState>>;   // no entry = demand 1.0, never sold
+    specials: { item: ItemId; bonus: number }[];   // today's specials (always the current day's: rolled
+                                                   // at creation and at each 06:00 refresh)
   };
   shippingBin: { items: ItemStack[]; msToPickup: number };   // collected every 60 min of simulated time
   expansions: ExpansionId[];                       // bought, in order
   stats: Stats;                                    // @03, extended by later phases
+  upgrades: Partial<Record<UpgradeId, number>>;    // @03 (backpack); level, or number owned for placeables
 
   // ---- automation (@04)
-  upgrades: Partial<Record<UpgradeId, number>>;    // level, or number owned for placeables
   placed: PlacedObject[];                          // sprinklers, scarecrows, fish traps (@05)
   autoSell: Partial<Record<ItemId, boolean>>;      // per-item toggle; default true for crops
   automation: { farmhandCooldownMs: number; farmhandTarget: number | null };
@@ -596,14 +601,14 @@ export interface ActiveGoal {
 }
 
 export interface Stats {
-  lifetimeGold: number;
-  goldToday: number;
-  cropsHarvested: number;
-  itemsShipped: number;
+  lifetimeGold: number;        // @03: all gold earned; drives the provisional farm level
+  goldToday: number;           // @03: reset at each 06:00 refresh
+  cropsHarvested: number;      // @03: units
+  itemsShipped: number;        // @03: units sold through the Shipping Bin
   fishCaught: number;          // @05
   dishesCooked: number;        // @06
   dishesEaten: number;         // @06
-  daysPassed: number;
+  daysPassed: number;          // @03: daily refreshes seen
 }
 
 export interface Settings {
@@ -690,7 +695,7 @@ Phases add event variants as they need them; adding a variant never needs a save
 ## 8. `SaveFile` and migrations (`src/core/save.ts`)
 
 ```ts
-export const SAVE_VERSION = 1;                 // phase 01 starts at 1; every GameState change bumps it
+export const SAVE_VERSION = 3;                 // phase 01 started at 1, phase 02 → 2, phase 03 → 3; every GameState change bumps it
 export const SAVE_KEY = 'hearthfield-idle/save';
 
 export interface SaveFile {

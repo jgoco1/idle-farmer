@@ -98,40 +98,40 @@ ready  = plot.growthMs >= needMs
 Crop prices are derived, not hand-picked. `u` is the crop's value tier (0–3, roughly "how late it unlocks"). `m` is minutes of simulated time.
 
 ```ts
-profitRate(m, u) = 6.0 * (1 + 0.25 * log2(m / 2)) * (1 + 0.2 * u)   // gold per plot per minute, watered
+profitRate(m, u) = 6.0 * (1 + 0.25 * log2(m / 2)) * (1 + 0.2 * u)   // gold per plot per minute, watered, sold at the Market (90%)
 // single-harvest crops, growing m minutes with average yield y:
 gross     = profitRate(growMin, u) * growMin / 0.55
 basePrice = round(gross / y)
-seedPrice = roundNice(0.45 * gross)
+seedPrice = roundNice(0.35 * gross)                  // Market profit = 0.9·gross − 0.35·gross = 0.55·gross (phase 03; was 0.45)
 // regrowing crops, regrow time r minutes:
 grossPerHarvest = profitRate(r, u) * r * 0.85        // slight discount: no replanting cost or clicks
 basePrice       = round(grossPerHarvest / y)
-seedPrice       = roundNice(2.2 * grossPerHarvest)
+seedPrice       = roundNice(1.7 * grossPerHarvest)   // phase 03; was 2.2
 ```
 
 Longer crops earn a little more per minute (patience is rewarded), and later crops earn more (progression feels like progress). Regrowers are the "plant once, forget" option that suits idle play.
 
 ### Crop table (15 crops)
 
-`u` values: turnip, potato, wheat, tomato, yam 0; garlic, strawberry, blueberry, kale, leek 1; cauliflower, corn, cranberry 2; melon, pumpkin 3. Durations are simulated time, stored in data as seconds (`growSec`, `regrowSec`). `XP/unit` is Farming XP per harvested unit (§8). `Profit/plot/min` is at 1× growth, watered, at demand 1.0.
+`u` values: turnip, potato, wheat, tomato, yam 0; garlic, strawberry, blueberry, kale, leek 1; cauliflower, corn, cranberry 2; melon, pumpkin 3. Durations are simulated time, stored in data as seconds (`growSec`, `regrowSec`). `XP/unit` is Farming XP per harvested unit (§8). `Profit/plot/min` is at 1× growth, watered, at demand 1.0, sold at the Market (90%); the Shipping Bin adds 10% of the gross on top.
 
 | id | Name | Seasons | Grow (s / min) | Regrow (s / min) | Yield | Seed price | Base price | XP/unit | Farm Lv | Profit/plot/min |
 |---|---|---|---|---|---|---|---|---|---|---|
-| `turnip` | Turnip | spring | 120 / 2 | — | 1–1 | 10 | 22 | 3 | 1 | 6.00 |
-| `potato` | Potato | spring | 240 / 4 | — | 1–2 | 25 | 36 | 4 | 1 | 7.25 |
-| `garlic` | Garlic | winter, spring | 300 / 5 | — | 1–1 | 39 | 87 | 7 | 2 | 9.60 |
-| `strawberry` | Strawberry | spring | 480 / 8 | 240 / 4 | 1–2 | 67 | 20 | 3 | 3 | 7.50 (regrow) |
-| `cauliflower` | Cauliflower | spring | 600 / 10 | — | 1–1 | 110 | 241 | 13 | 4 | 13.10 |
-| `wheat` | Wheat | summer, autumn | 180 / 3 | — | 1–2 | 17 | 25 | 3 | 1 | 6.83 |
-| `tomato` | Tomato | summer, autumn | 360 / 6 | 180 / 3 | 1–2 | 39 | 12 | 2 | 1 | 6.00 (regrow) |
-| `blueberry` | Blueberry | summer | 600 / 10 | 240 / 4 | 2–3 | 67 | 12 | 2 | 3 | 7.50 (regrow) |
-| `corn` | Corn | summer, autumn | 720 / 12 | 360 / 6 | 1–2 | 130 | 40 | 5 | 4 | 10.00 (regrow) |
-| `melon` | Melon | summer | 1080 / 18 | — | 1–1 | 250 | 563 | 22 | 6 | 17.39 |
-| `yam` | Yam | autumn | 420 / 7 | — | 1–1 | 50 | 111 | 8 | 1 | 8.71 |
-| `kale` | Kale | autumn, winter | 300 / 5 | — | 1–1 | 39 | 87 | 7 | 2 | 9.60 |
-| `cranberry` | Cranberry | autumn | 540 / 9 | 240 / 4 | 2–3 | 79 | 14 | 2 | 4 | 8.75 (regrow) |
-| `pumpkin` | Pumpkin | autumn | 1200 / 20 | — | 1–1 | 290 | 639 | 24 | 6 | 17.45 |
-| `leek` | Leek | winter | 480 / 8 | — | 1–1 | 71 | 157 | 10 | 2 | 10.75 |
+| `turnip` | Turnip | spring | 120 / 2 | — | 1–1 | 8 | 22 | 3 | 1 | 6.00 |
+| `potato` | Potato | spring | 240 / 4 | — | 1–2 | 19 | 36 | 4 | 1 | 7.25 |
+| `garlic` | Garlic | winter, spring | 300 / 5 | — | 1–1 | 30 | 87 | 7 | 2 | 9.60 |
+| `strawberry` | Strawberry | spring | 480 / 8 | 240 / 4 | 1–2 | 52 | 20 | 3 | 3 | 7.50 (regrow) |
+| `cauliflower` | Cauliflower | spring | 600 / 10 | — | 1–1 | 84 | 241 | 13 | 4 | 13.10 |
+| `wheat` | Wheat | summer, autumn | 180 / 3 | — | 1–2 | 13 | 25 | 3 | 1 | 6.83 |
+| `tomato` | Tomato | summer, autumn | 360 / 6 | 180 / 3 | 1–2 | 30 | 12 | 2 | 1 | 6.00 (regrow) |
+| `blueberry` | Blueberry | summer | 600 / 10 | 240 / 4 | 2–3 | 52 | 12 | 2 | 3 | 7.50 (regrow) |
+| `corn` | Corn | summer, autumn | 720 / 12 | 360 / 6 | 1–2 | 100 | 40 | 5 | 4 | 10.00 (regrow) |
+| `melon` | Melon | summer | 1080 / 18 | — | 1–1 | 200 | 563 | 22 | 6 | 17.39 |
+| `yam` | Yam | autumn | 420 / 7 | — | 1–1 | 39 | 111 | 8 | 1 | 8.71 |
+| `kale` | Kale | autumn, winter | 300 / 5 | — | 1–1 | 30 | 87 | 7 | 2 | 9.60 |
+| `cranberry` | Cranberry | autumn | 540 / 9 | 240 / 4 | 2–3 | 61 | 14 | 2 | 4 | 8.75 (regrow) |
+| `pumpkin` | Pumpkin | autumn | 1200 / 20 | — | 1–1 | 220 | 639 | 24 | 6 | 17.45 |
+| `leek` | Leek | winter | 480 / 8 | — | 1–1 | 55 | 157 | 10 | 2 | 10.75 |
 
 Spring, summer and autumn each have Farm Level 1 crops (spring: turnip, potato; summer: wheat, tomato; autumn: yam, wheat, tomato). Winter's crops (garlic, kale, leek) start at Farm Level 2, which a player reaches long before their first winter (week 4 at the earliest), so winter is lean on crops and leans on cooking (§7, seasonal effects) and fishing. Multi-season crops: garlic, wheat, tomato, corn, kale. Regrowers: strawberry, tomato, blueberry, corn, cranberry.
 
@@ -173,7 +173,7 @@ Items dropped in the bin are sold at the prices of the moment of pickup. The Mar
 ```ts
 DEMAND_FLOOR = 0.5
 DEMAND_CEIL  = 1.3
-depth(item)  = clamp(round(60 * sqrt(20 / basePrice)), 8, 60)   // units that push demand from 1.0 to the floor
+depth(item)  = clamp(round(150 * sqrt(20 / basePrice)), 20, 150)   // units that push demand from 1.0 to the floor (phase 03; was 60, 8, 60)
 // after each unit sold:
 demand = max(DEMAND_FLOOR, demand - 0.5 / depth(item))
 
@@ -187,15 +187,21 @@ restTarget(h) = h < 1 ? 1.0 : min(1.3, 1.0 + 0.1 * h)           // unsold for 3+
 // items never sold: target 1.0
 ```
 
-Cheap bulk crops have deep markets (turnip depth 57), expensive items have shallow ones (pumpkin 11, moonfin 8). Growing one crop is never punished (the floor is half price and it recovers in about half an hour), but rotating crops and resting a market pays up to +30%.
+The target is piecewise (constant, linear, constant), so recovery is solved in closed form on each piece (`demandAfter` in `src/systems/market.ts`; on the linear piece `d(t) = T0 + k(t − τ) + (d0 − T0 + kτ)e^(−t/τ)`), and one large step equals many small ones to floating-point precision. The sparkline records `demand × (1 + special)` for every sellable item at each daily refresh (last 7 points); the trend arrow compares the current value with the morning's point (±0.02 counts as steady).
+
+Cheap bulk crops have deep markets (turnip depth 143), expensive items have shallow ones (pumpkin 27, moonfin 20). Growing one crop is never punished (the floor is half price and it recovers in about half an hour), but rotating crops and resting a market pays up to +30%.
 
 ### Daily specials
 
-At 06:00 local each day (a calendar event): `n = 1 + rng.int(0, 2)` items are drawn without replacement from sellable items the player can currently obtain (in-season unlocked crops, fish at unlocked locations, known dishes). Each gets `bonus = 0.20 + 0.05 * rng.int(0, 6)` (so +20% to +50%). Specials last until the next 06:00, which gives players a gentle reason to look in once a day.
+At 06:00 local each day (a calendar event), and once when a new farm is created: `n = 1 + rng.int(0, 2)` items are drawn without replacement from sellable items the player can currently obtain (in-season unlocked crops, fish at unlocked locations, known dishes). Each gets `bonus = 0.20 + 0.05 * rng.int(0, 6)` (so +20% to +50%). Specials last until the next 06:00, which gives players a gentle reason to look in once a day.
 
 ### Market depth values (for reference)
 
-turnip 57, potato 45, garlic 29, strawberry 60, cauliflower 17, wheat 54, tomato 60, blueberry 60, corn 42, melon 11, yam 25, kale 29, cranberry 60, pumpkin 11, leek 21; bluegill 49, carp 42, catfish 26, koi 15, trout 38, perch 40, salmon 23, sturgeon 13, sardine 45, mackerel 36, tuna 21, pufferfish 14, moonfin 8, petal_koi 8, ember_salmon 8, sun_marlin 8; seaweed 60, old_boot 60, driftwood 60. Dishes use the same formula with their base price.
+turnip 143, potato 112, garlic 72, strawberry 150, cauliflower 43, wheat 134, tomato 150, blueberry 150, corn 106, melon 28, yam 64, kale 72, cranberry 150, pumpkin 27, leek 54; bluegill 122, carp 106, catfish 64, koi 39, trout 95, perch 100, salmon 57, sturgeon 33, sardine 113, mackerel 90, tuna 53, pufferfish 34, moonfin 20, petal_koi 20, ember_salmon 20, sun_marlin 20; seaweed 150, old_boot 150, driftwood 150. Dishes use the same formula with their base price.
+
+### Shop and upgrade buttons
+
+The Shop sells this season's seeds in lots of 1, 5, 10 and "Max" (as many as gold and bag space allow); seeds that need a farm level are listed, locked, with the gold still to earn. The Market sells ×1, ×10 or all at 90%, or ships all to the bin. Constants: `SHOP_BUY_AMOUNTS`, `MARKET_SELL_AMOUNTS` in `src/data/balance.ts`.
 
 ---
 
@@ -271,8 +277,8 @@ If the inventory is full during an automated harvest, the crop **stays ready in 
 |---|---|---|---|---|---|---|
 | `farm_1` | Clear the Weeds | farm | 400 | 4 × 3 (12 plots) | — | weeds and a stump south of the plots disappear; fence moves down 1 tile |
 | `farm_2` | Mend the Fence | farm | 1500 | 5 × 4 (20 plots) | `farm_1` | fence rebuilt 1 tile east and south; a path gains stepping stones |
-| `farm_3` | Old Orchard Plot | farm | 5500 | 6 × 5 (30 plots) | `farm_2`, FL3 | two trees removed; the greenhouse lot is revealed |
-| `farm_4` | The Back Forty | farm | 20000 | 8 × 6 (48 plots) | `farm_3`, FL6 | fence reaches the scene edge; a scarecrow post decoration appears |
+| `farm_3` | Old Orchard Plot | farm | 5500 | 6 × 5 (30 plots) | `farm_2`, FL3 | two trees removed (one where the wider fence goes, one on the greenhouse lot); the lot is revealed |
+| `farm_4` | The Back Forty | farm | 20000 | 8 × 6 (48 plots) | `farm_3`, FL6 | the fence reaches the market path; a scarecrow post decoration appears |
 | `river` | River Access | fishing | 2000 | location `river` | FL3 | a river is shown along the bottom edge with a small bridge |
 | `ocean` | Old Dock | fishing | 8000 | location `ocean` | `river`, FL6 | a wooden dock and sea tiles appear in the bottom-right corner |
 
@@ -596,7 +602,7 @@ Times are real time for a player who is actively playing, unless noted. Phase 09
 | Food buffs kept up | 10–25% faster progression, never required |
 | Late game gold/hour | grows roughly linearly with upgrades, never more than ~3× per real hour of play |
 
-Early-game sanity check (by hand): 8 watered turnip plots earn about `8 * 6 = 48` gold profit per minute of active play before the market drop. That puts `farm_1` (400) at ~8 minutes and the first sprinkler (300) soon after, inside the targets.
+Early-game sanity check (by hand): 8 watered turnip plots earn about `8 * 6 = 48` gold profit per minute of active play at the Market before the market drop. That puts `farm_1` (400) at ~8 minutes and the first sprinkler (300) soon after, inside the targets. The phase 03 simulation (tuning notes below) confirms it.
 
 ---
 
@@ -610,6 +616,35 @@ Each phase that tunes numbers adds a dated subsection here: what changed, why, a
 - The provisional farm level (§9) is deliberately generous so phases 02–06 can be playtested without progression.
 - **Revision after owner review:** the calendar now follows real local time (weekly seasons, night 20:00–06:00) and all timers are in seconds of simulated time. Prices are unchanged: the old "in-game hour" was 30 real seconds, so `profitRate` was restated per real minute with the same results. Watering lasts 2 h and sprinklers keep plots permanently watered; the shipping bin is collected every 60 minutes. Recipes were reworked so every T3/T4 can be cooked from one season's ingredients (`melon_sorbet_tower` was replaced by the spring T4 `garden_banquet`), three seasonal legendary fish were added (`petal_koi`, `sun_marlin`, `ember_salmon`), fish time windows were widened, traps ignore time windows, and winter gained cooking bonuses (hearty dishes, Cooking XP, dish prices).
 
-### Phase 02 notes
+### Phase 02 notes (kept for history)
 - No numbers changed. The 15 crops, `WATER_DURATION_MS`, `DRY_GROWTH_FACTOR = 0.5`, starting gold (60), 6 turnip seeds, 12 slots × 99 and the tilled left half of the 4 × 2 grid (columns 0–1 in both rows) are in `src/data/crops.ts` and `src/data/balance.ts`.
 - The temporary Seed Crate sells unlocked, in-season seeds at `seedPrice` in lots of `SEED_CRATE_BUY_AMOUNTS = [1, 5]`. With the 6 starting turnip seeds the first harvest comes 2 minutes after planting when watered (the ≤ 2.5 min target), and the 60 starting gold buys six more seeds for the other plots.
+
+### Phase 03 tuning notes
+**Method.** `tests/sim/greedyPlayer.ts` plays the real game (`Game.dispatch` / `Game.advance`) for 60 minutes, looking at the farm every 5 s: harvest everything, sell it all at the Market, buy the next item on a shopping list when that leaves 12.5 g per plot for seeds, till, plant the crop with the best profit per plot-minute *after* the demand drop its own pending harvests will cause, water. Phase 04/05 purchases (first sprinkler 300 g, farmhand 800 g at FL3, River Access 2000 g at FL3) are bought as virtual items: gold is spent, nothing happens. The list is farm_1 → sprinkler → farmhand → farm_2 → river → farm_3. `tests/pacing.test.ts` runs 8 seeds and asserts the targets on the medians.
+
+**What was wrong.** The first run (phase 00 numbers) put `farm_1` at ~13 min on a day without specials and a one-crop farm at 63% of base price. Two causes: the seed-price formula assumed selling at 100%, but instant Market sales pay 90%, so Market profit was 45% of gross instead of 55% (turnip: 19 − 10 = 9 g, not 12 g); and markets 60 units deep made 8 plots of one crop sink to ~0.65 demand within minutes.
+
+**Changes.**
+- `seedPrice = roundNice(0.35 · gross)` (was 0.45) and `1.7 · grossPerHarvest` for regrowers (was 2.2), so `profitRate` is exactly the Market profit again. Seeds: turnip 10→8, potato 25→19, garlic 39→30, strawberry 67→52, cauliflower 110→84, wheat 17→13, tomato 39→30, blueberry 67→52, corn 130→100, melon 250→200, yam 50→39, kale 39→30, cranberry 79→61, pumpkin 290→220, leek 71→55. Base prices are unchanged, so recipe values and tiers (§7) are unaffected.
+- Market depth `clamp(round(150 · sqrt(20 / basePrice)), 20, 150)` (was 60, 8, 60): about 2.5× deeper. `TAU_MIN = 10`, the floor, the ceiling and the rest curve are unchanged.
+- Nothing else changed: starting gold 60, expansion curve 400 · 3.7ⁿ, backpack 200 · 2.2ⁿ, bin every 60 min, channels 0.9 / 1.0.
+
+**Results** (8 seeds, medians with ranges, minutes):
+
+| Measure | Target | Real game (specials rolled at creation) | Day without specials |
+|---|---|---|---|
+| First harvest | ≤ 2.5 | 2.0 | 2.0 |
+| First expansion `farm_1` | 6–10 | 8.0 (6–10) | 11.0 |
+| First sprinkler (virtual) | 10–15 | 14.0 (10–15) | 16.0 |
+| Farmhand L1 (virtual) | 25–40 | 28.0 (16–30) | 31.0 |
+| `farm_2` | — | 36 (28–39) | 41 |
+| River (virtual) | 45–75 | 48 (42–51) | 56 |
+| Lifetime gold at 60 min | — | 14,000 (FL6 at ~47 min) | 12,100 |
+| Average Market price / base price | — | 0.95 | 0.83 |
+
+- **Specials matter early.** At Farm Level 1 in spring only turnip and potato can be specials, so a new farm almost always has one or both at +20–50% for its first day. The "day without specials" column is the unlucky floor; both columns sit inside or at the edge of the targets.
+- **Variety, gently.** With specials off, a turnip-only farm sells at 0.725 of base price (≈ 0.81 of what an infinitely deep market would pay) and still buys `farm_1` at 10 min; the greedy mixed farm sells at 0.83. With the phase 00 depths the turnip-only farm fell to 0.57.
+- **Waiting.** A player on the starter crops never waits more than 2 min (turnips take 2). After Farm Level 4 (~17 min) the greedy player fills the field with 10-minute cauliflower and waits up to ~6–8 min between waves: its own choice, and fishing (phase 05) fills those gaps. The test asserts the ≤ 2 min target before FL4 and for a starter-crop player.
+- **Provisional farm level** (§9, unchanged) is generous: FL3 at ~10 min, FL4 ~17, FL6 ~47. Phase 07 replaces it.
+- **Watch in phase 04:** the Shipping Bin sells its whole load at one moment, so an hour of auto-shipped harvest of one crop sells far down its demand curve (e.g. 240 turnips average ~0.65). That makes selling as you go better than a full bin, which is intended, but check it against the casual-idler target when auto-selling arrives.

@@ -23,7 +23,12 @@ export function seedStock(state: GameState, data: GameData, season: SeasonId): S
   return CROP_IDS.filter((c) => inSeason(data.crops[c], season)).map((crop) => {
     const def = data.crops[crop];
     const unlocked = isUnlocked(state, def.unlock);
-    return { crop, price: def.seedPrice, unlocked, hint: unlocked ? null : unlockHint(state, data, def.unlock) };
+    return {
+      crop,
+      price: def.seedPrice,
+      unlocked,
+      hint: unlocked ? null : unlockHint(state, data, def.unlock),
+    };
   });
 }
 

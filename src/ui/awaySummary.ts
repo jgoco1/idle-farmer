@@ -31,9 +31,12 @@ export function awaySummaryLines(report: OfflineReport, readyPlots = 0): string[
     binItems += e.items;
   }
   if (binItems > 0) {
-    lines.push(`The Shipping Bin was collected: ${binItems} item${binItems === 1 ? '' : 's'} sold for ${binGold}g.`);
+    lines.push(
+      `The Shipping Bin was collected: ${binItems} item${binItems === 1 ? '' : 's'} sold for ${binGold}g.`,
+    );
   }
-  if (report.dayStarts > 0) lines.push("A new morning dawned over the farm, with new specials at the market.");
+  if (report.dayStarts > 0)
+    lines.push('A new morning dawned over the farm, with new specials at the market.');
   if (readyPlots > 0) {
     lines.push(`${readyPlots} crop${readyPlots === 1 ? ' is' : 's are'} ready to harvest.`);
   }

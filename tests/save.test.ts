@@ -110,9 +110,9 @@ describe('save file', () => {
     expect(bad((c) => (c.inventory.slots[0] = { item: 'turnip', qty: 0 }))).toBe('bad inventory slot');
     expect(bad((c) => delete (c as Partial<typeof c>).inventory)).toBe('bad inventory');
     expect(bad((c) => (c.gold = 1.5))).toBe('bad gold');
-    expect(bad((c) => (c.market.items.turnip = { demand: 'high' as never, lastSoldSimMs: -1, history: [] }))).toBe(
-      'bad market item',
-    );
+    expect(
+      bad((c) => (c.market.items.turnip = { demand: 'high' as never, lastSoldSimMs: -1, history: [] })),
+    ).toBe('bad market item');
     expect(bad((c) => (c.shippingBin.msToPickup = 0))).toBe('bad shipping bin');
     expect(bad((c) => (c.stats.lifetimeGold = NaN))).toBe('bad stats');
     expect(bad((c) => (c.upgrades.backpack = 'x' as never))).toBe('bad upgrades');
@@ -208,7 +208,13 @@ describe('migrations', () => {
     expect(s.market).toEqual({ items: {}, specials: [] });
     expect(s.shippingBin).toEqual({ items: [], msToPickup: 3_600_000 });
     expect(s.expansions).toEqual([]);
-    expect(s.stats).toEqual({ lifetimeGold: 0, goldToday: 0, cropsHarvested: 0, itemsShipped: 0, daysPassed: 0 });
+    expect(s.stats).toEqual({
+      lifetimeGold: 0,
+      goldToday: 0,
+      cropsHarvested: 0,
+      itemsShipped: 0,
+      daysPassed: 0,
+    });
     expect(s.upgrades).toEqual({});
     expect(validateState(s)).toBeNull();
   });

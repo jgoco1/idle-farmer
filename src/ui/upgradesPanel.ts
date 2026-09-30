@@ -55,8 +55,17 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
         h(
           'div',
           { class: `crate-row upgrade-row is-${state}`, 'data-upgrade': key },
-          h('span', { class: 'upgrade-mark', 'aria-hidden': 'true', text: state === 'owned' ? '✓' : state === 'locked' ? '🔒' : '★' }),
-          h('div', { class: 'crate-text' }, h('span', { text: title }), h('span', { class: 'seed-note', text })),
+          h('span', {
+            class: 'upgrade-mark',
+            'aria-hidden': 'true',
+            text: state === 'owned' ? '✓' : state === 'locked' ? '🔒' : '★',
+          }),
+          h(
+            'div',
+            { class: 'crate-text' },
+            h('span', { text: title }),
+            h('span', { class: 'seed-note', text }),
+          ),
           button ? h('div', { class: 'btn-row' }, button) : null,
         );
 
@@ -125,7 +134,8 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
             return card(id, title, text, maxed ? 'owned' : unlocked ? 'available' : 'locked', button);
           }),
         );
-        if (focusedKey) body.querySelector<HTMLElement>(`[data-upgrade="${focusedKey}"] button:not([disabled])`)?.focus();
+        if (focusedKey)
+          body.querySelector<HTMLElement>(`[data-upgrade="${focusedKey}"] button:not([disabled])`)?.focus();
       };
       return { refresh: render };
     },

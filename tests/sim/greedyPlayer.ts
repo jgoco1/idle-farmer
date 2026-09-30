@@ -210,7 +210,9 @@ export function simulateGreedy(opts: PacingOptions): PacingReport {
         pending[best] = (pending[best] ?? 0) + avgYield(best);
       }
     }
-    const dry = all.filter((i) => s.farm.plots[i]!.state !== 'untilled' && s.farm.plots[i]!.waterMsLeft === 0);
+    const dry = all.filter(
+      (i) => s.farm.plots[i]!.state !== 'untilled' && s.farm.plots[i]!.waterMsLeft === 0,
+    );
     if (dry.length > 0) act(game.dispatch({ type: 'water', plots: dry }));
 
     if (useful) {

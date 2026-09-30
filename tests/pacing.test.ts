@@ -36,7 +36,8 @@ describe('pacing: the first 60 minutes of a greedy active player', () => {
     const mixed = starters.map((r) => r.longestIdleMs);
     expect(median(mixed)).toBeLessThanOrEqual(2 * MIN);
     for (const r of real) {
-      if (r.longestIdleAt < (r.farmLevels[4] ?? Infinity)) expect(r.longestIdleMs).toBeLessThanOrEqual(2 * MIN);
+      if (r.longestIdleAt < (r.farmLevels[4] ?? Infinity))
+        expect(r.longestIdleMs).toBeLessThanOrEqual(2 * MIN);
     }
   });
 

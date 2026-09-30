@@ -8,11 +8,17 @@ import type { SimContext } from './context';
 export type GoldSource = 'sale' | 'quest' | 'other';
 
 function assertGold(amount: number): void {
-  if (!Number.isInteger(amount) || amount < 0) throw new Error(`Gold amounts are whole numbers ≥ 0 (got ${amount})`);
+  if (!Number.isInteger(amount) || amount < 0)
+    throw new Error(`Gold amounts are whole numbers ≥ 0 (got ${amount})`);
 }
 
 /** Adds `amount` gold, counts it toward lifetime and today's gold, and emits `goldEarned`. */
-export function earn(state: GameState, ctx: Pick<SimContext, 'events'>, amount: number, source: GoldSource): void {
+export function earn(
+  state: GameState,
+  ctx: Pick<SimContext, 'events'>,
+  amount: number,
+  source: GoldSource,
+): void {
   assertGold(amount);
   if (amount === 0) return;
   state.gold += amount;

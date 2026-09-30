@@ -331,11 +331,13 @@ export function shopPanel(hooks: ShopHooks): PanelDef {
           );
         }
         const next = seasonOfWeek(cal.weekIndex + 1);
-        later.textContent = `The stock changes with the seasons. ${capitalize(next)} brings ${CROP_IDS.filter(
-          (c) => inSeason(hooks.data.crops[c], next) && !inSeason(hooks.data.crops[c], cal.season),
-        )
-          .map((c) => hooks.data.crops[c].name.toLowerCase())
-          .join(', ') || 'no new seeds'}.`;
+        later.textContent = `The stock changes with the seasons. ${capitalize(next)} brings ${
+          CROP_IDS.filter(
+            (c) => inSeason(hooks.data.crops[c], next) && !inSeason(hooks.data.crops[c], cal.season),
+          )
+            .map((c) => hooks.data.crops[c].name.toLowerCase())
+            .join(', ') || 'no new seeds'
+        }.`;
         if (focusLabel) {
           list.querySelector<HTMLButtonElement>(`[data-buy="${focusLabel}"]:not([disabled])`)?.focus();
         }

@@ -55,7 +55,10 @@ export function buyExpansion(state: GameState, ctx: SimContext, id: ExpansionId)
   if (!canAfford(state, def.price)) return fail(`You need ${def.price.toLocaleString('en-US')}g for that.`);
   spend(state, def.price);
   const farm = state.farm;
-  const grid = { cols: Math.max(farm.grid.cols, def.grid.cols), rows: Math.max(farm.grid.rows, def.grid.rows) };
+  const grid = {
+    cols: Math.max(farm.grid.cols, def.grid.cols),
+    rows: Math.max(farm.grid.rows, def.grid.rows),
+  };
   farm.plots = resizePlots(farm.plots, farm.grid, grid);
   farm.grid = grid;
   state.expansions.push(id);

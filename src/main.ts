@@ -88,7 +88,9 @@ const view: GameViewHooks = {
 const stubPanel = (id: string) => STUB_PANELS.find((d) => d.id === id)!;
 // Registration order is the toolbar order.
 panels.register(inventoryPanel(view));
-panels.register(shopPanel({ ...view, buySeeds: (crop, qty) => game.dispatch({ type: 'buySeeds', crop, qty }) }));
+panels.register(
+  shopPanel({ ...view, buySeeds: (crop, qty) => game.dispatch({ type: 'buySeeds', crop, qty }) }),
+);
 panels.register(
   marketPanel({
     ...view,
@@ -153,10 +155,14 @@ game.bus.on('seasonChanged', (e) => {
 game.bus.on('binCollected', (e) => {
   const at = renderer.tileClientCenter(BIN_TILE.col, BIN_TILE.row);
   goldPopupAt(e.gold, at.x, at.y);
-  toasts.show(`The Shipping Bin was collected: ${e.items} item${e.items === 1 ? '' : 's'} for ${e.gold}g.`, 'good');
+  toasts.show(
+    `The Shipping Bin was collected: ${e.items} item${e.items === 1 ? '' : 's'} for ${e.gold}g.`,
+    'good',
+  );
 });
 game.bus.on('purchased', (e) => {
-  if (e.what in GAME_DATA.expansions) toasts.show('The farm grows! New soil is waiting to be tilled.', 'good');
+  if (e.what in GAME_DATA.expansions)
+    toasts.show('The farm grows! New soil is waiting to be tilled.', 'good');
 });
 // Live panels (Inventory, Shop, Market) follow the state; refreshed at most once per frame.
 let panelsDirty = false;
