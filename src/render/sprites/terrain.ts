@@ -99,6 +99,31 @@ export const tileSoilDry: SpriteDef = {
   ],
 };
 
+/** An untilled plot: packed earth with tufts of grass, ready for the hoe. */
+export const tileSoilUntilled: SpriteDef = {
+  id: 'tile_soil_untilled',
+  frames: [
+    [
+      'gSSSSSSSgSSSSSSg',
+      'SSSsSSSSSSSSgSSs',
+      'SSSSSShSSSSShgSs',
+      'SsSSSSSSSsSSSSSs',
+      'SSSgSSSSSSSSSsSs',
+      'SShgSSSsSSSSSSSs',
+      'SSSSSSSSSSSgSSSs',
+      'SsSSSSSSSShgSSSs',
+      'SSSSSSsSSSSSSSSs',
+      'SSSSgSSSSSSSSsSs',
+      'SSShgSSSSSsSSSSs',
+      'SsSSSSSSSSSSSSSs',
+      'SSSSSSSSgSSSSSSs',
+      'SSSsSSShgSSSsSSs',
+      'SSSSSSSSSSSSSSSs',
+      'gsssssssssssssss',
+    ],
+  ],
+};
+
 /** Tilled soil, watered: the dry tile one step darker (S→s, s→E, d→e). */
 export const tileSoilWet: SpriteDef = {
   id: 'tile_soil_wet',

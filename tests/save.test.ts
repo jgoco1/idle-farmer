@@ -19,7 +19,8 @@ import {
 } from '../src/core/save';
 import { createInitialState } from '../src/core/state';
 import { computeSeasonEpoch } from '../src/core/time';
-import fixture from './fixtures/save-v1.json';
+import fixtureV1 from './fixtures/save-v1.json';
+import fixture from './fixtures/save-v2.json';
 import { at, NY } from './helpers';
 
 const FIXTURE_TEXT = JSON.stringify(fixture);
@@ -35,13 +36,13 @@ function memoryStorage(initial: Record<string, string> = {}): SaveStorage & { da
 }
 
 describe('save file', () => {
-  it('starts at version 1 with no migrations yet', () => {
-    expect(SAVE_VERSION).toBe(1);
-    expect(Object.keys(migrations)).toEqual([]);
+  it('is at version 2 (phase 02) with one migration per older version', () => {
+    expect(SAVE_VERSION).toBe(2);
+    expect(Object.keys(migrations)).toEqual(['1']);
     expect(SAVE_KEY).toBe('hearthfield-idle/save');
   });
 
-  it('the v1 fixture loads unchanged', () => {
+  it('the v2 fixture loads unchanged', () => {
     const file = parseSave(FIXTURE_TEXT);
     expect(file).toEqual(fixture);
   });
@@ -78,6 +79,21 @@ describe('save file', () => {
     expect(validateState(createInitialState(0, NY))).toBeNull();
     expect(validateState({ ...createInitialState(0, NY), gold: 'lots' })).toBe('bad gold');
   });
+
+  it('rejects damaged farm and inventory data', () => {
+    const s = createInitialState(0, NY);
+    const bad = (mutate: (x: ReturnType<typeof createInitialState>) => void): string | null => {
+      const c = structuredClone(s);
+      mutate(c);
+      return validateState(c);
+    };
+    expect(bad((c) => c.farm.plots.pop())).toBe('bad plots');
+    expect(bad((c) => (c.farm.plots[0]!.state = 'ready' as never))).toBe('bad plot state');
+    expect(bad((c) => (c.farm.plots[0]!.growthMs = 1.5))).toBe('bad plot timers');
+    expect(bad((c) => (c.farm.plots[0]!.state = 'planted'))).toBe('bad plot crop');
+    expect(bad((c) => (c.inventory.slots[0] = { item: 'turnip', qty: 0 }))).toBe('bad inventory slot');
+    expect(bad((c) => delete (c as Partial<typeof c>).inventory)).toBe('bad inventory');
+  });
 });
 
 describe('export and import', () => {
@@ -104,9 +120,10 @@ describe('migrations', () => {
   const v0 = {
     version: 0,
     savedAt: 42,
-    state: { ...structuredClone(fixture.state), settings: undefined, gold: undefined, coins: 7 },
+    state: { ...structuredClone(fixtureV1.state), settings: undefined, gold: undefined, coins: 70 },
   };
   const table: Record<number, Migration> = {
+    ...migrations,
     0: (old) => {
       const { coins, ...rest } = old;
       return { ...rest, gold: coins, settings: { masterVolume: 0.8 } };
@@ -114,13 +131,46 @@ describe('migrations', () => {
   };
 
   it('applies migrations in order up to the target version', () => {
-    const file = migrate(v0, table, 1);
-    expect(file.version).toBe(1);
+    const file = migrate(v0, table);
+    expect(file.version).toBe(SAVE_VERSION);
     expect(file.savedAt).toBe(42);
-    expect(file.state.gold).toBe(7);
+    expect(file.state.gold).toBe(70);
     expect(file.state.settings).toEqual({ masterVolume: 0.8 });
     expect('coins' in file.state).toBe(false);
     expect(validateState(file.state)).toBeNull();
+  });
+
+  it('migrates a phase-01 (v1) save into a valid phase-02 save', () => {
+    const file = parseSave(JSON.stringify(fixtureV1));
+    expect(file.version).toBe(2);
+    expect(file.savedAt).toBe(fixtureV1.savedAt);
+    const s = file.state;
+    // Everything from v1 is kept.
+    expect(s.clock).toEqual(fixtureV1.state.clock);
+    expect(s.calendar).toEqual(fixtureV1.state.calendar);
+    expect(s.rngState).toBe(fixtureV1.state.rngState);
+    expect(s.settings).toEqual(fixtureV1.state.settings);
+    expect(s.meta).toEqual(fixtureV1.state.meta);
+    // The new fields match a brand-new farm: starting gold, 4 × 2 plots (left half tilled), 6 turnip seeds.
+    const fresh = createInitialState(0, NY);
+    expect(s.gold).toBe(60);
+    expect(s.farm).toEqual(fresh.farm);
+    expect(s.inventory).toEqual(fresh.inventory);
+    expect(s.farm.plots.map((p) => p.state)).toEqual([
+      'tilled',
+      'tilled',
+      'untilled',
+      'untilled',
+      'tilled',
+      'tilled',
+      'untilled',
+      'untilled',
+    ]);
+  });
+
+  it('keeps gold a v1 save somehow already had', () => {
+    const rich = { ...fixtureV1, state: { ...fixtureV1.state, gold: 500 } };
+    expect(parseSave(JSON.stringify(rich)).state.gold).toBe(500);
   });
 
   it('fails clearly when a migration is missing', () => {
@@ -145,11 +195,11 @@ describe('loading from storage', () => {
   });
 
   it('reports a broken save and leaves it untouched', () => {
-    const storage = memoryStorage({ [SAVE_KEY]: '{"version":1,"state":{' });
+    const storage = memoryStorage({ [SAVE_KEY]: '{"version":2,"state":{' });
     const r = loadGame(storage, 1000, NY);
     expect(r.kind).toBe('error');
-    expect(r.kind === 'error' && r.raw).toBe('{"version":1,"state":{');
-    expect(storage.data.get(SAVE_KEY)).toBe('{"version":1,"state":{');
+    expect(r.kind === 'error' && r.raw).toBe('{"version":2,"state":{');
+    expect(storage.data.get(SAVE_KEY)).toBe('{"version":2,"state":{');
   });
 
   it('writes what it loads', () => {

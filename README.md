@@ -15,6 +15,8 @@ npm run build      # production build in dist/, served under /idle-farmer/ on Gi
 npm run preview    # serve the production build
 ```
 
+**Playing:** click a plot to till, plant, water or harvest it. The tools at the right of the toolbar (keys <kbd>1</kbd>–<kbd>5</kbd>) pick Auto, Hoe, Seeds, Watering Can or Hand; drag across plots, or shift-click to use the tool on the whole field. The Shop's Seed Crate sells starter seeds for the current season.
+
 Press <kbd>`</kbd> in a dev build (or with `?debug`) for the debug overlay: FPS, ticks, the game clock, a ×60 time warp, and buttons to fake 8 hours offline or jump to the next season.
 
 ## Test it
@@ -25,6 +27,8 @@ npm run lint       # ESLint + Prettier
 npm test           # Vitest unit tests
 npm run test:e2e   # Playwright smoke test; screenshots land in test-results/
 ```
+
+`node scripts/sprite-sheet.mjs crop_ --soil` renders sprites whose id starts with a prefix to `scripts/out/sprites.png` (×4, optionally over soil) for checking art without a browser.
 
 The e2e test uses the Chromium in `PLAYWRIGHT_BROWSERS_PATH` when it is set (as in Claude Code cloud sessions); elsewhere run `npx playwright install chromium` once.
 

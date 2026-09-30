@@ -10,7 +10,7 @@
 import { createInitialState, cloneState, type GameState } from './state';
 import type { LocalClock } from './time';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 export const SAVE_KEY = 'hearthfield-idle/save';
 export const AUTOSAVE_MS = 15_000;
 
@@ -23,7 +23,25 @@ export interface SaveFile {
 /** migrations[n] turns a version-n save into a version-(n+1) save. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Migration = (old: any) => any;
-export const migrations: Record<number, Migration> = {};
+export const migrations: Record<number, Migration> = {
+  /**
+   * v1 → v2 (phase 02, farming): adds the farm and the inventory with the phase-02 starting values,
+   * written out inline so later balance changes never alter old migrations. Phase 01 kept gold at
+   * 0, so the farm gets its 60 starting gold.
+   */
+  1: (old) => {
+    const plot = (state: string) => ({ state, crop: null, growthMs: 0, harvests: 0, waterMsLeft: 0 });
+    const plots = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => plot(i % 4 < 2 ? 'tilled' : 'untilled'));
+    const slots: unknown[] = Array.from({ length: 12 }, () => null);
+    slots[0] = { item: 'seed_turnip', qty: 6 };
+    return {
+      ...old,
+      gold: Math.max(typeof old.gold === 'number' ? old.gold : 0, 60),
+      farm: { grid: { cols: 4, rows: 2 }, plots, greenhouse: [] },
+      inventory: { slots, stackSize: 99 },
+    };
+  },
+};
 
 export class SaveError extends Error {
   constructor(
@@ -61,6 +79,39 @@ function isObj(x: unknown): x is Record<string, unknown> {
 function isNum(x: unknown): x is number {
   return typeof x === 'number' && Number.isFinite(x);
 }
+function isInt(x: unknown): x is number {
+  return Number.isInteger(x);
+}
+
+const PLOT_STATES = ['untilled', 'tilled', 'planted', 'dead'];
+
+function plotProblem(p: unknown): string | null {
+  if (!isObj(p) || typeof p.state !== 'string' || !PLOT_STATES.includes(p.state)) return 'bad plot state';
+  if (!isInt(p.growthMs) || !isInt(p.harvests) || !isInt(p.waterMsLeft)) return 'bad plot timers';
+  if (p.state === 'planted' ? typeof p.crop !== 'string' : p.crop !== null) return 'bad plot crop';
+  return null;
+}
+
+function farmProblem(farm: unknown): string | null {
+  if (!isObj(farm) || !isObj(farm.grid) || !isInt(farm.grid.cols) || !isInt(farm.grid.rows))
+    return 'bad farm';
+  if (!Array.isArray(farm.plots) || farm.plots.length !== farm.grid.cols * farm.grid.rows) return 'bad plots';
+  if (!Array.isArray(farm.greenhouse)) return 'bad greenhouse';
+  for (const p of [...farm.plots, ...farm.greenhouse]) {
+    const problem = plotProblem(p);
+    if (problem) return problem;
+  }
+  return null;
+}
+
+function inventoryProblem(inv: unknown): string | null {
+  if (!isObj(inv) || !Array.isArray(inv.slots) || !isInt(inv.stackSize)) return 'bad inventory';
+  for (const s of inv.slots) {
+    if (s === null) continue;
+    if (!isObj(s) || typeof s.item !== 'string' || !isInt(s.qty) || s.qty <= 0) return 'bad inventory slot';
+  }
+  return null;
+}
 
 /** Structural check of a current-version state. Returns a reason, or null if it looks valid. */
 export function validateState(s: unknown): string | null {
@@ -81,7 +132,7 @@ export function validateState(s: unknown): string | null {
   if (!isObj(settings) || !isNum(settings.masterVolume)) return 'bad settings';
   if (!isObj(meta) || !isNum(meta.createdAt) || !isNum(meta.lastSavedAt) || !isNum(meta.playTimeMs))
     return 'bad meta';
-  return null;
+  return farmProblem(s.farm) ?? inventoryProblem(s.inventory);
 }
 
 /** Builds the SaveFile for `state` at real time `now`. The debug time warp is never saved. */

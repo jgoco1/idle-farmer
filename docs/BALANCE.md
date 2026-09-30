@@ -90,7 +90,8 @@ ready  = plot.growthMs >= needMs
 - Watering sets `waterMsLeft = WATER_DURATION_MS`. Plots covered by a sprinkler are **always watered**, so there is no sprinkler timer to simulate. Offline, a hand-watered plot is exact: full speed until `waterMsLeft` runs out, then half speed.
 - A crop that is out of season **cannot be planted** (the UI blocks it; the seed planter skips it). At a season change, any crop in the ground whose `seasons` list does not include the new season turns `dead`. Ready crops also wither, so harvest before Sunday midnight. Greenhouse plots never wither.
 - The shop and seed picker warn when a crop will not finish before the season changes (assuming watered growth). The HUD shows "Season changes in 2d 4h" during the last two days.
-- Yield per harvest: `rng.int(yield.min, yield.max)`, then `+1` with probability `doubleHarvestChance` (Farming perks).
+- Yield per harvest: `rng.int(yield.min, yield.max)`, then `+1` with probability `doubleHarvestChance` (Farming perks). If the harvest does not fit in the inventory, nothing changes, not even the RNG state.
+- A step in which the water runs out counts its wet part at full speed and its dry part at half (`growthAfter` in `src/systems/farming.ts`); the core also splits steps at that moment. Each part is rounded once, so a run of 100 ms ticks can differ from one large step by about 1 ms per water-out that falls inside a tick.
 
 ### Crop profit formula
 
@@ -608,3 +609,7 @@ Each phase that tunes numbers adds a dated subsection here: what changed, why, a
 - Seed prices such as 39 and 67 are formula outputs; phase 03 may snap them to friendlier numbers if it keeps profit/hour within ±5%.
 - The provisional farm level (§9) is deliberately generous so phases 02–06 can be playtested without progression.
 - **Revision after owner review:** the calendar now follows real local time (weekly seasons, night 20:00–06:00) and all timers are in seconds of simulated time. Prices are unchanged: the old "in-game hour" was 30 real seconds, so `profitRate` was restated per real minute with the same results. Watering lasts 2 h and sprinklers keep plots permanently watered; the shipping bin is collected every 60 minutes. Recipes were reworked so every T3/T4 can be cooked from one season's ingredients (`melon_sorbet_tower` was replaced by the spring T4 `garden_banquet`), three seasonal legendary fish were added (`petal_koi`, `sun_marlin`, `ember_salmon`), fish time windows were widened, traps ignore time windows, and winter gained cooking bonuses (hearty dishes, Cooking XP, dish prices).
+
+### Phase 02 notes
+- No numbers changed. The 15 crops, `WATER_DURATION_MS`, `DRY_GROWTH_FACTOR = 0.5`, starting gold (60), 6 turnip seeds, 12 slots × 99 and the tilled left half of the 4 × 2 grid (columns 0–1 in both rows) are in `src/data/crops.ts` and `src/data/balance.ts`.
+- The temporary Seed Crate sells unlocked, in-season seeds at `seedPrice` in lots of `SEED_CRATE_BUY_AMOUNTS = [1, 5]`. With the 6 starting turnip seeds the first harvest comes 2 minutes after planting when watered (the ≤ 2.5 min target), and the 60 starting gold buys six more seeds for the other plots.

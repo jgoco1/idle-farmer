@@ -19,15 +19,20 @@ import {
 import { createInitialState } from './core/state';
 import { systemLocalClock } from './core/time';
 import { GAME_DATA } from './data';
+import { SEED_CRATE_BUY_AMOUNTS } from './data/balance';
+import type { CropId } from './data/ids';
 import { applyPaletteCssVars } from './render/palette';
 import { Renderer } from './render/renderer';
-import { plotIndexAt } from './render/scene';
+import { plotSprites } from './render/scene';
+import { autoToolFor, isReady, plotStage, type ConcreteTool } from './systems/farming';
+import { computeModifiers } from './systems/modifiers';
 import { showAwaySummary } from './ui/awaySummary';
 import { byId, h } from './ui/dom';
+import { FarmTools } from './ui/farmTools';
 import { Hud } from './ui/hud';
 import { showModal } from './ui/modal';
 import { PanelManager } from './ui/panel';
-import { settingsPanel, STUB_PANELS } from './ui/panels';
+import { inventoryPanel, settingsPanel, shopPanel, STUB_PANELS, type GameViewHooks } from './ui/panels';
 import { Toasts } from './ui/toast';
 import { buildToolbar } from './ui/toolbar';
 
@@ -72,6 +77,19 @@ function save(): void {
 const toasts = new Toasts(byId('toasts'));
 const hud = new Hud(byId('hud'));
 const panels = new PanelManager(byId('panel-host'));
+const view: GameViewHooks = {
+  data: GAME_DATA,
+  state: () => game.state,
+  calendar: () => game.calendar(),
+  mods: () => computeModifiers(game.state, GAME_DATA),
+};
+panels.register(inventoryPanel(view));
+panels.register(
+  shopPanel(
+    { ...view, buySeeds: (crop, qty) => game.dispatch({ type: 'buySeeds', crop, qty }) },
+    SEED_CRATE_BUY_AMOUNTS,
+  ),
+);
 for (const def of STUB_PANELS) panels.register(def);
 panels.register(
   settingsPanel({
@@ -84,8 +102,7 @@ panels.register(
         game.replaceState(file.state);
         saveBlocked = false;
         const report = game.catchUp(file.savedAt, now());
-        save();
-        if (report.showSummary) showAwaySummary(report);
+        onResume(report);
         return null;
       } catch (e) {
         return e instanceof SaveError ? e.message : 'That save could not be imported.';
@@ -103,17 +120,56 @@ panels.register(
 );
 hud.settingsButton.addEventListener('click', () => panels.toggle('settings'));
 buildToolbar(byId('toolbar'), panels);
+const tools = new FarmTools(byId('toolbar'), view);
 
 game.bus.on('notify', (e) => toasts.show(e.text, e.tone));
-game.bus.on('seasonChanged', (e) =>
-  toasts.show(`${e.season[0]?.toUpperCase()}${e.season.slice(1)} has arrived!`, 'good'),
-);
+game.bus.on('seasonChanged', (e) => {
+  const season = `${e.season[0]?.toUpperCase()}${e.season.slice(1)}`;
+  toasts.show(`${season} has arrived!`, 'good');
+  if (e.withered > 0) {
+    toasts.show(
+      `${e.withered} crop${e.withered === 1 ? '' : 's'} withered with the change of season.`,
+      'warn',
+    );
+  }
+});
+// Live panels (Inventory, Shop) follow the state; refreshed at most once per frame.
+let panelsDirty = false;
+game.bus.onAny(() => (panelsDirty = true));
+
+// ---- farming strokes: a press picks the tool (Auto resolves from the first plot) and a drag
+// applies the same tool to every plot it crosses. Shift-click applies it to the whole field.
+let stroke: { tool: ConcreteTool; seed: CropId | null } | null = null;
+const strokeHarvest = new Map<CropId, number>();
+let strokeFull = false;
+
+game.bus.on('harvested', (e) => {
+  strokeHarvest.set(e.crop, (strokeHarvest.get(e.crop) ?? 0) + e.qty);
+  renderer.addPlotFx(e.plot, `item_${e.crop}`, performance.now());
+});
+game.bus.on('inventoryFull', () => (strokeFull = true));
+
+function flushStrokeToasts(): void {
+  if (strokeHarvest.size > 0) {
+    const parts = [...strokeHarvest].map(([crop, n]) => `+${n} ${GAME_DATA.crops[crop].name}`);
+    toasts.show(parts.join(', '), 'good');
+  }
+  if (strokeFull) toasts.show('Your bag is full. Some crops are waiting in the ground.', 'warn');
+  strokeHarvest.clear();
+  strokeFull = false;
+}
+
+function usePlotTool(plots: number[], first: boolean): void {
+  if (!stroke) return;
+  const r = game.dispatch({ type: 'useTool', tool: stroke.tool, plots, seed: stroke.seed });
+  if (!r.ok && first) toasts.show(r.reason);
+}
 
 // ---- scene
 const renderer = new Renderer({
   canvas: byId<HTMLCanvasElement>('scene-canvas'),
   container: byId('scene'),
-  onZoneClick({ zone, col, row }) {
+  onZoneClick({ zone }) {
     switch (zone.id) {
       case 'farmhouse':
         return panels.open('kitchen');
@@ -121,11 +177,8 @@ const renderer = new Renderer({
         return panels.open('fishing');
       case 'market':
         return panels.open('market');
-      case 'plots': {
-        const r = game.dispatch({ type: 'plotClicked', plot: plotIndexAt(GAME_DATA.startGrid, col, row) });
-        if (!r.ok) toasts.show(r.reason);
-        return;
-      }
+      case 'plots':
+        return; // handled by the stroke callbacks below
       case 'greenhouse':
         return toasts.show('An empty lot. Something could be built here one day.');
       case 'river':
@@ -134,13 +187,39 @@ const renderer = new Renderer({
         return toasts.show('An old dock, too rickety to use for now.');
     }
   },
+  onPlotDown({ plot, shiftKey }) {
+    const seed = tools.seed;
+    const tool =
+      tools.tool === 'auto'
+        ? autoToolFor(game.state, GAME_DATA, game.calendar().season, plot, seed)
+        : tools.tool;
+    if (tool === null) {
+      // Nothing obvious to do: let the action explain why (e.g. "growing, 1m left").
+      const r = game.dispatch({ type: 'useTool', tool: 'auto', plots: [plot], seed });
+      if (!r.ok) toasts.show(r.reason);
+      return;
+    }
+    stroke = { tool, seed };
+    const all = game.state.farm.plots.map((_, i) => i);
+    usePlotTool(shiftKey ? [plot, ...all.filter((i) => i !== plot)] : [plot], true);
+  },
+  onPlotEnter({ plot }) {
+    usePlotTool([plot], false);
+  },
+  onStrokeEnd() {
+    stroke = null;
+    flushStrokeToasts();
+  },
 });
-renderer.setGrid(GAME_DATA.startGrid);
+renderer.setGrid(game.state.farm.grid);
 
 // ---- offline catch-up for the time since the last save
+function readyPlots(): number {
+  return game.state.farm.plots.filter((p) => isReady(p, GAME_DATA)).length;
+}
 function onResume(report: OfflineReport): void {
   save();
-  if (report.showSummary) showAwaySummary(report);
+  if (report.showSummary) showAwaySummary(report, readyPlots());
 }
 if (initialFile && loaded.kind === 'loaded') onResume(game.catchUp(initialFile.savedAt, now()));
 else save();
@@ -178,8 +257,18 @@ if (loaded.kind === 'error') {
 const loop = startLoop(game, {
   render() {
     const cal = game.calendar();
-    renderer.render(performance.now(), cal);
+    renderer.setGrid(game.state.farm.grid);
+    renderer.render(
+      performance.now(),
+      cal,
+      plotSprites(game.state.farm.plots, (p) => plotStage(p, GAME_DATA)),
+    );
     hud.update(game.state, cal);
+    tools.update();
+    if (panelsDirty) {
+      panelsDirty = false;
+      panels.refreshOpen();
+    }
   },
   onHide: save,
   onResume,

@@ -1,0 +1,112 @@
+{
+  "version": 2,
+  "savedAt": 1767835800000,
+  "state": {
+    "clock": {
+      "simMs": 5432100,
+      "speed": 1
+    },
+    "calendar": {
+      "createdAt": 1767798000000,
+      "seasonEpoch": 1768107600000,
+      "maxWeekIndex": 0,
+      "lastDayKey": "2026-01-07",
+      "debugOffsetMs": 0
+    },
+    "rngState": 3735928559,
+    "gold": 38,
+    "settings": {
+      "masterVolume": 0.6
+    },
+    "meta": {
+      "createdAt": 1767798000000,
+      "lastSavedAt": 1767835800000,
+      "playTimeMs": 5432100
+    },
+    "farm": {
+      "grid": {
+        "cols": 4,
+        "rows": 2
+      },
+      "plots": [
+        {
+          "state": "planted",
+          "crop": "turnip",
+          "growthMs": 120000,
+          "harvests": 0,
+          "waterMsLeft": 3600000
+        },
+        {
+          "state": "planted",
+          "crop": "potato",
+          "growthMs": 90000,
+          "harvests": 0,
+          "waterMsLeft": 0
+        },
+        {
+          "state": "tilled",
+          "crop": null,
+          "growthMs": 0,
+          "harvests": 0,
+          "waterMsLeft": 1800000
+        },
+        {
+          "state": "untilled",
+          "crop": null,
+          "growthMs": 0,
+          "harvests": 0,
+          "waterMsLeft": 0
+        },
+        {
+          "state": "planted",
+          "crop": "turnip",
+          "growthMs": 30000,
+          "harvests": 0,
+          "waterMsLeft": 7200000
+        },
+        {
+          "state": "dead",
+          "crop": null,
+          "growthMs": 0,
+          "harvests": 0,
+          "waterMsLeft": 0
+        },
+        {
+          "state": "tilled",
+          "crop": null,
+          "growthMs": 0,
+          "harvests": 0,
+          "waterMsLeft": 0
+        },
+        {
+          "state": "untilled",
+          "crop": null,
+          "growthMs": 0,
+          "harvests": 0,
+          "waterMsLeft": 0
+        }
+      ],
+      "greenhouse": []
+    },
+    "inventory": {
+      "slots": [
+        {
+          "item": "seed_turnip",
+          "qty": 3
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "stackSize": 99
+    }
+  }
+}

@@ -7,16 +7,20 @@ import { PALETTE } from './palette';
 import {
   buildLayout,
   buildZones,
+  plotIndexAt,
+  plotTile,
   SCENE_H,
   SCENE_W,
   TILE,
   tileAt,
   zoneAt,
   type Grid,
+  type PlotSprites,
   type SceneLayout,
   type Zone,
 } from './scene';
-import { spriteFrame } from './spriteCache';
+import { anchoredPosition, spriteFrame } from './spriteCache';
+import { spriteDef } from './sprites';
 import { tintAt } from './tint';
 
 export interface ZoneClick {
@@ -25,12 +29,33 @@ export interface ZoneClick {
   row: number;
 }
 
+/** Pointer input on the plot grid: a press starts a stroke, dragging enters more plots. */
+export interface PlotPointer {
+  plot: number;
+  shiftKey: boolean;
+}
+
 export interface RendererOptions {
   canvas: HTMLCanvasElement;
   /** The element whose size the scene fits into. */
   container: HTMLElement;
+  /** Clicks on every zone except the plots, which use the stroke callbacks below. */
   onZoneClick(click: ZoneClick): void;
+  onPlotDown(p: PlotPointer): void;
+  onPlotEnter(p: PlotPointer): void;
+  onStrokeEnd(): void;
 }
+
+/** A short cosmetic effect: an icon that rises and fades over a plot (render clock only). */
+interface Fx {
+  sprite: string;
+  col: number;
+  row: number;
+  start: number;
+}
+
+const FX_MS = 700;
+const FX_RISE_PX = 10;
 
 function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   const ctx = canvas.getContext('2d');
@@ -54,6 +79,8 @@ export class Renderer {
   private zones: Zone[] = [];
   private grid: Grid = { cols: 0, rows: 0 };
   private hover: { col: number; row: number } | null = null;
+  private stroke: { pointerId: number; lastPlot: number } | null = null;
+  private fx: Fx[] = [];
   private scale = 1;
   private readonly resizeObserver: ResizeObserver;
 
@@ -72,14 +99,57 @@ export class Renderer {
     this.resizeObserver.observe(opts.container);
     this.resize();
 
-    this.canvas.addEventListener('pointermove', (e) => this.setHover(this.toTile(e)));
+    this.canvas.addEventListener('pointerdown', (e) => this.pointerDown(e));
+    this.canvas.addEventListener('pointermove', (e) => this.pointerMove(e));
+    this.canvas.addEventListener('pointerup', (e) => this.endStroke(e));
+    this.canvas.addEventListener('pointercancel', (e) => this.endStroke(e));
     this.canvas.addEventListener('pointerleave', () => this.setHover(null));
     this.canvas.addEventListener('click', (e) => {
       const t = this.toTile(e);
       if (!t) return;
       const zone = zoneAt(this.zones, t.col, t.row);
-      if (zone) opts.onZoneClick({ zone, col: t.col, row: t.row });
+      if (zone && zone.id !== 'plots') opts.onZoneClick({ zone, col: t.col, row: t.row });
     });
+  }
+
+  private plotAt(e: MouseEvent): number {
+    const t = this.toTile(e);
+    return t ? plotIndexAt(this.grid, t.col, t.row) : -1;
+  }
+
+  private pointerDown(e: PointerEvent): void {
+    if (e.button !== 0) return;
+    const plot = this.plotAt(e);
+    if (plot < 0) return;
+    e.preventDefault();
+    this.stroke = { pointerId: e.pointerId, lastPlot: plot };
+    try {
+      this.canvas.setPointerCapture(e.pointerId);
+    } catch {
+      // Synthetic events (tests) have no active pointer to capture.
+    }
+    this.opts.onPlotDown({ plot, shiftKey: e.shiftKey });
+  }
+
+  private pointerMove(e: PointerEvent): void {
+    this.setHover(this.toTile(e));
+    if (!this.stroke || e.pointerId !== this.stroke.pointerId) return;
+    const plot = this.plotAt(e);
+    if (plot < 0 || plot === this.stroke.lastPlot) return;
+    this.stroke.lastPlot = plot;
+    this.opts.onPlotEnter({ plot, shiftKey: e.shiftKey });
+  }
+
+  private endStroke(e: PointerEvent): void {
+    if (!this.stroke || e.pointerId !== this.stroke.pointerId) return;
+    this.stroke = null;
+    this.opts.onStrokeEnd();
+  }
+
+  /** Shows `sprite` rising out of plot `index` (e.g. the harvested item). Cosmetic only. */
+  addPlotFx(index: number, sprite: string, timeMs: number): void {
+    if (index < 0 || index >= this.grid.cols * this.grid.rows) return;
+    this.fx.push({ sprite, ...plotTile(this.grid, index), start: timeMs });
   }
 
   /** Rebuilds the static layer when the plot grid changes (expansions, from phase 03). */
@@ -110,21 +180,47 @@ export class Renderer {
     this.ctx.imageSmoothingEnabled = false; // resizing resets context state
   }
 
-  render(timeMs: number, calendar: Calendar): void {
+  render(timeMs: number, calendar: Calendar, plots: readonly PlotSprites[]): void {
     const f = this.fctx;
     f.globalCompositeOperation = 'source-over';
     f.globalAlpha = 1;
     f.drawImage(this.ground, 0, 0);
     for (const a of this.layout.animated)
       f.drawImage(spriteFrame(a.sprite, timeMs), a.col * TILE, a.row * TILE);
-    // phase 02: draw crops on plots here, between the ground and the objects.
+    this.drawPlots(plots, timeMs);
     for (const o of this.layout.objects) f.drawImage(spriteFrame(o.sprite, timeMs), o.x, o.y);
 
     this.drawTint(calendar);
+    this.drawFx(timeMs);
     this.drawHover();
 
     this.ctx.imageSmoothingEnabled = false;
     this.ctx.drawImage(this.frame, 0, 0, this.canvas.width, this.canvas.height);
+  }
+
+  /** Per-plot soil (dry, wet or untilled) and the crop growing on it. */
+  private drawPlots(plots: readonly PlotSprites[], timeMs: number): void {
+    const f = this.fctx;
+    plots.forEach((p, i) => {
+      const { col, row } = plotTile(this.grid, i);
+      f.drawImage(spriteFrame(p.soil), col * TILE, row * TILE);
+      if (p.crop) {
+        const pos = anchoredPosition(spriteDef(p.crop), col, row, TILE);
+        // Offset the animation per plot so ready crops don't all twinkle in unison.
+        f.drawImage(spriteFrame(p.crop, timeMs + i * 137), pos.x, pos.y);
+      }
+    });
+  }
+
+  private drawFx(timeMs: number): void {
+    const f = this.fctx;
+    this.fx = this.fx.filter((e) => timeMs - e.start < FX_MS);
+    for (const e of this.fx) {
+      const t = Math.max(0, timeMs - e.start) / FX_MS;
+      f.globalAlpha = 1 - t * t;
+      f.drawImage(spriteFrame(e.sprite), e.col * TILE, e.row * TILE - Math.round(t * FX_RISE_PX) - 4);
+    }
+    f.globalAlpha = 1;
   }
 
   private drawTint(calendar: Calendar): void {

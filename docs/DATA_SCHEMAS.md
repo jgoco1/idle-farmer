@@ -202,7 +202,9 @@ export interface CropDef {
 }
 ```
 
-Stage shown on screen: `stage = min(4, floor(5 * progress))` for a first growth, where `progress = growthMs / (growSec * 1000)`, and stage 4 means ready. After a regrow harvest, the regrow cycle maps its progress onto stages 2 → 4.
+Stage shown on screen (`plotStage` in `src/systems/farming.ts`): with `progress = growthMs / needMs`, a crop is stage **4 only when ready** (`progress >= 1`); before that a first growth shows `min(3, floor(4 * progress))` (stages 0–3 in equal quarters), and a regrow cycle shows stage 2 for its first half and 3 for its second. (Phase 02 changed this from `min(4, floor(5 * progress))`, which drew the ready sprite for the last fifth of growth before the crop could be harvested.)
+
+`CropDef` also has a `description: string` (one line for tooltips); items copy it. In phase 02 `ItemStack`, `UnlockCondition`, `ItemDef` and `CropDef` live in `src/data/types.ts`.
 
 ### 4.3 `FishDef` (`fish.ts`) and junk
 
@@ -429,6 +431,8 @@ export interface GameData {
 ```
 
 Passing `GameData` in (rather than importing it inside systems) lets tests use tiny fake tables.
+
+Phase 02 status: `GameData` has `startGrid`, `crops` and `items`. `items` is `Partial<Record<ItemId, ItemDef>>` until phases 05/06 add fish, junk and dishes; it holds a crop item and a `seed_<crop>` item per crop, generated in `src/data/items.ts`.
 
 ---
 
@@ -679,7 +683,7 @@ export type GameEvent =
   | { type: 'notify'; text: string; tone: 'info' | 'good' | 'warn' };
 ```
 
-Phases add event variants as they need them; adding a variant never needs a save migration.
+Phases add event variants as they need them; adding a variant never needs a save migration. `EventOf<'tilled'>` (in `src/core/events.ts`) also resolves variants that share a body, such as `'tilled' | 'watered'`.
 
 ---
 
