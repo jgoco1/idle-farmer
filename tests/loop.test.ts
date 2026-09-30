@@ -111,8 +111,12 @@ describe('actions', () => {
     expect(game.dispatch({ type: 'setMasterVolume', value: Number.NaN }).ok).toBe(false);
   });
 
-  it('plot clicks explain that farming is not here yet', () => {
-    const r = game.dispatch({ type: 'plotClicked', plot: 0 });
-    expect(r.ok).toBe(false);
+  it('a farming tool on a plot goes through dispatch and emits its event', () => {
+    const tilled: number[][] = [];
+    game.bus.on('tilled', (e) => tilled.push(e.plots));
+    expect(game.dispatch({ type: 'useTool', tool: 'auto', plots: [2], seed: null }).ok).toBe(true);
+    expect(game.state.farm.plots[2]?.state).toBe('tilled');
+    expect(tilled).toEqual([[2]]);
+    expect(game.dispatch({ type: 'till', plots: [99] }).ok).toBe(false);
   });
 });
