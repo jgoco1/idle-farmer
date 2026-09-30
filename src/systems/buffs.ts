@@ -49,11 +49,6 @@ export function activeBuff(state: GameState, type: BuffType): ActiveBuff | undef
   return state.buffs.active.find((b) => b.type === type);
 }
 
-/** The summed bonus of the active buff of `type` (0 when none): what `computeModifiers` folds in. */
-export function buffBonus(state: GameState, type: BuffType): number {
-  return activeBuff(state, type)?.magnitude ?? 0;
-}
-
 /** The buff that would be replaced when the slots are full: the one with the least time left. */
 export function leastTimeLeft(state: GameState): ActiveBuff | undefined {
   let least: ActiveBuff | undefined;

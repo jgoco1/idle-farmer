@@ -386,11 +386,6 @@ export interface PlotSprites {
   crop: string | null;
 }
 
-/** Tile (col, row) of plot `index` in a row-major grid. */
-export function plotTile(grid: Grid, index: number): { col: number; row: number } {
-  return { col: PLOT_ORIGIN.col + (index % grid.cols), row: PLOT_ORIGIN.row + Math.floor(index / grid.cols) };
-}
-
 /** `crop_<id>_<stage>` sprite ids, built once rather than as a new string for every plot every frame. */
 const cropSpriteIds = new Map<string, string[]>();
 function cropSpriteId(crop: string, stage: number): string {

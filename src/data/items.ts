@@ -106,9 +106,3 @@ const ENTRIES: [FarmItemId, ItemDef][] = [
 export const ITEMS: Readonly<Record<FarmItemId, ItemDef>> = Object.freeze(
   Object.fromEntries(ENTRIES) as Record<FarmItemId, ItemDef>,
 );
-
-export function itemDef(items: Readonly<Partial<Record<ItemId, ItemDef>>>, id: ItemId): ItemDef {
-  const def = items[id];
-  if (!def) throw new Error(`Unknown item '${id}'`);
-  return def;
-}

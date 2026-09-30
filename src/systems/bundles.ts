@@ -144,11 +144,6 @@ function completeBundle(state: GameState, ctx: SimContext, id: BundleId): void {
   ctx.events.push({ type: 'bundleCompleted', bundle: id });
 }
 
-/** Whether the greenhouse may be built: the Autumn Harvest bundle is done. */
-export function greenhouseUnlocked(state: GameState, data: GameData): boolean {
-  return bundleBonuses(state, data).greenhouse;
-}
-
 /** Bag stacks that could go into `bundle` right now (for the "Give" buttons). */
 export function donatable(state: GameState, data: GameData, id: BundleId): ItemStack[] {
   return bundleSlots(state, data, id)

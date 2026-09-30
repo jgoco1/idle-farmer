@@ -12,11 +12,6 @@ import { upgradeLevel } from './upgrades';
 
 export const PLACED_KINDS: readonly PlacedKind[] = ['sprinkler', 'scarecrow', 'golden_scarecrow'];
 
-/** The kinds that speed up growth around them (overlaps do not stack). */
-export function isScarecrow(kind: PlacedKind): boolean {
-  return kind === 'scarecrow' || kind === 'golden_scarecrow';
-}
-
 export interface AreaSpec {
   shape: 'plus' | 'square';
   radius: number;

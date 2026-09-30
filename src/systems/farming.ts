@@ -114,12 +114,6 @@ export function isReady(plot: Plot, data: GameData): boolean {
   return plot.growthMs >= needMs(plot, data.crops[plot.crop]);
 }
 
-/** 0..1 through the current cycle. */
-export function growthProgress(plot: Plot, data: GameData): number {
-  if (plot.state !== 'planted' || plot.crop === null) return 0;
-  return Math.min(1, plot.growthMs / needMs(plot, data.crops[plot.crop]));
-}
-
 /**
  * The stage to draw, 0–4, or -1 when nothing is planted. Stage 4 is shown only when ready; a first
  * growth spreads stages 0–3 evenly, and a regrow cycle maps onto stages 2–3 (DATA_SCHEMAS.md §4.2).

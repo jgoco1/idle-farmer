@@ -1,6 +1,6 @@
 # Balance: Formulas and Starting Numbers
 
-Every number in `src/data/` comes from this file. Formulas are written as TypeScript-like expressions so they can be ported directly. The tables are **first drafts**: phase 03 tunes the economy, phases 04–07 add tuning notes for their systems, and phase 09 does the final pass with the simulator. When you change a number in code, change it here in the same PR.
+Every number in `src/data/` comes from this file. Formulas are written as TypeScript-like expressions so they can be ported directly. The tables are **first drafts**: phase 03 tunes the economy, phases 04–07 add tuning notes for their systems, and phase 09 did the final pass with the simulator ("Phase 09 balance report" at the end). When you change a number in code, change it here in the same PR.
 
 Units follow `docs/DATA_SCHEMAS.md` §1. There are **two clocks**. The **calendar** (time of day, day, season) follows the player's real local clock. **Timers** (growth, cooking, buffs, traps, the farmhand, the shipping bin) run on **simulated time**, which is real time while playing and a capped amount while away. Data durations are in **real seconds** of simulated time.
 
@@ -216,11 +216,11 @@ cost(n) = roundNice(base * ratio ** n)
 | id | Category | Kind | Max | base | ratio | Costs | Requires |
 |---|---|---|---|---|---|---|---|
 | `sprinkler` | farm | placeable (on a plot) | 12 | 300 | 1.35 | 300, 410, 550, 740, 1000, 1300, 1800, 2500, 3300, 4500, 6000, 8100 | — |
-| `sprinkler_tech` | farm | leveled | 2 | 2500 | 4.8 | 2500, 12000 | FL4; L2 needs FL7 |
+| `sprinkler_tech` | farm | leveled | 2 | 6000 | 5 | 6000, 30000 | FL4; L2 needs FL7 |
 | `scarecrow` | farm | placeable (on a plot) | 4 | 600 | 1.8 | 600, 1100, 1900, 3500 | expansion `farm_1` |
-| `farmhand` | farm | leveled | 5 | 800 | 2.2 | 800, 1800, 3900, 8500, 19000 | FL3 |
-| `seed_planter` | farm | leveled | 3 | 1200 | 2.5 | 1200, 3000, 7500 | `farmhand` L1 |
-| `auto_seller` | farm | leveled | 2 | 1500 | 4.0 | 1500, 6000 | `farmhand` L1 |
+| `farmhand` | farm | leveled | 5 | 1000 | 3 | 1000, 3000, 9000, 27000, 81000 | FL3 |
+| `seed_planter` | farm | leveled | 3 | 2000 | 3 | 2000, 6000, 18000 | `farmhand` L1 |
+| `auto_seller` | farm | leveled | 2 | 5000 | 4.0 | 5000, 20000 | `farmhand` L1 |
 | `watering_can` | tools | leveled | 3 | 400 | 5.0 | 400, 2000, 10000 | — |
 | `hoe` | tools | leveled | 3 | 250 | 4.8 | 250, 1200, 5800 | — |
 | `barn_storage` | storage | leveled | 4 | 1000 | 2.5 | 1000, 2500, 6300, 16000 | FL2 |
@@ -386,8 +386,9 @@ cookMs         = cookSec * 1000 / mods.cookSpeedModifier
 
 ```ts
 magnitude  = 0.10 * tier * buffs[type].magnitudeScale
-durationMs = 360_000 * 2 ** (tier - 1) * (1 + buffDurationPerk + (dish.hearty ? HEARTY_DURATION_BONUS : 0))
-// T1: 6 min · T2: 12 min · T3: 24 min · T4: 48 min of simulated time (before perks and the hearty bonus)
+durationMs = 900_000 * 3 ** (tier - 1) * (1 + buffDurationPerk + (dish.hearty ? HEARTY_DURATION_BONUS : 0))
+// T1: 15 min · T2: 45 min · T3: 2 h 15 · T4: 6 h 45 of simulated time (before perks and the hearty bonus)
+// (phase 09; was 6 min × 2^(tier − 1): see "Phase 09 balance report")
 ```
 
 | Buff type | Name | Seam | magnitudeScale | T1 | T2 | T3 | T4 |
@@ -435,30 +436,30 @@ Hearty dishes are a separate inventory stack (same item id, `hearty: true`) show
 
 | id | Name | Ingredients | Cook (s) | Units | Value | Score | Tier | Base price | Buff | Magnitude | Duration (min) | Cookable in | Discovery |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `roasted_turnip` | Roasted Turnip | turnip ×2 | 30 | 2 | 44 | 3.88 | T1 | 55 | `growth` | +10% | 6 | spring | starter |
-| `baked_potato` | Baked Potato | potato ×2 | 30 | 2 | 72 | 4.44 | T1 | 90 | `cookSpeed` | +15% | 6 | spring | starter |
-| `grilled_bluegill` | Grilled Bluegill | bluegill ×1 | 30 | 1 | 30 | 2.60 | T1 | 38 | `fishingSpeed` | +10% | 6 | spring, summer, autumn, winter | starter |
-| `berry_bowl` | Berry Bowl | strawberry ×2 | 15 | 2 | 40 | 3.30 | T1 | 50 | `xp` | +15% | 6 | spring | card 150 · FL2 |
-| `seaweed_salad` | Seaweed Salad | seaweed ×2, turnip ×1 | 15 | 3 | 62 | 4.74 | T1 | 78 | `fishingLuck` | +10% | 6 | spring | milestone `m06_first_catch` |
-| `wheat_flatbread` | Wheat Flatbread | wheat ×3 | 45 | 3 | 75 | 6.00 | T1 | 94 | `automationSpeed` | +10% | 6 | summer, autumn | card 120 · FL1 |
-| `vegetable_soup` | Vegetable Soup | turnip ×2, potato ×1, garlic ×1 | 60 | 4 | 167 | 9.34 | T2 | 234 | `growth` | +20% | 12 | spring | milestone `m07_first_dish` |
-| `fish_tacos` | Fish Tacos | wheat ×2, tomato ×2, sardine ×1 | 60 | 5 | 109 | 9.18 | T2 | 153 | `fishingSpeed` | +20% | 12 | summer, autumn | card 600 · expansion `ocean` |
-| `tomato_pasta` | Tomato Pasta | wheat ×2, tomato ×3, corn ×1 | 60 | 6 | 126 | 10.52 | T2 | 176 | `cookSpeed` | +30% | 12 | summer, autumn | card 500 · FL3 |
-| `corn_chowder` | Corn Chowder | corn ×2, wheat ×1, perch ×1 | 75 | 4 | 150 | 9.50 | T2 | 210 | `automationSpeed` | +20% | 12 | autumn | experiment |
-| `blueberry_muffin` | Blueberry Muffin | wheat ×2, blueberry ×4 | 60 | 6 | 98 | 9.96 | T2 | 137 | `xp` | +30% | 12 | summer | card 450 · FL3 |
-| `glazed_yams` | Glazed Yams | yam ×2, cranberry ×2 | 45 | 4 | 250 | 10.50 | T2 | 350 | `sellPrice` | +10% | 12 | autumn | experiment |
-| `garlic_trout` | Garlic Trout | trout ×1, garlic ×1, potato ×1 | 75 | 3 | 173 | 8.96 | T2 | 242 | `fishingLuck` | +20% | 12 | spring | milestone `m10_unlock_river` |
-| `seafood_stew` | Seafood Stew | tuna ×1, mackerel ×2, tomato ×2, corn ×1 | 120 | 6 | 334 | 16.68 | T3 | 534 | `fishingLuck` | +30% | 24 | summer | card 2500 · expansion `ocean` |
-| `pumpkin_soup` | Pumpkin Soup | pumpkin ×1, kale ×1, yam ×1 | 120 | 3 | 837 | 23.74 | T3 | 1339 | `growth` | +30% | 24 | autumn | card 2000 · FL6 |
-| `cranberry_pie` | Cranberry Pie | wheat ×3, cranberry ×4, yam ×1 | 120 | 8 | 242 | 16.84 | T3 | 387 | `sellPrice` | +15% | 24 | autumn | experiment |
-| `catfish_gumbo` | Catfish Gumbo | catfish ×2, corn ×1, tomato ×2, wheat ×1 | 120 | 6 | 309 | 16.18 | T3 | 494 | `automationSpeed` | +30% | 24 | summer, autumn | card 1800 · FL5 |
-| `scholars_stew` | Scholar's Stew | perch ×2, garlic ×2, bluegill ×2 | 120 | 6 | 324 | 16.48 | T3 | 518 | `xp` | +45% | 24 | spring, winter | milestone `m11_farm_level_5` |
-| `garden_banquet` | Garden Banquet | cauliflower ×2, strawberry ×4, garlic ×1, potato ×2 | 180 | 9 | 721 | 29.42 | T4 | 1442 | `cookSpeed` | +60% | 48 | spring | milestone `m12_cook_t3` |
-| `royal_sturgeon` | Royal Sturgeon | sturgeon ×1, koi ×1, melon ×1, tomato ×2, corn ×1 | 240 | 6 | 1347 | 40.94 | T4 | 2694 | `fishingLuck` | +40% | 48 | summer | experiment |
-| `harvest_feast` | Harvest Feast | pumpkin ×1, yam ×2, corn ×2, wheat ×2, cranberry ×3 | 240 | 10 | 1033 | 38.66 | T4 | 2066 | `sellPrice` | +20% | 48 | autumn | card 6000 · FL6 |
-| `moonfin_sushi` | Moonfin Sushi | moonfin ×1, seaweed ×3, leek ×1 | 180 | 5 | 1717 | 45.34 | T4 | 3434 | `xp` | +60% | 48 | winter | card 12000 · caught `moonfin` |
+| `roasted_turnip` | Roasted Turnip | turnip ×2 | 30 | 2 | 44 | 3.88 | T1 | 55 | `growth` | +10% | 15 | spring | starter |
+| `baked_potato` | Baked Potato | potato ×2 | 30 | 2 | 72 | 4.44 | T1 | 90 | `cookSpeed` | +15% | 15 | spring | starter |
+| `grilled_bluegill` | Grilled Bluegill | bluegill ×1 | 30 | 1 | 30 | 2.60 | T1 | 38 | `fishingSpeed` | +10% | 15 | spring, summer, autumn, winter | starter |
+| `berry_bowl` | Berry Bowl | strawberry ×2 | 15 | 2 | 40 | 3.30 | T1 | 50 | `xp` | +15% | 15 | spring | card 150 · FL2 |
+| `seaweed_salad` | Seaweed Salad | seaweed ×2, turnip ×1 | 15 | 3 | 62 | 4.74 | T1 | 78 | `fishingLuck` | +10% | 15 | spring | milestone `m06_first_catch` |
+| `wheat_flatbread` | Wheat Flatbread | wheat ×3 | 45 | 3 | 75 | 6.00 | T1 | 94 | `automationSpeed` | +10% | 15 | summer, autumn | card 120 · FL1 |
+| `vegetable_soup` | Vegetable Soup | turnip ×2, potato ×1, garlic ×1 | 60 | 4 | 167 | 9.34 | T2 | 234 | `growth` | +20% | 45 | spring | milestone `m07_first_dish` |
+| `fish_tacos` | Fish Tacos | wheat ×2, tomato ×2, sardine ×1 | 60 | 5 | 109 | 9.18 | T2 | 153 | `fishingSpeed` | +20% | 45 | summer, autumn | card 600 · expansion `ocean` |
+| `tomato_pasta` | Tomato Pasta | wheat ×2, tomato ×3, corn ×1 | 60 | 6 | 126 | 10.52 | T2 | 176 | `cookSpeed` | +30% | 45 | summer, autumn | card 500 · FL3 |
+| `corn_chowder` | Corn Chowder | corn ×2, wheat ×1, perch ×1 | 75 | 4 | 150 | 9.50 | T2 | 210 | `automationSpeed` | +20% | 45 | autumn | experiment |
+| `blueberry_muffin` | Blueberry Muffin | wheat ×2, blueberry ×4 | 60 | 6 | 98 | 9.96 | T2 | 137 | `sellPrice` | +10% | 45 | summer | card 450 · FL3 |
+| `glazed_yams` | Glazed Yams | yam ×2, cranberry ×2 | 45 | 4 | 250 | 10.50 | T2 | 350 | `sellPrice` | +10% | 45 | autumn | experiment |
+| `garlic_trout` | Garlic Trout | trout ×1, garlic ×1, potato ×1 | 75 | 3 | 173 | 8.96 | T2 | 242 | `fishingLuck` | +20% | 45 | spring | milestone `m10_unlock_river` |
+| `seafood_stew` | Seafood Stew | tuna ×1, mackerel ×2, tomato ×2, corn ×1 | 120 | 6 | 334 | 16.68 | T3 | 534 | `fishingLuck` | +30% | 135 | summer | card 2500 · expansion `ocean` |
+| `pumpkin_soup` | Pumpkin Soup | pumpkin ×1, kale ×1, yam ×1 | 120 | 3 | 837 | 23.74 | T3 | 1339 | `growth` | +30% | 135 | autumn | card 2000 · FL6 |
+| `cranberry_pie` | Cranberry Pie | wheat ×3, cranberry ×4, yam ×1 | 120 | 8 | 242 | 16.84 | T3 | 387 | `sellPrice` | +15% | 135 | autumn | experiment |
+| `catfish_gumbo` | Catfish Gumbo | catfish ×2, corn ×1, tomato ×2, wheat ×1 | 120 | 6 | 309 | 16.18 | T3 | 494 | `automationSpeed` | +30% | 135 | summer, autumn | card 1800 · FL5 |
+| `scholars_stew` | Scholar's Stew | perch ×2, garlic ×2, bluegill ×2 | 120 | 6 | 324 | 16.48 | T3 | 518 | `xp` | +45% | 135 | spring, winter | milestone `m11_farm_level_5` |
+| `garden_banquet` | Garden Banquet | cauliflower ×2, strawberry ×4, garlic ×1, potato ×2 | 180 | 9 | 721 | 29.42 | T4 | 1442 | `cookSpeed` | +60% | 405 | spring | milestone `m12_cook_t3` |
+| `royal_sturgeon` | Royal Sturgeon | sturgeon ×1, koi ×1, melon ×1, tomato ×2, corn ×1 | 240 | 6 | 1347 | 40.94 | T4 | 2694 | `fishingLuck` | +40% | 405 | summer | experiment |
+| `harvest_feast` | Harvest Feast | pumpkin ×1, yam ×2, corn ×2, wheat ×2, cranberry ×3 | 240 | 10 | 1033 | 38.66 | T4 | 2066 | `sellPrice` | +20% | 405 | autumn | card 6000 · FL6 |
+| `moonfin_sushi` | Moonfin Sushi | moonfin ×1, seaweed ×3, leek ×1 | 180 | 5 | 1717 | 45.34 | T4 | 3434 | `xp` | +60% | 405 | winter | card 12000 · caught `moonfin` |
 
-Buff coverage: growth 3, sellPrice 3, fishingLuck 4, fishingSpeed 2, cookSpeed 3, automationSpeed 3, xp 4. T4 by season: spring `garden_banquet`, summer `royal_sturgeon`, autumn `harvest_feast`, winter `moonfin_sushi`.
+Buff coverage: growth 3, sellPrice 4, fishingLuck 4, fishingSpeed 2, cookSpeed 3, automationSpeed 3, xp 3. (Phase 09 moved Blueberry Muffin from Scholar's Snack to Silver Tongue, so summer has a dish whose buff earns gold.) T4 by season: spring `garden_banquet`, summer `royal_sturgeon`, autumn `harvest_feast`, winter `moonfin_sushi`.
 
 **Experiment mode:** the player picks 2–4 distinct ingredients. If the set of ingredient ids equals an unknown `experiment` or `card` recipe's ingredient ids (quantities ignored), that recipe is learned and nothing is consumed. Otherwise nothing is consumed and a hint names one ingredient of a still-unknown experiment recipe that shares at least one of the chosen items.
 
@@ -473,6 +474,7 @@ xpToNext(L) = round(150 * 1.5 ** (L - 1))           // L = 1..9   (phase 07 tune
 // cumulative to reach level 2..10: 150, 375, 713, 1219, 1978, 3117, 4826, 7389, 11233
 
 farmingXp(unit)  = max(1, round(crop.basePrice ** 0.6 / 2))                 // per harvested unit (table in §2)
+                   // a farmhand harvest gives AUTO_HARVEST_XP_FRACTION (0.25) of it (phase 09, like traps)
 fishingXp(catch) = { common: 6, uncommon: 14, rare: 30, legendary: 100 }[rarity] + floor(difficulty / 10)
                    // junk: 2; trap catches give floor(50%)
 cookingXp(dish)  = round(8 * tier ** 1.5)                                    // 8, 23, 42, 64
@@ -500,10 +502,10 @@ Each row is what that level adds, and the effects add up. A cell marked "(total)
 ```ts
 farmPoints = (farming.level + fishing.level + cooking.level - 3) + milestonesDone     // 0 .. 42
 farmLevel  = the highest L whose entry in FARM_LEVEL_POINTS is <= farmPoints
-FARM_LEVEL_POINTS = [_, 0, 2, 5, 7, 10, 12, 15, 20, 27, 36]                              // index = level, 1..10
+FARM_LEVEL_POINTS = [_, 0, 2, 5, 8, 11, 14, 18, 25, 32, 39]                              // index = level, 1..10 (phase 09; was 0, 2, 5, 7, 10, 12, 15, 20, 27, 36)
 ```
 
-Phase 07 replaced the linear `min(20, 1 + floor(farmPoints / 2))` this section used to give with the table above (see "Phase 07 tuning notes"). Level 3 is the five farming milestones (plant, harvest, sell, expand, sprinkler). Levels 8 to 10 gate nothing in §9; they are the long game and want all three skills. A farm-only player tops out at 19 points (Level 7), so Levels 8 and up need a little fishing or cooking.
+Phase 07 replaced the linear `min(20, 1 + floor(farmPoints / 2))` this section used to give with the table above (see "Phase 07 tuning notes"). Level 3 is the five farming milestones (plant, harvest, sell, expand, sprinkler). Levels 8 to 10 gate nothing in §9; they are the long game and want all three skills. A farm-only player tops out at about 19 points (Level 7 needs 18), so Levels 8 and up need fishing or cooking, and Level 10 (39 of the 42 points) wants nearly everything. Phase 09 stretched Levels 4–10 (see "Phase 09 balance report"): with the real calendar the overnight farmhand fed Farming XP so fast that Level 7 came in the first half hour of play and Level 10 on day 3.
 
 ---
 
@@ -588,6 +590,8 @@ goalGoldReward = roundNice(max(20, 0.05 * estimatedGoldPerRealMinute * 10))     
 ## 11. Pacing targets
 
 Times are real time for a player who is actively playing, unless noted. Phase 09's simulator checks all of them.
+
+**How phase 09 reads these hours.** The calendar is real time and absences count (capped), so a real player's progress is not measured in one long session. The simulator (`npm run simulate`) takes "h" in this table as **hours of play of the Active Player, who plays one hour each evening** — so "4–6 h" means "on the fourth to sixth day". That reading also makes the greenhouse target (8–12 h) line up with the autumn week that its bundle needs. The first-session targets (up to the river) are minutes of that first hour.
 
 | Moment | Target |
 |---|---|
@@ -751,3 +755,128 @@ Each phase that tunes numbers adds a dated subsection here: what changed, why, a
 - **Cooking XP is slow for the bot** (Cooking 7 at 9.4 h, 10 never): a dish is worth 8–64 XP and the bot cooks about one every few minutes. A person who cooks in bursts will be slower still. If Cooking 7's fourth buff slot should be a mid-game reward, raise dish XP (`COOKING_XP_BASE`) before touching the curve.
 - **Fishing XP outpaces Cooking but not Farming.** The Fishing skill only grows while someone fishes or has traps; a farm-only player never leaves Level 1 in it, which is why Level 8 and up ask for some fishing or cooking.
 - **Goal targets are estimates.** A goal is sized at 8 minutes × 50% of the ideal rate; the bot finishes about one every 50 minutes (16–19 in 16 hours). That is slower than the "5–15 minutes" the prompt names, because the bot spends most of its time on the milestones and its harvest goals need a crop it may not be planting. Tune `GOAL_TARGET_MINUTES` and `GOAL_EFFICIENCY` in `balance.ts` once real play data exists.
+
+### Phase 09 balance report
+
+**Method.** `npm run simulate` (`scripts/simulate.ts`, bots in `scripts/sim/`) plays the real game headlessly: every bot acts only through `Game.dispatch`, the game advances in exact bulk steps between looks, and each absence is a real save → JSON → load → offline catch-up, so the calendar, the 06:00 refresh, weekly seasons (and withering), a DST change and the offline cap all happen as they do for a person. The save is made on Wednesday 25 February 2026 at 19:00 in New York; spring ends on Sunday 1 March, then a season a week; DST starts on 8 March. Active fishing is modelled as catches per real minute from the real catch table (≈3 a minute for an attentive player, BALANCE §6), sped up by Quick Bite.
+
+| Bot | Schedule | Plays for |
+|---|---|---|
+| Greedy Farmer | 07:30 for 20 min, 19:00 for 100 min, daily | crops and automation first; never fishes |
+| Angler | same | fishes the whole session (3 a minute), farms between casts; rods, waters and traps first |
+| Chef | same | cooks everything (highest tier first), keeps its buff slots full, buys every card and kitchen upgrade |
+| Chef who sells | same | the Chef, but sells its dishes: the control for the buff check |
+| Casual Idler | 2 minutes every 4 hours, day and night | the Farmer's choices, in two-minute visits |
+| Active Player | 19:00 for 60 min, daily | farms, fishes 1.5 a minute, cooks, follows the milestones |
+
+All bots feed the Community Board, stock seeds for the planter before leaving and ship what they would sell. The report prints, per bot (medians over the seeds): lifetime gold on days 1/3/7/14/30, Farm Level, recipes known, dead time (time in waits over 2 minutes with nothing useful to do), the longest wait in the first 30 minutes of play, buff uptime, the share of gold earned while away, the time to every milestone (play · simulated · real), the gold-per-simulated-hour curve per day, and the phase's tuning checks. CSV files with every snapshot and moment go to `scripts/out/`. A 30-day run of one bot takes 3–7 s; the full report (6 bots × 8 seeds) about a minute on four cores.
+
+**What the simulator found in the phase 08 numbers** (same bots and seeds on the old data):
+- **Farm Level and automation came in the first session.** With a real schedule the first night's farmhand harvests (full Farming XP) gave Level 7 after ~30 minutes of play and Level 10 on day 3; the whole farm was automated after 2 hours of play (day 2).
+- **Buffs lost to selling the dish** (−7% at day 7, −22% at day 14): 80–85% of all gold is earned while away, and a 6–48 minute buff covers almost none of an 8-hour night.
+- **A field could lock up for a week.** A regrowing crop cannot be cleared before its seasons end, and the seed planter keeps replanting it; a player (and the Chef bot) with tomatoes and corn in the field could not plant autumn crops, so never finished the Autumn Harvest bundle, never unlocked the greenhouse and fell to 0.6× the others' gold (spread 1.68× at day 30).
+- **Summer had no dish whose buff earns gold**, so keeping buffs up in the summer week was worth nothing.
+- Strategies, the idler and the gold curve were otherwise healthy: no early dead time for players who fish, the Casual Idler at 164% of the Active Player after 3 days, and income levelling off at 40–50k gold per simulated hour from day 5 with no runaway growth.
+
+**What changed.**
+
+| Change | Was | Now | Why |
+|---|---|---|---|
+| Buff duration | 6 min × 2^(tier − 1): 6 / 12 / 24 / 48 min | 15 min × 3^(tier − 1): 15 / 45 / 135 / 405 min | a T3–T4 dish eaten before leaving now covers part of the night ("which dish to eat before you leave", GDD pillar 4); buffs kept up are worth +21% (target 10–25%) |
+| Blueberry Muffin | Scholar's Snack (+30% XP) | Silver Tongue (+10% prices) | "sweet, sellable treats boost prices" (GDD §7); summer gets a gold buff |
+| Farming XP from the farmhand | full | ×0.25 (`AUTO_HARVEST_XP_FRACTION`, like traps' ×0.5) | the overnight farm maxed Farming by day 2 |
+| `FARM_LEVEL_POINTS` | 0, 2, 5, 7, 10, 12, 15, 20, 27, 36 | 0, 2, 5, 8, 11, 14, 18, 25, 32, 39 | Level 7 in the first evening, Level 10 on day 3 |
+| Farmhand | 800 × 2.2ⁿ (800 … 19,000) | 1,000 × 3ⁿ (1,000 … 81,000) | automation spread over the first days |
+| Seed planter | 1,200 × 2.5ⁿ | 2,000 × 3ⁿ (2,000 / 6,000 / 18,000) | same |
+| Auto-Seller | 1,500 / 6,000 | 5,000 / 20,000 | same |
+| Sprinkler Tech | 2,500 / 12,000 | 6,000 / 30,000 | same |
+| The Hoe | tills and clears dead crops | also pulls up a regrower that has given a harvest (aimed at directly, never Auto or an area) | a field can no longer lock for weeks; the planter forgets a pulled crop |
+
+**Before → after** (medians of 8 seeds; the Active Player's times are hours of play, i.e. days):
+
+| Measure | Target (§11) | Before (phase 08) | After |
+|---|---|---|---|
+| First harvest | ≤ 2.5 min | 2 min | 2 min |
+| First expansion (Active · Farmer) | 6–10 min | 16 · 17 min | 14 · 17 min |
+| First sprinkler placed (Active · Farmer) | 10–15 min | 21 · 21 min | 19 · 21 min |
+| Farmhand L1 (Active · Farmer) | 25–40 min | 22 · 31 min | 25 · 31 min |
+| River Access (Active · Farmer) | 45–75 min | 32 · 48 min | 34 · 51 min |
+| First T2 · T3 · T4 dish (Active) | 45–90 min · 2–3 h · 3–5 h | 54 min · 67 min · 77 min | 47 min · 71 min · 87 min |
+| Farm Level 7 (Active · Farmer) | – | 29 min · 1.7 h | 40 min · 4.0 h |
+| Whole farm automated (Active · Farmer) | 4–6 h | 2.0 h · 2.0 h | 3.0 h · 5.0 h |
+| Greenhouse (Active) | 8–12 h | 11.2 h (day 11) | 11.2 h (day 11) |
+| Farm Level 10 (Active) | 10–15 h | 4.1 h (day 3.5) | 9.4 h (day 9) |
+| Longest early wait (Farmer, never fishes) | ≤ 2 min | 2.5 min | 2.0 min |
+| Strategy spread, day 3 · 7 · 30 | ≤ 1.5× | 1.09 · 1.47 · 1.68× | 1.18 · 1.18 · 1.09× |
+| Casual Idler / Active Player, day 3 | ≥ 40% | 164% | 160% |
+| Buffs kept up vs selling the dishes, day 3 · 7 · 14 | +10–25% | +18 · −7 · −22% | +22 · +21 · +8% |
+| Chef builds the greenhouse | – | never | day 10.5 |
+| Gold per simulated hour, day 30 (Farmer) | ~linear, ≤ 3× per hour of play | 42k | 42k |
+
+**The final report** (`npm run simulate -- --seeds 1,2,3,4,5,6,7,8`):
+
+Seeds 1, 2, 3, 4, 5, 6, 7, 8 · 30 real days from Wed 25 Feb 2026 19:00 in New York (DST starts on 8 March) · medians · 66.0 s
+
+| Bot | Play (h) | Gold d1 | Gold d3 | Gold d7 | Gold d14 | Gold d30 | FL d3 · d30 | Recipes | Dead time | Longest early wait | Buff uptime (play · all) | Gold from offline |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Greedy Farmer | 59.7 | 57,553 | 403,789 | 3,423,101 | 10,473,351 | 24,595,749 | 7 · 7 | 8 | 3% | 2.0 min | 0% · 0% | 83% |
+| Angler | 59.7 | 65,602 | 454,801 | 3,618,584 | 11,096,694 | 26,106,965 | 8 · 8 | 12 | 0% | 0.5 min | 0% · 0% | 78% |
+| Chef | 59.7 | 60,534 | 386,700 | 3,079,343 | 10,011,418 | 23,878,329 | 9 · 10 | 21 | 0% | 1.2 min | 100% · 44% | 82% |
+| Chef who sells (control) | 59.7 | 58,456 | 352,316 | 2,653,951 | 9,304,183 | 23,281,580 | 9 · 10 | 21 | 0% | 1.2 min | 0% · 0% | 83% |
+| Casual Idler | 6.0 | 2,095 | 224,307 | 3,583,922 | 11,141,901 | 29,181,049 | 6 · 7 | 8 | 0% | 0.9 min | 0% · 0% | 98% |
+| Active Player | 30.0 | 19,530 | 140,480 | 711,770 | 5,361,876 | 14,701,988 | 8 · 10 | 21 | 0% | 0.7 min | 1% · 0% | 82% |
+
+Time to each moment: **play time · simulated time · real time** since the save was made (medians; – = not reached by most seeds).
+
+| Moment | Greedy Farmer | Angler | Chef | Chef who sells (control) | Casual Idler | Active Player |
+|---|---|---|---|---|---|---|
+| First harvest | 2 min · 0.0 h · 0.0 h | 2 min · 0.0 h · 0.0 h | 2 min · 0.0 h · 0.0 h | 2 min · 0.0 h · 0.0 h | 2 min · 4.0 h · 4.0 h | 2 min · 0.0 h · 0.0 h |
+| First expansion (`farm_1`) | 17 min · 0.3 h · 0.3 h | 11 min · 0.2 h · 0.2 h | 23 min · 0.4 h · 0.4 h | 20 min · 0.3 h · 0.3 h | 8 min · 16.0 h · 16.0 h | 14 min · 0.2 h · 0.2 h |
+| First automation (sprinkler placed) | 21 min · 0.3 h · 0.3 h | 12 min · 0.2 h · 0.2 h | 28 min · 0.5 h · 0.5 h | 25 min · 0.4 h · 0.4 h | 10 min · 20.0 h · 20.0 h | 19 min · 0.3 h · 0.3 h |
+| Farmhand L1 | 31 min · 0.5 h · 0.5 h | 27 min · 0.4 h · 0.4 h | 35 min · 0.6 h · 0.6 h | 32 min · 0.5 h · 0.5 h | 13 min · 26.0 h · 26.0 h | 25 min · 0.4 h · 0.4 h |
+| River Access | 51 min · 0.9 h · 0.9 h | 24 min · 0.4 h · 0.4 h | 47 min · 0.8 h · 0.8 h | 49 min · 0.8 h · 0.8 h | 15 min · 30.0 h · 30.0 h | 34 min · 0.6 h · 0.6 h |
+| First T2 dish | – | – | 52 min · 0.9 h · 0.9 h | 47 min · 0.8 h · 0.8 h | – | 47 min · 0.8 h · 0.8 h |
+| First T3 dish | – | – | 6.1 h · 58.6 h · 3.0 d | 6.8 h · 59.3 h · 3.0 d | – | 71 min · 12.9 h · 24.2 h |
+| First T4 dish | – | – | 28.0 h · 264.0 h · 13.5 d | 29.6 h · 278.7 h · 14.2 d | – | 87 min · 13.2 h · 24.4 h |
+| Old Dock | 4.0 h · 39.0 h · 2.0 d | 83 min · 1.4 h · 1.4 h | 5.3 h · 44.7 h · 2.3 d | 5.5 h · 44.8 h · 2.3 d | 34 min · 68.0 h · 2.8 d | 4.0 h · 51.0 h · 4.0 d |
+| First bundle | 46 min · 0.8 h · 0.8 h | 25 min · 0.4 h · 0.4 h | 31 min · 0.5 h · 0.5 h | 31 min · 0.5 h · 0.5 h | 17 min · 34.0 h · 34.0 h | 25 min · 0.4 h · 0.4 h |
+| Whole farm automated | 5.0 h · 44.4 h · 2.3 d | 4.0 h · 39.0 h · 2.0 d | 3.8 h · 30.0 h · 36.6 h | 5.8 h · 49.5 h · 2.5 d | 38 min · 76.0 h · 3.2 d | 3.0 h · 38.3 h · 3.0 d |
+| Greenhouse | 21.9 h · 205.4 h · 10.5 d | 21.9 h · 205.4 h · 10.5 d | 21.9 h · 205.4 h · 10.5 d | 21.9 h · 205.4 h · 10.5 d | 2.1 h · 252.0 h · 10.5 d | 11.2 h · 140.2 h · 11.0 d |
+| Farm Level 5 | 55 min · 0.9 h · 0.9 h | 25 min · 0.4 h · 0.4 h | 30 min · 0.5 h · 0.5 h | 31 min · 0.5 h · 0.5 h | 17 min · 34.0 h · 34.0 h | 25 min · 0.4 h · 0.4 h |
+| Farm Level 7 | 4.0 h · 34.6 h · 42.4 h | 78 min · 1.3 h · 1.3 h | 47 min · 0.8 h · 0.8 h | 50 min · 0.8 h · 0.8 h | 38 min · 76.0 h · 3.2 d | 40 min · 0.7 h · 0.7 h |
+| Farm Level 10 | – | – | 7.8 h · 69.0 h · 3.5 d | 9.0 h · 79.0 h · 4.0 d | – | 9.4 h · 115.1 h · 9.0 d |
+
+Gold per simulated hour on real day *n* (the gold-per-hour curve):
+
+| Bot | d1 | d2 | d3 | d5 | d7 | d10 | d14 | d21 | d28 | d30 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Greedy Farmer | 3,042 | 7,130 | 10,510 | 43,170 | 48,361 | 52,040 | 51,785 | 43,083 | 43,296 | 41,669 |
+| Angler | 2,657 | 6,029 | 12,940 | 47,199 | 51,041 | 48,932 | 56,400 | 46,091 | 45,206 | 42,788 |
+| Chef | 2,755 | 6,846 | 10,144 | 36,831 | 39,720 | 42,732 | 61,021 | 40,476 | 44,190 | 36,695 |
+| Chef who sells (control) | 2,745 | 5,871 | 9,565 | 27,710 | 37,788 | 42,546 | 55,047 | 40,183 | 43,820 | 43,976 |
+| Casual Idler | 105 | 1,941 | 7,231 | 38,384 | 40,704 | 39,786 | 50,329 | 43,863 | 43,410 | 44,763 |
+| Active Player | 0 | 4,603 | 5,314 | 8,559 | 13,609 | 38,564 | 55,874 | 42,951 | 43,509 | 40,048 |
+
+| Check | Target | Measured | |
+|---|---|---|---|
+| No strategy dominates (day 3) | ≤ 1.5× lifetime gold | 1.18× (Greedy Farmer 403,789, Angler 454,801, Chef 386,700) | ✅ |
+| No strategy dominates (day 7) | ≤ 1.5× lifetime gold | 1.18× (Greedy Farmer 3,423,101, Angler 3,618,584, Chef 3,079,343) | ✅ |
+| No strategy dominates (day 30) | ≤ 1.5× lifetime gold | 1.09× (Greedy Farmer 24,595,749, Angler 26,106,965, Chef 23,878,329) | ✅ |
+| Casual Idler vs Active Player (day 3) | ≥ 40% of the lifetime gold | 160% | ✅ |
+| Buffs kept up: Chef vs the same Chef selling its dishes (day 7, paired by seed) | +10% to +25% (worth it, not mandatory) | +21% (day 3 +22%, day 14 +8%) | ✅ |
+| Greedy Farmer: early dead time | no wait over 2 min in the first 30 min of play | 2.0 min (dead-time share 3%) | ✅ |
+| Angler: early dead time | no wait over 2 min in the first 30 min of play | 0.5 min (dead-time share 0%) | ✅ |
+| Chef: early dead time | no wait over 2 min in the first 30 min of play | 1.2 min (dead-time share 0%) | ✅ |
+| Active Player: early dead time | no wait over 2 min in the first 30 min of play | 0.7 min (dead-time share 0%) | ✅ |
+| Greedy Farmer: no runaway growth after day 3 | gold/hour at most ~3× the day before; week 4 not far above week 2 | worst day-over-day 2.67×, day 28 / day 14 0.84× | ✅ |
+| Angler: no runaway growth after day 3 | gold/hour at most ~3× the day before; week 4 not far above week 2 | worst day-over-day 2.91×, day 28 / day 14 0.80× | ✅ |
+| Chef: no runaway growth after day 3 | gold/hour at most ~3× the day before; week 4 not far above week 2 | worst day-over-day 2.25×, day 28 / day 14 0.72× | ✅ |
+
+**Tuning notes.**
+- **Early game untouched.** The first session (first harvest, expansion, sprinkler, farmhand, river) is as phases 03–07 tuned it. The simulator's bots also feed the Community Board and buy cards, so their expansion and sprinkler come a few minutes after the targets a pure farming run (phase 03) hits; the Angler, who sells fish from minute one, is always first.
+- **Offline is most of the gold** (78–98% by bot). That is the idle design working ("your absence is part of play"), and why buffs only matter once they last into an absence. The Casual Idler out-earns the one-hour-a-day player because four-hourly visits never hit the offline cap; the target is only a floor.
+- **Busy Bees is weak late.** Once the farmhand is Level 3+ it is never the bottleneck (48 plots need ~5 visits a minute; Level 5 makes 133), so +40% automation speed is worth ~0 gold (a controlled 8-hour test: growth +40% → +24–35% gold, Silver Tongue +20% → +20%, Busy Bees +40% → +0%). Logged in IDEAS.md; the Chef keeps its slots on gold buffs instead.
+- **Gold has nothing to buy after the first week** (lifetime gold passes 3 million by day 7; every upgrade, expansion and recipe card together cost about 523k). The curve is flat, not runaway, but a late gold sink is a v2 idea (IDEAS.md).
+- **Summer and winter buffs are mostly not about gold** (XP, fishing, cooking); the buff check uses the first week, when gold buys the farm. Day 14 (autumn, with Harvest Feast) is +8%.
+- **Seeds for the planter are the idle bottleneck.** An automated farm of single-harvest crops needs a seed per cycle; the bots stock seeds for the whole absence before leaving (up to 80% of their gold). A regrower field needs none, which is the "plant once, forget" role §2 gives regrowers.
+- **Levers, in order**, if a later phase wants to move things: `BUFF_BASE_DURATION_MS` / `BUFF_DURATION_GROWTH` (buff value), `AUTO_HARVEST_XP_FRACTION` and the top of `FARM_LEVEL_POINTS` (level pace), the farmhand / planter / Auto-Seller / Sprinkler Tech cost curves (automation pace), `OFFLINE_*` (idle vs active). Rerun `npm run simulate` and `tests/simulate.test.ts` after any change.
