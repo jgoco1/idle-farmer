@@ -69,6 +69,15 @@ test('cast, wait for the bite and reel a fish in with scripted input', async ({ 
   const panel = page.getByRole('dialog', { name: 'Fishing' });
   await expect(panel).toBeVisible();
   await expect(panel).toContainText('Biting now at the pond');
+  // Record every message the result line shows. The scripted player polls the game, so its next
+  // press can land just after a catch and start a new cast, which (correctly) clears the message.
+  await panel.locator('.fish-result').evaluate((el) => {
+    const w = window as unknown as { __fishResults: string[] };
+    w.__fishResults = [];
+    new MutationObserver(() => {
+      if (el.textContent) w.__fishResults.push(el.textContent);
+    }).observe(el, { childList: true, subtree: true, characterData: true });
+  });
   const cast = panel.getByRole('button', { name: 'Hold to cast' });
   const box = (await cast.boundingBox())!;
   const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -101,7 +110,8 @@ test('cast, wait for the bite and reel a fish in with scripted input', async ({ 
     let shot = false;
     for (let i = 0; i < 900; i++) {
       const s = await session(page);
-      if (!s) break;
+      // Stop once the cast is over: no session, or a new cast started by a press after the catch.
+      if (!s || s.phase === 'charging' || s.phase === 'waiting') break;
       const r = s.reel;
       const want = r ? r.marker < r.zoneCenter : true;
       if (want !== down) {
@@ -119,7 +129,11 @@ test('cast, wait for the bite and reel a fish in with scripted input', async ({ 
     landed = (await fishInBag(page)) > 0;
   }
   expect(landed).toBe(true);
-  await expect(panel.locator('.fish-result')).toContainText('You caught');
+  const results = (): Promise<string> =>
+    page.evaluate(() => (window as unknown as { __fishResults: string[] }).__fishResults.join('\n'));
+  await expect.poll(results).toContain('You caught');
+  // Put away a cast that a late press may have started, so the panel is idle for the next checks.
+  if (await session(page)) await dispatch(page, { type: 'fishCancel' });
 
   // The Collection tab lists what was caught (fish, or a junk item that has no entry).
   await panel.getByRole('tab', { name: 'Collection' }).click();
