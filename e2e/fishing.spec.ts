@@ -179,7 +179,10 @@ test('traps fill while time passes and are collected by a click in the scene', a
       t.contents.reduce((n, c) => n + c.qty, 0),
     ),
   );
-  expect(after).toEqual([0, 5]);
+  // The first trap was emptied into the bag. A full trap keeps its next roll waiting, so the next
+  // game tick may already drop one new catch into the emptied trap: 0 or 1 are both right.
+  expect(after[0]).toBeLessThanOrEqual(1);
+  expect(after[1]).toBe(5);
   expect(await fishInBag(page)).toBe(5);
   expect(errors).toEqual([]);
 });
