@@ -41,7 +41,14 @@ export type GameEvent =
   | { type: 'notify'; text: string; tone: 'info' | 'good' | 'warn' };
 
 export type GameEventType = GameEvent['type'];
-export type EventOf<T extends GameEventType> = Extract<GameEvent, { type: T }>;
+/** The event variant(s) for `type`, including variants that share a body (`'tilled' | 'watered'`). */
+export type EventOf<T extends GameEventType> = GameEvent extends infer E
+  ? E extends { type: infer U }
+    ? T extends U
+      ? E & { type: T }
+      : never
+    : never
+  : never;
 
 type Handler<E> = (event: E) => void;
 
