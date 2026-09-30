@@ -51,13 +51,18 @@ export function anchoredPosition(
   col: number,
   row: number,
   tile = 16,
+  out: { x: number; y: number } = { x: 0, y: 0 },
 ): { x: number; y: number } {
   const w = def.frames[0]?.[0]?.length ?? tile;
   const h = def.frames[0]?.length ?? tile;
   if (def.anchor === 'bottom-center') {
-    return { x: col * tile + Math.floor(tile / 2) - Math.floor(w / 2), y: (row + 1) * tile - h };
+    out.x = col * tile + Math.floor(tile / 2) - Math.floor(w / 2);
+    out.y = (row + 1) * tile - h;
+  } else {
+    out.x = col * tile;
+    out.y = row * tile;
   }
-  return { x: col * tile, y: row * tile };
+  return out;
 }
 
 const urlCache = new Map<string, string>();

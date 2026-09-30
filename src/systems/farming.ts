@@ -57,9 +57,25 @@ export function plotAt(state: GameState, index: number): Plot | undefined {
   return isGreenhouseIndex(index) ? state.farm.greenhouse[index - GREENHOUSE_BASE] : state.farm.plots[index];
 }
 
-/** Every plot index: the field first, then the greenhouse. */
-export function allPlotIndexes(state: GameState): number[] {
-  return [...state.farm.plots.map((_, i) => i), ...state.farm.greenhouse.map((_, i) => GREENHOUSE_BASE + i)];
+const indexCache = new Map<number, readonly number[]>();
+
+/**
+ * Every plot index: the field first, then the greenhouse. Asked several times per simulation step,
+ * so the list is shared per farm size: never modify it.
+ */
+export function allPlotIndexes(state: GameState): readonly number[] {
+  const f = state.farm.plots.length;
+  const g = state.farm.greenhouse.length;
+  const key = f * 1024 + g;
+  let out = indexCache.get(key);
+  if (!out) {
+    out = [
+      ...Array.from({ length: f }, (_, i) => i),
+      ...Array.from({ length: g }, (_, i) => GREENHOUSE_BASE + i),
+    ];
+    indexCache.set(key, out);
+  }
+  return out;
 }
 
 /** Index into `state.lastPlantedCrop` (field plots first, then the greenhouse). */
@@ -71,7 +87,20 @@ export function lastPlantedIndex(state: GameState, index: number): number {
 export function envFor(cov: Coverage | null, index: number): PlotEnv {
   if (isGreenhouseIndex(index)) return GREENHOUSE_ENV;
   if (!cov) return NO_ENV;
-  return { sprinkled: cov.sprinkled[index] === 1, bonus: cov.bonus[index]! };
+  return sharedEnv(cov.sprinkled[index] === 1, cov.bonus[index]!);
+}
+
+// A handful of distinct surroundings exist (sprinkled or not × a scarecrow bonus or none), so they
+// are shared rather than built per plot per step.
+const envCache = new Map<number, PlotEnv>();
+function sharedEnv(sprinkled: boolean, bonus: number): PlotEnv {
+  const key = bonus * 2 + (sprinkled ? 1 : 0);
+  let env = envCache.get(key);
+  if (!env) {
+    env = Object.freeze({ sprinkled, bonus });
+    envCache.set(key, env);
+  }
+  return env;
 }
 
 /** Whether plot `index` counts as watered right now (hand watering, a sprinkler or the greenhouse). */
@@ -145,14 +174,17 @@ export function msUntilReady(plot: Plot, crop: CropDef, mods: Modifiers, env: Pl
 
 export function tickFarming(state: GameState, ctx: SimContext, dtMs: number): void {
   const cov = coverageOf(state, ctx.data);
-  const grow = (plot: Plot, env: PlotEnv): void => {
-    if (plot.state === 'planted' && plot.crop !== null) {
-      plot.growthMs = growthAfter(plot, ctx.data.crops[plot.crop], dtMs, ctx.mods, env);
-    }
-    if (plot.waterMsLeft > 0) plot.waterMsLeft = Math.max(0, plot.waterMsLeft - dtMs);
-  };
-  state.farm.plots.forEach((plot, i) => grow(plot, envFor(cov, i)));
-  for (const plot of state.farm.greenhouse) grow(plot, GREENHOUSE_ENV);
+  const plots = state.farm.plots;
+  for (let i = 0; i < plots.length; i++) growPlot(plots[i]!, envFor(cov, i), ctx, dtMs);
+  const greenhouse = state.farm.greenhouse;
+  for (let i = 0; i < greenhouse.length; i++) growPlot(greenhouse[i]!, GREENHOUSE_ENV, ctx, dtMs);
+}
+
+function growPlot(plot: Plot, env: PlotEnv, ctx: SimContext, dtMs: number): void {
+  if (plot.state === 'planted' && plot.crop !== null) {
+    plot.growthMs = growthAfter(plot, ctx.data.crops[plot.crop], dtMs, ctx.mods, env);
+  }
+  if (plot.waterMsLeft > 0) plot.waterMsLeft = Math.max(0, plot.waterMsLeft - dtMs);
 }
 
 /** The soonest moment a growing crop's water runs out (its growth rate halves), or Infinity. */

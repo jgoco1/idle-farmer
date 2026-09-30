@@ -140,7 +140,7 @@ export class ParticleSystem {
 
   get aliveCount(): number {
     let n = 0;
-    for (const p of this.pool) if (p.alive) n++;
+    for (let i = 0; i < this.pool.length; i++) if (this.pool[i]!.alive) n++;
     return n;
   }
 
@@ -173,7 +173,9 @@ export class ParticleSystem {
 
   update(dtMs: number): void {
     const dt = Math.min(dtMs, 100) / 1000;
-    for (const p of this.pool) {
+    // Indexed loops: this runs every frame, and an array iterator is garbage the GC has to collect.
+    for (let i = 0; i < this.pool.length; i++) {
+      const p = this.pool[i]!;
       if (!p.alive) continue;
       p.age += dtMs;
       if (p.age >= p.life) {
@@ -187,7 +189,8 @@ export class ParticleSystem {
   }
 
   draw(f: CanvasRenderingContext2D): void {
-    for (const p of this.pool) {
+    for (let i = 0; i < this.pool.length; i++) {
+      const p = this.pool[i]!;
       if (!p.alive) continue;
       const t = p.age / p.life;
       f.globalAlpha = p.kind === 'steam' ? 0.6 * (1 - t) : 1 - t * t;
@@ -218,6 +221,6 @@ export class ParticleSystem {
   }
 
   clear(): void {
-    for (const p of this.pool) p.alive = false;
+    for (let i = 0; i < this.pool.length; i++) this.pool[i]!.alive = false;
   }
 }

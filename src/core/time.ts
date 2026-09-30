@@ -219,11 +219,18 @@ export function nextWeeklyBoundary(t: number, lc: LocalClock): number {
 
 /** The first Sunday 00:00 after `t` at which the season actually changes. */
 export function nextSeasonChange(t: number, seasonEpoch: number, lc: LocalClock): number {
+  // Every calendar build asks for this (the HUD, every frame); the answer is the same for any t from
+  // the last query up to the change itself, so the last one is remembered.
+  const m = seasonChangeMemo;
+  if (m && m.lc === lc && m.epoch === seasonEpoch && t >= m.from && t < m.to) return m.to;
   const w = weekIndexAt(t, seasonEpoch, lc);
   let b = nextWeeklyBoundary(t, lc);
   for (let i = 0; i < 3 && weekIndexAt(b, seasonEpoch, lc) <= w; i++) b = nextWeeklyBoundary(b, lc);
+  seasonChangeMemo = { lc, epoch: seasonEpoch, from: t, to: b };
   return b;
 }
+
+let seasonChangeMemo: { lc: LocalClock; epoch: number; from: number; to: number } | null = null;
 
 /** Calendar time = real time plus the debug time-warp offset (0 in normal play). */
 export function calendarTime(cal: CalendarState, realNow: number): number {

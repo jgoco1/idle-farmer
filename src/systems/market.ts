@@ -229,7 +229,9 @@ function clampDemand(d: number): number {
 /** Demand relaxes for every item the market knows about. */
 export function tickMarket(state: GameState, _ctx: SimContext, dtMs: number): void {
   const now = state.clock.simMs;
-  for (const e of Object.values(state.market.items)) {
+  const items = state.market.items;
+  for (const id in items) {
+    const e = items[id as ItemId];
     if (!e) continue;
     const since = e.lastSoldSimMs < 0 ? -1 : now - e.lastSoldSimMs;
     if (since < 0 && e.demand === 1) continue;

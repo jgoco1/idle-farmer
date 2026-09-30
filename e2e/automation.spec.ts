@@ -129,3 +129,22 @@ test('an automated farm: farmhand, sprinklers and a scarecrow at work', async ({
   await page.screenshot({ path: 'test-results/farm-automated.png' });
   expect(errors).toEqual([]);
 });
+
+test('a double click on an upgrade button buys one level, not two (phase 09)', async ({ page }) => {
+  await page.goto('./');
+  await expect(page.locator('#scene-canvas')).toBeVisible();
+  await page.evaluate(() => ((window as unknown as Win).__game.state.gold = 5000));
+  await page.getByRole('button', { name: /Upgrades/ }).click();
+  const upgrades = page.getByRole('dialog', { name: 'Upgrades' });
+  // The button is rebuilt as "Upgrade Hoe for 1200 gold" under the pointer after the first click.
+  await upgrades.getByRole('button', { name: 'Upgrade Hoe for 250 gold' }).dblclick();
+  const level = await page.evaluate(
+    () => (window as unknown as { __game: { state: LooseState } }).__game.state.upgrades.hoe,
+  );
+  expect(level).toBe(1);
+  expect(await page.evaluate(() => (window as unknown as Win).__game.state.gold)).toBe(5000 - 250);
+  // A deliberate second click a moment later still buys the next level.
+  await page.waitForTimeout(450);
+  await upgrades.getByRole('button', { name: 'Upgrade Hoe for 1200 gold' }).click();
+  expect(await page.evaluate(() => (window as unknown as Win).__game.state.gold)).toBe(5000 - 250 - 1200);
+});

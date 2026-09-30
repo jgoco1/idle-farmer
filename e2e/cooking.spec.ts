@@ -83,7 +83,10 @@ test('cook a T1 dish in the Kitchen, eat it and see the buff in the HUD', async 
   await inventory.getByRole('button', { name: 'Eat Roasted Turnip' }).click();
   const growth = page.locator('#hud [data-buff="growth"]');
   await expect(growth).toBeVisible();
-  await expect(growth).toHaveAttribute('title', /Green Thumb \(tier 1\)\nCrops grow 10% faster\.\n6:00 left/);
+  await expect(growth).toHaveAttribute(
+    'title',
+    /Green Thumb \(tier 1\)\nCrops grow 10% faster\.\n1[45]:\d\d left/,
+  );
   expect(await dishes()).toBe(0);
 
   await inventory.locator('[data-item="baked_potato"]').click();
@@ -100,8 +103,8 @@ test('cook a T1 dish in the Kitchen, eat it and see the buff in the HUD', async 
     clip: { x: 0, y: 0, width: 1280, height: 64 },
   });
 
-  // The buff really counts down, and expires on its own.
-  await advance(page, 7 * 60_000);
+  // The buff really counts down (15 minutes for a T1 dish since phase 09), and expires on its own.
+  await advance(page, 16 * 60_000);
   await expect(page.locator('#hud [data-buff="growth"]')).toHaveCount(0);
   expect(errors).toEqual([]);
 });

@@ -95,10 +95,13 @@ export function grantXp(state: GameState, ctx: SimContext, skill: SkillId, base:
 
 // ---- rewards
 
+/** One formatter for every reward line (toLocaleString builds a new one on each call, which an offline walk that finishes many goals feels). */
+const GOLD_FORMAT = new Intl.NumberFormat('en-US');
+
 export function rewardText(data: GameData, r: QuestReward): string {
   switch (r.kind) {
     case 'gold':
-      return `${r.amount.toLocaleString('en-US')}g`;
+      return `${GOLD_FORMAT.format(r.amount)}g`;
     case 'items':
       return r.items.map((i) => `${i.qty} × ${data.items[i.item]?.name ?? i.item}`).join(', ');
     case 'recipe':
@@ -179,6 +182,23 @@ function advance(state: GameState, data: GameData, o: QuestObjective, e: GameEve
       return 0;
   }
 }
+
+/** The only event type that can advance each objective (`reachFarmLevel` is checked against state). */
+const EVENT_FOR: Readonly<Record<QuestObjective['kind'], GameEvent['type'] | null>> = {
+  plant: 'planted',
+  harvest: 'harvested',
+  sell: 'sold',
+  earnGold: 'goldEarned',
+  ship: 'binCollected',
+  catch: 'caught',
+  cook: 'cooked',
+  eat: 'ate',
+  place: 'placed',
+  buyUpgrade: 'purchased',
+  buyExpansion: 'purchased',
+  completeBundle: 'bundleCompleted',
+  reachFarmLevel: null,
+};
 
 /** What a goal's progress is measured against. */
 export function goalTarget(o: QuestObjective): number {
@@ -560,7 +580,11 @@ function handle(state: GameState, ctx: SimContext, e: GameEvent): void {
       break;
     }
   }
+  // Only the milestones and goals this kind of event can move are looked at (an offline walk
+  // reports thousands of harvests; checking all fifteen milestones against each was the walk's
+  // biggest cost).
   for (const m of data.milestones) {
+    if (EVENT_FOR[m.objective.kind] !== e.type) continue;
     if (state.progression.milestones.done.includes(m.id as never)) continue;
     if (advance(state, data, m.objective, e) >= Math.max(1, 'count' in m.objective ? m.objective.count : 1)) {
       completeMilestone(state, ctx, m);
@@ -568,7 +592,9 @@ function handle(state: GameState, ctx: SimContext, e: GameEvent): void {
   }
   // Goals: count, then finish the ones that are there. A finished goal pays out and leaves the board.
   const goals = state.progression.goals;
+  if (!goals.some((g) => EVENT_FOR[g.objective.kind] === e.type)) return;
   for (const g of [...goals]) {
+    if (EVENT_FOR[g.objective.kind] !== e.type) continue;
     stepGoal(state, data, g, e);
     if (g.progress >= goalTarget(g.objective)) {
       goals.splice(goals.indexOf(g), 1);

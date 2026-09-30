@@ -94,35 +94,42 @@ export class Ambient {
 
   /** Butterflies fly in daylight (07:00–19:00), fireflies when it is night on the local clock. */
   visible(clock: AmbientClock): { butterflies: number; fireflies: number; fall: number; clouds: number } {
-    if (this.reduced()) return { butterflies: 0, fireflies: 0, fall: 0, clouds: 0 };
+    // Asked several times a frame: filled into one reused object (copy it to keep it).
+    const v = this.vis;
+    if (this.reduced()) {
+      v.butterflies = v.fireflies = v.fall = v.clouds = 0;
+      return v;
+    }
     const c = AMBIENT_COUNTS[clock.season];
     const day = !clock.isNight && clock.hour >= 7 && clock.hour < 19;
-    return {
-      butterflies: day ? c.butterflies : 0,
-      fireflies: clock.isNight ? c.fireflies : 0,
-      fall: c.fall,
-      clouds: clock.isNight ? 0 : 3,
-    };
+    v.butterflies = day ? c.butterflies : 0;
+    v.fireflies = clock.isNight ? c.fireflies : 0;
+    v.fall = c.fall;
+    v.clouds = clock.isNight ? 0 : 3;
+    return v;
+  }
+
+  private readonly vis = { butterflies: 0, fireflies: 0, fall: 0, clouds: 0 };
+
+  private wander(m: Mover, rate: number, dt: number): void {
+    const dx = m.tx - m.x;
+    const dy = m.ty - m.y;
+    if (dx * dx + dy * dy < 4) {
+      m.tx = Math.min(SCENE_W - 4, Math.max(4, m.x + (this.rand() - 0.5) * 70));
+      m.ty = Math.min(SCENE_H - 8, Math.max(12, m.y + (this.rand() - 0.5) * 50));
+    }
+    const len = Math.hypot(dx, dy) || 1;
+    m.x += (dx / len) * m.speed * rate * dt * 20;
+    m.y += (dy / len) * m.speed * rate * dt * 20;
+    m.phase += dt * 9;
   }
 
   update(dtMs: number, clock: AmbientClock): void {
     if (this.reduced()) return;
     const dt = Math.min(dtMs, 100) / 1000;
     const vis = this.visible(clock);
-    const wander = (m: Mover, rate: number): void => {
-      const dx = m.tx - m.x;
-      const dy = m.ty - m.y;
-      if (dx * dx + dy * dy < 4) {
-        m.tx = Math.min(SCENE_W - 4, Math.max(4, m.x + (this.rand() - 0.5) * 70));
-        m.ty = Math.min(SCENE_H - 8, Math.max(12, m.y + (this.rand() - 0.5) * 50));
-      }
-      const len = Math.hypot(dx, dy) || 1;
-      m.x += (dx / len) * m.speed * rate * dt * 20;
-      m.y += (dy / len) * m.speed * rate * dt * 20;
-      m.phase += dt * 9;
-    };
-    for (let i = 0; i < vis.butterflies; i++) wander(this.butterflies[i]!, 1);
-    for (let i = 0; i < vis.fireflies; i++) wander(this.fireflies[i]!, 0.5);
+    for (let i = 0; i < vis.butterflies; i++) this.wander(this.butterflies[i]!, 1, dt);
+    for (let i = 0; i < vis.fireflies; i++) this.wander(this.fireflies[i]!, 0.5, dt);
     for (let i = 0; i < vis.fall; i++) {
       const p = this.fallers[i]!;
       p.y += p.vy * dt;
@@ -133,7 +140,8 @@ export class Ambient {
         p.x = this.rand() * SCENE_W;
       }
     }
-    for (const c of this.clouds) {
+    for (let i = 0; i < this.clouds.length; i++) {
+      const c = this.clouds[i]!;
       c.x += c.speed * dt;
       if (c.x > SCENE_W + 10) c.x = -c.w - 10;
     }
