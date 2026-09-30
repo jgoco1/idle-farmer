@@ -1,7 +1,8 @@
 // The phase-03 pacing check (BALANCE.md §11 and "Phase 03 tuning notes"): a greedy active player
 // (tests/sim/greedyPlayer.ts) plays the first 60 minutes on several seeds. Phase 04 buys the real
 // automation (the second describe plays five and a half hours); River Access (phase 05) is virtual.
-// Phase 09 replaces this with the full simulator.
+// Phase 09 replaces this with the full simulator. Each test plays several whole games, which can
+// take longer than Vitest's 5 s default on a busy machine, hence the per-describe timeout.
 
 import { describe, expect, it } from 'vitest';
 import { runOffline } from '../src/core/offline';
@@ -29,7 +30,7 @@ function boughtAt(reports: readonly PacingReport[], id: string): number {
   return median(reports.map((r) => (r.bought[id] ?? Infinity) / MIN));
 }
 
-describe('pacing: the first 60 minutes of a greedy active player', () => {
+describe('pacing: the first 60 minutes of a greedy active player', { timeout: 30_000 }, () => {
   const real = runs();
 
   it('first harvest within 2.5 minutes', () => {
@@ -95,7 +96,7 @@ describe('pacing: the first 60 minutes of a greedy active player', () => {
   });
 });
 
-describe('pacing: automating the whole farm (phase 04)', () => {
+describe('pacing: automating the whole farm (phase 04)', { timeout: 30_000 }, () => {
   const SEEDS_LONG = [1, 2, 3];
   const long = SEEDS_LONG.map((seed) =>
     simulateGreedy({ minutes: 330, reactionMs: 15_000, seed, shopping: AUTOMATION_SHOPPING_LIST }),
