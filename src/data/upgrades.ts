@@ -1,13 +1,199 @@
-// Upgrades (docs/BALANCE.md §4). Phase 03 adds the backpack; phase 04 adds the farm and tool
-// upgrades, 05 the fishing ones and 06 the kitchen, after which this becomes a full Record.
+// Upgrades (docs/BALANCE.md §4). Phase 03 added the backpack; phase 04 adds the farm and tool
+// upgrades; 05 adds the fishing ones and 06 the kitchen, after which this becomes a full Record.
+//
+// Leveled upgrades: `effect[level]` and `effectText[level]` (index 0 = not owned). Placeables
+// (sprinkler, scarecrow): the level is the number of units bought.
 
 import type { UpgradeId } from './ids';
-import type { UpgradeDef } from './types';
+import type { UpgradeDef, UpgradeEffect } from './types';
+
+/** `effectText`/`effect` for a placeable owned n times: `text(n)` for n = 0..max. */
+function perUnit(
+  max: number,
+  text: (n: number) => string,
+  effect: UpgradeEffect,
+): [string[], UpgradeEffect[]] {
+  const n = Array.from({ length: max + 1 }, (_, i) => i);
+  return [n.map(text), n.map(() => effect)];
+}
+
+const [sprinklerText, sprinklerEffect] = perUnit(
+  12,
+  (n) => (n === 0 ? 'none yet' : n === 1 ? '1 sprinkler' : `${n} sprinklers`),
+  {},
+);
+const [scarecrowText, scarecrowEffect] = perUnit(
+  4,
+  (n) => (n === 0 ? 'none yet' : n === 1 ? '1 scarecrow' : `${n} scarecrows`),
+  { shape: 'square', radius: 2, growthBonus: 0.2 },
+);
 
 export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object.freeze({
+  sprinkler: {
+    id: 'sprinkler',
+    name: 'Sprinkler',
+    description: 'A little spinning sprinkler. Every plot around it stays watered, day and night.',
+    category: 'farm',
+    kind: 'placeable',
+    placeOn: 'plot',
+    max: 12,
+    cost: { base: 300, ratio: 1.35 }, // 300, 410, 550, 740, 1000, 1300, 1800, 2500, 3300, 4500, 6000, 8100
+    effectText: sprinklerText,
+    effect: sprinklerEffect,
+    requires: [],
+  },
+  sprinkler_tech: {
+    id: 'sprinkler_tech',
+    name: 'Sprinkler Tech',
+    description: 'Better nozzles for every sprinkler, so each one waters more plots.',
+    category: 'farm',
+    kind: 'leveled',
+    max: 2,
+    cost: { base: 2500, ratio: 4.8 }, // 2500, 12000
+    effectText: ['plus shape (4 plots)', 'wider: 3 × 3 (8 plots)', 'widest: 5 × 5 (24 plots)'],
+    effect: [
+      { shape: 'plus', radius: 1 },
+      { shape: 'square', radius: 1 },
+      { shape: 'square', radius: 2 },
+    ],
+    requires: [],
+    levelRequires: { 1: [{ kind: 'farmLevel', level: 4 }], 2: [{ kind: 'farmLevel', level: 7 }] },
+  },
+  scarecrow: {
+    id: 'scarecrow',
+    name: 'Scarecrow',
+    description: 'A cheerful scarecrow. Crops within two tiles grow 20% faster.',
+    category: 'farm',
+    kind: 'placeable',
+    placeOn: 'plot',
+    max: 4,
+    cost: { base: 600, ratio: 1.8 }, // 600, 1100, 1900, 3500
+    effectText: scarecrowText,
+    effect: scarecrowEffect,
+    requires: [{ kind: 'expansion', id: 'farm_1' }],
+  },
+  farmhand: {
+    id: 'farmhand',
+    name: 'Farmhand',
+    description: 'A helper who trots out to harvest ripe crops, even while you are away.',
+    category: 'farm',
+    kind: 'leveled',
+    max: 5,
+    cost: { base: 800, ratio: 2.2 }, // 800, 1800, 3900, 8500, 19000
+    effectText: [
+      'no one is hired',
+      'harvests 6 plots every 30 s',
+      'harvests 9 plots every 22 s',
+      'harvests 12 plots every 17 s',
+      'harvests 16 plots every 12 s',
+      'harvests 20 plots every 9 s',
+    ],
+    effect: [
+      {},
+      { intervalSec: 30, capacity: 6 },
+      { intervalSec: 22, capacity: 9 },
+      { intervalSec: 17, capacity: 12 },
+      { intervalSec: 12, capacity: 16 },
+      { intervalSec: 9, capacity: 20 },
+    ],
+    requires: [{ kind: 'farmLevel', level: 3 }],
+  },
+  seed_planter: {
+    id: 'seed_planter',
+    name: 'Seed Planter',
+    description: 'The farmhand sows seeds behind them, so the field replants itself.',
+    category: 'farm',
+    kind: 'leveled',
+    max: 3,
+    cost: { base: 1200, ratio: 2.5 }, // 1200, 3000, 7500
+    effectText: [
+      'not built',
+      'replants what the farmhand harvested',
+      '+ fills empty tilled plots',
+      '+ tills soil and clears dead crops',
+    ],
+    effect: [
+      {},
+      { flags: ['replantHarvested'] },
+      { flags: ['replantHarvested', 'plantEmpty'] },
+      { flags: ['replantHarvested', 'plantEmpty', 'autoTill'] },
+    ],
+    requires: [{ kind: 'upgrade', id: 'farmhand', level: 1 }],
+  },
+  auto_seller: {
+    id: 'auto_seller',
+    name: 'Auto-Seller',
+    description: 'Harvests roll straight into the Shipping Bin. Choose what to ship.',
+    category: 'farm',
+    kind: 'leveled',
+    max: 2,
+    cost: { base: 1500, ratio: 4 }, // 1500, 6000
+    effectText: ['not built', 'harvests go to the Shipping Bin', '+ keeps 10 of each item for cooking'],
+    effect: [{}, { flags: ['autoShip'] }, { flags: ['autoShip', 'keepReserve'] }],
+    requires: [{ kind: 'upgrade', id: 'farmhand', level: 1 }],
+  },
+  watering_can: {
+    id: 'watering_can',
+    name: 'Watering Can',
+    description: 'A bigger can that waters several plots with one click.',
+    category: 'tools',
+    kind: 'leveled',
+    max: 3,
+    cost: { base: 400, ratio: 5 }, // 400, 2000, 10000
+    effectText: ['waters 1 plot', 'Copper: waters 3 in a row', 'Iron: waters 3 × 3', 'Gold: waters 5 × 5'],
+    effect: [{ toolArea: 1 }, { toolArea: 3 }, { toolArea: 9 }, { toolArea: 25 }],
+    requires: [],
+  },
+  hoe: {
+    id: 'hoe',
+    name: 'Hoe',
+    description: 'A sturdier hoe that tills and clears several plots with one click.',
+    category: 'tools',
+    kind: 'leveled',
+    max: 3,
+    cost: { base: 250, ratio: 4.8 }, // 250, 1200, 5800
+    effectText: ['tills 1 plot', 'Copper: tills 3 in a row', 'Iron: tills 3 × 3', 'Gold: tills 5 × 5'],
+    effect: [{ toolArea: 1 }, { toolArea: 3 }, { toolArea: 9 }, { toolArea: 25 }],
+    requires: [],
+  },
+  barn_storage: {
+    id: 'barn_storage',
+    name: 'Barn Storage',
+    description: 'Sturdy barn shelves. Every stack in your bag holds more.',
+    category: 'storage',
+    kind: 'leveled',
+    max: 4,
+    cost: { base: 1000, ratio: 2.5 }, // 1000, 2500, 6300, 16000
+    effectText: ['99 per stack', '199 per stack', '299 per stack', '499 per stack', '999 per stack'],
+    effect: [
+      { stackSize: 99 },
+      { stackSize: 199 },
+      { stackSize: 299 },
+      { stackSize: 499 },
+      { stackSize: 999 },
+    ],
+    requires: [{ kind: 'farmLevel', level: 2 }],
+  },
+  greenhouse: {
+    id: 'greenhouse',
+    name: 'Greenhouse',
+    description: 'Glass-roofed beds where the seasons never change and the soil is always damp.',
+    category: 'farm',
+    kind: 'leveled',
+    max: 2,
+    cost: { base: 25000, ratio: 2.4 }, // 25000, 60000
+    effectText: ['not built', '6 plots that ignore the seasons', '12 plots that ignore the seasons'],
+    effect: [{ greenhousePlots: 0 }, { greenhousePlots: 6 }, { greenhousePlots: 12 }],
+    requires: [
+      { kind: 'expansion', id: 'farm_3' },
+      { kind: 'farmLevel', level: 7 },
+      { kind: 'bundle', id: 'autumn_harvest' },
+    ],
+  },
   backpack: {
     id: 'backpack',
     name: 'Backpack',
+    description: 'More pockets for more things.',
     category: 'storage',
     kind: 'leveled',
     max: 4,

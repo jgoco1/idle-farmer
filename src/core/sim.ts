@@ -28,10 +28,10 @@ export function makeContext(
 export function step(state: GameState, ctx: SimContext, dtMs: number): void {
   let remaining = Math.max(0, Math.round(dtMs));
   while (remaining > 0) {
+    ctx.mods = computeModifiers(state, ctx.data); // before the event query: it reads the modifiers too
     const untilEvent = msToNextSimEvent(state, ctx);
     const d =
       Number.isFinite(untilEvent) && untilEvent > 0 ? Math.min(remaining, Math.ceil(untilEvent)) : remaining;
-    ctx.mods = computeModifiers(state, ctx.data);
     tickSystems(state, ctx, d);
     state.clock.simMs += d;
     remaining -= d;

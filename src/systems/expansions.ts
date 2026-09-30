@@ -59,6 +59,14 @@ export function buyExpansion(state: GameState, ctx: SimContext, id: ExpansionId)
     cols: Math.max(farm.grid.cols, def.grid.cols),
     rows: Math.max(farm.grid.rows, def.grid.rows),
   };
+  // The seed planter's memory is indexed like the plots (field first, then greenhouse): move it too.
+  const memory = Array.from({ length: farm.plots.length }, (_, i) => state.lastPlantedCrop[i] ?? null);
+  const remembered = resizePlots(
+    memory.map((c) => ({ ...emptyPlot('untilled'), crop: c })),
+    farm.grid,
+    grid,
+  ).map((p) => p.crop);
+  state.lastPlantedCrop = [...remembered, ...state.lastPlantedCrop.slice(farm.plots.length)];
   farm.plots = resizePlots(farm.plots, farm.grid, grid);
   farm.grid = grid;
   state.expansions.push(id);

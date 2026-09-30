@@ -3,6 +3,7 @@
 
 import type { GameData } from '../data';
 import type { ActionResult } from '../systems/context';
+import { plotWatered } from '../systems/farming';
 import { applyAction, type Action } from './actions';
 import { EventBus, type GameEvent } from './events';
 import { FixedStepper } from './loop';
@@ -52,6 +53,11 @@ export class Game {
 
   calendar(): Calendar {
     return buildCalendar(this.calendarNow(), this.state.calendar, this.lc);
+  }
+
+  /** Whether plot `index` counts as watered (hand watering, a sprinkler or the greenhouse). */
+  isPlotWatered(index: number): boolean {
+    return plotWatered(this.state, this.data, index);
   }
 
   /** The only way the UI and renderer change state. */

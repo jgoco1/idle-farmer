@@ -10,7 +10,7 @@
 import { createInitialState, cloneState, type GameState } from './state';
 import type { LocalClock } from './time';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 export const SAVE_KEY = 'hearthfield-idle/save';
 export const AUTOSAVE_MS = 15_000;
 
@@ -54,6 +54,20 @@ export const migrations: Record<number, Migration> = {
     expansions: [],
     stats: { lifetimeGold: 0, goldToday: 0, cropsHarvested: 0, itemsShipped: 0, daysPassed: 0 },
     upgrades: {},
+  }),
+  /**
+   * v3 → v4 (phase 04, automation): nothing placed, every auto-sell toggle at its default, no
+   * farmhand timer, and no remembered crops (one empty entry per plot).
+   */
+  3: (old) => ({
+    ...old,
+    placed: [],
+    autoSell: {},
+    automation: { farmhandCooldownMs: 0 },
+    lastPlantedCrop: Array.from(
+      { length: (old.farm?.plots?.length ?? 0) + (old.farm?.greenhouse?.length ?? 0) },
+      () => null,
+    ),
   }),
 };
 
@@ -153,6 +167,35 @@ function economyProblem(s: Record<string, unknown>): string | null {
   return null;
 }
 
+function automationProblem(s: Record<string, unknown>): string | null {
+  const { placed, autoSell, automation, lastPlantedCrop, farm } = s;
+  const grid = (farm as { grid: { cols: number; rows: number } }).grid;
+  if (!Array.isArray(placed)) return 'bad placed objects';
+  const seen = new Set<string>();
+  for (const o of placed) {
+    if (!isObj(o) || !isInt(o.id) || !['sprinkler', 'scarecrow'].includes(o.kind as string))
+      return 'bad placed object';
+    const at = o.at;
+    if (!isObj(at) || !isInt(at.col) || !isInt(at.row)) return 'bad placed object';
+    if (at.col < 0 || at.row < 0 || at.col >= grid.cols || at.row >= grid.rows) return 'bad placed object';
+    const key = `${at.col},${at.row}`;
+    if (seen.has(key)) return 'bad placed object';
+    seen.add(key);
+  }
+  if (!isObj(autoSell) || !Object.values(autoSell).every((v) => typeof v === 'boolean'))
+    return 'bad auto-sell';
+  if (!isObj(automation) || !isInt(automation.farmhandCooldownMs) || automation.farmhandCooldownMs < 0)
+    return 'bad automation';
+  const plots = farm as { plots: unknown[]; greenhouse: unknown[] };
+  if (
+    !Array.isArray(lastPlantedCrop) ||
+    lastPlantedCrop.length !== plots.plots.length + plots.greenhouse.length ||
+    !lastPlantedCrop.every((c) => c === null || typeof c === 'string')
+  )
+    return 'bad planter memory';
+  return null;
+}
+
 /** Structural check of a current-version state. Returns a reason, or null if it looks valid. */
 export function validateState(s: unknown): string | null {
   if (!isObj(s)) return 'state is not an object';
@@ -173,7 +216,7 @@ export function validateState(s: unknown): string | null {
   if (!isObj(meta) || !isNum(meta.createdAt) || !isNum(meta.lastSavedAt) || !isNum(meta.playTimeMs))
     return 'bad meta';
   if (!Number.isInteger(s.gold) || s.gold < 0) return 'bad gold';
-  return farmProblem(s.farm) ?? inventoryProblem(s.inventory) ?? economyProblem(s);
+  return farmProblem(s.farm) ?? inventoryProblem(s.inventory) ?? economyProblem(s) ?? automationProblem(s);
 }
 
 /** Builds the SaveFile for `state` at real time `now`. The debug time warp is never saved. */

@@ -83,3 +83,10 @@ export function roundNice(x: number): number {
   const unit = 10 ** (d - 2);
   return Math.floor(x / unit + 0.5) * unit;
 }
+
+// ---- automation (BALANCE.md §4)
+
+/** Plot indexes at or above this address greenhouse plots (index - GREENHOUSE_BASE) instead of field plots. */
+export const GREENHOUSE_BASE = 1000;
+/** Auto-Seller level 2 keeps up to this many of each item in the bag for cooking and ships the rest. */
+export const AUTO_SELLER_RESERVE = 10;
