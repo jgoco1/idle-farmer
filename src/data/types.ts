@@ -4,6 +4,7 @@
 import type {
   BuffType,
   BundleId,
+  GoalTemplateId,
   CropId,
   ExpansionId,
   FishId,
@@ -35,7 +36,9 @@ export type UnlockCondition =
   | { kind: 'milestone'; id: MilestoneId }
   | { kind: 'bundle'; id: BundleId }
   | { kind: 'caught'; fish: FishId }
-  | { kind: 'lifetimeGold'; amount: number };
+  | { kind: 'lifetimeGold'; amount: number }
+  | { kind: 'fishCaught'; count: number } // fish landed in total (phase 07)
+  | { kind: 'knownRecipes'; count: number; minTier: RecipeTier }; // recipes known of at least that tier (phase 07)
 
 export type ItemCategory = 'seed' | 'crop' | 'fish' | 'junk' | 'dish';
 
@@ -53,6 +56,8 @@ export interface ItemDef {
 export interface CropDef {
   id: CropId;
   name: string;
+  /** The plural for goal text when "name + s" is wrong ("Potatoes", "Garlic"). */
+  plural?: string;
   seasons: readonly SeasonId[]; // multi-season crops survive the change between listed seasons
   growSec: number; // seed → ready, watered, at 1× growth
   regrowSec: number | null; // null = single harvest; else time from harvest back to ready
@@ -209,4 +214,81 @@ export interface SeasonDef {
     cookingXpBonus?: number;
     dishSellBonus?: number;
   };
+}
+
+// ---- progression (phase 07)
+
+/**
+ * What a level grants. Every entry is the amount *that level adds*; the running total is what
+ * `perkTotals` (src/systems/skills.ts) returns. BALANCE.md's "(total)" rows are written as their
+ * increments here and shown as totals in `text`.
+ */
+export type PerkEffect =
+  | { kind: 'doubleHarvestChance'; chance: number }
+  | { kind: 'growth'; bonus: number }
+  | { kind: 'sellPrice'; bonus: number; category: 'crop' | 'fish' | 'dish' }
+  | { kind: 'reelZone'; bonus: number }
+  | { kind: 'fishingLuck'; bonus: number }
+  | { kind: 'trapCapacity'; bonus: number }
+  | { kind: 'cookSpeed'; bonus: number }
+  | { kind: 'buffDuration'; bonus: number }
+  | { kind: 'buffSlot'; count: number }
+  | { kind: 'ingredientSaveChance'; chance: number };
+
+export interface SkillPerkDef {
+  skill: SkillId;
+  level: number; // 2..10
+  text: string; // shown to the player
+  effect: PerkEffect;
+}
+
+/** Objectives are counted from events, never by scanning state (except `reachFarmLevel`). */
+export type QuestObjective =
+  | { kind: 'plant'; crop?: CropId; count: number }
+  | { kind: 'harvest'; crop?: CropId; count: number }
+  | { kind: 'sell'; count: number }
+  | { kind: 'earnGold'; amount: number; withinOneDay?: boolean }
+  | { kind: 'ship'; count: number }
+  | { kind: 'catch'; location?: FishLocationId; rarity?: Rarity; count: number }
+  | { kind: 'cook'; tier?: RecipeTier; distinct?: boolean; count: number }
+  | { kind: 'eat'; count: number }
+  | { kind: 'place'; what: 'sprinkler'; count: number }
+  | { kind: 'buyUpgrade'; id: UpgradeId; level?: number }
+  | { kind: 'buyExpansion'; id: ExpansionId }
+  | { kind: 'reachFarmLevel'; level: number }
+  | { kind: 'completeBundle'; count: number };
+
+export type QuestReward =
+  | { kind: 'gold'; amount: number }
+  | { kind: 'items'; items: readonly ItemStack[] }
+  | { kind: 'recipe'; id: RecipeId }
+  | { kind: 'xp'; skill: SkillId; amount: number };
+
+/** A milestone or a goal-board template (a template's objective is a pattern the generator fills in). */
+export interface QuestDef {
+  id: MilestoneId | GoalTemplateId;
+  kind: 'milestone' | 'goal';
+  title: string; // goal templates may contain {n}, {crop}, {location}, {a_rarity}, {tier}
+  flavor: string; // one warm line
+  objective: QuestObjective;
+  rewards: readonly QuestReward[];
+  requires: readonly UnlockCondition[]; // goal templates are only drawn when these hold
+}
+
+export type BundleReward =
+  | { kind: 'unlockGreenhouse' }
+  | { kind: 'buffSlot' }
+  | { kind: 'inventorySlots'; count: number }
+  | { kind: 'trapPerLocation'; count: number }
+  | { kind: 'fishingLuck'; bonus: number }
+  | { kind: 'goldenScarecrow' };
+
+export interface BundleDef {
+  id: BundleId;
+  name: string;
+  flavor: string;
+  slots: readonly ItemStack[];
+  reward: BundleReward;
+  /** The reward in words, for the Community Board. */
+  rewardText: string;
 }

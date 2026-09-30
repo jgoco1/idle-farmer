@@ -4,12 +4,13 @@
 
 import { emptyPlot, type GameState } from '../core/state';
 import type { GameData } from '../data';
-import { roundNice, TRAPS_PER_LOCATION } from '../data/balance';
+import { roundNice } from '../data/balance';
 import type { UpgradeId } from '../data/ids';
 import type { AutomationFlag, UnlockCondition, UpgradeDef, UpgradeEffect } from '../data/types';
 import { fail, OK, type ActionResult, type SimContext } from './context';
 import { canAfford, spend } from './economy';
-import { addTrap, maxTraps } from './locations';
+import { bundleBonuses } from './bundles';
+import { addTrap, maxTraps, trapsPerLocation } from './locations';
 import { isUnlocked, unlockHint } from './unlocks';
 
 export function upgradeLevel(state: GameState, id: UpgradeId): number {
@@ -45,9 +46,9 @@ export function requirementsFor(def: UpgradeDef, level: number): UnlockCondition
  * A reason `id` cannot be bought right now that has nothing to do with its unlock conditions, or
  * null. Fish traps need a free spot: two per unlocked water.
  */
-export function purchaseBlock(state: GameState, id: UpgradeId): string | null {
-  if (id === 'fish_trap' && upgradeLevel(state, id) >= maxTraps(state)) {
-    return `Every water you can reach already has its ${TRAPS_PER_LOCATION} traps. Open the River or the Old Dock for more.`;
+export function purchaseBlock(state: GameState, data: GameData, id: UpgradeId): string | null {
+  if (id === 'fish_trap' && upgradeLevel(state, id) >= maxTraps(state, data)) {
+    return `Every water you can reach already has its ${trapsPerLocation(state, data)} traps. Open the River or the Old Dock for more.`;
   }
   return null;
 }
@@ -56,8 +57,10 @@ export function purchaseBlock(state: GameState, id: UpgradeId): string | null {
 function applyEffect(state: GameState, data: GameData, id: UpgradeId, level: number): void {
   const effect = data.upgrades[id]?.effect[level];
   if (id === 'backpack') {
+    // The Summer Crops bundle's extra slots come on top of the backpack's.
     const slots = backpackSlots(data, level);
-    while (slots !== null && state.inventory.slots.length < slots) state.inventory.slots.push(null);
+    const target = slots === null ? null : slots + bundleBonuses(state, data).inventorySlots;
+    while (target !== null && state.inventory.slots.length < target) state.inventory.slots.push(null);
   } else if (id === 'barn_storage' && effect?.stackSize) {
     state.inventory.stackSize = Math.max(state.inventory.stackSize, effect.stackSize);
   } else if (id === 'farmhand') {
@@ -66,7 +69,7 @@ function applyEffect(state: GameState, data: GameData, id: UpgradeId, level: num
     const cd = state.automation.farmhandCooldownMs;
     state.automation.farmhandCooldownMs = cd > 0 ? Math.min(cd, interval) : interval;
   } else if (id === 'fish_trap') {
-    addTrap(state); // set out at the next free spot at the water
+    addTrap(state, data); // set out at the next free spot at the water
   } else if (id === 'greenhouse' && effect?.greenhousePlots) {
     // Greenhouse plots start tilled; L2 adds the other six.
     while (state.farm.greenhouse.length < effect.greenhousePlots) {
@@ -89,7 +92,7 @@ export function buyUpgrade(state: GameState, ctx: SimContext, id: UpgradeId): Ac
   if (!isUnlocked(state, needs)) {
     return fail(unlockHint(state, ctx.data, needs) ?? `${def.name} is not available yet.`);
   }
-  const blocked = purchaseBlock(state, id);
+  const blocked = purchaseBlock(state, ctx.data, id);
   if (blocked) return fail(blocked);
   const cost = upgradeCost(def, level);
   if (!canAfford(state, cost)) return fail(`You need ${cost.toLocaleString('en-US')}g for that.`);

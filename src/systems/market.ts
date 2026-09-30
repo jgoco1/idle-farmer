@@ -62,8 +62,15 @@ export function specialBonus(state: GameState, item: ItemId): number {
 
 /** Everything except demand and channel that scales an item's price. */
 function priceFactor(state: GameState, def: ItemDef, mods: Modifiers): number {
-  const dish = def.category === 'dish' ? mods.dishSellBonus : 0;
-  return (1 + specialBonus(state, def.id)) * (1 + dish) * mods.sellPriceModifier;
+  const category =
+    def.category === 'dish'
+      ? mods.dishSellBonus
+      : def.category === 'crop'
+        ? mods.cropSellBonus
+        : def.category === 'fish'
+          ? mods.fishSellBonus
+          : 0;
+  return (1 + specialBonus(state, def.id)) * (1 + category) * mods.sellPriceModifier;
 }
 
 /** Price of one unit at `demand` (BALANCE.md §3). */

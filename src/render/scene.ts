@@ -25,19 +25,22 @@ export interface TileRect {
 
 export type ZoneId = 'plots' | 'farmhouse' | 'pond' | 'market' | 'bin' | 'greenhouse' | 'river' | 'dock';
 
-/** The water tiles where each location's fish traps float, by slot (BALANCE.md §4: two per location). */
+/** The water tiles where each location's fish traps float, by slot (BALANCE.md §4: two per location, a third once the Pond Fish bundle is done). */
 export const TRAP_TILES: Readonly<Record<FishLocationId, readonly { col: number; row: number }[]>> = {
   pond: [
     { col: 2, row: 9 },
     { col: 3, row: 8 },
+    { col: 3, row: 9 },
   ],
   river: [
     { col: 8, row: 11 },
     { col: 12, row: 11 },
+    { col: 13, row: 11 },
   ],
   ocean: [
     { col: 17, row: 11 },
     { col: 19, row: 11 },
+    { col: 19, row: 10 },
   ],
 };
 

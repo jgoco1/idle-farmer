@@ -7,6 +7,7 @@ import type { GameData } from '../data';
 import { TRAPS_PER_LOCATION } from '../data/balance';
 import { FISH_LOCATIONS } from '../data/fish';
 import type { FishLocationId } from '../data/ids';
+import { bundleBonuses } from './bundles';
 
 export function unlockedLocations(state: GameState): FishLocationId[] {
   return FISH_LOCATIONS.filter((l) => isLocationUnlocked(state, l));
@@ -25,23 +26,32 @@ export function trapsAt(state: GameState, location: FishLocationId): TrapState[]
   return state.fishing.traps.filter((t) => t.location === location);
 }
 
-/** Traps the player may own right now: two per unlocked location. */
-export function maxTraps(state: GameState): number {
-  return TRAPS_PER_LOCATION * unlockedLocations(state).length;
+/** Trap spots at each water: two, and one more with the Pond Fish bundle. */
+export function trapsPerLocation(state: GameState, data: GameData): number {
+  return TRAPS_PER_LOCATION + bundleBonuses(state, data).trapPerLocation;
+}
+
+/** Traps the player may own right now: the spots at every unlocked location. */
+export function maxTraps(state: GameState, data: GameData): number {
+  return trapsPerLocation(state, data) * unlockedLocations(state).length;
 }
 
 /** Where the next bought trap goes: the first unlocked water with a free spot. */
-export function nextTrapSpot(state: GameState): { location: FishLocationId; slot: number } | null {
+export function nextTrapSpot(
+  state: GameState,
+  data: GameData,
+): { location: FishLocationId; slot: number } | null {
+  const per = trapsPerLocation(state, data);
   for (const location of unlockedLocations(state)) {
     const used = new Set(trapsAt(state, location).map((t) => t.slot));
-    for (let slot = 0; slot < TRAPS_PER_LOCATION; slot++) if (!used.has(slot)) return { location, slot };
+    for (let slot = 0; slot < per; slot++) if (!used.has(slot)) return { location, slot };
   }
   return null;
 }
 
 /** Sets out a new, empty trap at the next free spot. Returns it, or null when every spot is taken. */
-export function addTrap(state: GameState): TrapState | null {
-  const spot = nextTrapSpot(state);
+export function addTrap(state: GameState, data: GameData): TrapState | null {
+  const spot = nextTrapSpot(state, data);
   if (!spot) return null;
   const id = state.fishing.traps.reduce((m, t) => Math.max(m, t.id), 0) + 1;
   const trap: TrapState = { id, ...spot, progressMs: 0, contents: [] };

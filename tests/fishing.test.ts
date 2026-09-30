@@ -40,8 +40,7 @@ import { collectTrap, tickTraps, TRAP_INTERVAL_MS, trapItemCount } from '../src/
 import { setAutoSell } from '../src/systems/autoSeller';
 import { msToNextPickup } from '../src/systems/shippingBin';
 import { buyUpgrade, upgradeCost } from '../src/systems/upgrades';
-import { lifetimeGoldForLevel } from '../src/systems/unlocks';
-import { at, HOUR, NY } from './helpers';
+import { at, HOUR, NY, setFarmLevel } from './helpers';
 
 const CREATED = at(NY, 2026, 1, 7, 10); // Wednesday, spring until Sunday 11 Jan 00:00
 const NOON = at(NY, 2026, 1, 7, 12);
@@ -679,7 +678,7 @@ describe('the Fish Collection', () => {
 describe('locations and the rod', () => {
   function rich(fl: number): GameState {
     const s = farm();
-    s.stats.lifetimeGold = lifetimeGoldForLevel(fl);
+    setFarmLevel(s, fl);
     s.gold = 100_000;
     return s;
   }
@@ -697,7 +696,7 @@ describe('locations and the rod', () => {
     expect(unlockedLocations(s)).toEqual(['pond', 'river']);
     expect(buyExpansion(s, ctx, 'river').ok).toBe(false); // already open
     expect(buyExpansion(s, ctx, 'ocean').ok).toBe(false); // needs Farm Level 6
-    s.stats.lifetimeGold = lifetimeGoldForLevel(6);
+    setFarmLevel(s, 6);
     expect(buyExpansion(s, ctx, 'ocean')).toEqual({ ok: true });
     expect(s.gold).toBe(100_000 - 2000 - 8000);
     expect(unlockedLocations(s)).toEqual(['pond', 'river', 'ocean']);
@@ -761,7 +760,7 @@ describe('fish traps', () => {
   function trapFarm(seed = 1): GameState {
     const s = farm(seed);
     own(s, { fish_trap: 1 });
-    addTrap(s);
+    addTrap(s, GAME_DATA);
     return s;
   }
 
@@ -772,7 +771,7 @@ describe('fish traps', () => {
     const s = farm();
     s.gold = 100_000;
     const ctx = ctxAt(s);
-    expect(maxTraps(s)).toBe(2);
+    expect(maxTraps(s, GAME_DATA)).toBe(2);
     expect(buyUpgrade(s, ctx, 'fish_trap').ok).toBe(true);
     expect(buyUpgrade(s, ctx, 'fish_trap').ok).toBe(true);
     expect(s.fishing.traps.map((t) => [t.location, t.slot])).toEqual([
@@ -784,7 +783,7 @@ describe('fish traps', () => {
     expect(s.upgrades.fish_trap).toBe(2);
     expect(s.gold).toBe(100_000 - 500 - 750);
     own(s, {}, ['river']);
-    expect(maxTraps(s)).toBe(4);
+    expect(maxTraps(s, GAME_DATA)).toBe(4);
     expect(buyUpgrade(s, ctx, 'fish_trap').ok).toBe(true);
     expect(buyUpgrade(s, ctx, 'fish_trap').ok).toBe(true);
     expect(s.fishing.traps.map((t) => [t.location, t.slot]).slice(2)).toEqual([
@@ -795,7 +794,7 @@ describe('fish traps', () => {
     expect(buyUpgrade(s, ctx, 'fish_trap').ok).toBe(true);
     expect(buyUpgrade(s, ctx, 'fish_trap').ok).toBe(true);
     expect(buyUpgrade(s, ctx, 'fish_trap').ok).toBe(false); // the maximum of 6
-    expect(nextTrapSpot(s)).toBeNull();
+    expect(nextTrapSpot(s, GAME_DATA)).toBeNull();
     expect(new Set(s.fishing.traps.map((t) => t.id)).size).toBe(6);
   });
 
@@ -845,8 +844,8 @@ describe('fish traps', () => {
     const run = (chunk: number) => {
       const s = farm(8);
       own(s, { fish_trap: 2 });
-      addTrap(s);
-      addTrap(s);
+      addTrap(s, GAME_DATA);
+      addTrap(s, GAME_DATA);
       const ctx = ctxAt(s);
       const total = 14 * MIN; // 4 rolls per trap and 2 minutes of progress
       for (let t = 0; t < total; t += chunk) tickTraps(s, ctx, Math.min(chunk, total - t));
@@ -939,8 +938,8 @@ describe('fish traps', () => {
     const setup = () => {
       const s = farm(5);
       own(s, { fish_trap: 2, trap_collector: 1 });
-      addTrap(s);
-      addTrap(s);
+      addTrap(s, GAME_DATA);
+      addTrap(s, GAME_DATA);
       return s;
     };
     expect(msToNextPickup(setup())).toBeLessThan(Infinity); // the bin can now fill from the traps
@@ -952,7 +951,7 @@ describe('fish traps', () => {
     for (let t = 0; t < total; t += 10 * SEC) step(small, ctxAt(small), 10 * SEC);
     // Two traps each hand 5 things over every hour, and refill: three pickups.
     const count = (s: GameState) =>
-      s.inventory.slots.reduce((n, sl) => n + (sl && sl.item !== 'seed_turnip' ? sl.qty : 0), 0);
+      s.inventory.slots.reduce((n, sl) => n + (sl && !sl.item.startsWith('seed_') ? sl.qty : 0), 0);
     expect(count(big)).toBe(30);
     expect(count(small)).toBe(30);
     // Which fish land in which trap depends on the order of the random draws, the totals do not.
@@ -963,7 +962,7 @@ describe('fish traps', () => {
   it('sends collected fish to the Shipping Bin when the Auto-Seller is on for them', () => {
     const s = farm(6);
     own(s, { fish_trap: 1, trap_collector: 1, auto_seller: 1 });
-    addTrap(s);
+    addTrap(s, GAME_DATA);
     expect(setAutoSell(s, GAME_DATA, 'bluegill', true)).toEqual({ ok: true });
     s.fishing.traps[0]!.contents = [{ item: 'bluegill', qty: 3 }];
     const ctx = ctxAt(s);

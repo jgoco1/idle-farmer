@@ -25,7 +25,9 @@ import fixtureV2 from './fixtures/save-v2.json';
 import fixtureV3 from './fixtures/save-v3.json';
 import fixtureV4 from './fixtures/save-v4.json';
 import fixtureV5 from './fixtures/save-v5.json';
-import fixture from './fixtures/save-v6.json';
+import fixtureV6 from './fixtures/save-v6.json';
+import fixture from './fixtures/save-v7.json';
+import { farmLevel } from '../src/systems/unlocks';
 import { at, NY } from './helpers';
 
 const FIXTURE_TEXT = JSON.stringify(fixture);
@@ -41,20 +43,20 @@ function memoryStorage(initial: Record<string, string> = {}): SaveStorage & { da
 }
 
 describe('save file', () => {
-  it('is at version 6 (phase 06) with one migration per older version', () => {
-    expect(SAVE_VERSION).toBe(6);
-    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4', '5']);
+  it('is at version 7 (phase 07) with one migration per older version', () => {
+    expect(SAVE_VERSION).toBe(7);
+    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4', '5', '6']);
     expect(SAVE_KEY).toBe('hearthfield-idle/save');
   });
 
-  it('the v6 fixture loads unchanged', () => {
+  it('the v7 fixture loads unchanged', () => {
     const file = parseSave(FIXTURE_TEXT);
     expect(file).toEqual(fixture);
   });
 
   it('the fixture has exactly the shape of a new state (bump SAVE_VERSION if this fails)', () => {
     // Arrays and id-keyed records (market items, upgrades) are compared by the shape of their entries.
-    const RECORDS = new Set(['market.items', 'upgrades', 'fishing.collection']);
+    const RECORDS = new Set(['market.items', 'upgrades', 'fishing.collection', 'progression.bundles']);
     const keys = (o: object, path = ''): string[] => {
       const out = new Set<string>();
       const children: [string, unknown][] =
@@ -73,6 +75,31 @@ describe('save file', () => {
     fresh.shippingBin.items.push({ item: 'turnip', qty: 1 });
     fresh.expansions.push('farm_1');
     fresh.placed.push({ id: 1, kind: 'sprinkler', at: { col: 0, row: 0 } });
+    // Progression: one goal of each shape, a partly filled bundle, a milestone and a finished bundle.
+    fresh.progression.goals = [
+      {
+        template: 'harvest_crop',
+        objective: { kind: 'harvest', crop: 'potato', count: 15 },
+        progress: 6,
+        rewards: [{ kind: 'gold', amount: 150 }],
+      },
+      {
+        template: 'cook_distinct',
+        objective: { kind: 'cook', distinct: true, count: 3 },
+        progress: 2,
+        seen: ['roasted_turnip'],
+        rewards: [{ kind: 'items', items: [{ item: 'seed_wheat', qty: 5 }] }],
+      },
+      {
+        template: 'earn_gold_day',
+        objective: { kind: 'earnGold', amount: 500, withinOneDay: true },
+        progress: 210,
+        rewards: [{ kind: 'gold', amount: 200 }],
+      },
+    ];
+    fresh.progression.bundles.pond_fish = [{ item: 'bluegill', qty: 3 }];
+    fresh.progression.completedBundles.push('spring_crops');
+    fresh.progression.milestones.done.push('m01_first_seed');
     fresh.autoSell.turnip = false;
     fresh.fishing.traps.push({
       id: 1,
@@ -82,7 +109,7 @@ describe('save file', () => {
       contents: [{ item: 'bluegill', qty: 1 }],
     });
     fresh.fishing.collection.bluegill = { firstCaughtAt: '2026-01-07', bestSizeCm: 20, count: 1 };
-    fresh.kitchen.queue.push({ recipe: 'baked_potato', remainingMs: 0, hearty: true });
+    fresh.kitchen.queue.push({ recipe: 'baked_potato', remainingMs: 0, hearty: true, saved: 'potato' });
     fresh.buffs.active.push({
       type: 'growth',
       magnitude: 0.2,
@@ -285,7 +312,7 @@ describe('migrations', () => {
 
   it('migrates a phase-05 (v5) save: everything is kept, the kitchen starts with the starter recipes', () => {
     const file = parseSave(JSON.stringify(fixtureV5));
-    expect(file.version).toBe(6);
+    expect(file.version).toBe(SAVE_VERSION);
     const s = file.state;
     const { state: old } = fixtureV5;
     expect(s.gold).toBe(old.gold);
@@ -294,10 +321,84 @@ describe('migrations', () => {
     expect(s.fishing).toEqual(old.fishing);
     expect(s.upgrades).toEqual(old.upgrades);
     expect(s.stats).toEqual({ ...old.stats, dishesCooked: 0, dishesEaten: 0, bestDishTier: 0 });
-    expect(s.kitchen).toEqual({ known: ['roasted_turnip', 'baked_potato', 'grilled_bluegill'], queue: [] });
-    expect(s.kitchen.known).toEqual(createInitialState(0, NY).kitchen.known); // stays in step with the data
+    // The starter recipes, then the ones the phase-07 backfill hands out for milestones the save already shows.
+    expect(s.kitchen.queue).toEqual([]);
+    expect(s.kitchen.known.slice(0, 3)).toEqual(createInitialState(0, NY).kitchen.known); // stays in step with the data
+    expect(s.kitchen.known).toContain('seaweed_salad'); // the v5 fixture has caught fish
     expect(s.buffs).toEqual({ active: [], baseSlots: 3 });
     expect(validateState(s)).toBeNull();
+  });
+
+  it('migrates a phase-06 (v6) save: milestones, XP and the Farm Level are backfilled, nothing is lost', () => {
+    const file = parseSave(JSON.stringify(fixtureV6));
+    expect(file.version).toBe(SAVE_VERSION);
+    const s = file.state;
+    const { state: old } = fixtureV6;
+    expect(s.gold).toBe(old.gold); // no milestone gold is paid a second time
+    expect(s.farm).toEqual(old.farm);
+    expect(s.stats).toEqual(old.stats);
+    expect(s.upgrades).toEqual(old.upgrades);
+    // Deeds the save already shows: planted, harvested, sold, expanded, sprinkler, fish, dish, ate, farmhand, river.
+    expect(s.progression.milestones.done).toEqual([
+      'm01_first_seed',
+      'm02_first_harvest',
+      'm03_first_sale',
+      'm04_first_expansion',
+      'm05_first_sprinkler',
+      'm06_first_catch',
+      'm07_first_dish',
+      'm08_first_buff',
+      'm09_hire_farmhand',
+      'm10_unlock_river',
+    ]);
+    // Their recipes are learned (the save knew vegetable_soup already).
+    expect(s.kitchen.known).toEqual([...old.kitchen.known, 'seaweed_salad', 'garlic_trout']);
+    // XP is what the harvests, catches and dishes so far are worth on average.
+    expect(s.progression.skills).toEqual({
+      farming: { xp: 57 * 4 },
+      fishing: { xp: 3 * 10 },
+      cooking: { xp: 3 * 20 },
+    });
+    // The old lifetime-gold level (2400 gold: level 4) is a floor; skills and milestones now give more.
+    expect(s.progression.farmLevelFloor).toBe(4);
+    expect(farmLevel(s)).toBe(5); // ten milestones and Farming 2: 11 points
+    expect(s.progression).toMatchObject({ goals: [], goalsDone: 0, bundles: {}, completedBundles: [] });
+    expect(validateState(s)).toBeNull();
+  });
+
+  it('never lowers the level an older save showed, however little it has done', () => {
+    const raw = structuredClone(fixtureV6) as unknown as { state: { stats: Record<string, number> } };
+    Object.assign(raw.state.stats, {
+      cropsHarvested: 0,
+      fishCaught: 0,
+      dishesCooked: 0,
+      dishesEaten: 0,
+      bestDishTier: 0,
+    });
+    raw.state.stats.lifetimeGold = 38_100; // the old formula's Farm Level 8
+    const s = parseSave(JSON.stringify(raw)).state;
+    expect(s.progression.farmLevelFloor).toBe(8);
+    expect(farmLevel(s)).toBe(8);
+    expect(s.progression.milestones.done).toContain('m11_farm_level_5');
+    expect(s.kitchen.known).toContain('scholars_stew');
+  });
+
+  it('validates progression', () => {
+    const bad = (mut: (s: ReturnType<typeof createInitialState>) => void): string | null => {
+      const c = structuredClone(createInitialState(0, NY));
+      mut(c);
+      return validateState(c);
+    };
+    expect(validateState(createInitialState(0, NY))).toBeNull();
+    expect(bad((c) => delete (c as Partial<typeof c>).progression)).toBe('bad progression');
+    expect(bad((c) => (c.progression.skills.farming.xp = -1))).toBe('bad skills');
+    expect(bad((c) => (c.progression.milestones.done = [1 as never]))).toBe('bad milestones');
+    expect(bad((c) => (c.progression.goals = [{ template: 'harvest_any' } as never]))).toBe('bad goal');
+    expect(bad((c) => (c.progression.farmLevelFloor = 0))).toBe('bad progression');
+    expect(bad((c) => (c.progression.bundles = { pond_fish: [{ item: 'carp', qty: 0 }] }))).toBe(
+      'bad bundles',
+    );
+    expect(bad((c) => (c.progression.completedBundles = [3 as never]))).toBe('bad bundles');
   });
 
   it('validates the kitchen and the buffs', () => {

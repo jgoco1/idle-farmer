@@ -1102,3 +1102,188 @@ textarea:focus-visible,
 .inv-buff {
   color: var(--c-leaf_dark);
 }
+
+/* ---------- goals, milestones, skills, the Community Board (phase 07) */
+.tabs {
+  flex-wrap: wrap;
+}
+.tabs .btn.is-active {
+  background: var(--c-gold);
+  border-color: var(--c-gold_dark);
+}
+.goal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.goal-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.goal-card,
+.milestone,
+.skill-card,
+.bundle {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+  background: var(--c-white_warm);
+  border: 2px solid var(--c-ui_parchment_dark);
+}
+.goal-title {
+  font-size: 16px;
+}
+.goal-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px;
+  font-size: 14px;
+}
+.goal-reward {
+  color: var(--c-leaf_dark);
+}
+.goal-meter {
+  height: 12px;
+  margin-top: 2px;
+}
+.goal-fill {
+  background: var(--c-grass_2);
+  transition: width 0.4s ease-out;
+}
+.milestone {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 8px;
+}
+.milestone-mark {
+  width: 20px;
+  text-align: center;
+  color: var(--c-stone_dark);
+}
+.milestone.is-done {
+  border-color: var(--c-grass_1);
+}
+.milestone.is-done .milestone-mark {
+  color: var(--c-leaf_dark);
+}
+.milestone.is-current {
+  border-color: var(--c-gold_dark);
+  background: var(--c-yellow_light);
+}
+.skill-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.perk-list {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 1px;
+  font-size: 13px;
+  color: var(--c-stone_dark);
+}
+.perk.is-got {
+  color: var(--c-leaf_dark);
+}
+.perk.is-got::before {
+  content: '✓ ';
+}
+.perk.is-next {
+  color: var(--c-outline);
+  font-weight: bold;
+}
+.bundle.is-done {
+  border-color: var(--c-grass_1);
+}
+.bundle-slots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 4px;
+}
+.bundle-slot {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  align-items: center;
+  column-gap: 6px;
+  padding: 2px 4px;
+  border: 2px dashed var(--c-ui_parchment_dark);
+  font-size: 13px;
+}
+.bundle-slot.is-filled {
+  border-style: solid;
+  border-color: var(--c-grass_1);
+  background: var(--c-grass_3);
+}
+.bundle-slot-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.bundle-slot .btn {
+  grid-column: 1 / -1;
+}
+.stats-list {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  margin: 0;
+}
+.stats-list dt {
+  color: var(--c-stone_dark);
+}
+.stats-list dd {
+  margin: 0;
+  text-align: right;
+}
+
+/* Confetti over the scene (cosmetic; the game state never sees it) */
+.confetti {
+  position: absolute;
+  top: 40%;
+  z-index: 30;
+  pointer-events: none;
+  image-rendering: pixelated;
+  animation: confetti-burst 1.4s cubic-bezier(0.2, 0.7, 0.4, 1) forwards;
+}
+@keyframes confetti-burst {
+  0% {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  35% {
+    transform: translate(calc(var(--dx) * 0.6), calc(var(--rise) * -1));
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), var(--fall));
+    opacity: 0;
+  }
+}
+/* A toolbar button pulses until the player opens it (new seeds, recipes or upgrades). */
+.tool-btn.is-nudged {
+  animation: nudge 0.9s ease-in-out infinite;
+  border-color: var(--c-gold_dark);
+  background: var(--c-yellow_light);
+}
+/* A glow that breathes, not a bounce: the button itself stays put, so it is easy to click. */
+@keyframes nudge {
+  50% {
+    box-shadow:
+      0 0 0 3px var(--c-gold),
+      0 0 10px 3px var(--c-yellow_light);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tool-btn.is-nudged {
+    animation: none;
+  }
+  .goal-fill {
+    transition: none;
+  }
+}

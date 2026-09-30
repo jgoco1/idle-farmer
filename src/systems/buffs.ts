@@ -17,21 +17,29 @@ import {
 } from '../data/balance';
 import type { BuffType, DishId, RecipeTier } from '../data/ids';
 import { fail, OK, type ActionResult, type SimContext } from './context';
+import { bundleBonuses } from './bundles';
 import { countItem, removeItem } from './inventory';
+import { perkTotals } from './skills';
 
 /** `10% × tier × the type's scale`, rounded so magnitudes compare cleanly. */
 export function buffMagnitude(data: GameData, type: BuffType, tier: RecipeTier): number {
   return Math.round(BUFF_MAGNITUDE_PER_TIER * tier * data.buffs[type].magnitudeScale * 10_000) / 10_000;
 }
 
-/** `6 min × 2^(tier − 1)`, +50% for a hearty dish; whole simulated ms. */
-export function buffDurationMs(tier: RecipeTier, hearty: boolean): number {
-  return Math.round(BUFF_BASE_DURATION_MS * 2 ** (tier - 1) * (1 + (hearty ? HEARTY_DURATION_BONUS : 0)));
+/**
+ * `6 min × 2^(tier − 1) × (1 + perk + hearty)`, whole simulated ms (BALANCE.md §7). `perkBonus` is
+ * `ctx.mods.buffDurationBonus` (the Cooking perks); hearty (winter) adds 50%.
+ */
+export function buffDurationMs(tier: RecipeTier, hearty: boolean, perkBonus = 0): number {
+  return Math.round(
+    BUFF_BASE_DURATION_MS * 2 ** (tier - 1) * (1 + perkBonus + (hearty ? HEARTY_DURATION_BONUS : 0)),
+  );
 }
 
-/** How many different buffs can run at once. Phase 07 adds the level-7 perk and the bundle here. */
-export function buffSlotCount(state: GameState): number {
-  return Math.min(MAX_BUFF_SLOTS, state.buffs.baseSlots);
+/** How many different buffs can run at once: the base slots, Cooking level 7 and the Cozy Dinner bundle, up to MAX_BUFF_SLOTS. */
+export function buffSlotCount(state: GameState, data: GameData): number {
+  const extra = perkTotals(state, data).buffSlots + bundleBonuses(state, data).buffSlots;
+  return Math.min(MAX_BUFF_SLOTS, state.buffs.baseSlots + extra);
 }
 
 export function activeBuff(state: GameState, type: BuffType): ActiveBuff | undefined {
@@ -60,7 +68,7 @@ export function planEat(state: GameState, data: GameData, dish: DishId): EatPlan
   const recipe = data.recipes[dish];
   const same = activeBuff(state, recipe.buff);
   if (same) return { kind: 'refresh', existing: same };
-  if (state.buffs.active.length < buffSlotCount(state)) return { kind: 'start' };
+  if (state.buffs.active.length < buffSlotCount(state, data)) return { kind: 'start' };
   return { kind: 'replace', existing: leastTimeLeft(state)! };
 }
 
@@ -69,13 +77,14 @@ export function dishBuff(
   data: GameData,
   dish: DishId,
   hearty: boolean,
+  perkBonus = 0,
 ): { type: BuffType; tier: RecipeTier; magnitude: number; durationMs: number } {
   const r = data.recipes[dish];
   return {
     type: r.buff,
     tier: r.tier,
     magnitude: buffMagnitude(data, r.buff, r.tier),
-    durationMs: buffDurationMs(r.tier, hearty),
+    durationMs: buffDurationMs(r.tier, hearty, perkBonus),
   };
 }
 
@@ -102,7 +111,7 @@ export function eatDish(
     const b = plan.existing;
     return fail(`Your buff slots are full. Eating this would replace ${ctx.data.buffs[b.type].name}.`);
   }
-  const buff = dishBuff(ctx.data, dish, useHearty);
+  const buff = dishBuff(ctx.data, dish, useHearty, ctx.mods.buffDurationBonus);
   removeItem(inv, dish, 1, useHearty);
 
   if (plan.kind === 'refresh') {

@@ -18,21 +18,27 @@ import {
 import { BIN_PICKUP_MS } from '../data/balance';
 import { GAME_DATA } from '../data';
 import { RECIPE_IDS } from '../data/ids';
+import { SKILL_IDS } from '../data/skills';
 import type {
   BuffType,
+  BundleId,
   CropId,
   ExpansionId,
   FishId,
   FishLocationId,
+  GoalTemplateId,
   ItemId,
   JunkId,
+  MilestoneId,
   RecipeId,
   RecipeTier,
+  SkillId,
   UpgradeId,
 } from '../data/ids';
-import type { ItemStack } from '../data/types';
+import type { ItemStack, QuestObjective, QuestReward } from '../data/types';
 import { createRng } from './rng';
 import { openMarketDay } from '../systems/market';
+import { refillGoals } from '../systems/progression';
 
 export type PlotState = 'untilled' | 'tilled' | 'planted' | 'dead';
 
@@ -46,7 +52,7 @@ export interface Plot {
 }
 
 /** Objects the player places on the plot grid (@04). `at` is a plot (col, row) inside the grid. */
-export type PlacedKind = 'sprinkler' | 'scarecrow';
+export type PlacedKind = 'sprinkler' | 'scarecrow' | 'golden_scarecrow';
 
 export interface PlacedObject {
   id: number; // unique, monotonically increasing
@@ -140,6 +146,46 @@ export interface GameState {
   // ---- cooking and buffs (@06)
   kitchen: KitchenState;
   buffs: BuffsState;
+
+  // ---- progression (@07)
+  progression: ProgressionState;
+}
+
+/** A goal on the board: concrete and counting. Its text is derived from the template and objective. */
+export interface ActiveGoal {
+  template: GoalTemplateId;
+  objective: QuestObjective;
+  progress: number;
+  rewards: QuestReward[];
+  /** `cook_distinct`: the dishes cooked toward it so far. */
+  seen?: RecipeId[];
+}
+
+/**
+ * Skills, milestones, goals and the Community Board (@07). Levels are derived from XP and the
+ * farm level from the levels and milestones, so only their inputs are stored (plus `farmLevelFloor`,
+ * the level an older save already showed, which the farm level never drops below).
+ */
+export interface ProgressionState {
+  skills: Record<SkillId, { xp: number }>;
+  milestones: { done: MilestoneId[] }; // in the order they were completed
+  goals: ActiveGoal[]; // GOAL_SLOTS when enough templates apply
+  goalsDone: number;
+  bundles: Partial<Record<BundleId, ItemStack[]>>; // donated so far, per item
+  completedBundles: BundleId[];
+  farmLevelFloor: number;
+}
+
+export function createStartingProgression(): ProgressionState {
+  return {
+    skills: Object.fromEntries(SKILL_IDS.map((s) => [s, { xp: 0 }])) as ProgressionState['skills'],
+    milestones: { done: [] },
+    goals: [],
+    goalsDone: 0,
+    bundles: {},
+    completedBundles: [],
+    farmLevelFloor: 1,
+  };
 }
 
 /** A dish on the stove. `remainingMs` is work at ×1 cook speed; `hearty` is set when it finishes in winter. */
@@ -148,6 +194,8 @@ export interface CookJob {
   remainingMs: number;
   /** Set once the dish is done but the bag had no room for it; it waits on the stove. */
   hearty?: true;
+  /** The ingredient a Cooking perk saved when this dish was started (one unit was never taken). */
+  saved?: ItemId;
 }
 
 export interface KitchenState {
@@ -238,9 +286,11 @@ export function createInitialState(now: number, lc: LocalClock, seed: number = s
     fishing: { traps: [], collection: {}, session: null },
     kitchen: { known: starterRecipes(), queue: [] },
     buffs: { active: [], baseSlots: BASE_BUFF_SLOTS },
+    progression: createStartingProgression(),
   };
   // A new farm opens with today's specials and the first sparkline point (every save starts in spring).
   openMarketDay(state, GAME_DATA, createRng(state), 'spring');
+  refillGoals(state, GAME_DATA, createRng(state), 'spring');
   return state;
 }
 

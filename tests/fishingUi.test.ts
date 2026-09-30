@@ -45,12 +45,12 @@ describe('fishing scenery', () => {
     expect(layout.animated.filter((a) => a.sprite === 'tile_sea').length).toBeGreaterThan(0);
   });
 
-  it('every location has a clickable water zone, and its two traps float inside it on water', () => {
+  it('every location has a clickable water zone, and its trap spots float inside it on water', () => {
     expect(LOCATION_ZONE).toEqual({ pond: 'pond', river: 'river', ocean: 'dock' });
     const layout = buildLayout(START_GRID, ['river', 'ocean']);
     const water = new Set(['tile_water', 'tile_river', 'tile_sea']);
     for (const loc of ['pond', 'river', 'ocean'] as const) {
-      expect(TRAP_TILES[loc]).toHaveLength(2);
+      expect(TRAP_TILES[loc]).toHaveLength(3); // two, and a third once the Pond Fish bundle is done
       for (const t of TRAP_TILES[loc]) {
         expect(inRect(zoneOf(LOCATION_ZONE[loc]).rect, t.col, t.row), `${loc} ${t.col},${t.row}`).toBe(true);
         expect(water.has(layout.ground[t.row]![t.col]!), `${loc} ${t.col},${t.row}`).toBe(true);

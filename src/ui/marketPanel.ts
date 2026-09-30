@@ -104,9 +104,9 @@ export function marketPanel(hooks: MarketHooks): PanelDef {
           btn.addEventListener('click', () => {
             const have = countItem(hooks.state().inventory, item);
             const qty = n === 'all' ? have : n;
-            const before = hooks.state().gold;
+            // What the sale pays, from the quote: the gold counter can also rise from a milestone the sale finishes.
+            const gained = quoteSale(hooks.state(), hooks.data, hooks.mods(), item, qty, MARKET_CHANNEL).gold;
             const r = hooks.sell(item, qty);
-            const gained = hooks.state().gold - before;
             say(r, `Sold ${qty} ${def.name} for ${gained}g.`);
             if (r.ok) goldPopupOn(gained, btn);
             refresh();

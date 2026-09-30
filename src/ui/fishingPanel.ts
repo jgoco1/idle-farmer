@@ -4,7 +4,9 @@
 // (one big button) and the Space bar. The minigame only runs while the panel is open.
 
 import type { EventBus } from '../core/events';
-import { CAST_POWER_GOOD, TRAP_CAPACITY } from '../data/balance';
+import type { GameState } from '../core/state';
+import type { GameData } from '../data';
+import { CAST_POWER_GOOD } from '../data/balance';
 import { FISH_LOCATIONS, LOCATION_NAMES } from '../data/fish';
 import { FISH_IDS, type FishId, type FishLocationId } from '../data/ids';
 import { spriteDataUrl, spriteFrame } from '../render/spriteCache';
@@ -12,7 +14,7 @@ import type { Action } from '../core/actions';
 import type { ActionResult } from '../systems/context';
 import { catchTable, localHour } from '../systems/fishing';
 import { isLocationUnlocked, trapsAt } from '../systems/locations';
-import { trapItemCount } from '../systems/traps';
+import { trapCapacity, trapItemCount } from '../systems/traps';
 import { capitalize } from '../core/time';
 import { h } from './dom';
 import type { PanelDef } from './panel';
@@ -50,6 +52,51 @@ export interface FishingPanel {
   def: PanelDef;
   /** Chooses the location the panel opens on (the scene's water zones call this before opening it). */
   showLocation(location: FishLocationId): void;
+}
+
+/**
+ * The Fish Collection: a summary line and a card per fish (a silhouette and "???" until it is
+ * caught). Shared by the Fishing panel's Collection tab and the Goals panel's Fish tab.
+ */
+export function renderFishCollection(
+  summary: HTMLElement,
+  grid: HTMLElement,
+  st: GameState,
+  data: GameData,
+): void {
+  const log = st.fishing.collection;
+  const caught = FISH_IDS.filter((f) => log[f]).length;
+  summary.textContent = `${caught} of ${FISH_IDS.length} fish found.`;
+  grid.replaceChildren(
+    ...FISH_IDS.map((id) => {
+      const f = data.fish[id];
+      const e = log[id];
+      return h(
+        'div',
+        { class: `fish-card${e ? '' : ' is-unknown'}`, 'data-fish': id },
+        h('img', {
+          class: `pixel${e ? '' : ' silhouette'}`,
+          alt: '',
+          width: 32,
+          height: 32,
+          src: spriteDataUrl(`item_${id}`),
+        }),
+        h('span', { class: 'fish-card-name', text: e ? f.name : '???' }),
+        h('span', {
+          class: 'seed-note',
+          text: e
+            ? `${RARITY_LABEL[f.rarity]} · ${LOCATION_NAMES[f.location]}`
+            : `${LOCATION_NAMES[f.location]}`,
+        }),
+        e
+          ? h('span', {
+              class: 'seed-note',
+              text: `First: ${e.firstCaughtAt} · Best: ${e.bestSizeCm} cm · ×${e.count}`,
+            })
+          : null,
+      );
+    }),
+  );
 }
 
 export function fishingPanel(hooks: FishingHooks): FishingPanel {
@@ -426,7 +473,9 @@ export function fishingPanel(hooks: FishingHooks): FishingPanel {
                 h(
                   'div',
                   { class: 'crate-text' },
-                  h('span', { text: `${LOCATION_NAMES[l]} trap ${trap.slot + 1} · ${n} / ${TRAP_CAPACITY}` }),
+                  h('span', {
+                    text: `${LOCATION_NAMES[l]} trap ${trap.slot + 1} · ${n} / ${trapCapacity(hooks.mods())}`,
+                  }),
                   h('span', { class: 'seed-note', text: summary }),
                 ),
                 h('div', { class: 'btn-row' }, collect),
@@ -450,41 +499,8 @@ export function fishingPanel(hooks: FishingHooks): FishingPanel {
         );
       };
 
-      const renderCollection = (st: ReturnType<typeof hooks.state>): void => {
-        const log = st.fishing.collection;
-        const caught = FISH_IDS.filter((f) => log[f]).length;
-        collectionSummary.textContent = `${caught} of ${FISH_IDS.length} fish found.`;
-        collectionGrid.replaceChildren(
-          ...FISH_IDS.map((id) => {
-            const f = hooks.data.fish[id];
-            const e = log[id];
-            return h(
-              'div',
-              { class: `fish-card${e ? '' : ' is-unknown'}`, 'data-fish': id },
-              h('img', {
-                class: `pixel${e ? '' : ' silhouette'}`,
-                alt: '',
-                width: 32,
-                height: 32,
-                src: spriteDataUrl(`item_${id}`),
-              }),
-              h('span', { class: 'fish-card-name', text: e ? f.name : '???' }),
-              h('span', {
-                class: 'seed-note',
-                text: e
-                  ? `${RARITY_LABEL[f.rarity]} · ${LOCATION_NAMES[f.location]}`
-                  : `${LOCATION_NAMES[f.location]}`,
-              }),
-              e
-                ? h('span', {
-                    class: 'seed-note',
-                    text: `First: ${e.firstCaughtAt} · Best: ${e.bestSizeCm} cm · ×${e.count}`,
-                  })
-                : null,
-            );
-          }),
-        );
-      };
+      const renderCollection = (st: ReturnType<typeof hooks.state>): void =>
+        renderFishCollection(collectionSummary, collectionGrid, st, hooks.data);
 
       return { refresh };
     },

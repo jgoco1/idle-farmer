@@ -10,16 +10,10 @@ import { canAfford, earn, spend } from '../src/systems/economy';
 import { buyExpansion, nextFarmExpansion, remapPlotIndex, resizePlots } from '../src/systems/expansions';
 import { addItem, countItem } from '../src/systems/inventory';
 import { buySeeds, maxAffordableSeeds, seedStock } from '../src/systems/shop';
-import {
-  farmLevel,
-  isUnlocked,
-  lifetimeGoldForLevel,
-  provisionalFarmLevel,
-  unlockHint,
-} from '../src/systems/unlocks';
+import { farmLevel, isUnlocked, provisionalFarmLevel, unlockHint } from '../src/systems/unlocks';
 import { buyUpgrade, upgradeCost } from '../src/systems/upgrades';
 import { buildLayout, buildZones, decorFor, plotIndexAt, zoneAt } from '../src/render/scene';
-import { at, NY } from './helpers';
+import { at, NY, setFarmLevel } from './helpers';
 
 const CREATED = at(NY, 2026, 1, 7, 10);
 const SUMMER = at(NY, 2026, 1, 13, 12);
@@ -109,23 +103,23 @@ describe('provisional farm level (BALANCE.md §9)', () => {
       [38100, 8],
     ];
     for (const [gold, level] of pairs) expect(provisionalFarmLevel(gold), String(gold)).toBe(level);
-    for (let l = 1; l <= 8; l++) expect(provisionalFarmLevel(lifetimeGoldForLevel(l))).toBe(l);
+    for (let l = 1; l <= 8; l++) expect(provisionalFarmLevel(300 * (2 ** (l - 1) - 1))).toBe(l);
   });
 
-  it('comes from lifetime gold, so spending never lowers it', () => {
+  it('no longer follows gold: earning does not raise the Farm Level, skills and milestones do (phase 07)', () => {
     const s = farm();
     earn(s, { events: [] }, 900, 'sale');
-    expect(farmLevel(s)).toBe(3);
+    expect(farmLevel(s)).toBe(1);
     spend(s, 900);
-    expect(farmLevel(s)).toBe(3);
+    expect(farmLevel(s)).toBe(1);
   });
 
   it('unlocks seeds and explains the locked ones', () => {
     const s = farm();
     const garlic = GAME_DATA.crops.garlic.unlock;
     expect(isUnlocked(s, garlic)).toBe(false);
-    expect(unlockHint(s, GAME_DATA, garlic)).toBe('Reach Farm Level 2 (earn 300g more).');
-    earn(s, { events: [] }, 300, 'sale');
+    expect(unlockHint(s, GAME_DATA, garlic)).toBe('Reach Farm Level 2 (2 more farm points).');
+    setFarmLevel(s, 2);
     expect(isUnlocked(s, garlic)).toBe(true);
     expect(unlockHint(s, GAME_DATA, garlic)).toBeNull();
     expect(unlockHint(s, GAME_DATA, EXPANSIONS.farm_2.requires)).toBe('Needs “Clear the Weeds” first.');
@@ -138,7 +132,9 @@ describe('seed shop', () => {
     const spring = seedStock(s, GAME_DATA, 'spring');
     expect(spring.map((x) => x.crop)).toEqual(['turnip', 'potato', 'garlic', 'strawberry', 'cauliflower']);
     expect(spring.filter((x) => x.unlocked).map((x) => x.crop)).toEqual(['turnip', 'potato']);
-    expect(spring.find((x) => x.crop === 'cauliflower')?.hint).toBe('Reach Farm Level 4 (earn 2,100g more).');
+    expect(spring.find((x) => x.crop === 'cauliflower')?.hint).toBe(
+      'Reach Farm Level 4 (7 more farm points).',
+    );
     // The stock changes with the season.
     expect(seedStock(s, GAME_DATA, 'summer').map((x) => x.crop)).toEqual([
       'wheat',
@@ -224,10 +220,10 @@ describe('farm expansion', () => {
     buyExpansion(s, ctx, 'farm_1');
     buyExpansion(s, ctx, 'farm_2');
     expect(buyExpansion(s, ctx, 'farm_3').ok).toBe(false);
-    s.stats.lifetimeGold = 900;
+    setFarmLevel(s, 3);
     expect(buyExpansion(s, ctx, 'farm_3').ok).toBe(true);
     expect(buyExpansion(s, ctx, 'farm_4').ok).toBe(false);
-    s.stats.lifetimeGold = 9300;
+    setFarmLevel(s, 6);
     expect(buyExpansion(s, ctx, 'farm_4').ok).toBe(true);
     expect(s.farm.grid).toEqual({ cols: 8, rows: 6 });
     expect(s.farm.plots).toHaveLength(48);

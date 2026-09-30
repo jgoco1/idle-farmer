@@ -28,7 +28,7 @@ import {
 import { addItem, countItem } from '../src/systems/inventory';
 import { NO_MODIFIERS } from '../src/systems/modifiers';
 import { buySeeds } from '../src/systems/shop';
-import { at, HOUR, NY } from './helpers';
+import { at, HOUR, NY, PROGRESSION_EVENTS } from './helpers';
 
 // Wednesday 7 Jan 2026. Spring until Sunday 11 Jan 00:00, then summer, autumn (18th), winter (25th).
 const CREATED = at(NY, 2026, 1, 7, 10);
@@ -139,8 +139,9 @@ describe('plot state transitions', () => {
     // The soil stays wet after the harvest.
     expect(s.farm.plots[2]!.waterMsLeft).toBe(WATER_DURATION_MS - 120_000);
 
-    expect(events.map((e) => e.type)).toEqual(['tilled', 'planted', 'watered', 'harvested']);
-    expect(events[3]).toEqual({
+    const played = events.filter((e) => !PROGRESSION_EVENTS.includes(e.type));
+    expect(played.map((e) => e.type)).toEqual(['tilled', 'planted', 'watered', 'harvested']);
+    expect(played[3]).toEqual({
       type: 'harvested',
       crop: 'turnip',
       qty: 1,
@@ -329,7 +330,7 @@ describe('growth', () => {
     }
     expect(now).toBe(leave + 8 * HOUR);
     expectSameFarm(offline, online, 4, 'after 8 h');
-  });
+  }, 30_000); // 28,800 one-second frames: over Vitest's 5 s on a slow container
 });
 
 describe('seasons', () => {
@@ -539,7 +540,7 @@ describe('seed shop', () => {
     expect(buySeeds(s, ctx, 'wheat', 1)).toEqual({ ok: false, reason: 'Wheat seeds are out of season.' });
     expect(buySeeds(s, ctx, 'strawberry', 1)).toEqual({
       ok: false,
-      reason: 'Strawberry seeds are locked. Reach Farm Level 3 (earn 900g more).',
+      reason: 'Strawberry seeds are locked. Reach Farm Level 3 (5 more farm points).',
     });
     expect(buySeeds(s, ctx, 'turnip', 0).ok).toBe(false);
   });

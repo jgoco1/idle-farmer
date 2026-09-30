@@ -3,6 +3,7 @@
 
 import type {
   BuffType,
+  BundleId,
   CropId,
   ExpansionId,
   FishId,
@@ -11,6 +12,7 @@ import type {
   ItemId,
   JunkId,
   MilestoneId,
+  PanelId,
   RecipeId,
   RecipeTier,
   SeasonId,
@@ -41,8 +43,18 @@ export type GameEvent =
   | { type: 'recipeLearned'; recipe: RecipeId; how: 'card' | 'milestone' | 'experiment' }
   | { type: 'buffStarted' | 'buffExpired'; buff: BuffType }
   | { type: 'levelUp'; skill: SkillId; level: number }
-  | { type: 'questDone'; id: MilestoneId | GoalTemplateId }
-  | { type: 'unlocked'; what: string }
+  | { type: 'farmLevelUp'; level: number }
+  /** A milestone or a goal was finished; `title` is its text, `rewards` what it paid (in words). */
+  | {
+      type: 'questDone';
+      id: MilestoneId | GoalTemplateId;
+      kind: 'milestone' | 'goal';
+      title: string;
+      rewards: string;
+    }
+  | { type: 'bundleCompleted'; bundle: BundleId }
+  /** Something new opened; `panel` is where to find it (the toolbar button pulses). */
+  | { type: 'unlocked'; what: string; panel?: PanelId }
   | { type: 'notify'; text: string; tone: 'info' | 'good' | 'warn' };
 
 export type GameEventType = GameEvent['type'];

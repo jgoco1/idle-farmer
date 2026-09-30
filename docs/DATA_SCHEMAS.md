@@ -144,7 +144,8 @@ export interface ItemStack { item: ItemId; qty: number; hearty?: true }
 
 /**
  * Something that must be true before content is visible/usable. All entries in an array must hold.
- * Before phase 07, 'farmLevel' is evaluated against the provisional formula in BALANCE.md §9.
+ * Since phase 07 'farmLevel' comes from skills and milestones (BALANCE.md §8); 'skillLevel', 'milestone'
+ * and 'bundle' are real. 'knownRecipes' needs `GameData` to read tiers, so `isUnlocked(state, conds, data?)` takes it.
  */
 export type UnlockCondition =
   | { kind: 'farmLevel'; level: number }
@@ -154,7 +155,9 @@ export type UnlockCondition =
   | { kind: 'milestone'; id: MilestoneId }
   | { kind: 'bundle'; id: BundleId }
   | { kind: 'caught'; fish: FishId }
-  | { kind: 'lifetimeGold'; amount: number };
+  | { kind: 'lifetimeGold'; amount: number }
+  | { kind: 'fishCaught'; count: number }                          // phase 07: fish landed in total
+  | { kind: 'knownRecipes'; count: number; minTier: RecipeTier };  // phase 07: recipes known of at least that tier
 
 /** Upgrade cost curve: cost to go from level n to n+1 (or buy the (n+1)th placeable) = roundNice(base * ratio^n). */
 export interface CostCurve { base: number; ratio: number }
@@ -354,15 +357,16 @@ The starting grid (4 × 2) is a constant, `START_GRID`, not an expansion.
 export interface SkillPerkDef {
   skill: SkillId;
   level: number;                 // 2..10
-  text: string;                  // shown to the player
+  text: string;                  // shown to the player; for BALANCE.md's "(total)" rows it names the running total
   effect: PerkEffect;
 }
 
+/** Every entry is what THAT LEVEL ADDS. `perkTotals` (src/systems/skills.ts) sums the levels reached. */
 export type PerkEffect =
   | { kind: 'doubleHarvestChance'; chance: number }
   | { kind: 'growth'; bonus: number }
-  | { kind: 'sellPrice'; bonus: number; category: ItemCategory }
-  | { kind: 'reelZone'; mult: number }
+  | { kind: 'sellPrice'; bonus: number; category: 'crop' | 'fish' | 'dish' }
+  | { kind: 'reelZone'; bonus: number }          // additive: × (1 + Σ) on top of the rod
   | { kind: 'fishingLuck'; bonus: number }
   | { kind: 'trapCapacity'; bonus: number }
   | { kind: 'cookSpeed'; bonus: number }
@@ -370,16 +374,17 @@ export type PerkEffect =
   | { kind: 'buffSlot'; count: number }
   | { kind: 'ingredientSaveChance'; chance: number };
 
-/** Objectives are counted from events, never by scanning state (except 'reach*' kinds, which check state). */
+/** Objectives are counted from events, never by scanning state (except 'reachFarmLevel', which checks it). */
 export type QuestObjective =
   | { kind: 'plant'; crop?: CropId; count: number }
   | { kind: 'harvest'; crop?: CropId; count: number }
-  | { kind: 'sell'; item?: ItemId; count: number }
-  | { kind: 'earnGold'; amount: number; withinOneDay?: boolean }
-  | { kind: 'ship'; count: number }
-  | { kind: 'catch'; fish?: FishId; location?: FishLocationId; rarity?: Rarity; count: number }
-  | { kind: 'cook'; recipe?: RecipeId; tier?: RecipeTier; distinct?: boolean; count: number }
+  | { kind: 'sell'; count: number }
+  | { kind: 'earnGold'; amount: number; withinOneDay?: boolean }   // counts sales and other gold, never quest rewards
+  | { kind: 'ship'; count: number }                                // units the Shipping Bin paid for
+  | { kind: 'catch'; location?: FishLocationId; rarity?: Rarity; count: number }   // fish only, traps included
+  | { kind: 'cook'; tier?: RecipeTier; distinct?: boolean; count: number }        // tier means "at least"
   | { kind: 'eat'; count: number }
+  | { kind: 'place'; what: 'sprinkler'; count: number }
   | { kind: 'buyUpgrade'; id: UpgradeId; level?: number }
   | { kind: 'buyExpansion'; id: ExpansionId }
   | { kind: 'reachFarmLevel'; level: number }
@@ -391,13 +396,13 @@ export type QuestReward =
   | { kind: 'recipe'; id: RecipeId }
   | { kind: 'xp'; skill: SkillId; amount: number };
 
-/** Used for both the fixed milestone chain and goal-board templates. */
+/** Used for both the fixed milestone chain and goal-board templates. A template's objective is a pattern; rewards are worked out per goal. */
 export interface QuestDef {
   id: MilestoneId | GoalTemplateId;
   kind: 'milestone' | 'goal';
-  title: string;                         // may contain {crop}, {n}, … for goal templates
+  title: string;                         // goal templates: {n} {crop} {location} {a_rarity} {tier}
   flavor: string;                        // one warm line
-  objective: QuestObjective;             // for goal templates, a pattern the generator fills in
+  objective: QuestObjective;
   rewards: readonly QuestReward[];
   requires: readonly UnlockCondition[];  // goal templates are only drawn when these hold
 }
@@ -405,18 +410,22 @@ export interface QuestDef {
 export interface BundleDef {
   id: BundleId;
   name: string;
+  flavor: string;
   slots: readonly ItemStack[];
   reward: BundleReward;
+  rewardText: string;                    // the reward in words, for the Community Board
 }
 
 export type BundleReward =
-  | { kind: 'unlockGreenhouse' }
+  | { kind: 'unlockGreenhouse' }         // read as the `bundle` unlock condition on the greenhouse
   | { kind: 'buffSlot' }
   | { kind: 'inventorySlots'; count: number }
   | { kind: 'trapPerLocation'; count: number }
   | { kind: 'fishingLuck'; bonus: number }
-  | { kind: 'goldenScarecrow' };
+  | { kind: 'goldenScarecrow' };         // radius and bonus are GOLDEN_SCARECROW in balance.ts
 ```
+
+Phase 07 as built: `CropDef` gained an optional `plural` ("Potatoes", "Garlic") for goal text. `src/data/skills.ts` also has `SKILL_IDS`, `SKILL_NAMES`, `SKILL_BLURB` and `SKILL_ICONS`; `src/data/quests.ts` has `MILESTONES`, `GOAL_TEMPLATES` and `BUNDLES` (plus `MILESTONE_IDS` and `BUNDLE_IDS`).
 
 ### 4.10 The data bundle
 
@@ -461,14 +470,23 @@ export interface Modifiers {
   fishingSpeedModifier: number;     // × bite and trap speed        (phase 05 seam; source: buff 06)
   cookSpeedModifier: number;        // × cooking speed              (phase 06 seam; sources: kitchen 06, buff 06, perks 07)
   automationSpeedModifier: number;  // × farmhand/planter speed     (phase 04 seam; source: buff 06)
-  xpModifier: number;               // × XP gained                  (phase 06 stub; used by 07)
-  dishSellBonus: number;            // additive on dish prices      (season effect, phase 06)
-  cookingXpBonus: number;           // additive on Cooking XP       (season effect, phase 07)
+  xpModifier: number;               // × XP gained                  (phase 06 buff; read by 07)
+  dishSellBonus: number;            // additive on dish prices      (season effect 06, Cooking perks 07)
+  cookingXpBonus: number;           // additive on Cooking XP       (season effect; read by 07)
+  cropSellBonus: number;            // additive on crop prices      (Farming perks, 07)
+  fishSellBonus: number;            // additive on fish prices      (Fishing perk, 07)
+  doubleHarvestChance: number;      // chance a harvest doubles     (Farming perks, 07)
+  reelZoneBonus: number;            // additive on the reel zone    (Fishing perks, 07)
+  trapCapacityBonus: number;        // extra items a trap holds     (Fishing perks, 07)
+  buffDurationBonus: number;        // additive on buff duration    (Cooking perks, 07)
+  ingredientSaveChance: number;     // chance a dish saves one ingredient (Cooking perks, 07)
 }
 
 export const NO_MODIFIERS: Modifiers = {
   growthModifier: 1, sellPriceModifier: 1, fishingLuckModifier: 0, fishingSpeedModifier: 1,
   cookSpeedModifier: 1, automationSpeedModifier: 1, xpModifier: 1, dishSellBonus: 0, cookingXpBonus: 0,
+  cropSellBonus: 0, fishSellBonus: 0, doubleHarvestChance: 0, reelZoneBonus: 0, trapCapacityBonus: 0,
+  buffDurationBonus: 0, ingredientSaveChance: 0,
 };
 ```
 
@@ -545,11 +563,13 @@ export interface GameState {
 
   // ---- progression (@07)
   progression: {
-    skills: Record<SkillId, { xp: number; level: number }>;
-    milestones: { done: MilestoneId[]; progress: number };   // progress toward the current milestone
-    goals: ActiveGoal[];                                      // always 3
+    skills: Record<SkillId, { xp: number }>;                  // the level is derived from the XP (levelForXp)
+    milestones: { done: MilestoneId[] };                      // in the order completed; any order is allowed
+    goals: ActiveGoal[];                                      // GOAL_SLOTS (3) when enough templates apply
+    goalsDone: number;
     bundles: Partial<Record<BundleId, ItemStack[]>>;          // donated so far
     completedBundles: BundleId[];
+    farmLevelFloor: number;                                   // the level an older save showed; the Farm Level never drops below it
   };
 
   // ---- optional (@10)
@@ -574,7 +594,7 @@ export interface MarketItemState {
 
 export interface PlacedObject {
   id: number;                          // unique; the next one is max(id) + 1
-  kind: 'sprinkler' | 'scarecrow';     // @04; 'golden_scarecrow' comes in 07 (fish traps are `fishing.traps`, not placed objects)
+  kind: 'sprinkler' | 'scarecrow' | 'golden_scarecrow';   // @04; the golden one is the Spring Crops reward (@07); fish traps are `fishing.traps`
   at: { col: number; row: number };    // plot (col, row) inside the field grid, so expansions need no remap
 }
 
@@ -606,7 +626,7 @@ export interface FishingSession {
 }
 
 /** Phase 06: all jobs cook at once (at most the kitchen's slots). `hearty` is set when a dish that finished in winter is waiting for room in the bag. */
-export interface CookJob { recipe: RecipeId; remainingMs: number; hearty?: true }
+export interface CookJob { recipe: RecipeId; remainingMs: number; hearty?: true; saved?: ItemId }   // saved (@07): the ingredient a Cooking perk did not use up
 
 export interface ActiveBuff {
   type: BuffType;
@@ -621,6 +641,7 @@ export interface ActiveGoal {
   objective: QuestObjective;           // concrete, filled-in
   progress: number;
   rewards: QuestReward[];
+  seen?: RecipeId[];                   // cook_distinct: the dishes cooked toward it so far
 }
 
 export interface Stats {
@@ -703,15 +724,17 @@ export type GameEvent =
   | { type: 'bite' | 'escaped'; location: FishLocationId }
   | { type: 'caught'; catch: FishId | JunkId; sizeCm: number; location: FishLocationId; viaTrap: boolean }
   | { type: 'cooked'; recipe: RecipeId; tier: RecipeTier; hearty: boolean }
-  | { type: 'ate'; recipe: RecipeId; buff: BuffType }
+  | { type: 'ate'; recipe: RecipeId; buff: BuffType; hearty: boolean }
   | { type: 'buffStarted' | 'buffExpired'; buff: BuffType }
   | { type: 'levelUp'; skill: SkillId; level: number }
-  | { type: 'questDone'; id: MilestoneId | GoalTemplateId }
-  | { type: 'unlocked'; what: string }
+  | { type: 'farmLevelUp'; level: number }
+  | { type: 'questDone'; id: MilestoneId | GoalTemplateId; kind: 'milestone' | 'goal'; title: string; rewards: string }
+  | { type: 'bundleCompleted'; bundle: BundleId }
+  | { type: 'unlocked'; what: string; panel?: PanelId }   // panel: where to look (its toolbar button pulses)
   | { type: 'notify'; text: string; tone: 'info' | 'good' | 'warn' };
 ```
 
-Phases add event variants as they need them; adding a variant never needs a save migration. `EventOf<'tilled'>` (in `src/core/events.ts`) also resolves variants that share a body, such as `'tilled' | 'watered'`.
+Phase 07 reads these events in `runProgression` (`src/systems/progression.ts`), which `tickSystems` and `applyAction` call last, from a per-event-log cursor; it pushes `levelUp`, `farmLevelUp`, `questDone`, `bundleCompleted` and `unlocked` itself. Phases add event variants as they need them; adding a variant never needs a save migration. `EventOf<'tilled'>` (in `src/core/events.ts`) also resolves variants that share a body, such as `'tilled' | 'watered'`.
 
 ---
 

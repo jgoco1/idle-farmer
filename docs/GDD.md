@@ -163,7 +163,7 @@ Each section lists: player actions · idle behaviour · unlocks · the phase tha
 
 ### 6.6 Progression and goals (phase 07)
 - **Skills:** Farming, Fishing, Cooking, levels 1–10, XP from harvesting, catching and cooking (scaled by value, rarity and tier). Every level grants a small shown perk (BALANCE.md §8), e.g. Farming 4: 5% double harvest; Cooking 7: +1 buff slot.
-- **Farm Level:** from skill levels plus milestones. It gates seeds, locations, recipes and upgrades (BALANCE.md §9). Before phase 07, a provisional level based on lifetime gold stands in.
+- **Farm Level:** from skill levels plus milestones. It gates seeds, locations, recipes and upgrades (BALANCE.md §9). Phases 02–06 used a provisional level based on lifetime gold; since phase 07 it comes from a table of farm points (BALANCE.md §8).
 - **Milestones:** a fixed chain of 15 with a warm line each; the player's main sense of direction and the in-game tutorial after phase 08's intro.
 - **Goal board:** 3 rotating goals from 9 templates, always achievable at the current unlock level, sized for 5–15 minutes.
 - **Community Board:** 6 bundles with permanent rewards (golden scarecrow, inventory slots, greenhouse unlock, extra traps, fishing luck, +1 buff slot).

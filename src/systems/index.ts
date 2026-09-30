@@ -10,9 +10,10 @@ import { msToNextWaterOut, tickFarming, witherOutOfSeasonCrops } from './farming
 import { openMarketDay, tickMarket } from './market';
 import { msToNextPickup, tickShippingBin } from './shippingBin';
 import { hasFlag } from './upgrades';
-import { collectAllTraps, tickTraps } from './traps';
-import { learnMilestoneRecipes, msToNextCookFinish, tickCooking } from './cooking';
+import { collectAllTraps, msToNextTrapRoll, tickTraps } from './traps';
+import { msToNextCookFinish, tickCooking } from './cooking';
 import { msToNextBuffExpiry, tickBuffs } from './buffs';
+import { resetDailyGoals, revalidateGoals, runProgression } from './progression';
 
 /**
  * Advances every system by `dtMs` of simulated time. The core guarantees that no simulated-time
@@ -30,13 +31,14 @@ export function tickSystems(state: GameState, ctx: SimContext, dtMs: number): vo
   }
   tickShippingBin(state, ctx, dtMs); // last: a pickup lands at the end of the step, at that moment's prices
   tickCooking(state, ctx, dtMs); // dishes finish (hearty in winter) into the bag
-  learnMilestoneRecipes(state, ctx);
-  tickBuffs(state, ctx, dtMs); // last: this step's bonuses were applied through ctx.mods
+  tickBuffs(state, ctx, dtMs); // this step's bonuses were applied through ctx.mods
+  runProgression(state, ctx); // last: XP, milestones and goals from everything this step reported
 }
 
 /**
  * Simulated ms until the next moment a large step must stop at (a buff expiring, a dish finishing,
- * a watering running out, a shipping-bin pickup, the next farmhand visit with work to do). `Infinity` when nothing is pending. Used by the
+ * a watering running out, a shipping-bin pickup, the next farmhand visit with work to do, a trap roll:
+ * a catch pays XP and a level-up can change a rate). `Infinity` when nothing is pending. Used by the
  * core to split steps.
  */
 export function msToNextSimEvent(state: GameState, ctx: SimContext): number {
@@ -46,6 +48,7 @@ export function msToNextSimEvent(state: GameState, ctx: SimContext): number {
     msToNextAutomation(state, ctx),
     msToNextCookFinish(state, ctx),
     msToNextBuffExpiry(state),
+    msToNextTrapRoll(state, ctx),
   );
 }
 
@@ -54,10 +57,13 @@ export function onDayStarted(state: GameState, ctx: SimContext): void {
   openMarketDay(state, ctx.data, ctx.rng, ctx.calendar.season);
   state.stats.goldToday = 0;
   state.stats.daysPassed += 1;
-  // phase 07: per-day goal counters
+  resetDailyGoals(state); // "in one day" goals start again from zero
+  revalidateGoals(state, ctx.data, ctx.rng, ctx.calendar.season);
 }
 
 /** Weekly season change at Sunday 00:00 local. Returns the number of crops that withered. */
 export function onSeasonChanged(state: GameState, ctx: SimContext, season: SeasonId): number {
-  return witherOutOfSeasonCrops(state, ctx, season);
+  const withered = witherOutOfSeasonCrops(state, ctx, season);
+  revalidateGoals(state, ctx.data, ctx.rng, season); // a goal for a crop that just left the season is swapped
+  return withered;
 }

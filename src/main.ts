@@ -48,7 +48,10 @@ import { showModal } from './ui/modal';
 import { PanelManager } from './ui/panel';
 import { goldPopupAt } from './ui/goldFx';
 import { marketPanel } from './ui/marketPanel';
-import { inventoryPanel, settingsPanel, shopPanel, STUB_PANELS, type GameViewHooks } from './ui/panels';
+import { inventoryPanel, settingsPanel, shopPanel, type GameViewHooks } from './ui/panels';
+import { goalsPanel } from './ui/goalsPanel';
+import { Celebration } from './ui/celebrate';
+import { SKILL_NAMES } from './data/skills';
 import { kitchenPanel } from './ui/kitchenPanel';
 import { upgradesPanel } from './ui/upgradesPanel';
 import type { Action } from './core/actions';
@@ -104,7 +107,6 @@ const view: GameViewHooks = {
   mods: () => computeModifiers(game.state, GAME_DATA, game.calendar().season),
 };
 const placement = new PlacementMode(() => syncPlacement());
-const stubPanel = (id: string) => STUB_PANELS.find((d) => d.id === id)!;
 // Registration order is the toolbar order.
 const dispatch = (action: Action): ActionResult => game.dispatch(action);
 panels.register(inventoryPanel({ ...view, dispatch }));
@@ -148,7 +150,16 @@ panels.register(
     setAutoSell: (item, on) => game.dispatch({ type: 'setAutoSell', item, on }),
   }),
 );
-panels.register(stubPanel('goals'));
+panels.register(
+  goalsPanel({
+    ...view,
+    dispatch,
+    placeGolden: () => {
+      panels.close();
+      placement.start('golden_scarecrow');
+    },
+  }),
+);
 panels.register(
   settingsPanel({
     getVolume: () => game.state.settings.masterVolume,
@@ -179,7 +190,8 @@ panels.register(
   }),
 );
 hud.settingsButton.addEventListener('click', () => panels.toggle('settings'));
-buildToolbar(byId('toolbar'), panels);
+const toolbar = buildToolbar(byId('toolbar'), panels);
+const celebration = new Celebration(byId('scene'));
 const tools = new FarmTools(byId('toolbar'), view);
 
 game.bus.on('notify', (e) => toasts.show(e.text, e.tone));
@@ -191,6 +203,45 @@ game.bus.on('cooked', (e) => {
   toasts.show(`${name} is ready${e.hearty ? ' and extra hearty' : ''}! It is in your bag.`, 'good');
 });
 game.bus.on('buffExpired', (e) => toasts.show(`${GAME_DATA.buffs[e.buff].name} has worn off.`));
+
+// ---- progression feedback: toasts, a burst of confetti and a pulse on the button of whatever just opened
+/** Offline catch-up flushes its events through the bus too: the away summary lists progression, so no toast per event. */
+const catchingUp = (): boolean => game.replaying;
+game.bus.on('levelUp', (e) => {
+  if (catchingUp()) return;
+  const perk = GAME_DATA.perks.find((p) => p.skill === e.skill && p.level === e.level);
+  toasts.showKept(`${SKILL_NAMES[e.skill]} level ${e.level}!${perk ? ` ${perk.text}.` : ''}`, 'good');
+  celebration.burst('level');
+});
+game.bus.on(
+  'farmLevelUp',
+  (e) => catchingUp() || toasts.showKept(`Farm Level ${e.level}! Your farm is growing.`, 'good'),
+);
+game.bus.on('questDone', (e) => {
+  if (catchingUp()) return;
+  const reward = e.rewards ? ` Reward: ${e.rewards}.` : '';
+  if (e.kind === 'milestone') {
+    const flavor = GAME_DATA.milestones.find((m) => m.id === e.id)?.flavor ?? '';
+    toasts.showKept(`Milestone: ${e.title}. ${flavor}${reward}`, 'good');
+  } else {
+    toasts.showKept(`Goal complete: ${e.title}!${reward}`, 'good');
+  }
+  celebration.burst('goal');
+});
+game.bus.on('bundleCompleted', (e) => {
+  if (catchingUp()) return;
+  const b = GAME_DATA.bundles[e.bundle];
+  toasts.showKept(`${b.name} bundle complete! ${b.rewardText}.`, 'good');
+  celebration.burst('big');
+});
+game.bus.on('unlocked', (e) => {
+  if (catchingUp()) {
+    if (e.panel) toolbar.nudge(e.panel); // the buttons still pulse
+    return;
+  }
+  toasts.showKept(e.what, 'good');
+  if (e.panel) toolbar.nudge(e.panel);
+});
 game.bus.on('seasonChanged', (e) => {
   const season = `${e.season[0]?.toUpperCase()}${e.season.slice(1)}`;
   toasts.show(`${season} has arrived!`, 'good');

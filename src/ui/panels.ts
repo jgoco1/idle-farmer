@@ -7,7 +7,7 @@ import type { DishId } from '../data/ids';
 import { capitalize, seasonOfWeek, type Calendar } from '../core/time';
 import type { GameData } from '../data';
 import { SHOP_BUY_AMOUNTS } from '../data/balance';
-import { CROP_IDS, type CropId, type PanelId, type RecipeId } from '../data/ids';
+import { CROP_IDS, type CropId, type RecipeId } from '../data/ids';
 import type { ItemDef } from '../data/types';
 import { spriteDataUrl } from '../render/spriteCache';
 import type { ActionResult } from '../systems/context';
@@ -26,24 +26,6 @@ import { eatWithConfirm } from './eat';
 import type { Action } from '../core/actions';
 import { buffDurationMs, buffMagnitude } from '../systems/buffs';
 import { formatDuration } from '../core/time';
-
-function stub(id: PanelId, title: string, icon: string, blurb: string): PanelDef {
-  return {
-    id,
-    title,
-    icon,
-    build(body) {
-      body.append(
-        h('p', { class: 'coming-soon', text: 'Coming soon' }),
-        h('p', { class: 'muted', text: blurb }),
-      );
-    },
-  };
-}
-
-export const STUB_PANELS: readonly PanelDef[] = [
-  stub('goals', 'Goals', '★', 'Milestones and the Community Board will point the way.'),
-];
 
 export interface SettingsHooks {
   getVolume(): number;
@@ -208,7 +190,7 @@ function eatText(hooks: GameViewHooks, def: ItemDef, hearty: boolean): string {
   const r = hooks.data.recipes[def.id as keyof GameData['recipes']];
   const buff = hooks.data.buffs[r.buff];
   const mag = buffMagnitude(hooks.data, r.buff, r.tier);
-  return `${buff.name} (tier ${r.tier}): ${buffEffectText(buff, mag)} Lasts ${formatDuration(buffDurationMs(r.tier, hearty))}${hearty ? ', hearty' : ''}.`;
+  return `${buff.name} (tier ${r.tier}): ${buffEffectText(buff, mag)} Lasts ${formatDuration(buffDurationMs(r.tier, hearty, hooks.mods().buffDurationBonus))}${hearty ? ', hearty' : ''}.`;
 }
 
 /** Inventory: a grid of slots with icons and counts; hovering or focusing a slot shows its details. */

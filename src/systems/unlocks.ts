@@ -1,27 +1,31 @@
-// Unlock conditions (DATA_SCHEMAS.md §3) and the provisional farm level (BALANCE.md §9). Kinds that
-// belong to later phases (skills, milestones, catches) are typed seams that evaluate as not met,
-// except bundles, which count as met until phase 07 adds them.
+// Unlock conditions (DATA_SCHEMAS.md §3) and the Farm Level (BALANCE.md §8–9). Since phase 07 the
+// Farm Level comes from the three skills and the milestones (`systems/skills.ts`); the phase 02–06
+// lifetime-gold formula survives only to give older saves the level they already had.
 
 import type { GameState } from '../core/state';
 import { FARM_LEVEL_GOLD_UNIT } from '../data/balance';
 import type { GameData } from '../data';
+import { SKILL_NAMES } from '../data/skills';
 import type { UnlockCondition } from '../data/types';
+import { earnedFarmLevel, farmPoints, pointsForFarmLevel, skillLevel } from './skills';
 
-/** BALANCE.md §9: 1 + floor(log2(1 + lifetimeGold / 300)). Phase 07 replaces it with skills. */
+/** BALANCE.md §9: 1 + floor(log2(1 + lifetimeGold / 300)). Used to backfill `farmLevelFloor` for old saves. */
 export function provisionalFarmLevel(lifetimeGold: number): number {
   return 1 + Math.floor(Math.log2(1 + Math.max(0, lifetimeGold) / FARM_LEVEL_GOLD_UNIT));
 }
 
-/** Lifetime gold needed for provisional farm level `level`: 300 · (2^(level − 1) − 1). */
-export function lifetimeGoldForLevel(level: number): number {
-  return FARM_LEVEL_GOLD_UNIT * (2 ** (level - 1) - 1);
-}
-
+/** The Farm Level: from skills and milestones, never below the level an older save already showed. */
 export function farmLevel(state: GameState): number {
-  return provisionalFarmLevel(state.stats.lifetimeGold);
+  return Math.max(state.progression.farmLevelFloor, earnedFarmLevel(state));
 }
 
-function conditionMet(state: GameState, c: UnlockCondition): boolean {
+/** How many known recipes are at least `minTier`. Tiers come from `data`; without it every recipe counts. */
+function knownOfTier(state: GameState, data: GameData | undefined, minTier: number): number {
+  if (!data) return state.kitchen.known.length;
+  return state.kitchen.known.filter((id) => data.recipes[id].tier >= minTier).length;
+}
+
+function conditionMet(state: GameState, c: UnlockCondition, data?: GameData): boolean {
   switch (c.kind) {
     case 'farmLevel':
       return farmLevel(state) >= c.level;
@@ -31,17 +35,28 @@ function conditionMet(state: GameState, c: UnlockCondition): boolean {
       return (state.upgrades[c.id] ?? 0) >= c.level;
     case 'lifetimeGold':
       return state.stats.lifetimeGold >= c.amount;
+    case 'skillLevel':
+      return skillLevel(state, c.skill) >= c.level;
+    case 'milestone':
+      return state.progression.milestones.done.includes(c.id);
     case 'bundle':
-      return true; // bundles count as met until phase 07 (BALANCE.md §4)
+      return state.progression.completedBundles.includes(c.id);
     case 'caught':
       return state.fishing.collection[c.fish] !== undefined;
-    default:
-      return false; // later phases: skills, milestones, catches
+    case 'fishCaught':
+      return state.stats.fishCaught >= c.count;
+    case 'knownRecipes':
+      return knownOfTier(state, data, c.minTier) >= c.count;
   }
 }
 
-export function isUnlocked(state: GameState, conditions: readonly UnlockCondition[]): boolean {
-  return conditions.every((c) => conditionMet(state, c));
+/** Whether every condition holds. `data` is only needed for `knownRecipes` (goal templates pass it). */
+export function isUnlocked(
+  state: GameState,
+  conditions: readonly UnlockCondition[],
+  data?: GameData,
+): boolean {
+  return conditions.every((c) => conditionMet(state, c, data));
 }
 
 /** Short hints for every unmet condition (empty when everything is met). */
@@ -50,7 +65,7 @@ export function unlockHints(
   data: GameData,
   conditions: readonly UnlockCondition[],
 ): string[] {
-  return conditions.filter((c) => !conditionMet(state, c)).map((c) => hintFor(state, data, c));
+  return conditions.filter((c) => !conditionMet(state, c, data)).map((c) => hintFor(state, data, c));
 }
 
 /** A short hint for the first unmet condition, or null when everything is met. */
@@ -65,8 +80,8 @@ export function unlockHint(
 function hintFor(state: GameState, data: GameData, c: UnlockCondition): string {
   switch (c.kind) {
     case 'farmLevel': {
-      const more = lifetimeGoldForLevel(c.level) - state.stats.lifetimeGold;
-      return `Reach Farm Level ${c.level} (earn ${more.toLocaleString('en-US')}g more).`;
+      const more = Math.max(1, pointsForFarmLevel(c.level) - farmPoints(state));
+      return `Reach Farm Level ${c.level} (${more} more farm point${more === 1 ? '' : 's'}).`;
     }
     case 'expansion':
       return `Needs “${data.expansions[c.id].name}” first.`;
@@ -76,7 +91,15 @@ function hintFor(state: GameState, data: GameData, c: UnlockCondition): string {
       return `Earn ${c.amount.toLocaleString('en-US')}g in total.`;
     case 'caught':
       return `Catch a ${data.fish[c.fish].name} first.`;
-    default:
-      return 'Not available yet.';
+    case 'skillLevel':
+      return `Reach ${SKILL_NAMES[c.skill]} level ${c.level}.`;
+    case 'milestone':
+      return `Finish the “${data.milestones.find((m) => m.id === c.id)?.title ?? c.id}” milestone.`;
+    case 'bundle':
+      return `Complete the ${data.bundles[c.id].name} bundle on the Community Board.`;
+    case 'fishCaught':
+      return `Catch ${c.count} fish first.`;
+    case 'knownRecipes':
+      return `Learn ${c.count} recipe${c.count === 1 ? '' : 's'} first.`;
   }
 }

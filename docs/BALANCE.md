@@ -468,9 +468,9 @@ Buff coverage: growth 3, sellPrice 3, fishingLuck 4, fishingSpeed 2, cookSpeed 3
 
 ```ts
 MAX_SKILL_LEVEL = 10
-xpToNext(L) = round(40 * 1.6 ** (L - 1))            // L = 1..9
-// 40, 64, 102, 164, 262, 419, 671, 1074, 1718 → 4514 total to reach level 10
-// cumulative to reach level 2..10: 40, 104, 206, 370, 632, 1051, 1722, 2796, 4514
+xpToNext(L) = round(150 * 1.5 ** (L - 1))           // L = 1..9   (phase 07 tuned this from 40 × 1.6^(L − 1): see "Phase 07 tuning notes")
+// 150, 225, 338, 506, 759, 1139, 1709, 2563, 3844 → 11,233 total to reach level 10
+// cumulative to reach level 2..10: 150, 375, 713, 1219, 1978, 3117, 4826, 7389, 11233
 
 farmingXp(unit)  = max(1, round(crop.basePrice ** 0.6 / 2))                 // per harvested unit (table in §2)
 fishingXp(catch) = { common: 6, uncommon: 14, rare: 30, legendary: 100 }[rarity] + floor(difficulty / 10)
@@ -480,6 +480,8 @@ xpGained = round(baseXp * mods.xpModifier)
 ```
 
 ### Skill perks
+
+Each row is what that level adds, and the effects add up. A cell marked "(total)" shows the running total (5% + 5% double harvest reads "10% (total)"); the data (`src/data/skills.ts`) stores the increment. The luck rows (+0.05, +0.10, +0.15) are read as increments too, so Fishing 9 has +0.30 luck in all. They add to the rod's luck and the River & Sea bundle's +0.10.
 
 | Level | Farming | Fishing | Cooking |
 |---|---|---|---|
@@ -496,9 +498,12 @@ xpGained = round(baseXp * mods.xpModifier)
 ### Farm Level
 
 ```ts
-farmPoints = (farming.level + fishing.level + cooking.level - 3) + milestonesDone
-farmLevel  = min(20, 1 + floor(farmPoints / 2))
+farmPoints = (farming.level + fishing.level + cooking.level - 3) + milestonesDone     // 0 .. 42
+farmLevel  = the highest L whose entry in FARM_LEVEL_POINTS is <= farmPoints
+FARM_LEVEL_POINTS = [_, 0, 2, 5, 7, 10, 12, 15, 20, 27, 36]                              // index = level, 1..10
 ```
+
+Phase 07 replaced the linear `min(20, 1 + floor(farmPoints / 2))` this section used to give with the table above (see "Phase 07 tuning notes"). Level 3 is the five farming milestones (plant, harvest, sell, expand, sprinkler). Levels 8 to 10 gate nothing in §9; they are the long game and want all three skills. A farm-only player tops out at 19 points (Level 7), so Levels 8 and up need a little fishing or cooking.
 
 ---
 
@@ -514,14 +519,14 @@ farmLevel  = min(20, 1 + floor(farmPoints / 2))
 | 6 | melon, pumpkin seeds; `ocean`; `farm_4`; `pumpkin_soup`, `harvest_feast` cards |
 | 7 | `sprinkler_tech` L2; greenhouse |
 
-**Provisional farm level (phases 02–06, before skills exist):**
+**Provisional farm level (phases 02–06, before skills existed; kept only to backfill old saves):**
 
 ```ts
 provisionalFarmLevel = 1 + floor(log2(1 + stats.lifetimeGold / 300))
 // lifetime gold 300 → 2, 900 → 3, 2100 → 4, 4500 → 5, 9300 → 6, 18900 → 7, 38100 → 8
 ```
 
-Phase 07 replaces it with the real formula in §8 and its migration must never lower the level a player already sees (take `max(provisional, real)` for existing saves until the real level catches up, and record that in the save).
+Phase 07 replaced it with the real formula in §8. Its migration (v6 → v7) stores the level the old formula showed as `progression.farmLevelFloor`, and the Farm Level is `max(floor, real)`, so it never drops below what a player already saw. New saves start with a floor of 1.
 
 ---
 
@@ -549,10 +554,10 @@ Phase 07 replaces it with the real formula in §8 and its migration must never l
 
 ### Goal board templates
 
-Three goals are active at once. The generator picks a template whose `requires` holds, fills in an item the player can obtain now, and sizes the target so it takes about 5–15 real minutes at the player's current rate.
+Three goals are active at once. The generator picks a template whose `requires` holds, fills in an item the player can obtain now, and sizes the target so it takes about 5–15 real minutes at the player's current rate. "Obtain now" means a crop the player has unlocked that is in season, an open water, a known recipe whose ingredients can be grown or caught this season; a goal whose season passes is swapped at the change. The target of a harvest goal is `niceTarget(unitsPerMinute × GOAL_TARGET_MINUTES (8) × GOAL_EFFICIENCY (0.5))` with units per minute the whole farm growing that crop (its grow time plus half a minute to come back to it). A goal's reward is gold, or half the gold and 5 seeds (30% of goals), or half the gold and a recipe card the player can buy but does not know yet (15%).
 
 ```ts
-goalGoldReward = roundNice(max(50, 0.25 * estimatedGoldPerRealMinute * 10))
+goalGoldReward = roundNice(max(20, 0.05 * estimatedGoldPerRealMinute * 10))       // phase 07 tuned this from max(50, 0.25 × …)
 ```
 
 | Template | Example | Requires |
@@ -699,3 +704,50 @@ Each phase that tunes numbers adds a dated subsection here: what changed, why, a
 - **Buffs are "nice, not needed".** A player who eats everything keeps Green Thumb up for about 40 of the 60 minutes and still finishes 15% behind, because a T1 buff (+10% growth for 6 minutes on 4 to 8 plots is worth roughly 30g) is smaller than the dish's sale price (55g). Duration doubles per tier while the sale price rises by a smaller factor, so buffs pull ahead at T3 and T4 (T4 growth is +40% for 48 minutes, 72 when hearty) and over long absences (a T4 buff spans 48 to 72 minutes of an 8 hour absence). This hour-one model does not include that.
 - **Finding for phase 09.** The GDD target is "kept up well, buffs speed progression by about 10–25%". At T1 they do not pay for themselves against selling the dish. If the simulator finds the same at T2 to T4, the levers, in order of preference, are: a longer base duration (`BUFF_BASE_DURATION_MS`, 6 → 10 minutes helps every tier equally), a higher `BUFF_MAGNITUDE_PER_TIER`, or a lower `TIER_SELL_MULT` for T1 and T2 (the dishes players are most tempted to sell). Winter is already the strongest lever: hearty dishes last 50% longer for free and dishes sell 25% higher, so it is the week that rewards both eating and selling.
 - **Stove time.** A T4 dish takes 3 to 4 minutes at 1× speed (`cookSec` 180 to 240). With Quick Hands +60% and the Pro Kitchen +50% (a 2.1× rate) the same dish takes about 86 to 114 seconds, and four cook at once.
+
+### Phase 07 tuning notes
+**Method.** `tests/sim/greedyPlayer.ts` has a `milestones` option: the greedy player also fishes (1.5 catches a minute, visiting every open water in turn), cooks the highest tier its bag allows while keeping the ingredients of its two best recipes, eats one dish, buys any recipe card it can afford five times over, gives what the Community Board wants to its bundles instead of selling it, and plants crops the bundles are missing. Its shopping list is `MILESTONE_SHOPPING_LIST`. The table below is `PACING_REPORT=1 MINUTES=960 SEEDS=1,2,3 npx vitest run tests/pacingReport.test.ts` (medians of three seeds, 16 simulated hours, spring calendar; the bot is faster than a person, roughly 2×, because it never dithers and always fishes and farms at once).
+
+| Moment | Median (range over seeds) | BALANCE.md §11 target |
+|---|---|---|
+| Plant · harvest · first sale | 0 · 2 · 7 min | first harvest ≤ 2.5 min |
+| First expansion `farm_1` (m04) | 19 min (16–22) | 6–10 min *(see below)* |
+| First sprinkler placed (m05) | 21 min (17–25) | 10–15 min |
+| Farmhand L1 (m09) | 25 min (23–27) | 25–40 min |
+| River unlocked (m10) | 36 min (32–37) | 45–75 min |
+| First T2 dish | 31 min (22–78) | 45–90 min |
+| First T3 dish (m12) | 60 min (45–60) | 2–3 h |
+| First T4 dish | 3.0 h (54 min–3.0 h) | 3–5 h |
+| Old Dock (m13) | 85 min (85–93) | – |
+| Spring Crops bundle (m14) | 25 min (25–27) | – |
+| Whole farm automated | 4.0 h | 4–6 h |
+| Farm Level 3 · 5 · 7 | 6 · 21 · 31 min | – |
+| Farm Level 8 · 9 · 10 | 46 min · 100 min · 9.2 h (5.7–15.8 h) | Level 10 in 10–15 h |
+| Farming 2 · 5 · 7 · 10 | 19 min · 64 min · 111 min · 4.6 h | – |
+| Fishing 2 · 5 · 7 · 10 | 13 min · 99 min · 4.0 h · 14.7 h | – |
+| Cooking 2 · 5 · 7 | 26 min · 100 min · 9.4 h | – |
+
+(`m04_first_expansion` and `m05_first_sprinkler` show later than for the plain farming player in the table below (`farm_1` at 7 minutes, first sprinkler bought at 12) because this bot also spends its early gold on recipe cards and seeds for the bundles.)
+
+**What was changed, and why.**
+- **The XP curve is `150 × 1.5^(L − 1)`** (was `40 × 1.6^(L − 1)`, 4,514 XP for level 10; now 11,233). With the old curve a fully automated farm reached Farming 10 in about two hours, and Level 5 a minute or two after the first sale of crops. The new curve keeps the same shape (about 1.5× per level) and puts Farming 5 at about an hour of active play and Farming 10 at about 4.5 hours of play with a farmhand, the other two skills much later (they only grow when the player fishes or cooks).
+- **Farm Level is a table, not `1 + floor(points / 2)`** (§8). The milestones alone are 15 points, and skill levels came quickly early, so the linear formula gave Level 10 (18 points) after an hour. The table keeps the low levels at the pace the docs assumed (a farm-only player is Level 3 with the five farming milestones, at about 15 minutes, which the farmhand and the river need) and stretches the top: Levels 7 (15 points) is where sprinkler tech II and the greenhouse open; Level 10 needs 36 of the 42 possible points, that is all fifteen milestones (the greenhouse, at the end of the chain, among them) and about 21 skill levels. A test checks that a farm-only player reaches Level 7 inside the 5.5 hours it takes them to automate the farm.
+- **Goal gold is `max(20, 0.05 × estimate × 10)`** (was `max(50, 0.25 × …)`). With the full formula three goals a ten-minute stretch paid the player about 60% of their own income and pulled the river forward by ten minutes; quest gold is now around 1% of the total in the simulation (the milestone gold, which is fixed, is most of that). Goals stay worth doing for their seeds and recipe cards.
+- **Milestone gold and the perks are as the docs give them, and they speed the plain farming player up.** Same greedy player as `tests/pacing.test.ts` (8 seeds for the first hour, 3 for the 5.5 hour run), phase 06 against phase 07:
+
+  | Moment | Phase 06 | Phase 07 | Without the perks | Without milestone gold |
+  |---|---|---|---|---|
+  | `farm_1` | 9 min | 7 min | 7 min | 9 min |
+  | First sprinkler bought | 14 min | 12 min | 12 min | 13 min |
+  | Farmhand L1 | 30 min | 19 min | 19 min | 21 min |
+  | River Access | 54 min | 47 min | 50 min | 51 min |
+  | Whole farm automated | 4.9 h | 3.6 h | 4.8 h | 3.7 h |
+
+  The early gains are the milestones' gold and seeds (25 + 50 + 100 gold and 5 turnip seeds before the farmhand's 800g), the late ones the Farming perks: +15% sale price, +15% growth and a 15% double harvest multiply, about 25% more income by hour four. Both are what BALANCE.md §8 and §10 specify, and both land outside the farmhand (25–40 min) and automation (4–6 h) targets, so `tests/pacing.test.ts` lowers those bounds to 17 minutes and 3.5 hours and says why. This is the first thing for phase 09 to look at: the cheapest levers are the sale-price and double-harvest perks, then the gold on `m03` and `m05`.
+
+**Findings for phase 09.**
+- **T3 and T4 arrive early.** The T3 recipe (`scholars_stew`) is the reward for Farm Level 5, which the bot reaches at 21 minutes, and `garden_banquet` (T4) for the first T3 dish. A person is slower (they have to find perch, garlic and bluegill), but the docs' 2–3 h and 3–5 h assume Level 5 comes around the first hour. If phase 09 agrees, the levers are the Level 5 threshold in `FARM_LEVEL_POINTS`, or moving the recipe reward from `m11_farm_level_5` to a later milestone.
+- **Seasonal bundles and the greenhouse cannot be checked in 16 simulated hours.** The calendar starts in spring and seasons last a real week, so Summer Crops, Autumn Harvest and River & Sea (sardines and tuna are ocean fish, in season all year) need a multi-day simulation. The greenhouse milestone (m15) needs the Autumn Harvest bundle, Level 7, `farm_3` and 25,000g, and its 8–12 h target is untested.
+- **Cooking XP is slow for the bot** (Cooking 7 at 9.4 h, 10 never): a dish is worth 8–64 XP and the bot cooks about one every few minutes. A person who cooks in bursts will be slower still. If Cooking 7's fourth buff slot should be a mid-game reward, raise dish XP (`COOKING_XP_BASE`) before touching the curve.
+- **Fishing XP outpaces Cooking but not Farming.** The Fishing skill only grows while someone fishes or has traps; a farm-only player never leaves Level 1 in it, which is why Level 8 and up ask for some fishing or cooking.
+- **Goal targets are estimates.** A goal is sized at 8 minutes × 50% of the ideal rate; the bot finishes about one every 50 minutes (16–19 in 16 hours). That is slower than the "5–15 minutes" the prompt names, because the bot spends most of its time on the milestones and its harvest goals need a crop it may not be planting. Tune `GOAL_TARGET_MINUTES` and `GOAL_EFFICIENCY` in `balance.ts` once real play data exists.

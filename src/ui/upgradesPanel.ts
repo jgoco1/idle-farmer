@@ -175,7 +175,7 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
               const level = upgradeLevel(state, id);
               const maxed = level >= def.max;
               const needs = requirementsFor(def, level);
-              const blocked = maxed ? null : purchaseBlock(state, id);
+              const blocked = maxed ? null : purchaseBlock(state, hooks.data, id);
               const hints = maxed
                 ? []
                 : [...unlockHints(state, hooks.data, needs), ...(blocked ? [blocked] : [])];
