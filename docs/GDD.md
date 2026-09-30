@@ -268,7 +268,7 @@ Ideas like these go to `docs/IDEAS.md`.
 | v2-04 | coop, barn and silo; chickens and cows; feed; egg and milk recipes; the Barnyard bundle (save 11) |
 
 
-## 11. Owner decisions (and v2 open questions)
+## 11. Owner decisions
 
 Decided after the first review of this document:
 1. **Name:** keep "Hearthfield Idle" for now; it may change later. The save key is `hearthfield-idle/save`.
@@ -282,9 +282,9 @@ Decided after the first review of this document:
 
 No open questions remain for phase 01.
 
-### v2 open questions (for the owner to confirm)
+### v2 owner decisions (confirmed after v2 phase 00)
 
-v2 phase 00 made the choices below so the four implementation phases can start. Each has a recommendation; confirm it or pick the alternative before v2 phase 01 starts (world size and parcels) or before the phase that builds it.
+v2 phase 00 proposed these twelve choices as open questions; the owner confirmed all twelve as recommended. The alternatives are kept for the record and are **not** to be built.
 
 1. **World size: 36 × 22 tiles** (3.3× the v1 area), with the v1 farm unchanged in the top-left corner (§12.1). *Alternatives:* 40 × 24 (4×, more empty land to fill) or 32 × 20 (2.7×, tighter; the meadow becomes 2 rows).
 2. **Which regions are parcels:** three parcels, bought in order: **Hilltop Orchard** (30,000g, Farm Level 5 and `farm_3`), **Old Paddock** (the animal yard, 150,000g, Farm Level 7), **Seaside Meadow** (decoration space, 500,000g). The **town square is public** (always open, no parcel) and the lanes and sea are scenery. *Alternative:* make the town square a fourth parcel, or drop the meadow and let decorations use only the home region and spare parcel tiles.
@@ -298,6 +298,8 @@ v2 phase 00 made the choices below so the four implementation phases can start. 
 10. **The farmhand picks ripe trees but does no animal chores**; the silo (troughs) and the Collecting Basket (stores) automate animals. *Alternative:* the farmhand also collects eggs and milk, and the Collecting Basket is dropped.
 11. **Town projects cost about 8.5M gold in all** (six projects, nineteen stages; the whole v2 catalogue is about 13.2M), so a one-hour-a-day player still has gold to spend on day 30 and a keen player runs out around day 25 (BALANCE.md §13.4). *Alternative:* scale every project by 0.5 or 1.5.
 12. **v2 milestones give no farm points.** The Farm Level stays tuned to the 15 v1 milestones. *Alternative:* count them and raise the top of `FARM_LEVEL_POINTS`.
+
+No open questions remain for v2 phase 01.
 
 ---
 
