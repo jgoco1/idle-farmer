@@ -1,0 +1,128 @@
+import { describe, expect, it } from 'vitest';
+import type { GameEvent } from '../src/core/events';
+import type { OfflineReport } from '../src/core/offline';
+import { START_GRID } from '../src/data/balance';
+import { FISH_IDS, JUNK_IDS } from '../src/data/ids';
+import { buildLayout, buildZones, inRect, LOCATION_ZONE, TRAP_TILES, trapTile } from '../src/render/scene';
+import { ALL_SPRITES, SPRITES } from '../src/render/sprites';
+import { awayRows, awayTotals } from '../src/ui/awaySummary';
+
+const zones = buildZones(START_GRID);
+const zoneOf = (id: string) => zones.find((z) => z.id === id)!;
+
+describe('fishing scenery', () => {
+  it('shows nothing of the river or the dock until they are bought', () => {
+    const plain = buildLayout(START_GRID, []);
+    const sprites = new Set([...plain.ground.flat(), ...plain.objects.map((o) => o.sprite)]);
+    for (const id of ['tile_river', 'tile_sea', 'obj_bridge', 'obj_dock', 'obj_dock_post']) {
+      expect(sprites.has(id), id).toBe(false);
+    }
+    expect(plain.ground[11]![8]).not.toBe('tile_river');
+  });
+
+  it('River Access lays a river along the bottom edge with a bridge', () => {
+    const layout = buildLayout(START_GRID, ['river']);
+    for (let col = 7; col <= 13; col++) {
+      expect(layout.ground[10]![col], `bank ${col}`).toBe('tile_pond_edge_n');
+      expect(layout.ground[11]![col], `current ${col}`).toBe('tile_river');
+    }
+    expect(layout.ground[10]![6]).toBe('tile_pond_corner_nw');
+    expect(layout.ground[11]![14]).toBe('tile_pond_edge_e');
+    expect(layout.animated.filter((a) => a.sprite === 'tile_river')).toHaveLength(7);
+    expect(layout.objects.filter((o) => o.sprite === 'obj_bridge')).toHaveLength(2);
+    expect(layout.ground[11]![15]).not.toBe('tile_sea'); // the dock is not there yet
+  });
+
+  it('the Old Dock adds sea tiles, planks and posts in the bottom-right corner', () => {
+    const layout = buildLayout(START_GRID, ['river', 'ocean']);
+    for (let col = 16; col <= 19; col++) {
+      expect(layout.ground[10]![col]).toBe('tile_sea');
+      expect(layout.ground[11]![col]).toBe('tile_sea');
+    }
+    expect(layout.ground[10]![15]).toBe('tile_path');
+    expect(layout.objects.filter((o) => o.sprite === 'obj_dock')).toHaveLength(3);
+    expect(layout.objects.filter((o) => o.sprite === 'obj_dock_post')).toHaveLength(2);
+    expect(layout.animated.filter((a) => a.sprite === 'tile_sea').length).toBeGreaterThan(0);
+  });
+
+  it('every location has a clickable water zone, and its two traps float inside it on water', () => {
+    expect(LOCATION_ZONE).toEqual({ pond: 'pond', river: 'river', ocean: 'dock' });
+    const layout = buildLayout(START_GRID, ['river', 'ocean']);
+    const water = new Set(['tile_water', 'tile_river', 'tile_sea']);
+    for (const loc of ['pond', 'river', 'ocean'] as const) {
+      expect(TRAP_TILES[loc]).toHaveLength(2);
+      for (const t of TRAP_TILES[loc]) {
+        expect(inRect(zoneOf(LOCATION_ZONE[loc]).rect, t.col, t.row), `${loc} ${t.col},${t.row}`).toBe(true);
+        expect(water.has(layout.ground[t.row]![t.col]!), `${loc} ${t.col},${t.row}`).toBe(true);
+        expect(
+          layout.objects.some(
+            (o) => o.x === t.col * 16 && o.y === t.row * 16 && o.sprite !== 'obj_dock_post',
+          ),
+        ).toBe(false);
+      }
+      expect(trapTile(loc, 1)).toEqual(TRAP_TILES[loc][1]);
+    }
+  });
+});
+
+describe('fishing sprites', () => {
+  it('every fish and junk item has an icon, and no two look alike', () => {
+    const looks = new Set<string>();
+    for (const id of [...FISH_IDS, ...JUNK_IDS]) {
+      const def = SPRITES[`item_${id}`];
+      expect(def, id).toBeDefined();
+      expect(def!.frames[0]).toHaveLength(16);
+      looks.add(def!.frames[0]!.join(''));
+    }
+    expect(looks.size).toBe(19);
+  });
+
+  it('has the trap, bobber, bite bubble, splash, river, sea, bridge, dock and rod', () => {
+    for (const id of [
+      'obj_fish_trap',
+      'obj_fish_trap_full',
+      'obj_bobber',
+      'obj_bobber_dip',
+      'ui_bite',
+      'fx_splash',
+      'tile_river',
+      'tile_sea',
+      'obj_bridge',
+      'obj_dock',
+      'obj_dock_post',
+      'ui_tool_rod',
+    ]) {
+      expect(SPRITES[id], id).toBeDefined();
+    }
+    expect(SPRITES.fx_splash!.frames.length).toBeGreaterThanOrEqual(3);
+    expect(SPRITES.obj_fish_trap!.frames.length).toBe(2); // calm ripples
+    expect(SPRITES.obj_fish_trap!.frames[0]).not.toEqual(SPRITES.obj_fish_trap_full!.frames[0]);
+    expect(SPRITES.tile_river!.frames.length).toBeGreaterThan(1);
+    expect(ALL_SPRITES.filter((s) => s.id.startsWith('item_')).length).toBeGreaterThan(30);
+  });
+});
+
+describe('the away summary and traps', () => {
+  const report = (events: GameEvent[]): OfflineReport => ({
+    awayMs: 8 * 3_600_000,
+    simulatedMs: 8 * 3_600_000,
+    dayStarts: 0,
+    seasonChanges: [],
+    events,
+    showSummary: true,
+  });
+
+  it('counts what the traps caught while away', () => {
+    const events: GameEvent[] = [
+      { type: 'caught', catch: 'bluegill', sizeCm: 12, location: 'pond', viaTrap: true },
+      { type: 'caught', catch: 'old_boot', sizeCm: 0, location: 'pond', viaTrap: true },
+      { type: 'caught', catch: 'koi', sizeCm: 40, location: 'pond', viaTrap: false },
+    ];
+    expect(awayTotals(report(events)).trapCatches).toBe(2);
+    const rows = awayRows(report(events), { readyPlots: 0, dryPlots: 0 });
+    expect(rows).toEqual([
+      { icon: 'obj_fish_trap_full', text: 'Your traps caught 2 things from the water.' },
+    ]);
+    expect(awayRows(report([]), { readyPlots: 0, dryPlots: 0 })).toEqual([]);
+  });
+});

@@ -16,3 +16,9 @@ Ideas that came up during a phase but were outside its scope. Add one line per i
 - **A visible sprinkler radius on hover** in normal play (not only in placement mode) and coloured soil for scarecrow-boosted plots. Phase 08 (polish).
 - **Buy seeds from the farmhand's route**: a planter that draws down gold to restock its last crop (opt-in, with a cap), so a lapsed seed supply does not stall the farm. Phase 09 if the idle pacing shows farms stalling.
 - **Golden scarecrow** (Spring Crops bundle reward, radius 3, +0.30): `scarecrowBonus` and `areaOf` in `src/systems/placement.ts` are the seams. Phase 07.
+- **Choose where a trap goes** (drag it to any free water tile, or three traps in the river's wider water), and a trap "bait" item that skews its pool. Phase 05 sets traps out automatically at two fixed spots per water. Phase 08 (polish) or 09.
+- **A "line out" cooldown or minimum bite wait after each catch**, if phase 09 finds active fishing too strong (BALANCE.md "Phase 05 tuning notes"). Phase 09.
+- **Fish sounds and a rod-tug rumble on touch devices** (`navigator.vibrate`) during the reel. Phase 08.
+- **Show the fish behind the "!"**: a silhouette that peeks up when the bite lands, so a rare or legendary bite is exciting. Phase 08 (juice).
+- **A pause button and auto-cancel** when the Fishing panel is closed for a long time, so a forgotten cast does not hold a session for days. Phase 08.
+

@@ -27,7 +27,8 @@ import {
   SPECIAL_BONUS_STEPS,
   SPECIALS_EXTRA_MAX,
 } from '../data/balance';
-import { CROP_IDS, type ItemId, type SeasonId } from '../data/ids';
+import { CROP_IDS, FISH_IDS, type ItemId, type SeasonId } from '../data/ids';
+import { isLocationUnlocked } from './locations';
 import type { ItemDef } from '../data/types';
 import { fail, OK, type ActionResult, type SimContext } from './context';
 import { earn } from './economy';
@@ -223,12 +224,20 @@ export function tickMarket(state: GameState, _ctx: SimContext, dtMs: number): vo
 
 // ---- daily refresh: specials and the sparkline
 
-/** Sellable items the player can obtain now: unlocked, in-season crops (fish and dishes join later). */
+/**
+ * Sellable items the player can obtain now: unlocked, in-season crops and the in-season fish of the
+ * locations they have opened (dishes join in phase 06).
+ */
 export function specialCandidates(state: GameState, data: GameData, season: SeasonId): ItemId[] {
-  return CROP_IDS.filter((c) => {
+  const crops = CROP_IDS.filter((c) => {
     const crop = data.crops[c];
     return crop.seasons.includes(season) && isUnlocked(state, crop.unlock) && data.items[c]?.sellable;
   });
+  const fish = FISH_IDS.filter((f) => {
+    const def = data.fish[f];
+    return def.seasons.includes(season) && isLocationUnlocked(state, def.location);
+  });
+  return [...crops, ...fish];
 }
 
 /** Draws today's specials: 1–3 items without replacement, each +20% to +50%. */

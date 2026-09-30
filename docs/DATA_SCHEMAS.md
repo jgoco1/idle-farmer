@@ -438,6 +438,8 @@ export interface GameData {
 
 Passing `GameData` in (rather than importing it inside systems) lets tests use tiny fake tables.
 
+Phase 05 status: `GameData` also has `fish` and `junk` (`src/data/fish.ts`, with `FISH_LOCATIONS` and `LOCATION_NAMES`); `items` now holds an item per fish and per junk item (generated in `items.ts`). `FishDef` and `JunkDef` gained a `description`; `HourWindow`, `FishDef` and `JunkDef` live in `src/data/types.ts`. `UpgradeEffect` gained `reelZoneMult` and `luck` and the `autoCollect` flag; `UpgradeDef.placeOn` may be `'water'` (fish traps). `upgrades` now holds `fish_trap`, `fishing_rod` and `trap_collector`.
+
 Phase 03 status: `GameData` also has `expansions` (full record) and `upgrades` (`Partial<Record<UpgradeId, UpgradeDef>>`, only `backpack` so far; `UpgradeEffect` has only `inventorySlots` until phase 04 adds its fields). `CostCurve`, `UpgradeDef`, `UpgradeEffect` and `ExpansionDef` live in `src/data/types.ts`.
 
 Phase 02 status: `GameData` has `startGrid`, `crops` and `items`. `items` is `Partial<Record<ItemId, ItemDef>>` until phases 05/06 add fish, junk and dishes; it holds a crop item and a `seed_<crop>` item per crop, generated in `src/data/items.ts`.
@@ -514,7 +516,7 @@ export interface GameState {
   upgrades: Partial<Record<UpgradeId, number>>;    // @03 (backpack); level, or number owned for placeables
 
   // ---- automation (@04)
-  placed: PlacedObject[];                          // sprinklers and scarecrows (@04); fish traps join in @05
+  placed: PlacedObject[];                          // sprinklers and scarecrows (@04); fish traps live in `fishing.traps` (@05)
   autoSell: Partial<Record<ItemId, boolean>>;      // per-item toggle; a missing entry means on for crops
   automation: { farmhandCooldownMs: number };      // simulated ms to the farmhand's next visit (0 = nobody hired)
   lastPlantedCrop: (CropId | null)[];              // for the seed planter: field plots row-major, then greenhouse plots
@@ -522,7 +524,7 @@ export interface GameState {
 
   // ---- fishing (@05)
   fishing: {
-    unlocked: FishLocationId[];                    // ['pond'] at start
+    // (phase 05: no `unlocked` list; the pond plus the river and ocean expansions in `expansions`, see systems/locations.ts)
     traps: TrapState[];
     collection: Partial<Record<FishId, { firstCaughtAt: string; bestSizeCm: number; count: number }>>;  // firstCaughtAt = dayKey
     session: FishingSession | null;                // an in-progress cast/reel, so saving mid-minigame is safe
@@ -569,22 +571,35 @@ export interface MarketItemState {
 
 export interface PlacedObject {
   id: number;                          // unique; the next one is max(id) + 1
-  kind: 'sprinkler' | 'scarecrow';     // @04; 'golden_scarecrow' (07) and 'fish_trap' (05) come later
+  kind: 'sprinkler' | 'scarecrow';     // @04; 'golden_scarecrow' comes in 07 (fish traps are `fishing.traps`, not placed objects)
   at: { col: number; row: number };    // plot (col, row) inside the field grid, so expansions need no remap
 }
 
+// Phase 05 as built (src/core/state.ts): traps are not `PlacedObject`s (those stand on plots), they are set out
+// at the water by `buyUpgrade('fish_trap')`, so they carry their own id, location and slot.
 export interface TrapState {
-  placedId: number;
-  progressMs: number;        // toward the next catch roll
-  contents: ItemStack[];     // at most capacity items in total
+  id: number;                // unique, monotonically increasing
+  location: FishLocationId;
+  slot: number;              // 0 or 1: which of the location's two spots (TRAP_TILES in render/scene.ts)
+  progressMs: number;        // toward the next catch roll, simulated ms at ×1 speed
+  contents: ItemStack[];     // at most TRAP_CAPACITY items in total
+}
+
+export interface ReelState {
+  marker: number; zoneCenter: number; zoneVel: number;   // bar fractions; velocity in bar-widths per second
+  zoneWidth: number; zoneSpeed: number; drainPerSec: number;   // fixed at the start (rod and Relaxed fishing applied)
+  retargetMs: number;        // until the zone picks a new heading
+  meter: number;             // 0..1
 }
 
 export interface FishingSession {
   location: FishLocationId;
-  phase: 'casting' | 'waiting' | 'bite' | 'reeling';
+  phase: 'charging' | 'waiting' | 'bite' | 'reeling';
+  power: number;             // 0..1 cast power
   fish: FishId | JunkId | null;        // decided when the bite happens
-  biteInMs: number;
-  reel: { marker: number; zoneCenter: number; zoneVel: number; meter: number } | null;
+  sizeCm: number;
+  waitMs: number;            // waiting: until the bite; bite: the window left to start reeling (real ms)
+  reel: ReelState | null;
 }
 
 export interface CookJob { recipe: RecipeId; remainingMs: number }
@@ -609,7 +624,7 @@ export interface Stats {
   goldToday: number;           // @03: reset at each 06:00 refresh
   cropsHarvested: number;      // @03: units
   itemsShipped: number;        // @03: units sold through the Shipping Bin
-  fishCaught: number;          // @05
+  fishCaught: number;          // @05: fish (not junk) landed by rod or trap
   dishesCooked: number;        // @06
   dishesEaten: number;         // @06
   daysPassed: number;          // @03: daily refreshes seen

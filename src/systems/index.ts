@@ -9,6 +9,8 @@ import { msToNextAutomation, tickAutomation } from './automation';
 import { msToNextWaterOut, tickFarming, witherOutOfSeasonCrops } from './farming';
 import { openMarketDay, tickMarket } from './market';
 import { msToNextPickup, tickShippingBin } from './shippingBin';
+import { hasFlag } from './upgrades';
+import { collectAllTraps, tickTraps } from './traps';
 
 /**
  * Advances every system by `dtMs` of simulated time. The core guarantees that no simulated-time
@@ -18,9 +20,14 @@ import { msToNextPickup, tickShippingBin } from './shippingBin';
 export function tickSystems(state: GameState, ctx: SimContext, dtMs: number): void {
   tickFarming(state, ctx, dtMs);
   tickAutomation(state, ctx, dtMs); // farmhand harvest → planter (auto-ship is part of harvesting), before the bin
+  tickTraps(state, ctx, dtMs); // idle fishing: one roll per trap per 3 simulated minutes
   tickMarket(state, ctx, dtMs);
+  // The Trap Collector empties the traps into the bag (or the bin) just before the pickup that sells the bin.
+  if (dtMs >= state.shippingBin.msToPickup && hasFlag(state, ctx.data, 'trap_collector', 'autoCollect')) {
+    collectAllTraps(state, ctx);
+  }
   tickShippingBin(state, ctx, dtMs); // last: a pickup lands at the end of the step, at that moment's prices
-  // phase 05: tickTraps(...)   phase 06: tickKitchen(...); tickBuffs(...)
+  // phase 06: tickKitchen(...); tickBuffs(...)
 }
 
 /**

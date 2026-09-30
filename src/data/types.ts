@@ -6,8 +6,11 @@ import type {
   CropId,
   ExpansionId,
   FishId,
+  FishLocationId,
   ItemId,
+  JunkId,
   MilestoneId,
+  Rarity,
   SeasonId,
   SkillId,
   UpgradeId,
@@ -69,7 +72,8 @@ export interface CostCurve {
 export type UpgradeCategory = 'farm' | 'tools' | 'storage' | 'fishing' | 'kitchen';
 
 /** What the farmhand-family upgrades switch on (BALANCE.md §4). Cumulative across levels. */
-export type AutomationFlag = 'replantHarvested' | 'plantEmpty' | 'autoTill' | 'autoShip' | 'keepReserve';
+export type AutomationFlag =
+  'replantHarvested' | 'plantEmpty' | 'autoTill' | 'autoShip' | 'keepReserve' | 'autoCollect';
 
 /** Each upgrade uses the fields relevant to it; unused fields are omitted. */
 export interface UpgradeEffect {
@@ -82,8 +86,10 @@ export interface UpgradeEffect {
   toolArea?: 1 | 3 | 9 | 25; // watering can / hoe tiles per click
   stackSize?: number; // barn storage
   greenhousePlots?: number; // greenhouse
-  flags?: readonly AutomationFlag[]; // seed planter and auto-seller
-  // phase 05+: reelZoneMult, luck, cookSpeed, …
+  flags?: readonly AutomationFlag[]; // seed planter, auto-seller, trap collector
+  reelZoneMult?: number; // fishing rod: × the reel minigame's sweet zone
+  luck?: number; // fishing rod: additive fishing luck
+  // phase 06+: cookSpeed, …
 }
 
 export interface UpgradeDef {
@@ -103,8 +109,8 @@ export interface UpgradeDef {
   requires: readonly UnlockCondition[];
   /** Extra conditions for buying one particular level (key = the level being bought, 1-based). */
   levelRequires?: Readonly<Record<number, readonly UnlockCondition[]>>;
-  /** Placeables only: where they may be placed. */
-  placeOn?: 'plot';
+  /** Placeables only: where they go (traps are set out at the water automatically). */
+  placeOn?: 'plot' | 'water';
 }
 
 export interface ExpansionDef {
@@ -117,9 +123,37 @@ export interface ExpansionDef {
   /** farm: the plot grid size after buying. */
   grid?: { cols: number; rows: number };
   /** fishing: the location it opens (phase 05). */
-  location?: 'river' | 'ocean';
+  location?: FishLocationId;
   /** Short note of what changes in the scene. */
   sceneChange: string;
   /** One cozy line for the Upgrades panel. */
+  description: string;
+}
+
+/** A time-of-day window on the local clock, hours 0..24; `start > end` wraps past midnight (16–10). */
+export interface HourWindow {
+  start: number;
+  end: number;
+}
+
+export interface FishDef {
+  id: FishId;
+  name: string;
+  location: FishLocationId;
+  seasons: readonly SeasonId[];
+  hours: HourWindow; // when it bites; traps ignore it
+  rarity: Rarity;
+  difficulty: number; // 0..100, drives the reel minigame
+  sizeCm: { min: number; max: number };
+  basePrice: number;
+  trappable: boolean; // true only for common and uncommon fish
+  description: string;
+}
+
+export interface JunkDef {
+  id: JunkId;
+  name: string;
+  basePrice: number;
+  locations: readonly FishLocationId[];
   description: string;
 }

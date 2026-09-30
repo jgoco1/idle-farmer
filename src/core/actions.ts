@@ -14,7 +14,9 @@ import { buySeeds } from '../systems/shop';
 import { setAutoSell } from '../systems/autoSeller';
 import { pickUpObject, placeObject } from '../systems/placement';
 import { buyUpgrade } from '../systems/upgrades';
-import type { CropId, ExpansionId, ItemId, UpgradeId } from '../data/ids';
+import { cancelCast, startCast, stepFishing } from '../systems/fishing';
+import { collectTrap } from '../systems/traps';
+import type { CropId, ExpansionId, FishLocationId, ItemId, UpgradeId } from '../data/ids';
 import type { GameState, PlacedKind } from './state';
 
 export type Action =
@@ -37,6 +39,13 @@ export type Action =
   | { type: 'pickUp'; id: number }
   /** Auto-Seller: ship (or keep) one item's harvests. */
   | { type: 'setAutoSell'; item: ItemId; on: boolean }
+  /** Fishing: press to start charging a cast at a location, then `fishTick` every frame with the button state. */
+  | { type: 'fishStart'; location: FishLocationId }
+  | { type: 'fishTick'; holding: boolean; dtMs: number }
+  | { type: 'fishCancel' }
+  /** Click a trap: take what is in it. */
+  | { type: 'collectTrap'; id: number }
+  | { type: 'setRelaxedFishing'; on: boolean }
   | { type: 'debugSetTimeWarp'; on: boolean };
 
 export const TIME_WARP_SPEED = 60;
@@ -76,6 +85,17 @@ export function applyAction(state: GameState, ctx: SimContext, action: Action): 
       return pickUpObject(state, ctx, action.id);
     case 'setAutoSell':
       return setAutoSell(state, ctx.data, action.item, action.on);
+    case 'fishStart':
+      return startCast(state, ctx, action.location);
+    case 'fishTick':
+      return stepFishing(state, ctx, action.holding, action.dtMs);
+    case 'fishCancel':
+      return cancelCast(state);
+    case 'collectTrap':
+      return collectTrap(state, ctx, action.id);
+    case 'setRelaxedFishing':
+      state.settings.relaxedFishing = action.on;
+      return OK;
     case 'debugSetTimeWarp':
       state.clock.speed = action.on ? TIME_WARP_SPEED : 1;
       return OK;

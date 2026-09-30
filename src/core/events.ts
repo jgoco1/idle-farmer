@@ -34,6 +34,7 @@ export type GameEvent =
   | { type: 'purchased'; what: UpgradeId | ExpansionId | SeedId | RecipeId; gold: number }
   | { type: 'inventoryFull'; item: ItemId }
   | { type: 'bite' | 'escaped'; location: FishLocationId }
+  | { type: 'trapCollected'; location: FishLocationId; items: number }
   | { type: 'caught'; catch: FishId | JunkId; sizeCm: number; location: FishLocationId; viaTrap: boolean }
   | { type: 'cooked'; recipe: RecipeId; tier: RecipeTier; hearty: boolean }
   | { type: 'ate'; recipe: RecipeId; buff: BuffType }

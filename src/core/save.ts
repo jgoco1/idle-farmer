@@ -10,7 +10,7 @@
 import { createInitialState, cloneState, type GameState } from './state';
 import type { LocalClock } from './time';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 export const SAVE_KEY = 'hearthfield-idle/save';
 export const AUTOSAVE_MS = 15_000;
 
@@ -68,6 +68,17 @@ export const migrations: Record<number, Migration> = {
       { length: (old.farm?.plots?.length ?? 0) + (old.farm?.greenhouse?.length ?? 0) },
       () => null,
     ),
+  }),
+  /**
+   * v4 → v5 (phase 05, fishing): no traps, an empty Fish Collection, no cast in progress, no fish
+   * caught yet, and Relaxed fishing off. Unlocked locations are derived from `expansions`, so a
+   * player who already bought River Access (a no-op purchase before phase 05 refused it) keeps it.
+   */
+  4: (old) => ({
+    ...old,
+    settings: { ...old.settings, relaxedFishing: false },
+    stats: { ...old.stats, fishCaught: 0 },
+    fishing: { traps: [], collection: {}, session: null },
   }),
 };
 
@@ -160,7 +171,14 @@ function economyProblem(s: Record<string, unknown>): string | null {
   if (shippingBin.msToPickup <= 0 || shippingBin.items.some(stackProblem)) return 'bad shipping bin';
   if (!Array.isArray(expansions) || !expansions.every((x) => typeof x === 'string')) return 'bad expansions';
   if (!isObj(stats)) return 'bad stats';
-  for (const k of ['lifetimeGold', 'goldToday', 'cropsHarvested', 'itemsShipped', 'daysPassed']) {
+  for (const k of [
+    'lifetimeGold',
+    'goldToday',
+    'cropsHarvested',
+    'itemsShipped',
+    'daysPassed',
+    'fishCaught',
+  ]) {
     if (!isInt(stats[k])) return 'bad stats';
   }
   if (!isObj(upgrades) || !Object.values(upgrades).every(isInt)) return 'bad upgrades';
@@ -196,6 +214,55 @@ function automationProblem(s: Record<string, unknown>): string | null {
   return null;
 }
 
+const LOCATIONS = ['pond', 'river', 'ocean'];
+const PHASES = ['charging', 'waiting', 'bite', 'reeling'];
+
+function sessionProblem(x: unknown): string | null {
+  if (x === null) return null;
+  if (!isObj(x) || !LOCATIONS.includes(x.location as string) || !PHASES.includes(x.phase as string))
+    return 'bad fishing session';
+  if (!isNum(x.power) || !isNum(x.sizeCm) || !isNum(x.waitMs)) return 'bad fishing session';
+  if (x.fish !== null && typeof x.fish !== 'string') return 'bad fishing session';
+  if (x.phase !== 'charging' && x.phase !== 'waiting' && typeof x.fish !== 'string') {
+    return 'bad fishing session';
+  }
+  if (x.phase === 'reeling') {
+    const r = x.reel;
+    if (!isObj(r)) return 'bad fishing session';
+    for (const k of [
+      'marker',
+      'zoneCenter',
+      'zoneVel',
+      'zoneWidth',
+      'zoneSpeed',
+      'retargetMs',
+      'drainPerSec',
+      'meter',
+    ]) {
+      if (!isNum(r[k])) return 'bad fishing session';
+    }
+  }
+  return null;
+}
+
+function fishingProblem(s: Record<string, unknown>): string | null {
+  const f = s.fishing;
+  if (!isObj(f) || !Array.isArray(f.traps) || !isObj(f.collection)) return 'bad fishing';
+  const ids = new Set<number>();
+  for (const t of f.traps) {
+    if (!isObj(t) || !isInt(t.id) || !LOCATIONS.includes(t.location as string) || !isInt(t.slot))
+      return 'bad trap';
+    if (!isInt(t.progressMs) || t.progressMs < 0 || !Array.isArray(t.contents)) return 'bad trap';
+    if (t.contents.some(stackProblem) || ids.has(t.id)) return 'bad trap';
+    ids.add(t.id);
+  }
+  for (const e of Object.values(f.collection)) {
+    if (!isObj(e) || typeof e.firstCaughtAt !== 'string' || !isNum(e.bestSizeCm) || !isInt(e.count))
+      return 'bad fish collection';
+  }
+  return sessionProblem(f.session);
+}
+
 /** Structural check of a current-version state. Returns a reason, or null if it looks valid. */
 export function validateState(s: unknown): string | null {
   if (!isObj(s)) return 'state is not an object';
@@ -212,11 +279,18 @@ export function validateState(s: unknown): string | null {
     return 'bad calendar';
   if (!isNum(s.rngState)) return 'bad rngState';
   if (!isNum(s.gold)) return 'bad gold';
-  if (!isObj(settings) || !isNum(settings.masterVolume)) return 'bad settings';
+  if (!isObj(settings) || !isNum(settings.masterVolume) || typeof settings.relaxedFishing !== 'boolean')
+    return 'bad settings';
   if (!isObj(meta) || !isNum(meta.createdAt) || !isNum(meta.lastSavedAt) || !isNum(meta.playTimeMs))
     return 'bad meta';
   if (!Number.isInteger(s.gold) || s.gold < 0) return 'bad gold';
-  return farmProblem(s.farm) ?? inventoryProblem(s.inventory) ?? economyProblem(s) ?? automationProblem(s);
+  return (
+    farmProblem(s.farm) ??
+    inventoryProblem(s.inventory) ??
+    economyProblem(s) ??
+    automationProblem(s) ??
+    fishingProblem(s)
+  );
 }
 
 /** Builds the SaveFile for `state` at real time `now`. The debug time warp is never saved. */

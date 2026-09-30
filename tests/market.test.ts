@@ -204,10 +204,28 @@ describe("today's specials", () => {
 
   it('only offers what the player can grow now', () => {
     const s = farm();
-    expect(specialCandidates(s, GAME_DATA, 'spring')).toEqual(['turnip', 'potato']);
-    expect(specialCandidates(s, GAME_DATA, 'winter')).toEqual([]); // winter crops start at Farm Level 2
+    // Crops in season, then the in-season fish of the open locations (the pond, until the river opens).
+    expect(specialCandidates(s, GAME_DATA, 'spring')).toEqual([
+      'turnip',
+      'potato',
+      'bluegill',
+      'carp',
+      'catfish',
+      'koi',
+      'petal_koi',
+    ]);
+    expect(specialCandidates(s, GAME_DATA, 'winter')).toEqual(['bluegill']); // winter crops start at Farm Level 2
     s.stats.lifetimeGold = 300;
-    expect(specialCandidates(s, GAME_DATA, 'winter')).toEqual(['garlic', 'kale', 'leek']);
+    expect(specialCandidates(s, GAME_DATA, 'winter')).toEqual(['garlic', 'kale', 'leek', 'bluegill']);
+    s.expansions.push('river');
+    expect(specialCandidates(s, GAME_DATA, 'winter')).toEqual([
+      'garlic',
+      'kale',
+      'leek',
+      'bluegill',
+      'perch',
+      'sturgeon',
+    ]);
   });
 
   it('a new farm opens with specials and one sparkline point', () => {

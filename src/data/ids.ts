@@ -180,6 +180,8 @@ export const FISH_IDS: readonly FishId[] = [
   'moonfin',
 ];
 
+export const JUNK_IDS: readonly JunkId[] = ['old_boot', 'seaweed', 'driftwood'];
+
 export const RECIPE_IDS: readonly RecipeId[] = [
   'roasted_turnip',
   'baked_potato',
@@ -223,6 +225,10 @@ export function isSeedId(id: string): id is SeedId {
 
 export function isFishId(id: string): id is FishId {
   return (FISH_IDS as readonly string[]).includes(id);
+}
+
+export function isJunkId(id: string): id is JunkId {
+  return (JUNK_IDS as readonly string[]).includes(id);
 }
 
 export function isDishId(id: string): id is DishId {
