@@ -183,3 +183,58 @@ Each phase appends a section with **Built / Deviations / Known issues / Next-pha
 - **Farm level gates:** use `isUnlocked` / `unlockHint(state, data, conditions)`; `farmLevel(state)` is the provisional level until phase 07.
 - **Pacing:** rerun `tests/pacing.test.ts`; replace the virtual `sprinkler` / `farmhand` in `DEFAULT_SHOPPING_LIST` (`tests/sim/greedyPlayer.ts`) with real upgrades, and add an idle (absent) player to check the casual-idler target with the bin.
 - **Scene:** `DECOR` in `src/render/scene.ts` shows scenery by expansion; `Renderer.setScene(grid, expansions)` rebuilds the static layer. The shipping bin zone is `bin` at `BIN_TILE` (18,7).
+
+---
+
+## Phase 04: Automation and upgrades (the idle core)
+
+### Built
+- **Data:** the ten upgrades of BALANCE.md §4 in `src/data/upgrades.ts` (`sprinkler`, `sprinkler_tech`, `scarecrow`, `farmhand`, `seed_planter`, `auto_seller`, `watering_can`, `hoe`, `barn_storage`, `greenhouse`), each with a description, category, cost curve, per-level effect rows and prerequisites. `UpgradeEffect` gained `radius`, `shape`, `growthBonus`, `intervalSec`, `capacity`, `toolArea`, `stackSize`, `greenhousePlots`, `flags`; `UpgradeDef` gained `description`, `placeOn` and `levelRequires` (extra conditions for one level: Sprinkler Tech needs Farm Level 4 for level 1 and 7 for level 2). Constants `GREENHOUSE_BASE` and `AUTO_SELLER_RESERVE` in `src/data/balance.ts`.
+- **State and save:** `placed`, `autoSell`, `automation { farmhandCooldownMs }`, `lastPlantedCrop`. `SAVE_VERSION = 4`; `migrations[3]` gives v3 saves nothing placed, default toggles, no timer and one empty memory slot per plot. `validateState` checks all four. Fixture `tests/fixtures/save-v4.json` (sprinkler, scarecrow, farmhand 2, planter 1, auto-seller 1, one toggle off).
+- **Systems:**
+  - `src/systems/placement.ts`: `placeObject` / `pickUpObject`, `placementProblem`, `stockOf`, `areaOffsets` / `areaOf` (plus, 3 × 3, 5 × 5 by Sprinkler Tech), `coverageOf` (per plot: sprinkled, best scarecrow bonus; null when nothing is placed).
+  - `src/systems/automation.ts`: `farmhandStats`, `tickAutomation`, `msToNextAutomation`, `planPlanter`. A visit harvests up to `capacity` ready plots and then runs the seed planter (replant → fill → till). Reads `mods.automationSpeedModifier` (the phase 06 seam) for the interval.
+  - `src/systems/autoSeller.ts`: `stowHarvest` (bag or bin, reserve at level 2), `autoSellOn`, `setAutoSell`.
+  - `src/systems/farming.ts`: `PlotEnv` (sprinkled, scarecrow bonus) in `growthAfter` / `msUntilReady`; `plotWatered`; `harvestOne` shared by the Hand and the farmhand; `plantOne`; tool areas (`toolArea`, `expandToolArea`, applied in `useTool` only, so plain `till` / `water` actions stay exact); greenhouse plots addressed as `GREENHOUSE_BASE + n` (`plotAt`, `allPlotIndexes`). Tools skip plots that hold a sprinkler or scarecrow.
+  - `src/systems/upgrades.ts`: `effectOf`, `hasFlag`, `requirementsFor`; buying applies barn storage, hires the farmhand (starts its timer) and builds greenhouse plots (tilled, 6 then 12). `src/systems/expansions.ts` re-indexes `lastPlantedCrop` when the field grows. `msToNextPickup` now always reports pickups once an Auto-Seller exists.
+- **Actions:** `place` (`kind`, `col`, `row`), `pickUp` (`id`), `setAutoSell` (`item`, `on`); `buyUpgrade` covers every new upgrade. Events: `placed`, `pickedUp`; `harvested` gained `shipped`; `planted` / `tilled` gained `auto`. `Game.isPlotWatered(i)` for the UI and e2e.
+- **Rendering:** `src/render/farmhand.ts` (`FarmhandVisual`: walks at 56 px/s to the plots named by auto events, crouch-and-pop for 320 ms, walks home to tile (4,4); queue of at most six; cosmetic only), sprites in `src/render/sprites/automation.ts` (sprinkler with a six-frame spray cycle, swaying scarecrow, farmhand walk / idle / pop, greenhouse roof), placed objects and the greenhouse drawn in `Renderer.render(timeMs, calendar, SceneView)`, and a placement range preview (`setPreview`: blue tint on valid spots, red on invalid, clipped to the field).
+- **UI:** `src/ui/placement.ts` (placement mode with a banner; buying a sprinkler or scarecrow enters it, Escape or Done leaves it, clicking a placed object picks it up); the Upgrades panel is grouped into Field, Automation, Tools and Storage, with level, description, next level's effect, cost, every unmet prerequisite, a flash and a message on purchase, Place / Move buttons for placeables and per-crop ship toggles under the Auto-Seller; the away summary (`awayRows`) lists crops harvested, items shipped, gold earned, withered crops, dry plots and waiting crops with sprite icons, and collapses to two lines when nothing happened.
+- **Pacing:** `tests/sim/greedyPlayer.ts` buys the real upgrades and places them (`AUTOMATION_SHOPPING_LIST`, `fullyAutomated`, `automatedAt`); results and reasoning in BALANCE.md "Phase 04 tuning notes".
+- **Tests:** 387 unit tests (was 317). `tests/automation.test.ts` (costs and prerequisites, area coverage per tier and clipping, scarecrow area and non-stacking, placement validity and survival across expansions, tool areas, auto-seller routing and reserve, farmhand throughput per level, the planter's three levels and its season rules, greenhouse, large step = small steps for the whole chain, offline season change, the 8-hour budget), `tests/automationUi.test.ts` (greenhouse layout and hit-testing, farmhand figure, away rows, actions), the v3 → v4 migration and two pacing groups. E2E (`e2e/automation.spec.ts`): buy a sprinkler, place it, pick it up, place it again, advance 2.5 simulated hours and check that only the covered plots are still watered; and an automated 6 × 5 farm screenshot (`docs/screenshots/phase04-automated-farm.png`).
+
+### Performance (8 hours away)
+| Scenario | Time |
+|---|---|
+| 8 × 6 farm, farmhand 5, planter 3, auto-seller 2, 8 sprinklers, 2 scarecrows (7,977 crops harvested and replanted) | 34–41 ms |
+| The finished pacing farm after 5.5 h of play, seeds stocked (803 items shipped) | ~9 ms |
+
+Budget in the test: < 100 ms. The cost is proportional to the number of *useful* visits, not to the time away.
+
+### Deviations
+- **Auto-ship happens inside the harvest** (`stowHarvest`), not as a separate pass after the planter: the same result, and it lets a full bag never block an auto-sold crop. GDD order otherwise holds: growth → farmhand harvest → planter → bin pickup.
+- **Row-major order instead of "oldest-ready first"** for the farmhand (growth is clamped at ready, so the age is not stored). Documented in BALANCE.md §4.
+- **`automation.farmhandTarget` dropped** from DATA_SCHEMAS.md: the sprite follows `harvested` / `planted` events, so no target needs saving. `PlacedObject.at` is plot (col, row) only until phase 05 adds traps.
+- **Sprinklers and scarecrows occupy their plot** (BALANCE.md says "occupies one plot"; the area therefore excludes the centre), and cannot be placed on a growing crop. Tools, the farmhand and the planter skip those plots.
+- **Manual harvests also go to the bin** when the Auto-Seller is on for that crop (BALANCE.md says so; the toggle is the way to opt out).
+- **The planter tills only when it has a seed** for the plot, so it never leaves a field of empty tilled soil.
+- **No inventory-full event from the farmhand.** A blocked plot just waits (and the visit is not an event boundary); the away summary reports waiting crops. Idea logged.
+- **Sprinkler Tech gates per level** through `levelRequires` (Farm Level 4 for level 1, 7 for level 2).
+- **Greenhouse** plots use virtual indexes (`GREENHOUSE_BASE + n`) so every tool, the farmhand and the planter work on them; the lot shows a glass roof and always-wet soil. The upgrade needs Farm Level 7 and 25,000g, so it is far from anything in the pacing run and only covered by unit tests and the layout tests, not by playtesting.
+- `step()` in `src/core/sim.ts` now computes the modifiers *before* asking the systems for the next event (the automation prediction reads them).
+
+### Known issues
+- The automation prediction assumes growth is linear between events; a plot that becomes ready within 1 ms of a visit can slip to the next visit when the same time is played in 100 ms ticks (growth rounds once per step part). The large-vs-small tests are exact for whole-second timings and allow six crops of difference with a scarecrow.
+- The Auto-Seller makes an active player's income arrive in hourly lumps (BALANCE.md notes); idle income is about a quarter of active income at the end of the pacing run.
+- The farmhand walks in straight lines over the crops (and through the fence); the figure is drawn over everything except the tint.
+- `farm_4`'s scarecrow post decoration and placed scarecrows look similar (recoloured); the post could get its own art.
+- The Upgrades panel is long on a phone (three sections of cards); phase 08 may want tabs.
+- Greenhouse purchase and play are unit-tested but were not exercised in a browser.
+
+### Next-phase notes (for phase 05: fishing)
+- **Placing traps:** extend `PlacedKind` / `PlacedObject.at` in `src/core/state.ts` (add `{ location, slot }` for traps), `placeObject` in `src/systems/placement.ts`, and the `validateState` placed check in `src/core/save.ts`. Placement mode UI is `src/ui/placement.ts`; the renderer draws placed things in `Renderer.drawPlaced`.
+- **Trap collection at the bin pickup:** `collect()` in `src/systems/shippingBin.ts`; route trap contents through `stowHarvest` (`src/systems/autoSeller.ts`) so the Auto-Seller toggles apply to fish. `autoSellOn` defaults to *on for crops only*; decide fish there.
+- **New timed systems** report through `msToNextSimEvent` (`src/systems/index.ts`); follow `msToNextAutomation` for "only stop at useful moments".
+- **Speed seam:** `fishingSpeedModifier` is read the same way `automationSpeedModifier` is in `farmhandStats`.
+- **Upgrades panel:** add fishing entries to `SECTIONS` in `src/ui/upgradesPanel.ts`; leveled and placeable cards, prerequisite hints (`unlockHints`) and the purchase flash are shared.
+- **Pacing:** `AUTOMATION_SHOPPING_LIST` in `tests/sim/greedyPlayer.ts` still buys River Access as a virtual item; switch it to the real `buyExpansion('river')` when fishing lands.

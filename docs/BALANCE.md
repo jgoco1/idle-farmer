@@ -648,3 +648,21 @@ Each phase that tunes numbers adds a dated subsection here: what changed, why, a
 - **Waiting.** A player on the starter crops never waits more than 2 min (turnips take 2). After Farm Level 4 (~17 min) the greedy player fills the field with 10-minute cauliflower and waits up to ~6–8 min between waves: its own choice, and fishing (phase 05) fills those gaps. The test asserts the ≤ 2 min target before FL4 and for a starter-crop player.
 - **Provisional farm level** (§9, unchanged) is generous: FL3 at ~10 min, FL4 ~17, FL6 ~47. Phase 07 replaces it.
 - **Watch in phase 04:** the Shipping Bin sells its whole load at one moment, so an hour of auto-shipped harvest of one crop sells far down its demand curve (e.g. 240 turnips average ~0.65). That makes selling as you go better than a full bin, which is intended, but check it against the casual-idler target when auto-selling arrives.
+
+### Phase 04 tuning notes
+**Method.** `tests/sim/greedyPlayer.ts` now buys the real phase 04 upgrades. It places sprinklers and scarecrows where they cover the most uncovered plots (harvesting the crop in the way first), keeps clicking like an active player, and stocks eight rounds of seed once the Auto-Seller makes its income hourly. `AUTOMATION_SHOPPING_LIST` runs farm_1 → sprinkler → farmhand → farm_2 → river (virtual) → farm_3 → seed planter → sprinklers → farmhand 2, 3 → planter 2 → Sprinkler Tech → farm_4 → Sprinkler Tech 2 → sprinklers → Auto-Seller last. `tests/pacing.test.ts` asserts the results below on three seeds.
+
+**Result: no numbers changed.** The costs, unlocks and farmhand table of §4 already land inside the targets (medians of 3–6 seeds, minutes of an active player, so these are the fastest a player can go):
+
+| Moment | Target | Measured |
+|---|---|---|
+| First sprinkler (real) | 10–15 min | 10–15 (median 12–14) |
+| Farmhand L1 | 25–40 min | 16–30 (median 28) |
+| Seed planter L1 | — | ~80 min |
+| Farmhand L3 + planter L2 | — | 104–118 min |
+| Farm_4 (8 × 6) | — | ~203 min |
+| Whole farm automated (farmhand 3, planter 2, auto-seller, every open plot sprinkled) | 4–6 h | 4.3–4.8 h |
+
+- **Away income.** A player who stocks 150 seeds of each crop the planter remembers and leaves the finished farm for 8 hours earns about 45,000g (803 items shipped) and the offline step takes ~9 ms. An active player earns about four times that per hour at that stage, so idling is worth roughly a quarter of playing: automation is the main thing to buy, not a replacement for playing.
+- **The Auto-Seller makes income lumpy.** The bin pays once an hour, at that moment's prices, so an active player who buys it early sees gold arrive in hourly lumps and spends the gaps with an empty purse (in the simulation their lifetime gold at 4 h was 54k against 95k without it). It is therefore the last item on the shopping list and a comfortable "I am about to leave" purchase. If phase 09 finds idle income too low, the levers are a shorter `BIN_PICKUP_MS` while a farmhand is hired, or gentler bin demand steps; neither is needed for the targets above.
+- **Sprinklers eat plots.** Each one removes a plot from the field (12 of 48 at most). Two Sprinkler Tech levels are what make a full 8 × 6 field coverable with 8–9 sprinklers.

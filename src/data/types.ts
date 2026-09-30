@@ -68,15 +68,29 @@ export interface CostCurve {
 
 export type UpgradeCategory = 'farm' | 'tools' | 'storage' | 'fishing' | 'kitchen';
 
+/** What the farmhand-family upgrades switch on (BALANCE.md §4). Cumulative across levels. */
+export type AutomationFlag = 'replantHarvested' | 'plantEmpty' | 'autoTill' | 'autoShip' | 'keepReserve';
+
 /** Each upgrade uses the fields relevant to it; unused fields are omitted. */
 export interface UpgradeEffect {
   inventorySlots?: number; // backpack (phase 03)
-  // phase 04+: radius, shape, growthBonus, intervalSec, capacity, toolArea, stackSize, …
+  radius?: number; // sprinkler tech / scarecrow area (Chebyshev radius; 'plus' = orthogonal only)
+  shape?: 'plus' | 'square';
+  growthBonus?: number; // scarecrow: added to the growth modifier of the plots in its area
+  intervalSec?: number; // farmhand: simulated seconds between visits
+  capacity?: number; // farmhand (and planter) plots per visit
+  toolArea?: 1 | 3 | 9 | 25; // watering can / hoe tiles per click
+  stackSize?: number; // barn storage
+  greenhousePlots?: number; // greenhouse
+  flags?: readonly AutomationFlag[]; // seed planter and auto-seller
+  // phase 05+: reelZoneMult, luck, cookSpeed, …
 }
 
 export interface UpgradeDef {
   id: UpgradeId;
   name: string;
+  /** One cozy line for the Upgrades panel. */
+  description: string;
   category: UpgradeCategory;
   kind: 'leveled' | 'placeable';
   /** leveled: highest level. placeable: most units the player may own. */
@@ -87,6 +101,10 @@ export interface UpgradeDef {
   /** Numeric effect table read by systems, index = level. */
   effect: readonly UpgradeEffect[];
   requires: readonly UnlockCondition[];
+  /** Extra conditions for buying one particular level (key = the level being bought, 1-based). */
+  levelRequires?: Readonly<Record<number, readonly UnlockCondition[]>>;
+  /** Placeables only: where they may be placed. */
+  placeOn?: 'plot';
 }
 
 export interface ExpansionDef {

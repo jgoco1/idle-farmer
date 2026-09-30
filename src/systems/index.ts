@@ -5,6 +5,7 @@
 import type { GameState } from '../core/state';
 import type { SeasonId } from '../data/ids';
 import type { SimContext } from './context';
+import { msToNextAutomation, tickAutomation } from './automation';
 import { msToNextWaterOut, tickFarming, witherOutOfSeasonCrops } from './farming';
 import { openMarketDay, tickMarket } from './market';
 import { msToNextPickup, tickShippingBin } from './shippingBin';
@@ -16,7 +17,7 @@ import { msToNextPickup, tickShippingBin } from './shippingBin';
  */
 export function tickSystems(state: GameState, ctx: SimContext, dtMs: number): void {
   tickFarming(state, ctx, dtMs);
-  // phase 04: tickAutomation(...) (farmhand → planter → auto-ship) goes here, before the bin
+  tickAutomation(state, ctx, dtMs); // farmhand harvest → planter (auto-ship is part of harvesting), before the bin
   tickMarket(state, ctx, dtMs);
   tickShippingBin(state, ctx, dtMs); // last: a pickup lands at the end of the step, at that moment's prices
   // phase 05: tickTraps(...)   phase 06: tickKitchen(...); tickBuffs(...)
@@ -24,11 +25,11 @@ export function tickSystems(state: GameState, ctx: SimContext, dtMs: number): vo
 
 /**
  * Simulated ms until the next moment a large step must stop at (a buff expiring, a dish finishing,
- * a watering running out, a shipping-bin pickup). `Infinity` when nothing is pending. Used by the
+ * a watering running out, a shipping-bin pickup, the next farmhand visit with work to do). `Infinity` when nothing is pending. Used by the
  * core to split steps.
  */
 export function msToNextSimEvent(state: GameState, ctx: SimContext): number {
-  return Math.min(msToNextWaterOut(state, ctx), msToNextPickup(state));
+  return Math.min(msToNextWaterOut(state, ctx), msToNextPickup(state), msToNextAutomation(state, ctx));
 }
 
 /** Daily refresh at 06:00 local (BALANCE.md §1): market specials and sparkline, goldToday, per-day goals. */

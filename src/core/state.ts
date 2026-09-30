@@ -32,6 +32,15 @@ export interface Plot {
   waterMsLeft: number; // hand watering left (2 h per watering)
 }
 
+/** Objects the player places on the plot grid (@04). `at` is a plot (col, row) inside the grid. */
+export type PlacedKind = 'sprinkler' | 'scarecrow';
+
+export interface PlacedObject {
+  id: number; // unique, monotonically increasing
+  kind: PlacedKind;
+  at: { col: number; row: number };
+}
+
 export interface Inventory {
   slots: (ItemStack | null)[]; // length = slot capacity
   stackSize: number; // 99 base, barn storage raises it (@04)
@@ -96,6 +105,16 @@ export interface GameState {
   stats: Stats;
   /** Upgrade levels (@03 for the backpack; phase 04 adds the rest). */
   upgrades: Partial<Record<UpgradeId, number>>;
+
+  // ---- automation (@04)
+  /** Sprinklers and scarecrows on the plot grid. Positions are (col, row), so expansions need no remap. */
+  placed: PlacedObject[];
+  /** Auto-Seller toggles per item; a missing entry means on for crops. */
+  autoSell: Partial<Record<ItemId, boolean>>;
+  /** The farmhand's timer: simulated ms until the next visit (0 while nobody is hired). */
+  automation: { farmhandCooldownMs: number };
+  /** The crop last planted on each plot, for the seed planter: field plots first, then greenhouse plots. */
+  lastPlantedCrop: (CropId | null)[];
 }
 
 export const DEFAULT_SETTINGS: Settings = { masterVolume: 0.8 };
@@ -116,6 +135,10 @@ export function createInitialState(now: number, lc: LocalClock, seed: number = s
     expansions: [],
     stats: createStartingStats(),
     upgrades: {},
+    placed: [],
+    autoSell: {},
+    automation: { farmhandCooldownMs: 0 },
+    lastPlantedCrop: Array.from({ length: START_GRID.cols * START_GRID.rows }, () => null),
   };
   // A new farm opens with today's specials and the first sparkline point (every save starts in spring).
   openMarketDay(state, GAME_DATA, createRng(state), 'spring');

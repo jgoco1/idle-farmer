@@ -11,9 +11,11 @@ import { buyExpansion } from '../systems/expansions';
 import { sellItems } from '../systems/market';
 import { shipItems, unshipItems } from '../systems/shippingBin';
 import { buySeeds } from '../systems/shop';
+import { setAutoSell } from '../systems/autoSeller';
+import { pickUpObject, placeObject } from '../systems/placement';
 import { buyUpgrade } from '../systems/upgrades';
 import type { CropId, ExpansionId, ItemId, UpgradeId } from '../data/ids';
-import type { GameState } from './state';
+import type { GameState, PlacedKind } from './state';
 
 export type Action =
   | { type: 'setMasterVolume'; value: number }
@@ -30,6 +32,11 @@ export type Action =
   | { type: 'unship'; item: ItemId }
   | { type: 'buyExpansion'; id: ExpansionId }
   | { type: 'buyUpgrade'; id: UpgradeId }
+  /** Puts a bought sprinkler or scarecrow on plot (col, row), or takes a placed one back. */
+  | { type: 'place'; kind: PlacedKind; col: number; row: number }
+  | { type: 'pickUp'; id: number }
+  /** Auto-Seller: ship (or keep) one item's harvests. */
+  | { type: 'setAutoSell'; item: ItemId; on: boolean }
   | { type: 'debugSetTimeWarp'; on: boolean };
 
 export const TIME_WARP_SPEED = 60;
@@ -63,6 +70,12 @@ export function applyAction(state: GameState, ctx: SimContext, action: Action): 
       return buyExpansion(state, ctx, action.id);
     case 'buyUpgrade':
       return buyUpgrade(state, ctx, action.id);
+    case 'place':
+      return placeObject(state, ctx, action.kind, action.col, action.row);
+    case 'pickUp':
+      return pickUpObject(state, ctx, action.id);
+    case 'setAutoSell':
+      return setAutoSell(state, ctx.data, action.item, action.on);
     case 'debugSetTimeWarp':
       state.clock.speed = action.on ? TIME_WARP_SPEED : 1;
       return OK;

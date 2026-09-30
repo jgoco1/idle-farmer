@@ -2,14 +2,18 @@
 // canvas, then copied to the visible canvas at the largest integer scale that fits
 // (ART_STYLE.md §3). The renderer only reads state; clicks go out through `onZoneClick`.
 
+import type { PlacedObject } from '../core/state';
 import type { Calendar } from '../core/time';
+import type { Offset } from '../systems/placement';
+import { FarmhandVisual } from './farmhand';
 import type { ExpansionId } from '../data/ids';
 import { PALETTE } from './palette';
 import {
   buildLayout,
   buildZones,
+  GREENHOUSE_ROOF_TILE,
   plotIndexAt,
-  plotTile,
+  tileOfPlot,
   SCENE_H,
   SCENE_W,
   TILE,
@@ -45,6 +49,22 @@ export interface RendererOptions {
   onPlotDown(p: PlotPointer): void;
   onPlotEnter(p: PlotPointer): void;
   onStrokeEnd(): void;
+}
+
+/** Everything the renderer needs from the game state each frame. */
+export interface SceneView {
+  plots: readonly PlotSprites[];
+  greenhouse: readonly PlotSprites[];
+  placed: readonly PlacedObject[];
+  farmhand: boolean;
+}
+
+/** The range preview while placing: the offsets around the hovered plot, and whether the spot is valid. */
+export interface PlacementPreview {
+  offsets: readonly Offset[];
+  validAt(col: number, row: number): boolean;
+  /** Plot (col, row) of the field → true if it is a plot (for clipping the preview). */
+  isPlot(col: number, row: number): boolean;
 }
 
 /** A short cosmetic effect: an icon that rises and fades over a plot (render clock only). */
@@ -83,7 +103,11 @@ export class Renderer {
   private hover: { col: number; row: number } | null = null;
   private stroke: { pointerId: number; lastPlot: number } | null = null;
   private fx: Fx[] = [];
+  private preview: PlacementPreview | null = null;
+  private greenhousePlots = 0;
+  readonly farmhand = new FarmhandVisual();
   private scale = 1;
+  private lastTime = 0;
   private readonly resizeObserver: ResizeObserver;
 
   constructor(private readonly opts: RendererOptions) {
@@ -106,9 +130,12 @@ export class Renderer {
     this.canvas.addEventListener('pointerup', (e) => this.endStroke(e));
     this.canvas.addEventListener('pointercancel', (e) => this.endStroke(e));
     this.canvas.addEventListener('pointerleave', () => this.setHover(null));
+    this.farmhand.onWork = (job) => {
+      if (job.sprite) this.fx.push({ sprite: job.sprite, col: job.col, row: job.row, start: this.lastTime });
+    };
     this.canvas.addEventListener('click', (e) => {
       const t = this.toTile(e);
-      if (!t) return;
+      if (!t || this.plotAt(e) >= 0) return;
       const zone = zoneAt(this.zones, t.col, t.row);
       if (zone && zone.id !== 'plots') opts.onZoneClick({ zone, col: t.col, row: t.row });
     });
@@ -116,7 +143,7 @@ export class Renderer {
 
   private plotAt(e: MouseEvent): number {
     const t = this.toTile(e);
-    return t ? plotIndexAt(this.grid, t.col, t.row) : -1;
+    return t ? plotIndexAt(this.grid, t.col, t.row, this.greenhousePlots) : -1;
   }
 
   private pointerDown(e: PointerEvent): void {
@@ -150,8 +177,13 @@ export class Renderer {
 
   /** Shows `sprite` rising out of plot `index` (e.g. the harvested item). Cosmetic only. */
   addPlotFx(index: number, sprite: string, timeMs: number): void {
-    if (index < 0 || index >= this.grid.cols * this.grid.rows) return;
-    this.fx.push({ sprite, ...plotTile(this.grid, index), start: timeMs });
+    if (index < 0 || (index < 1000 && index >= this.grid.cols * this.grid.rows)) return;
+    this.fx.push({ sprite, ...tileOfPlot(this.grid, index), start: timeMs });
+  }
+
+  /** The range preview shown around the hovered tile while placing an object (null = none). */
+  setPreview(p: PlacementPreview | null): void {
+    this.preview = p;
   }
 
   /** Rebuilds the static layer when the plot grid or the bought expansions change. */
@@ -193,29 +225,42 @@ export class Renderer {
     this.ctx.imageSmoothingEnabled = false; // resizing resets context state
   }
 
-  render(timeMs: number, calendar: Calendar, plots: readonly PlotSprites[]): void {
+  render(timeMs: number, calendar: Calendar, view: SceneView): void {
     const f = this.fctx;
+    this.lastTime = timeMs;
+    this.greenhousePlots = view.greenhouse.length;
     f.globalCompositeOperation = 'source-over';
     f.globalAlpha = 1;
     f.drawImage(this.ground, 0, 0);
     for (const a of this.layout.animated)
       f.drawImage(spriteFrame(a.sprite, timeMs), a.col * TILE, a.row * TILE);
-    this.drawPlots(plots, timeMs);
+    this.drawPlots(view.plots, timeMs, false);
+    if (view.greenhouse.length > 0) {
+      f.drawImage(
+        spriteFrame('obj_greenhouse_roof'),
+        GREENHOUSE_ROOF_TILE.col * TILE,
+        GREENHOUSE_ROOF_TILE.row * TILE,
+      );
+      this.drawPlots(view.greenhouse, timeMs, true);
+    }
     for (const o of this.layout.objects) f.drawImage(spriteFrame(o.sprite, timeMs), o.x, o.y);
+    this.drawPlaced(view.placed, timeMs);
+    this.drawFarmhand(view.farmhand, timeMs);
 
     this.drawTint(calendar);
     this.drawFx(timeMs);
     this.drawHover();
+    this.drawPreview();
 
     this.ctx.imageSmoothingEnabled = false;
     this.ctx.drawImage(this.frame, 0, 0, this.canvas.width, this.canvas.height);
   }
 
   /** Per-plot soil (dry, wet or untilled) and the crop growing on it. */
-  private drawPlots(plots: readonly PlotSprites[], timeMs: number): void {
+  private drawPlots(plots: readonly PlotSprites[], timeMs: number, greenhouse: boolean): void {
     const f = this.fctx;
     plots.forEach((p, i) => {
-      const { col, row } = plotTile(this.grid, i);
+      const { col, row } = tileOfPlot(this.grid, greenhouse ? 1000 + i : i);
       f.drawImage(spriteFrame(p.soil), col * TILE, row * TILE);
       if (p.crop) {
         const pos = anchoredPosition(spriteDef(p.crop), col, row, TILE);
@@ -223,6 +268,64 @@ export class Renderer {
         f.drawImage(spriteFrame(p.crop, timeMs + i * 137), pos.x, pos.y);
       }
     });
+  }
+
+  /** Sprinklers and scarecrows, bottom rows last so nearer ones overlap farther ones. */
+  private drawPlaced(placed: readonly PlacedObject[], timeMs: number): void {
+    const f = this.fctx;
+    const sorted = [...placed].sort((a, b) => a.at.row - b.at.row);
+    for (const o of sorted) {
+      const id = o.kind === 'sprinkler' ? 'obj_sprinkler' : 'obj_scarecrow';
+      const { col, row } = tileOfPlot(this.grid, o.at.row * this.grid.cols + o.at.col);
+      const pos = anchoredPosition(spriteDef(id), col, row, TILE);
+      // Offset each object's animation so a field of sprinklers doesn't spray in unison.
+      f.drawImage(spriteFrame(id, timeMs + o.id * 331), pos.x, pos.y);
+    }
+  }
+
+  private drawFarmhand(hired: boolean, timeMs: number): void {
+    if (!hired) {
+      this.farmhand.reset();
+      return;
+    }
+    const fh = this.farmhand;
+    fh.update(timeMs);
+    const id =
+      fh.pose === 'walk'
+        ? 'char_farmhand_walk'
+        : fh.pose === 'pop'
+          ? 'char_farmhand_pop'
+          : 'char_farmhand_idle';
+    const sprite = spriteFrame(id, timeMs);
+    const f = this.fctx;
+    const x = Math.round(fh.x - 8);
+    const y = Math.round(fh.y) - 15;
+    if (fh.facingLeft) {
+      f.save();
+      f.translate(x + 16, y);
+      f.scale(-1, 1);
+      f.drawImage(sprite, 0, 0);
+      f.restore();
+    } else f.drawImage(sprite, x, y);
+  }
+
+  private drawPreview(): void {
+    const p = this.preview;
+    const h = this.hover;
+    if (!p || !h) return;
+    const f = this.fctx;
+    const ok = p.validAt(h.col, h.row);
+    f.globalAlpha = 0.35;
+    f.fillStyle = ok ? PALETTE.water_3 : PALETTE.red;
+    for (const [dc, dr] of p.offsets) {
+      const c = h.col + dc;
+      const r = h.row + dr;
+      if (p.isPlot(c, r)) f.fillRect(c * TILE, r * TILE, TILE, TILE);
+    }
+    f.globalAlpha = ok ? 0.9 : 0.6;
+    f.strokeStyle = ok ? PALETTE.white_warm : PALETTE.red_light;
+    f.strokeRect(h.col * TILE + 1.5, h.row * TILE + 1.5, TILE - 3, TILE - 3);
+    f.globalAlpha = 1;
   }
 
   private drawFx(timeMs: number): void {

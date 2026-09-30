@@ -18,10 +18,15 @@ export function shipItems(state: GameState, ctx: SimContext, item: ItemId, qty: 
   if (!Number.isInteger(qty) || qty <= 0) return fail('Choose how many to ship.');
   if (countItem(state.inventory, item) < qty) return fail(`You don't have ${qty} ${def.name}.`);
   removeItem(state.inventory, item, qty);
+  addToBin(state, item, qty);
+  return OK;
+}
+
+/** Puts `qty` of `item` in the bin, merging with an existing stack. */
+export function addToBin(state: GameState, item: ItemId, qty: number): void {
   const stack = state.shippingBin.items.find((s) => s.item === item);
   if (stack) stack.qty += qty;
   else state.shippingBin.items.push({ item, qty });
-  return OK;
 }
 
 /** Takes everything of `item` back out of the bin (all or nothing, if the bag has room). */
@@ -78,7 +83,12 @@ export function tickShippingBin(state: GameState, ctx: SimContext, dtMs: number)
   bin.msToPickup = BIN_PICKUP_MS - (over % BIN_PICKUP_MS);
 }
 
-/** Simulated ms until the next pickup that has something to collect, or Infinity. */
+/**
+ * Simulated ms until the next pickup that has something to collect, or Infinity. With the
+ * Auto-Seller the bin can fill at any moment, so its pickups are always reported: a large step then
+ * never jumps over a pickup that the farmhand's harvest would have landed in.
+ */
 export function msToNextPickup(state: GameState): number {
-  return state.shippingBin.items.length > 0 ? state.shippingBin.msToPickup : Infinity;
+  const fills = state.shippingBin.items.length > 0 || (state.upgrades.auto_seller ?? 0) > 0;
+  return fills ? state.shippingBin.msToPickup : Infinity;
 }

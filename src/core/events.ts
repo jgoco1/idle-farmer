@@ -18,14 +18,17 @@ import type {
   SkillId,
   UpgradeId,
 } from '../data/ids';
+import type { PlacedKind } from './state';
 
 export type GameEvent =
   | { type: 'dayStarted'; dayKey: string }
   | { type: 'seasonChanged'; season: SeasonId; withered: number }
   | { type: 'binCollected'; gold: number; items: number }
-  | { type: 'tilled' | 'watered'; plots: number[] }
-  | { type: 'planted'; crop: CropId; plots: number[] }
-  | { type: 'harvested'; crop: CropId; qty: number; plot: number; auto: boolean }
+  | { type: 'tilled' | 'watered'; plots: number[]; auto?: true }
+  | { type: 'planted'; crop: CropId; plots: number[]; auto?: true }
+  /** `shipped`: how many of the `qty` went straight to the Shipping Bin (Auto-Seller). */
+  | { type: 'harvested'; crop: CropId; qty: number; plot: number; auto: boolean; shipped: number }
+  | { type: 'placed' | 'pickedUp'; kind: PlacedKind; col: number; row: number }
   | { type: 'sold'; item: ItemId; qty: number; gold: number; via: 'market' | 'bin' }
   | { type: 'goldEarned'; amount: number; source: 'sale' | 'quest' | 'other' }
   | { type: 'purchased'; what: UpgradeId | ExpansionId | SeedId | RecipeId; gold: number }

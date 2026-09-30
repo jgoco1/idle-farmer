@@ -21,7 +21,8 @@ import { createInitialState } from '../src/core/state';
 import { computeSeasonEpoch } from '../src/core/time';
 import fixtureV1 from './fixtures/save-v1.json';
 import fixtureV2 from './fixtures/save-v2.json';
-import fixture from './fixtures/save-v3.json';
+import fixtureV3 from './fixtures/save-v3.json';
+import fixture from './fixtures/save-v4.json';
 import { at, NY } from './helpers';
 
 const FIXTURE_TEXT = JSON.stringify(fixture);
@@ -37,13 +38,13 @@ function memoryStorage(initial: Record<string, string> = {}): SaveStorage & { da
 }
 
 describe('save file', () => {
-  it('is at version 3 (phase 03) with one migration per older version', () => {
-    expect(SAVE_VERSION).toBe(3);
-    expect(Object.keys(migrations)).toEqual(['1', '2']);
+  it('is at version 4 (phase 04) with one migration per older version', () => {
+    expect(SAVE_VERSION).toBe(4);
+    expect(Object.keys(migrations)).toEqual(['1', '2', '3']);
     expect(SAVE_KEY).toBe('hearthfield-idle/save');
   });
 
-  it('the v3 fixture loads unchanged', () => {
+  it('the v4 fixture loads unchanged', () => {
     const file = parseSave(FIXTURE_TEXT);
     expect(file).toEqual(fixture);
   });
@@ -68,6 +69,8 @@ describe('save file', () => {
     fresh.upgrades.backpack = 1; // a new save owns no upgrades yet, so give the record an entry
     fresh.shippingBin.items.push({ item: 'turnip', qty: 1 });
     fresh.expansions.push('farm_1');
+    fresh.placed.push({ id: 1, kind: 'sprinkler', at: { col: 0, row: 0 } });
+    fresh.autoSell.turnip = false;
     expect(keys(fixture.state)).toEqual(keys(fresh));
   });
 
@@ -116,6 +119,18 @@ describe('save file', () => {
     expect(bad((c) => (c.shippingBin.msToPickup = 0))).toBe('bad shipping bin');
     expect(bad((c) => (c.stats.lifetimeGold = NaN))).toBe('bad stats');
     expect(bad((c) => (c.upgrades.backpack = 'x' as never))).toBe('bad upgrades');
+    expect(bad((c) => c.placed.push({ id: 1, kind: 'sprinkler', at: { col: 9, row: 0 } }))).toBe(
+      'bad placed object',
+    );
+    expect(
+      bad((c) => {
+        c.placed.push({ id: 1, kind: 'sprinkler', at: { col: 0, row: 0 } });
+        c.placed.push({ id: 2, kind: 'scarecrow', at: { col: 0, row: 0 } });
+      }),
+    ).toBe('bad placed object');
+    expect(bad((c) => (c.autoSell.turnip = 'yes' as never))).toBe('bad auto-sell');
+    expect(bad((c) => (c.automation.farmhandCooldownMs = -5))).toBe('bad automation');
+    expect(bad((c) => c.lastPlantedCrop.pop())).toBe('bad planter memory');
   });
 });
 
@@ -192,9 +207,9 @@ describe('migrations', () => {
     ]);
   });
 
-  it('migrates a phase-02 (v2) save into a valid phase-03 save with default market values', () => {
+  it('migrates a phase-02 (v2) save into a valid current save with default market values', () => {
     const file = parseSave(JSON.stringify(fixtureV2));
-    expect(file.version).toBe(3);
+    expect(file.version).toBe(SAVE_VERSION);
     const s = file.state;
     // Everything from v2 is kept.
     const { state: old } = fixtureV2;
@@ -216,6 +231,27 @@ describe('migrations', () => {
       daysPassed: 0,
     });
     expect(s.upgrades).toEqual({});
+    expect(validateState(s)).toBeNull();
+  });
+
+  it('migrates a phase-03 (v3) save: everything is kept, automation starts empty', () => {
+    const file = parseSave(JSON.stringify(fixtureV3));
+    expect(file.version).toBe(4);
+    const s = file.state;
+    const { state: old } = fixtureV3;
+    expect(s.gold).toBe(old.gold);
+    expect(s.farm).toEqual(old.farm);
+    expect(s.inventory).toEqual(old.inventory);
+    expect(s.market).toEqual(old.market);
+    expect(s.shippingBin).toEqual(old.shippingBin);
+    expect(s.expansions).toEqual(old.expansions);
+    expect(s.stats).toEqual(old.stats);
+    expect(s.upgrades).toEqual(old.upgrades);
+    // Nothing placed, every toggle at its default, no farmhand timer, one empty memory slot per plot.
+    expect(s.placed).toEqual([]);
+    expect(s.autoSell).toEqual({});
+    expect(s.automation).toEqual({ farmhandCooldownMs: 0 });
+    expect(s.lastPlantedCrop).toEqual(Array.from({ length: old.farm.plots.length }, () => null));
     expect(validateState(s)).toBeNull();
   });
 

@@ -281,6 +281,6 @@ describe('backpack', () => {
     expect(s.gold).toBe(10_000 - 200 - 440 - 970 - 2100);
     expect(countItem(s.inventory, 'turnip')).toBe(5); // nothing is lost
     expect(buyUpgrade(s, ctx, 'backpack')).toEqual({ ok: false, reason: 'Backpack is fully upgraded.' });
-    expect(buyUpgrade(s, ctx, 'sprinkler').ok).toBe(false); // phase 04
+    expect(buyUpgrade(s, ctx, 'fish_trap').ok).toBe(false); // phase 05
   });
 });

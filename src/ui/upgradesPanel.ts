@@ -1,12 +1,18 @@
-// The Upgrades panel: farm expansions (phase 03) and the backpack (phase 03). Phase 04 adds the
-// automation and tool upgrades here, phase 05 the fishing locations and gear, phase 06 the kitchen.
+// The Upgrades panel: farm expansions, the automation upgrades (sprinklers, scarecrows, farmhand,
+// seed planter, auto-seller, greenhouse), the tools and storage. Each card shows the level, what the
+// next level does, its cost and what still locks it; buying flashes the card and says what changed.
 
-import type { ExpansionId, UpgradeId } from '../data/ids';
+import { CROP_IDS, type ExpansionId, type ItemId, type UpgradeId } from '../data/ids';
+import type { PlacedKind } from '../core/state';
+import type { UpgradeCategory } from '../data/types';
 import { FARM_EXPANSIONS } from '../data/expansions';
+import { spriteDataUrl } from '../render/spriteCache';
 import type { ActionResult } from '../systems/context';
+import { autoSellOn } from '../systems/autoSeller';
 import { expansionStatus } from '../systems/expansions';
-import { isUnlocked, unlockHint } from '../systems/unlocks';
-import { upgradeCost, upgradeLevel } from '../systems/upgrades';
+import { placedCount, stockOf } from '../systems/placement';
+import { unlockHints } from '../systems/unlocks';
+import { requirementsFor, upgradeCost, upgradeLevel } from '../systems/upgrades';
 import { h } from './dom';
 import type { PanelDef } from './panel';
 import type { GameViewHooks } from './panels';
@@ -14,10 +20,37 @@ import type { GameViewHooks } from './panels';
 export interface UpgradesHooks extends GameViewHooks {
   buyExpansion(id: ExpansionId): ActionResult;
   buyUpgrade(id: UpgradeId): ActionResult;
+  /** Enters placement mode for a sprinkler or scarecrow. */
+  place(kind: PlacedKind): void;
+  setAutoSell(item: ItemId, on: boolean): ActionResult;
 }
 
-/** Upgrades offered so far, in panel order. */
-const UPGRADE_IDS: readonly UpgradeId[] = ['backpack'];
+/** Upgrade cards by section, in panel order. */
+const SECTIONS: readonly { title: string; category: UpgradeCategory; ids: readonly UpgradeId[] }[] = [
+  {
+    title: 'Automation',
+    category: 'farm',
+    ids: [
+      'sprinkler',
+      'sprinkler_tech',
+      'scarecrow',
+      'farmhand',
+      'seed_planter',
+      'auto_seller',
+      'greenhouse',
+    ],
+  },
+  { title: 'Tools', category: 'tools', ids: ['watering_can', 'hoe'] },
+  { title: 'Storage', category: 'storage', ids: ['backpack', 'barn_storage'] },
+];
+
+const CARD_ICON: Partial<Record<UpgradeId, string>> = {
+  sprinkler: 'obj_sprinkler',
+  scarecrow: 'obj_scarecrow',
+  farmhand: 'char_farmhand_idle',
+  watering_can: 'ui_tool_water',
+  hoe: 'ui_tool_hoe',
+};
 
 export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
   return {
@@ -28,21 +61,21 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
     build(body) {
       const gold = h('p', { class: 'shop-gold' });
       const farm = h('div', { class: 'crate-list' });
-      const storage = h('div', { class: 'crate-list' });
+      const sections = SECTIONS.map((sec) => ({ sec, list: h('div', { class: 'crate-list' }) }));
       const msg = h('p', { class: 'form-msg', role: 'status' });
       body.append(
         gold,
-        h('h3', { text: 'Farm' }),
+        h('h3', { text: 'Field' }),
         farm,
-        h('h3', { text: 'Storage' }),
-        storage,
+        ...sections.flatMap(({ sec, list }) => [h('h3', { text: sec.title }), list]),
         msg,
-        h('p', { class: 'muted', text: 'Sprinklers, a farmhand and better tools are on their way.' }),
       );
+      let flash: string | null = null;
 
-      const say = (r: ActionResult, ok: string): void => {
+      const say = (r: ActionResult, ok: string, key?: string): void => {
         msg.textContent = r.ok ? ok : r.reason;
         msg.className = r.ok ? 'form-msg form-ok' : 'form-msg form-error';
+        if (r.ok && key) flash = key;
       };
 
       const card = (
@@ -50,23 +83,37 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
         title: string,
         text: string,
         state: 'owned' | 'available' | 'locked',
-        button: HTMLButtonElement | null,
+        buttons: HTMLElement[],
+        icon?: string,
+        extra?: HTMLElement,
       ): HTMLElement =>
         h(
           'div',
-          { class: `crate-row upgrade-row is-${state}`, 'data-upgrade': key },
-          h('span', {
-            class: 'upgrade-mark',
-            'aria-hidden': 'true',
-            text: state === 'owned' ? '✓' : state === 'locked' ? '🔒' : '★',
-          }),
+          {
+            class: `crate-row upgrade-row is-${state}${flash === key ? ' just-bought' : ''}`,
+            'data-upgrade': key,
+          },
+          icon
+            ? h('img', {
+                class: 'pixel upgrade-icon',
+                alt: '',
+                width: 24,
+                height: 24,
+                src: spriteDataUrl(icon),
+              })
+            : h('span', {
+                class: 'upgrade-mark',
+                'aria-hidden': 'true',
+                text: state === 'owned' ? '✓' : state === 'locked' ? '🔒' : '★',
+              }),
           h(
             'div',
             { class: 'crate-text' },
             h('span', { text: title }),
             h('span', { class: 'seed-note', text }),
           ),
-          button ? h('div', { class: 'btn-row' }, button) : null,
+          buttons.length ? h('div', { class: 'btn-row' }, ...buttons) : null,
+          extra ?? null,
         );
 
       const render = (): void => {
@@ -75,6 +122,8 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
           document.activeElement instanceof HTMLElement && body.contains(document.activeElement)
             ? document.activeElement.closest<HTMLElement>('[data-upgrade]')?.dataset.upgrade
             : undefined;
+        const focusedRole =
+          document.activeElement instanceof HTMLElement ? document.activeElement.dataset.role : undefined;
         gold.textContent = `You have ${state.gold.toLocaleString('en-US')}g`;
 
         farm.replaceChildren(
@@ -82,10 +131,10 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
             const def = hooks.data.expansions[id];
             const status = expansionStatus(state, hooks.data, id);
             const grid = def.grid ? `${def.grid.cols} × ${def.grid.rows} plots` : '';
-            let button: HTMLButtonElement | null = null;
+            const buttons: HTMLElement[] = [];
             let text = `${def.description} (${grid})`;
             if (status === 'available') {
-              button = h('button', {
+              const button = h('button', {
                 type: 'button',
                 class: 'btn btn-small btn-primary',
                 text: `Buy · ${def.price.toLocaleString('en-US')}g`,
@@ -93,50 +142,116 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
                 disabled: state.gold < def.price,
               });
               button.addEventListener('click', () => {
-                say(hooks.buyExpansion(id), `${def.name}: your field is now ${grid}.`);
+                say(hooks.buyExpansion(id), `${def.name}: your field is now ${grid}.`, id);
                 render();
               });
+              buttons.push(button);
             } else if (status === 'locked') {
-              text = `${def.price.toLocaleString('en-US')}g · ${unlockHint(state, hooks.data, def.requires) ?? ''}`;
+              text = `${def.price.toLocaleString('en-US')}g · ${unlockHints(state, hooks.data, def.requires).join(' ')}`;
             } else {
               text = `Done · ${grid}`;
             }
-            return card(id, def.name, text, status, button);
+            return card(id, def.name, text, status, buttons);
           }),
         );
 
-        storage.replaceChildren(
-          ...UPGRADE_IDS.map((id) => {
-            const def = hooks.data.upgrades[id]!;
-            const level = upgradeLevel(state, id);
-            const maxed = level >= def.max;
-            const unlocked = isUnlocked(state, def.requires);
-            const cost = maxed ? 0 : upgradeCost(def, level);
-            const title = `${def.name} · level ${level}/${def.max}`;
-            let text = `Now ${def.effectText[level] ?? ''}`;
-            let button: HTMLButtonElement | null = null;
-            if (!maxed && unlocked) {
-              text += ` → ${def.effectText[level + 1] ?? ''}`;
-              button = h('button', {
-                type: 'button',
-                class: 'btn btn-small btn-primary',
-                text: `Upgrade · ${cost.toLocaleString('en-US')}g`,
-                'aria-label': `Upgrade ${def.name} for ${cost} gold`,
-                disabled: state.gold < cost,
-              });
-              button.addEventListener('click', () => {
-                say(hooks.buyUpgrade(id), `${def.name} upgraded: ${def.effectText[level + 1] ?? ''}.`);
-                render();
-              });
-            } else if (!maxed) {
-              text += ` · ${unlockHint(state, hooks.data, def.requires) ?? ''}`;
-            }
-            return card(id, title, text, maxed ? 'owned' : unlocked ? 'available' : 'locked', button);
+        for (const { sec, list } of sections) {
+          list.replaceChildren(
+            ...sec.ids.flatMap((id) => {
+              const def = hooks.data.upgrades[id];
+              if (!def) return [];
+              const level = upgradeLevel(state, id);
+              const maxed = level >= def.max;
+              const needs = requirementsFor(def, level);
+              const hints = maxed ? [] : unlockHints(state, hooks.data, needs);
+              const unlocked = hints.length === 0;
+              const cost = maxed ? 0 : upgradeCost(def, level);
+              const placeable = def.kind === 'placeable';
+              const title = placeable
+                ? `${def.name} · ${level}/${def.max} bought`
+                : `${def.name} · level ${level}/${def.max}`;
+              let text = def.description;
+              text += ` Now: ${def.effectText[level] ?? ''}`;
+              if (!maxed && !placeable) text += ` → next: ${def.effectText[level + 1] ?? ''}.`;
+              if (placeable)
+                text += ` (${placedCount(state, id as PlacedKind)} placed, ${stockOf(state, id as PlacedKind)} in stock)`;
+              if (!maxed && !unlocked) text += ` 🔒 ${hints.join(' ')}`;
+              const buttons: HTMLElement[] = [];
+              if (!maxed && unlocked) {
+                const button = h('button', {
+                  type: 'button',
+                  class: 'btn btn-small btn-primary',
+                  text: `${placeable ? 'Buy' : 'Upgrade'} · ${cost.toLocaleString('en-US')}g`,
+                  'aria-label': `${placeable ? 'Buy' : 'Upgrade'} ${def.name} for ${cost} gold`,
+                  'data-role': 'buy',
+                  disabled: state.gold < cost,
+                });
+                button.addEventListener('click', () => {
+                  const next = def.effectText[level + 1] ?? '';
+                  say(hooks.buyUpgrade(id), `${def.name}: ${next}.`, id);
+                  render();
+                });
+                buttons.push(button);
+              }
+              if (
+                placeable &&
+                (placedCount(state, id as PlacedKind) > 0 || stockOf(state, id as PlacedKind) > 0)
+              ) {
+                const place = h('button', {
+                  type: 'button',
+                  class: 'btn btn-small',
+                  text: stockOf(state, id as PlacedKind) > 0 ? 'Place' : 'Move / pick up',
+                  'data-role': 'place',
+                });
+                place.addEventListener('click', () => hooks.place(id as PlacedKind));
+                buttons.push(place);
+              }
+              const extra = id === 'auto_seller' && level > 0 ? sellerToggles() : undefined;
+              const state2 = maxed ? 'owned' : unlocked ? 'available' : 'locked';
+              return [card(id, title, text, state2, buttons, CARD_ICON[id], extra)];
+            }),
+          );
+        }
+        flash = null;
+        if (focusedKey) {
+          const sel = focusedRole ? `[data-role="${focusedRole}"]` : 'button:not([disabled])';
+          (
+            body.querySelector<HTMLElement>(`[data-upgrade="${focusedKey}"] ${sel}`) ??
+            body.querySelector<HTMLElement>(`[data-upgrade="${focusedKey}"] button:not([disabled])`)
+          )?.focus();
+        }
+      };
+
+      /** Per-crop "ship it automatically" toggles under the Auto-Seller card. */
+      const sellerToggles = (): HTMLElement => {
+        const state = hooks.state();
+        return h(
+          'div',
+          { class: 'seller-toggles', role: 'group', 'aria-label': 'Ship automatically' },
+          ...CROP_IDS.map((crop) => {
+            const on = autoSellOn(state, hooks.data, crop);
+            const box = h('input', { type: 'checkbox', 'data-role': `sell-${crop}` });
+            box.checked = on;
+            box.addEventListener('change', () => {
+              hooks.setAutoSell(crop, box.checked);
+              render();
+            });
+            return h(
+              'label',
+              { class: 'seller-toggle', title: hooks.data.crops[crop].name },
+              box,
+              h('img', {
+                class: 'pixel',
+                alt: hooks.data.crops[crop].name,
+                width: 16,
+                height: 16,
+                src: spriteDataUrl(`item_${crop}`),
+              }),
+            );
           }),
         );
-        if (focusedKey)
-          body.querySelector<HTMLElement>(`[data-upgrade="${focusedKey}"] button:not([disabled])`)?.focus();
       };
+
       return { refresh: render };
     },
   };

@@ -140,7 +140,14 @@ describe('plot state transitions', () => {
     expect(s.farm.plots[2]!.waterMsLeft).toBe(WATER_DURATION_MS - 120_000);
 
     expect(events.map((e) => e.type)).toEqual(['tilled', 'planted', 'watered', 'harvested']);
-    expect(events[3]).toEqual({ type: 'harvested', crop: 'turnip', qty: 1, plot: 2, auto: false });
+    expect(events[3]).toEqual({
+      type: 'harvested',
+      crop: 'turnip',
+      qty: 1,
+      plot: 2,
+      auto: false,
+      shipped: 0,
+    });
   });
 
   it('shows stages 0–3 while growing and 4 only when ready', () => {

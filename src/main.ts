@@ -22,10 +22,19 @@ import { GAME_DATA } from './data';
 import type { CropId } from './data/ids';
 import { applyPaletteCssVars } from './render/palette';
 import { Renderer } from './render/renderer';
-import { BIN_TILE, plotSprites } from './render/scene';
-import { autoToolFor, isReady, plotStage, type ConcreteTool } from './systems/farming';
+import { BIN_TILE, PLOT_ORIGIN, plotSprites, tileOfPlot } from './render/scene';
+import {
+  allPlotIndexes,
+  autoToolFor,
+  isReady,
+  plotAt,
+  plotStage,
+  type ConcreteTool,
+} from './systems/farming';
+import { areaOf, areaOffsets, inGrid, objectAt, placementProblem, stockOf } from './systems/placement';
+import { PlacementMode } from './ui/placement';
 import { computeModifiers } from './systems/modifiers';
-import { showAwaySummary } from './ui/awaySummary';
+import { showAwaySummary, type AwayFarm } from './ui/awaySummary';
 import { byId, h } from './ui/dom';
 import { FarmTools } from './ui/farmTools';
 import { Hud } from './ui/hud';
@@ -85,6 +94,7 @@ const view: GameViewHooks = {
   calendar: () => game.calendar(),
   mods: () => computeModifiers(game.state, GAME_DATA),
 };
+const placement = new PlacementMode(() => syncPlacement());
 const stubPanel = (id: string) => STUB_PANELS.find((d) => d.id === id)!;
 // Registration order is the toolbar order.
 panels.register(inventoryPanel(view));
@@ -106,6 +116,11 @@ panels.register(
     ...view,
     buyExpansion: (id) => game.dispatch({ type: 'buyExpansion', id }),
     buyUpgrade: (id) => game.dispatch({ type: 'buyUpgrade', id }),
+    place: (kind) => {
+      panels.close();
+      placement.start(kind);
+    },
+    setAutoSell: (item, on) => game.dispatch({ type: 'setAutoSell', item, on }),
   }),
 );
 panels.register(stubPanel('goals'));
@@ -163,6 +178,21 @@ game.bus.on('binCollected', (e) => {
 game.bus.on('purchased', (e) => {
   if (e.what in GAME_DATA.expansions)
     toasts.show('The farm grows! New soil is waiting to be tilled.', 'good');
+  else if (e.what === 'sprinkler' || e.what === 'scarecrow') {
+    toasts.show(`${GAME_DATA.upgrades[e.what]!.name} bought. Click a plot to put it down.`, 'good');
+    panels.close(); // clear the way to the field
+    placement.start(e.what);
+  } else if (e.what in GAME_DATA.upgrades) {
+    toasts.show(`${GAME_DATA.upgrades[e.what as keyof typeof GAME_DATA.upgrades]!.name} upgraded!`, 'good');
+  }
+});
+// The farmhand: its sprite walks to the plots the tick-based logic just worked on (cosmetic only).
+game.bus.on('planted', (e) => {
+  if (!e.auto) return;
+  for (const p of e.plots) {
+    const t = tileOfPlot(game.state.farm.grid, p);
+    renderer.farmhand.enqueue({ ...t, sprite: null });
+  }
 });
 // Live panels (Inventory, Shop, Market) follow the state; refreshed at most once per frame.
 let panelsDirty = false;
@@ -175,6 +205,11 @@ const strokeHarvest = new Map<CropId, number>();
 let strokeFull = false;
 
 game.bus.on('harvested', (e) => {
+  if (e.auto) {
+    const t = tileOfPlot(game.state.farm.grid, e.plot);
+    renderer.farmhand.enqueue({ ...t, sprite: `item_${e.crop}` });
+    return;
+  }
   strokeHarvest.set(e.crop, (strokeHarvest.get(e.crop) ?? 0) + e.qty);
   renderer.addPlotFx(e.plot, `item_${e.crop}`, performance.now());
 });
@@ -194,6 +229,38 @@ function usePlotTool(plots: number[], first: boolean): void {
   if (!stroke) return;
   const r = game.dispatch({ type: 'useTool', tool: stroke.tool, plots, seed: stroke.seed });
   if (!r.ok && first) toasts.show(r.reason);
+}
+
+// ---- placement mode: click a plot to place, a placed object to pick it up
+function placeAt(plot: number): void {
+  const kind = placement.kind;
+  if (!kind || plot < 0 || plot >= game.state.farm.plots.length) return;
+  const { cols } = game.state.farm.grid;
+  const col = plot % cols;
+  const row = Math.floor(plot / cols);
+  const there = objectAt(game.state, col, row);
+  const r = there
+    ? game.dispatch({ type: 'pickUp', id: there.id })
+    : game.dispatch({ type: 'place', kind, col, row });
+  if (!r.ok) toasts.show(r.reason, 'warn');
+  syncPlacement();
+}
+
+function syncPlacement(): void {
+  const kind = placement.kind;
+  if (!kind) {
+    renderer.setPreview(null);
+    return;
+  }
+  const st = game.state;
+  placement.describe(stockOf(st, kind));
+  const offsets = areaOffsets(areaOf(st, GAME_DATA, kind));
+  renderer.setPreview({
+    offsets,
+    validAt: (c, r) =>
+      inGrid(st, c, r) && (!!objectAt(st, c, r) || placementProblem(st, kind, c, r) === null),
+    isPlot: (c, r) => inGrid(st, c - PLOT_ORIGIN.col, r - PLOT_ORIGIN.row),
+  });
 }
 
 // ---- scene
@@ -224,6 +291,7 @@ const renderer = new Renderer({
     }
   },
   onPlotDown({ plot, shiftKey }) {
+    if (placement.kind) return placeAt(plot);
     const seed = tools.seed;
     const tool =
       tools.tool === 'auto'
@@ -250,12 +318,19 @@ const renderer = new Renderer({
 renderer.setScene(game.state.farm.grid, game.state.expansions);
 
 // ---- offline catch-up for the time since the last save
-function readyPlots(): number {
-  return game.state.farm.plots.filter((p) => isReady(p, GAME_DATA)).length;
+function awayFarm(): AwayFarm {
+  const all = [...game.state.farm.plots, ...game.state.farm.greenhouse];
+  return {
+    readyPlots: all.filter((p) => isReady(p, GAME_DATA)).length,
+    dryPlots: allPlotIndexes(game.state).filter((i) => {
+      const p = plotAt(game.state, i)!;
+      return p.state === 'planted' && !game.isPlotWatered(i);
+    }).length,
+  };
 }
 function onResume(report: OfflineReport): void {
   save();
-  if (report.showSummary) showAwaySummary(report, readyPlots());
+  if (report.showSummary) showAwaySummary(report, awayFarm());
 }
 if (initialFile && loaded.kind === 'loaded') onResume(game.catchUp(initialFile.savedAt, now()));
 else save();
@@ -294,11 +369,21 @@ const loop = startLoop(game, {
   render() {
     const cal = game.calendar();
     renderer.setScene(game.state.farm.grid, game.state.expansions);
-    renderer.render(
-      performance.now(),
-      cal,
-      plotSprites(game.state.farm.plots, (p) => plotStage(p, GAME_DATA)),
-    );
+    renderer.render(performance.now(), cal, {
+      plots: plotSprites(
+        game.state.farm.plots,
+        (p) => plotStage(p, GAME_DATA),
+        (i) => game.isPlotWatered(i),
+      ),
+      greenhouse: plotSprites(
+        game.state.farm.greenhouse,
+        (p) => plotStage(p, GAME_DATA),
+        () => true,
+      ),
+      placed: game.state.placed,
+      farmhand: (game.state.upgrades.farmhand ?? 0) > 0,
+    });
+    if (placement.kind) syncPlacement();
     hud.update(game.state, cal);
     tools.update();
     if (panelsDirty) {

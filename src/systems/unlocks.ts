@@ -42,14 +42,25 @@ export function isUnlocked(state: GameState, conditions: readonly UnlockConditio
   return conditions.every((c) => conditionMet(state, c));
 }
 
+/** Short hints for every unmet condition (empty when everything is met). */
+export function unlockHints(
+  state: GameState,
+  data: GameData,
+  conditions: readonly UnlockCondition[],
+): string[] {
+  return conditions.filter((c) => !conditionMet(state, c)).map((c) => hintFor(state, data, c));
+}
+
 /** A short hint for the first unmet condition, or null when everything is met. */
 export function unlockHint(
   state: GameState,
   data: GameData,
   conditions: readonly UnlockCondition[],
 ): string | null {
-  const c = conditions.find((x) => !conditionMet(state, x));
-  if (!c) return null;
+  return unlockHints(state, data, conditions)[0] ?? null;
+}
+
+function hintFor(state: GameState, data: GameData, c: UnlockCondition): string {
   switch (c.kind) {
     case 'farmLevel': {
       const more = lifetimeGoldForLevel(c.level) - state.stats.lifetimeGold;
