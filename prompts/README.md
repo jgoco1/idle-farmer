@@ -4,6 +4,8 @@ This folder holds the prompts that build a cozy idle farming and cooking browser
 
 > "Hearthfield Idle" is only a working title. Phase 00 lets you rename it.
 
+**Status:** v1 (phases 00–09) is complete and live. **Phase 10 is on hold.** v2 is next: see [v2 below](#v2-bigger-world-decorations-orchard-animals).
+
 ---
 
 ## Decisions already made (from the planning session)
@@ -124,3 +126,37 @@ scripts/     simulate.ts (09)
 .claude/settings.json         # SessionStart hook
 prompts/                      # this folder
 ```
+
+---
+
+## v2: bigger world, decorations, orchard, animals
+
+The owner chose these features after playing v1. The prompts are in `prompts/v2/`. They work the same way as v1: one session and one PR per phase, merged in order.
+
+### Owner decisions for v2
+| Topic | Decision |
+|---|---|
+| Features | A bigger world with a pannable camera, a decoration shop and town projects, fruit trees, chickens and cows |
+| Fruit trees | Mature over **real calendar days**, taken from the real clock and not limited by the offline cap. They never wither and bear fruit only in their seasons. |
+| Decorations | Cosmetic only. They may feed a "charm" score that unlocks more decorations, milestones and goals, but they give **no income bonus**. |
+| Animals | Gentle: an unfed animal just doesn't produce, with no other penalty. They are fed from farm produce (hay from wheat, feed from corn). No quality tiers and no artisan machines. |
+| Games of chance | None: no casino, slots or alternatives to them |
+| Phase 10 (Fullness meter) | On hold |
+
+### Order and models
+| # | Prompt file | Model | Depends on | What you get |
+|---|---|---|---|---|
+| v2-00 | `v2/00-design.md` | **Opus 5.5** | v1 | Updated GDD, BALANCE, schemas and art style for all four features, plus a list of open questions for you |
+| v2-01 | `v2/01-world-camera.md` | **Opus 5.5** | v2-00 | A world 2–3× bigger, a camera with pan and zoom on mouse, touch and keyboard, land parcels, and browser tests added to CI |
+| v2-02 | `v2/02-decor-town.md` | Sonnet 5.5 | v2-01 | The decoration shop, Decorate mode, charm, and town projects (the late-game gold sink) |
+| v2-03 | `v2/03-orchard.md` | Sonnet 5.5 | v2-02 | Fruit trees in the orchard, real-day maturity, and fruit recipes |
+| v2-04 | `v2/04-animals.md` | Sonnet 5.5, then an Opus review | v2-03 | Coop, barn, chickens and cows, feed, eggs and milk, new recipes including a winter gold-buff dish |
+
+**Why this order:** v2-01 changes the coordinate system that everything else sits on, so it goes first and on Opus. The decoration shop comes next because it fixes the biggest balance problem the phase 09 simulator found: gold stops mattering after about day 7. Trees and animals then fill the new land.
+
+### How to run v2
+- Start each session with: *"Read `prompts/v2/NN-….md` and carry out that phase exactly as written. Open a PR to `main` when done."*
+- **After v2-00, answer its open questions** (world size, which regions are parcels, how fruit is produced) in the same session. This is the same step as after v1 phase 00.
+- **Every v2 phase changes the save** (versions 8, 9, 10 and 11). Keep one long-running playtest save, and send back any PR that breaks it.
+- **The balance simulator is the safety net:** each phase runs `npm run simulate`. Check the PR for the "gold still to spend" table and the phase 09 checks.
+- As in v1, when you say a phase is done, a checking session can verify it: build it, run the unit and browser tests, send screenshots, fix small test problems, and merge with your approval.
