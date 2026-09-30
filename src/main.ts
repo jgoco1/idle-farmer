@@ -1,6 +1,7 @@
 // Browser entry point: load the save, catch up offline time, and wire the game to the renderer,
 // the UI, the loop and autosave.
 
+import { PurchaseGuard } from './ui/purchaseGuard';
 import './styles.css';
 import { AudioEngine, unlockOnFirstGesture, volumesOf } from './audio/engine';
 import { bindAudioEvents } from './audio/events';
@@ -145,6 +146,8 @@ const view: GameViewHooks = {
   mods: () => computeModifiers(game.state, GAME_DATA, game.calendar().season),
 };
 const placement = new PlacementMode(() => syncPlacement());
+/** Keeps a double click on a buy button from buying twice (the button is rebuilt for the next level). */
+const guard = new PurchaseGuard(() => performance.now());
 // Registration order is the toolbar order.
 /** Dispatch with the few sounds that belong to an action rather than an event (cooking, casting, reeling). */
 let lastReelTick = 0;
@@ -168,8 +171,8 @@ panels.register(inventoryPanel({ ...view, dispatch }));
 panels.register(
   shopPanel({
     ...view,
-    buySeeds: (crop, qty) => game.dispatch({ type: 'buySeeds', crop, qty }),
-    buyRecipe: (recipe) => game.dispatch({ type: 'buyRecipe', recipe }),
+    buySeeds: (crop, qty) => guard.run(`seeds:${crop}`, () => game.dispatch({ type: 'buySeeds', crop, qty })),
+    buyRecipe: (recipe) => guard.run(`recipe:${recipe}`, () => game.dispatch({ type: 'buyRecipe', recipe })),
   }),
 );
 panels.register(
@@ -196,8 +199,8 @@ panels.register(fishing.def);
 panels.register(
   upgradesPanel({
     ...view,
-    buyExpansion: (id) => game.dispatch({ type: 'buyExpansion', id }),
-    buyUpgrade: (id) => game.dispatch({ type: 'buyUpgrade', id }),
+    buyExpansion: (id) => guard.run(`expansion:${id}`, () => game.dispatch({ type: 'buyExpansion', id })),
+    buyUpgrade: (id) => guard.run(`upgrade:${id}`, () => game.dispatch({ type: 'buyUpgrade', id })),
     place: (kind) => {
       panels.close();
       placement.start(kind);
