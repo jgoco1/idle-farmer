@@ -2,6 +2,7 @@
 // (GDD §5). Pure (no DOM), so layout and hit-testing are unit-tested.
 
 import type { Plot } from '../core/state';
+import { GREENHOUSE_BASE } from '../data/balance';
 import type { ExpansionId } from '../data/ids';
 import { anchoredPosition } from './spriteCache';
 import { spriteDef } from './sprites';
@@ -70,8 +71,46 @@ export function tileAt(x: number, y: number): { col: number; row: number } | nul
   return { col: Math.floor(x / TILE), row: Math.floor(y / TILE) };
 }
 
-/** Row-major plot index of a tile inside the plot grid, or -1. */
-export function plotIndexAt(grid: Grid, col: number, row: number): number {
+/**
+ * Greenhouse plot i sits at this offset in the 4 × 3 block under the roof (tile (15,2)): the first six
+ * fill a 3 × 2 block, the rest grow it to 4 × 3, so buying level 2 never moves a plot.
+ */
+export const GREENHOUSE_LAYOUT: readonly (readonly [number, number])[] = [
+  [0, 0],
+  [1, 0],
+  [2, 0],
+  [0, 1],
+  [1, 1],
+  [2, 1],
+  [3, 0],
+  [3, 1],
+  [0, 2],
+  [1, 2],
+  [2, 2],
+  [3, 2],
+];
+export const GREENHOUSE_ORIGIN = { col: 15, row: 2 } as const;
+export const GREENHOUSE_ROOF_TILE = { col: 15, row: 1 } as const;
+
+export function greenhouseTile(i: number): { col: number; row: number } {
+  const [dc, dr] = GREENHOUSE_LAYOUT[i] ?? [0, 0];
+  return { col: GREENHOUSE_ORIGIN.col + dc, row: GREENHOUSE_ORIGIN.row + dr };
+}
+
+/** Tile of any plot index (field row-major, or GREENHOUSE_BASE + n). */
+export function tileOfPlot(grid: Grid, index: number): { col: number; row: number } {
+  return index >= GREENHOUSE_BASE ? greenhouseTile(index - GREENHOUSE_BASE) : plotTile(grid, index);
+}
+
+/**
+ * Plot index of a tile: row-major inside the field, GREENHOUSE_BASE + n on a built greenhouse
+ * plot, else -1.
+ */
+export function plotIndexAt(grid: Grid, col: number, row: number, greenhousePlots = 0): number {
+  for (let i = 0; i < greenhousePlots; i++) {
+    const t = greenhouseTile(i);
+    if (t.col === col && t.row === row) return GREENHOUSE_BASE + i;
+  }
   const r = plotRect(grid);
   if (!inRect(r, col, row)) return -1;
   return (row - r.row) * grid.cols + (col - r.col);
@@ -273,14 +312,14 @@ export function plotTile(grid: Grid, index: number): { col: number; row: number 
  * Sprites for every plot. `stageOf` returns the crop stage 0–4 (see systems/farming `plotStage`),
  * passed in so the renderer stays free of game rules.
  */
-export function plotSprites(plots: readonly Plot[], stageOf: (plot: Plot) => number): PlotSprites[] {
-  return plots.map((plot) => {
+export function plotSprites(
+  plots: readonly Plot[],
+  stageOf: (plot: Plot) => number,
+  wetAt: (index: number) => boolean = (i) => (plots[i]?.waterMsLeft ?? 0) > 0,
+): PlotSprites[] {
+  return plots.map((plot, i) => {
     const soil =
-      plot.state === 'untilled'
-        ? 'tile_soil_untilled'
-        : plot.waterMsLeft > 0
-          ? 'tile_soil_wet'
-          : 'tile_soil_dry';
+      plot.state === 'untilled' ? 'tile_soil_untilled' : wetAt(i) ? 'tile_soil_wet' : 'tile_soil_dry';
     let crop: string | null = null;
     if (plot.state === 'dead') crop = 'crop_dead';
     else if (plot.state === 'planted' && plot.crop) crop = `crop_${plot.crop}_${Math.max(0, stageOf(plot))}`;

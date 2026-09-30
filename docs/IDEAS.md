@@ -12,3 +12,7 @@ Ideas that came up during a phase but were outside its scope. Add one line per i
 - **Take part of a stack back out of the Shipping Bin**, and a "ship 10" button. Phase 03 ships and returns whole stacks; phase 04's per-item auto-sell toggles may want finer control. Phase 04 or 08.
 - **A market price history view** (a bigger sparkline with daily numbers on tap). The 7-day sparkline is tiny on phones. Phase 08 (mobile/polish).
 - **Coins flying from the bin to the HUD counter** instead of a "+N" popup at the bin. Phase 08 (juice).
+- **A "bag full" notice from the farmhand** (a speech bubble over the sprite and one toast per pickup) instead of skipping ready crops silently. Phase 04 only mentions waiting crops in the away summary. Phase 08 (polish).
+- **A visible sprinkler radius on hover** in normal play (not only in placement mode) and coloured soil for scarecrow-boosted plots. Phase 08 (polish).
+- **Buy seeds from the farmhand's route**: a planter that draws down gold to restock its last crop (opt-in, with a cap), so a lapsed seed supply does not stall the farm. Phase 09 if the idle pacing shows farms stalling.
+- **Golden scarecrow** (Spring Crops bundle reward, radius 3, +0.30): `scarecrowBonus` and `areaOf` in `src/systems/placement.ts` are the seams. Phase 07.

@@ -274,6 +274,7 @@ export type UpgradeCategory = 'farm' | 'tools' | 'storage' | 'fishing' | 'kitche
 export interface UpgradeDef {
   id: UpgradeId;
   name: string;
+  description: string;                      // one cozy line for the Upgrades panel
   category: UpgradeCategory;
   kind: 'leveled' | 'placeable';
   /** leveled: highest level. placeable: most units the player may own. */
@@ -286,6 +287,8 @@ export interface UpgradeDef {
   requires: readonly UnlockCondition[];
   /** Placeables only: where they may be placed. */
   placeOn?: 'plot' | 'water';
+  /** Extra conditions for buying one level (key = the level being bought), e.g. Sprinkler Tech. */
+  levelRequires?: Readonly<Record<number, readonly UnlockCondition[]>>;
 }
 
 /** Each upgrade uses the fields relevant to it; unused fields are omitted. */
@@ -511,10 +514,11 @@ export interface GameState {
   upgrades: Partial<Record<UpgradeId, number>>;    // @03 (backpack); level, or number owned for placeables
 
   // ---- automation (@04)
-  placed: PlacedObject[];                          // sprinklers, scarecrows, fish traps (@05)
-  autoSell: Partial<Record<ItemId, boolean>>;      // per-item toggle; default true for crops
-  automation: { farmhandCooldownMs: number; farmhandTarget: number | null };
-  lastPlantedCrop: (CropId | null)[];              // per plot, for the seed planter (index = plot index)
+  placed: PlacedObject[];                          // sprinklers and scarecrows (@04); fish traps join in @05
+  autoSell: Partial<Record<ItemId, boolean>>;      // per-item toggle; a missing entry means on for crops
+  automation: { farmhandCooldownMs: number };      // simulated ms to the farmhand's next visit (0 = nobody hired)
+  lastPlantedCrop: (CropId | null)[];              // for the seed planter: field plots row-major, then greenhouse plots
+                                                   // (an expansion re-indexes the field part; see systems/expansions.ts)
 
   // ---- fishing (@05)
   fishing: {
@@ -564,9 +568,9 @@ export interface MarketItemState {
 }
 
 export interface PlacedObject {
-  id: number;                          // unique, monotonically increasing
-  kind: 'sprinkler' | 'scarecrow' | 'golden_scarecrow' | 'fish_trap';
-  at: { col: number; row: number } | { location: FishLocationId; slot: number };
+  id: number;                          // unique; the next one is max(id) + 1
+  kind: 'sprinkler' | 'scarecrow';     // @04; 'golden_scarecrow' (07) and 'fish_trap' (05) come later
+  at: { col: number; row: number };    // plot (col, row) inside the field grid, so expansions need no remap
 }
 
 export interface TrapState {

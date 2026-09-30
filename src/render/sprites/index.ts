@@ -4,6 +4,7 @@
 import * as terrain from './terrain';
 import * as objects from './objects';
 import * as ui from './ui';
+import { AUTOMATION_SPRITES } from './automation';
 import { CROP_SPRITES } from './crops';
 import { ITEM_SPRITES } from './items';
 import type { SpriteDef } from './types';
@@ -16,6 +17,7 @@ export const ALL_SPRITES: readonly SpriteDef[] = [
   ...Object.values(ui),
   ...CROP_SPRITES,
   ...ITEM_SPRITES,
+  ...AUTOMATION_SPRITES,
 ];
 
 export const SPRITES: Readonly<Record<string, SpriteDef>> = Object.freeze(

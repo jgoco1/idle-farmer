@@ -5,10 +5,11 @@
 //   if it leaves enough gold to replant → till → buy and plant the most profitable seed per plot
 //   (accounting for the demand its own harvests will push down) → water.
 //
-// Phase 04/05 purchases (the first sprinkler, the farmhand, River Access) do not exist yet. They are
-// bought as *virtual* items: the gold is spent and the time recorded, with no effect. For a player
-// who is watching the farm, a sprinkler or farmhand saves clicks rather than adding income, so this
-// is a fair stand-in until phase 09's simulator replaces it.
+// Phase 04 purchases (sprinklers, scarecrows, farmhand, planter, auto-seller, tool upgrades) are
+// real: sprinklers and scarecrows are placed where they cover the most plots. River Access (phase
+// 05) is still bought as a *virtual* item: the gold is spent and the time recorded, with no effect.
+// An active player keeps clicking as well, so automation shows up as saved effort and, once the
+// whole farm is automated, as income that would continue while away.
 
 import { Game } from '../../src/core/game';
 import { createInitialState, type GameState } from '../../src/core/state';
@@ -16,6 +17,15 @@ import { GAME_DATA } from '../../src/data';
 import { MARKET_CHANNEL } from '../../src/data/balance';
 import { CROP_IDS, seedOf, type CropId, type ExpansionId, type UpgradeId } from '../../src/data/ids';
 import { isReady } from '../../src/systems/farming';
+import {
+  areaOf,
+  areaOffsets,
+  inGrid,
+  objectAt,
+  occupiedPlots,
+  placementProblem,
+  stockOf,
+} from '../../src/systems/placement';
 import { demandOf, demandStep, specialBonus } from '../../src/systems/market';
 import { farmLevel, isUnlocked } from '../../src/systems/unlocks';
 import { upgradeCost, upgradeLevel } from '../../src/systems/upgrades';
@@ -23,17 +33,43 @@ import { at, NY } from '../helpers';
 
 export type ShoppingItem =
   | { kind: 'expansion'; id: ExpansionId }
-  | { kind: 'upgrade'; id: UpgradeId }
+  | { kind: 'upgrade'; id: UpgradeId; key?: string }
   | { kind: 'virtual'; id: string; price: number; farmLevel: number };
+
+const buyKey = (item: ShoppingItem): string => (item.kind === 'upgrade' ? (item.key ?? item.id) : item.id);
 
 /** BALANCE.md §11 order: the first expansion, the first sprinkler, the farmhand, then bigger things. */
 export const DEFAULT_SHOPPING_LIST: readonly ShoppingItem[] = [
   { kind: 'expansion', id: 'farm_1' },
-  { kind: 'virtual', id: 'sprinkler', price: 300, farmLevel: 1 },
-  { kind: 'virtual', id: 'farmhand', price: 800, farmLevel: 3 },
+  { kind: 'upgrade', id: 'sprinkler', key: 'sprinkler' },
+  { kind: 'upgrade', id: 'farmhand', key: 'farmhand' },
   { kind: 'expansion', id: 'farm_2' },
   { kind: 'virtual', id: 'river', price: 2000, farmLevel: 3 },
   { kind: 'expansion', id: 'farm_3' },
+];
+
+/**
+ * The long run for the "whole farm automated" check (BALANCE.md §11): everything above, then the
+ * planter, the auto-seller, more sprinklers and Sprinkler Tech, up to the full 8 × 6 field.
+ */
+export const AUTOMATION_SHOPPING_LIST: readonly ShoppingItem[] = [
+  ...DEFAULT_SHOPPING_LIST,
+  { kind: 'upgrade', id: 'seed_planter', key: 'seed_planter' },
+  { kind: 'upgrade', id: 'sprinkler' },
+  { kind: 'upgrade', id: 'sprinkler' },
+  { kind: 'upgrade', id: 'farmhand', key: 'farmhand_2' },
+  { kind: 'upgrade', id: 'farmhand', key: 'farmhand_3' },
+  { kind: 'upgrade', id: 'sprinkler' },
+  { kind: 'upgrade', id: 'seed_planter', key: 'seed_planter_2' },
+  { kind: 'upgrade', id: 'sprinkler_tech', key: 'sprinkler_tech' },
+  { kind: 'expansion', id: 'farm_4' },
+  { kind: 'upgrade', id: 'sprinkler' },
+  { kind: 'upgrade', id: 'sprinkler' },
+  { kind: 'upgrade', id: 'sprinkler' },
+  { kind: 'upgrade', id: 'sprinkler_tech', key: 'sprinkler_tech_2' },
+  { kind: 'upgrade', id: 'sprinkler' },
+  // Last: the bin pays once an hour, which makes an active player's income lumpy.
+  { kind: 'upgrade', id: 'auto_seller', key: 'auto_seller' },
 ];
 
 export interface PacingOptions {
@@ -53,12 +89,21 @@ export interface PacingReport {
   longestIdleMs: number;
   /** When the longest idle stretch in the first 30 minutes started (ms). */
   longestIdleAt: number;
-  /** When each shopping-list item was bought (ms), by id. */
+  /** When each shopping-list item was bought (ms), by key (`key` or id; the first purchase of an id). */
   bought: Record<string, number>;
+  /** When farmhand ≥ 3, planter ≥ 2, auto-seller ≥ 1 and every field plot is sprinkled (ms), if ever. */
+  automatedAt: number | null;
   /** When each farm level was reached (ms). */
   farmLevels: Record<number, number>;
   /** Snapshots every 5 minutes. */
-  timeline: { min: number; gold: number; lifetimeGold: number; farmLevel: number; plots: number }[];
+  timeline: {
+    min: number;
+    gold: number;
+    lifetimeGold: number;
+    farmLevel: number;
+    plots: number;
+    cropsHarvested: number;
+  }[];
   /** Units sold per item over the run. */
   sold: Partial<Record<string, number>>;
   /** Average price received per unit as a fraction of the base price (Market channel included). */
@@ -67,6 +112,8 @@ export interface PacingReport {
 }
 
 const MIN = 60_000;
+/** Replanting rounds of seeds the player keeps in stock once the Auto-Seller makes income hourly. */
+const SEED_STOCK_CYCLES = 8;
 
 /** Expected market value of one more unit of `crop` after `pending` more units are sold first. */
 function unitValue(state: GameState, crop: CropId, pending: number): number {
@@ -100,6 +147,58 @@ function seedsOwned(state: GameState, crop: CropId): number {
   return state.inventory.slots.reduce((n, x) => n + (x?.item === seed ? x.qty : 0), 0);
 }
 
+/** The open plot where a new `kind` would cover the most plots not yet covered by its own kind. */
+function bestSpot(s: GameState, kind: 'sprinkler' | 'scarecrow'): { col: number; row: number } | null {
+  const { cols, rows } = s.farm.grid;
+  const offsets = areaOffsets(areaOf(s, GAME_DATA, kind));
+  const covered = new Set<number>();
+  for (const o of s.placed.filter((x) => x.kind === kind)) {
+    for (const [dc, dr] of areaOffsets(areaOf(s, GAME_DATA, kind)))
+      covered.add((o.at.row + dr) * cols + o.at.col + dc);
+  }
+  const used = occupiedPlots(s);
+  let best: { col: number; row: number } | null = null;
+  let bestGain = 0;
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      // Crops in the way are harvested first, so any bare-or-planted plot is a candidate.
+      const p = s.farm.plots[row * cols + col]!;
+      if (p.state !== 'planted' && placementProblem(s, kind, col, row) !== null) continue;
+      if (p.state === 'planted' && (objectAt(s, col, row) || stockOf(s, kind) <= 0)) continue;
+      let gain = 0;
+      for (const [dc, dr] of offsets) {
+        const c = col + dc;
+        const r = row + dr;
+        if (inGrid(s, c, r) && !covered.has(r * cols + c) && !used.has(r * cols + c)) gain++;
+      }
+      if (gain > bestGain) {
+        bestGain = gain;
+        best = { col, row };
+      }
+    }
+  }
+  return best;
+}
+
+/** BALANCE.md §11: farmhand L3, planter L2, auto-seller, and every open field plot sprinkled. */
+export function fullyAutomated(s: GameState): boolean {
+  if (
+    upgradeLevel(s, 'farmhand') < 3 ||
+    upgradeLevel(s, 'seed_planter') < 2 ||
+    upgradeLevel(s, 'auto_seller') < 1
+  )
+    return false;
+  const { cols, rows } = s.farm.grid;
+  const covered = new Set<number>();
+  const used = occupiedPlots(s);
+  for (const o of s.placed.filter((x) => x.kind === 'sprinkler')) {
+    for (const [dc, dr] of areaOffsets(areaOf(s, GAME_DATA, 'sprinkler')))
+      covered.add((o.at.row + dr) * cols + o.at.col + dc);
+  }
+  for (let i = 0; i < cols * rows; i++) if (!used.has(i) && !covered.has(i)) return false;
+  return true;
+}
+
 export function simulateGreedy(opts: PacingOptions): PacingReport {
   const start = at(NY, 2026, 1, 7, 10, 0);
   let t = start;
@@ -110,6 +209,7 @@ export function simulateGreedy(opts: PacingOptions): PacingReport {
     longestIdleMs: 0,
     longestIdleAt: 0,
     bought: {},
+    automatedAt: null,
     farmLevels: { 1: 0 },
     timeline: [],
     sold: {},
@@ -129,7 +229,8 @@ export function simulateGreedy(opts: PacingOptions): PacingReport {
   for (let elapsed = 0; elapsed <= endMs; elapsed += opts.reactionMs) {
     const s = game.state;
     if (opts.noSpecials) s.market.specials = [];
-    const all = s.farm.plots.map((_, i) => i);
+    const used = occupiedPlots(s);
+    const all = s.farm.plots.map((_, i) => i).filter((i) => !used.has(i));
     let useful = false;
     const act = (r: { ok: boolean }): void => {
       if (r.ok) useful = true;
@@ -150,7 +251,10 @@ export function simulateGreedy(opts: PacingOptions): PacingReport {
     // Shopping list: buy the next item if it leaves enough to replant every plot.
     const next = shopping[0];
     if (next) {
-      const reserve = 25 * s.farm.plots.length * 0.5;
+      // With the Auto-Seller gold only arrives once an hour, so the player keeps enough back to
+      // replant the whole field several times between pickups.
+      const restock = upgradeLevel(s, 'auto_seller') > 0 ? SEED_STOCK_CYCLES : 1;
+      const reserve = 25 * s.farm.plots.length * 0.5 * restock;
       let price = Infinity;
       let can = false;
       if (next.kind === 'expansion') {
@@ -172,8 +276,23 @@ export function simulateGreedy(opts: PacingOptions): PacingReport {
           s.gold -= price;
           useful = true;
         }
-        report.bought[next.id] = elapsed;
+        report.bought[buyKey(next)] ??= elapsed;
+        report.bought[next.id] ??= elapsed;
         shopping.shift();
+      }
+    }
+
+    // Put sprinklers and scarecrows where they cover the most plots that nothing covers yet.
+    for (const kind of ['sprinkler', 'scarecrow'] as const) {
+      while (stockOf(s, kind) > 0) {
+        const spot = bestSpot(s, kind);
+        if (!spot) break;
+        const idx = spot.row * s.farm.grid.cols + spot.col;
+        if (s.farm.plots[idx]!.state === 'planted') {
+          if (!isReady(s.farm.plots[idx]!, GAME_DATA)) break; // wait for the crop, then clear the spot
+          act(game.dispatch({ type: 'harvest', plots: [idx] }));
+        }
+        act(game.dispatch({ type: 'place', kind, col: spot.col, row: spot.row }));
       }
     }
 
@@ -205,7 +324,13 @@ export function simulateGreedy(opts: PacingOptions): PacingReport {
           }
         }
         if (!best) break;
-        if (seedsOwned(s, best) === 0 && !game.dispatch({ type: 'buySeeds', crop: best, qty: 1 }).ok) break;
+        if (seedsOwned(s, best) === 0) {
+          // Stock up when gold comes in lumps (the bag is the planter's seed supply too).
+          const stockUp = upgradeLevel(s, 'auto_seller') > 0 ? SEED_STOCK_CYCLES : 1;
+          const price = GAME_DATA.crops[best].seedPrice;
+          const qty = Math.max(1, Math.min(stockUp, Math.floor(s.gold / price)));
+          if (!game.dispatch({ type: 'buySeeds', crop: best, qty }).ok) break;
+        }
         act(game.dispatch({ type: 'plant', crop: best, plots: [i] }));
         pending[best] = (pending[best] ?? 0) + avgYield(best);
       }
@@ -224,6 +349,7 @@ export function simulateGreedy(opts: PacingOptions): PacingReport {
     }
     const fl = farmLevel(s);
     report.farmLevels[fl] ??= elapsed;
+    if (report.automatedAt === null && fullyAutomated(s)) report.automatedAt = elapsed;
     if (elapsed % (5 * MIN) === 0) {
       report.timeline.push({
         min: elapsed / MIN,
@@ -231,6 +357,7 @@ export function simulateGreedy(opts: PacingOptions): PacingReport {
         lifetimeGold: s.stats.lifetimeGold,
         farmLevel: fl,
         plots: s.farm.plots.length,
+        cropsHarvested: s.stats.cropsHarvested,
       });
     }
 
