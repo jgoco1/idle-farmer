@@ -85,10 +85,13 @@ export function tickShippingBin(state: GameState, ctx: SimContext, dtMs: number)
 
 /**
  * Simulated ms until the next pickup that has something to collect, or Infinity. With the
- * Auto-Seller the bin can fill at any moment, so its pickups are always reported: a large step then
+ * Auto-Seller (or Trap Collector) the bin can fill at any moment, so its pickups are always reported: a large step then
  * never jumps over a pickup that the farmhand's harvest would have landed in.
  */
 export function msToNextPickup(state: GameState): number {
-  const fills = state.shippingBin.items.length > 0 || (state.upgrades.auto_seller ?? 0) > 0;
+  const fills =
+    state.shippingBin.items.length > 0 ||
+    (state.upgrades.auto_seller ?? 0) > 0 ||
+    (state.upgrades.trap_collector ?? 0) > 0;
   return fills ? state.shippingBin.msToPickup : Infinity;
 }

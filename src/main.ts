@@ -22,7 +22,7 @@ import { GAME_DATA } from './data';
 import type { CropId } from './data/ids';
 import { applyPaletteCssVars } from './render/palette';
 import { Renderer } from './render/renderer';
-import { BIN_TILE, PLOT_ORIGIN, plotSprites, tileOfPlot } from './render/scene';
+import { BIN_TILE, PLOT_ORIGIN, plotSprites, tileOfPlot, trapTile } from './render/scene';
 import {
   allPlotIndexes,
   autoToolFor,
@@ -33,6 +33,12 @@ import {
 } from './systems/farming';
 import { areaOf, areaOffsets, inGrid, objectAt, placementProblem, stockOf } from './systems/placement';
 import { PlacementMode } from './ui/placement';
+import { fishingPanel } from './ui/fishingPanel';
+import { expansionFor, isLocationUnlocked } from './systems/locations';
+import { trapItemCount } from './systems/traps';
+import { unlockHints } from './systems/unlocks';
+import { LOCATION_NAMES } from './data/fish';
+import type { FishLocationId } from './data/ids';
 import { computeModifiers } from './systems/modifiers';
 import { showAwaySummary, type AwayFarm } from './ui/awaySummary';
 import { byId, h } from './ui/dom';
@@ -110,7 +116,18 @@ panels.register(
   }),
 );
 panels.register(stubPanel('kitchen'));
-panels.register(stubPanel('fishing'));
+const fishing = fishingPanel({
+  ...view,
+  bus: game.bus,
+  dispatch: (action) => game.dispatch(action),
+  lockedHint(location) {
+    const exp = expansionFor(GAME_DATA, location);
+    if (!exp) return '';
+    const needs = unlockHints(game.state, GAME_DATA, exp.requires).join(' ');
+    return `${LOCATION_NAMES[location]}: ${exp.name}, ${exp.price.toLocaleString('en-US')}g in Upgrades. ${needs}`.trim();
+  },
+});
+panels.register(fishing.def);
 panels.register(
   upgradesPanel({
     ...view,
@@ -128,6 +145,8 @@ panels.register(
   settingsPanel({
     getVolume: () => game.state.settings.masterVolume,
     setVolume: (value) => void game.dispatch({ type: 'setMasterVolume', value }),
+    getRelaxedFishing: () => game.state.settings.relaxedFishing,
+    setRelaxedFishing: (on) => void game.dispatch({ type: 'setRelaxedFishing', on }),
     exportSave: () => exportSave(toSaveFile(game.state, now())),
     importSave(text) {
       try {
@@ -176,8 +195,16 @@ game.bus.on('binCollected', (e) => {
   );
 });
 game.bus.on('purchased', (e) => {
-  if (e.what in GAME_DATA.expansions)
-    toasts.show('The farm grows! New soil is waiting to be tilled.', 'good');
+  if (e.what in GAME_DATA.expansions) {
+    const exp = GAME_DATA.expansions[e.what as keyof typeof GAME_DATA.expansions];
+    toasts.show(
+      exp.kind === 'fishing'
+        ? `${exp.name}: the ${LOCATION_NAMES[exp.location as FishLocationId].toLowerCase()} is open for fishing!`
+        : 'The farm grows! New soil is waiting to be tilled.',
+      'good',
+    );
+  } else if (e.what === 'fish_trap')
+    toasts.show('A fish trap bobs on the water. It fills on its own.', 'good');
   else if (e.what === 'sprinkler' || e.what === 'scarecrow') {
     toasts.show(`${GAME_DATA.upgrades[e.what]!.name} bought. Click a plot to put it down.`, 'good');
     panels.close(); // clear the way to the field
@@ -193,6 +220,10 @@ game.bus.on('planted', (e) => {
     const t = tileOfPlot(game.state.farm.grid, p);
     renderer.farmhand.enqueue({ ...t, sprite: null });
   }
+});
+// Traps: what a click or the Trap Collector took out of them.
+game.bus.on('trapCollected', (e) => {
+  toasts.show(`Collected ${e.items} item${e.items === 1 ? '' : 's'} from the ${e.location} traps.`, 'good');
 });
 // Live panels (Inventory, Shop, Market) follow the state; refreshed at most once per frame.
 let panelsDirty = false;
@@ -267,12 +298,36 @@ function syncPlacement(): void {
 const renderer = new Renderer({
   canvas: byId<HTMLCanvasElement>('scene-canvas'),
   container: byId('scene'),
-  onZoneClick({ zone }) {
+  onZoneClick({ zone, col, row }) {
+    // A trap floating on the water: click it to collect.
+    const trap = game.state.fishing.traps.find((t) => {
+      const at = trapTile(t.location, t.slot);
+      return at.col === col && at.row === row;
+    });
+    if (trap) {
+      const r = game.dispatch({ type: 'collectTrap', id: trap.id });
+      if (!r.ok) toasts.show(r.reason, 'warn');
+      return;
+    }
+    const openWater = (location: FishLocationId): void => {
+      if (isLocationUnlocked(game.state, location)) {
+        fishing.showLocation(location);
+        panels.open('fishing');
+        return;
+      }
+      const exp = expansionFor(GAME_DATA, location);
+      const needs = exp ? unlockHints(game.state, GAME_DATA, exp.requires).join(' ') : '';
+      toasts.show(
+        exp
+          ? `${exp.name}: ${exp.price.toLocaleString('en-US')}g in Upgrades. ${needs}`.trim()
+          : 'You cannot fish there yet.',
+      );
+    };
     switch (zone.id) {
       case 'farmhouse':
         return panels.open('kitchen');
       case 'pond':
-        return panels.open('fishing');
+        return openWater('pond');
       case 'market':
       case 'bin':
         return panels.open('market');
@@ -285,9 +340,9 @@ const renderer = new Renderer({
             : 'Old trees crowd this lot. The Old Orchard Plot expansion would clear them.',
         );
       case 'river':
-        return toasts.show('Tall reeds hide a river bank. Maybe later…');
+        return openWater('river');
       case 'dock':
-        return toasts.show('An old dock, too rickety to use for now.');
+        return openWater('ocean');
     }
   },
   onPlotDown({ plot, shiftKey }) {
@@ -382,6 +437,10 @@ const loop = startLoop(game, {
       ),
       placed: game.state.placed,
       farmhand: (game.state.upgrades.farmhand ?? 0) > 0,
+      traps: game.state.fishing.traps.map((t) => ({
+        ...trapTile(t.location, t.slot),
+        full: trapItemCount(t) > 0,
+      })),
     });
     if (placement.kind) syncPlacement();
     hud.update(game.state, cal);

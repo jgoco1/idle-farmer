@@ -1,6 +1,8 @@
 // The phase-03 pacing check (BALANCE.md §11 and "Phase 03 tuning notes"): a greedy active player
 // (tests/sim/greedyPlayer.ts) plays the first 60 minutes on several seeds. Phase 04 buys the real
-// automation (the second describe plays five and a half hours); River Access (phase 05) is virtual.
+// automation (the second describe plays five and a half hours); phase 05 buys the real River Access
+// and adds a fishing player (the third describe; active fishing is "N catches per real minute").
+// The first two describes are a farming-only player (`fishPerMin` 0), as calibrated in phases 03–04.
 // Phase 09 replaces this with the full simulator. Each test plays several whole games, which can
 // take longer than Vitest's 5 s default on a busy machine, hence the per-describe timeout.
 
@@ -43,9 +45,12 @@ describe('pacing: the first 60 minutes of a greedy active player', { timeout: 30
     const starters = runs({ minutes: 30, onlyCrops: ['turnip', 'potato'] });
     const mixed = starters.map((r) => r.longestIdleMs);
     expect(median(mixed)).toBeLessThanOrEqual(2 * MIN);
+    // Phase 05: pond fish now compete with the crops for the day's market specials, so the farming-only
+    // player sometimes plants 3-minute potatoes instead of 2-minute turnips and waits one potato
+    // (3 min) before Farm Level 4. That is the bound here; the fishing player (below) is never idle.
     for (const r of real) {
       if (r.longestIdleAt < (r.farmLevels[4] ?? Infinity))
-        expect(r.longestIdleMs).toBeLessThanOrEqual(2 * MIN);
+        expect(r.longestIdleMs).toBeLessThanOrEqual(3 * MIN);
     }
   });
 
@@ -67,7 +72,7 @@ describe('pacing: the first 60 minutes of a greedy active player', { timeout: 30
     expect(t).toBeLessThanOrEqual(40);
   });
 
-  it('could open the river in 45–75 minutes', () => {
+  it('opens the real River Access in 45–75 minutes', () => {
     const t = boughtAt(real, 'river');
     expect(t).toBeGreaterThanOrEqual(45);
     expect(t).toBeLessThanOrEqual(75);
@@ -132,5 +137,38 @@ describe('pacing: automating the whole farm (phase 04)', { timeout: 30_000 }, ()
     expect(ms).toBeLessThan(100);
     expect(s.stats.lifetimeGold - before).toBeGreaterThan(10_000);
     expect(s.stats.itemsShipped).toBeGreaterThan(300);
+  });
+});
+
+describe('pacing: adding fishing (phase 05)', { timeout: 60_000 }, () => {
+  const farmOnly = runs();
+  const casual = runs({ fishPerMin: 1 });
+  const keen = runs({ fishPerMin: 3 }); // BALANCE.md §6: "3 catches per real minute while actively fishing"
+  const lifetime = (rs: readonly PacingReport[]): number => median(rs.map((r) => r.final.stats.lifetimeGold));
+
+  it('a player who fishes between chores is never idle for more than 2 minutes', () => {
+    for (const r of casual) expect(r.longestIdleMs).toBeLessThanOrEqual(2 * MIN);
+  });
+
+  it('models N catches per real minute from the real catch table, and sells the fish', () => {
+    for (const r of keen) {
+      expect(r.fished).toBe(180); // 3 a minute for 60 minutes
+      const fish = Object.keys(r.sold).filter((id) => id in GAME_DATA.fish || id in GAME_DATA.junk);
+      expect(fish.length).toBeGreaterThan(0);
+      expect(r.sold.bluegill ?? 0).toBeGreaterThan(0);
+    }
+  });
+
+  it('opens the river with real gold, earlier for a player who fishes', () => {
+    expect(boughtAt(casual, 'river')).toBeLessThan(boughtAt(farmOnly, 'river'));
+    for (const r of keen) expect(r.final.expansions).toContain('river');
+  });
+
+  it('fishing pays, without making the farm pointless', () => {
+    // Fishing at 1 catch a minute is a helpful side income; even 3 a minute (an attentive player who
+    // does nothing else) stays under 3 times the farm-only income. See BALANCE.md "Phase 05 tuning notes".
+    expect(lifetime(casual)).toBeGreaterThan(lifetime(farmOnly) * 1.1);
+    expect(lifetime(keen)).toBeGreaterThan(lifetime(casual));
+    expect(lifetime(keen)).toBeLessThan(lifetime(farmOnly) * 3);
   });
 });

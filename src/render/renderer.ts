@@ -57,6 +57,8 @@ export interface SceneView {
   greenhouse: readonly PlotSprites[];
   placed: readonly PlacedObject[];
   farmhand: boolean;
+  /** Fish traps floating at the water, with whether each one has something to collect. */
+  traps: readonly { col: number; row: number; full: boolean }[];
 }
 
 /** The range preview while placing: the offsets around the hovered plot, and whether the spot is valid. */
@@ -244,6 +246,7 @@ export class Renderer {
       this.drawPlots(view.greenhouse, timeMs, true);
     }
     for (const o of this.layout.objects) f.drawImage(spriteFrame(o.sprite, timeMs), o.x, o.y);
+    this.drawTraps(view.traps, timeMs);
     this.drawPlaced(view.placed, timeMs);
     this.drawFarmhand(view.farmhand, timeMs);
 
@@ -281,6 +284,15 @@ export class Renderer {
       // Offset each object's animation so a field of sprinklers doesn't spray in unison.
       f.drawImage(spriteFrame(id, timeMs + o.id * 331), pos.x, pos.y);
     }
+  }
+
+  /** Traps bob calmly on the water (offset per trap so they do not ripple in unison). */
+  private drawTraps(traps: SceneView['traps'], timeMs: number): void {
+    const f = this.fctx;
+    traps.forEach((t, i) => {
+      const id = t.full ? 'obj_fish_trap_full' : 'obj_fish_trap';
+      f.drawImage(spriteFrame(id, timeMs + i * 290), t.col * TILE, t.row * TILE);
+    });
   }
 
   private drawFarmhand(hired: boolean, timeMs: number): void {

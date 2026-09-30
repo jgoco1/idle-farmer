@@ -1,6 +1,6 @@
 // Farm and fishing expansions (docs/BALANCE.md §5). Farm steps grow the plot grid from 4 × 2 to
-// 8 × 6; their prices follow roundNice(400 * 3.7^n). River and Old Dock open fishing locations and
-// are bought from phase 05 on (the Upgrades panel does not offer them yet).
+// 8 × 6; their prices follow roundNice(400 * 3.7^n). River and Old Dock open fishing locations
+// (phase 05) and are bought the same way.
 
 import { FARM_EXPANSION_COST, roundNice } from './balance';
 import type { ExpansionId } from './ids';
@@ -83,3 +83,6 @@ export const EXPANSIONS: Readonly<Record<ExpansionId, ExpansionDef>> = Object.fr
 
 /** The farm steps in the order they are bought. */
 export const FARM_EXPANSIONS: readonly ExpansionId[] = ['farm_1', 'farm_2', 'farm_3', 'farm_4'];
+
+/** The fishing locations in the order they are bought. */
+export const FISHING_EXPANSIONS: readonly ExpansionId[] = ['river', 'ocean'];

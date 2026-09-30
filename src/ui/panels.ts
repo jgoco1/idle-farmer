@@ -36,13 +36,14 @@ function stub(id: PanelId, title: string, icon: string, blurb: string): PanelDef
 
 export const STUB_PANELS: readonly PanelDef[] = [
   stub('kitchen', 'Kitchen', '🍲', 'Cook what you grow and catch into dishes with gentle buffs.'),
-  stub('fishing', 'Fishing', '🎣', 'Cast a line in the pond, and later the river and the sea.'),
   stub('goals', 'Goals', '★', 'Milestones and the Community Board will point the way.'),
 ];
 
 export interface SettingsHooks {
   getVolume(): number;
   setVolume(v: number): void;
+  getRelaxedFishing(): boolean;
+  setRelaxedFishing(on: boolean): void;
   exportSave(): string;
   /** Returns an error message, or null when the save was imported. */
   importSave(text: string): string | null;
@@ -63,6 +64,10 @@ export function settingsPanel(hooks: SettingsHooks): PanelDef {
         hooks.setVolume(Number(vol.value) / 100);
         volOut.textContent = `${vol.value}%`;
       });
+
+      // Accessibility: Relaxed fishing (a wider, slower sweet zone and a gentler meter).
+      const relaxed = h('input', { type: 'checkbox', id: 'set-relaxed-fishing' });
+      relaxed.addEventListener('change', () => hooks.setRelaxedFishing(relaxed.checked));
 
       // Export.
       const exportBox = h('textarea', {
@@ -136,6 +141,12 @@ export function settingsPanel(hooks: SettingsHooks): PanelDef {
         h('h3', { text: 'Sound' }),
         h('label', { class: 'field', for: 'set-volume' }, 'Volume ', vol, volOut),
         h('p', { class: 'muted', text: 'Sounds arrive in a later update.' }),
+        h('h3', { text: 'Accessibility' }),
+        h('label', { class: 'field', for: 'set-relaxed-fishing' }, relaxed, ' Relaxed fishing'),
+        h('p', {
+          class: 'muted',
+          text: 'A wider, slower sweet zone and a meter that drains half as fast. Applies to your next catch.',
+        }),
         h('h3', { text: 'Your save' }),
         h('div', { class: 'btn-row' }, exportBtn, copyBtn),
         exportBox,
@@ -152,6 +163,7 @@ export function settingsPanel(hooks: SettingsHooks): PanelDef {
           const v = Math.round(hooks.getVolume() * 100);
           vol.value = String(v);
           volOut.textContent = `${v}%`;
+          relaxed.checked = hooks.getRelaxedFishing();
           exportBox.hidden = true;
           copyBtn.hidden = true;
           copyBtn.textContent = 'Copy';

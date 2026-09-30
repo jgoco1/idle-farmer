@@ -3,7 +3,7 @@
 
 import type { Plot } from '../core/state';
 import { GREENHOUSE_BASE } from '../data/balance';
-import type { ExpansionId } from '../data/ids';
+import type { ExpansionId, FishLocationId } from '../data/ids';
 import { anchoredPosition } from './spriteCache';
 import { spriteDef } from './sprites';
 
@@ -24,6 +24,34 @@ export interface TileRect {
 }
 
 export type ZoneId = 'plots' | 'farmhouse' | 'pond' | 'market' | 'bin' | 'greenhouse' | 'river' | 'dock';
+
+/** The water tiles where each location's fish traps float, by slot (BALANCE.md §4: two per location). */
+export const TRAP_TILES: Readonly<Record<FishLocationId, readonly { col: number; row: number }[]>> = {
+  pond: [
+    { col: 2, row: 9 },
+    { col: 3, row: 8 },
+  ],
+  river: [
+    { col: 8, row: 11 },
+    { col: 12, row: 11 },
+  ],
+  ocean: [
+    { col: 17, row: 11 },
+    { col: 19, row: 11 },
+  ],
+};
+
+export function trapTile(location: FishLocationId, slot: number): { col: number; row: number } {
+  const tiles = TRAP_TILES[location];
+  return tiles[slot] ?? tiles[0]!;
+}
+
+/** The zone that opens fishing at each location. */
+export const LOCATION_ZONE: Readonly<Record<FishLocationId, ZoneId>> = {
+  pond: 'pond',
+  river: 'river',
+  ocean: 'dock',
+};
 
 /** The Shipping Bin tile (GDD §5). */
 export const BIN_TILE = { col: 18, row: 7 } as const;
@@ -195,7 +223,35 @@ const DECOR: readonly Decor[] = [
   { sprite: 'obj_tree', col: 17, row: 4, until: 'farm_3' },
   // farm_4 "The Back Forty": a scarecrow post by the market path.
   { sprite: 'obj_scarecrow_post', col: 15, row: 5, from: 'farm_4' },
+  // River Access: a small footbridge over the river.
+  { sprite: 'obj_bridge', col: 10, row: 10, from: 'river' },
+  { sprite: 'obj_bridge', col: 10, row: 11, from: 'river' },
+  // Old Dock: a plank walkway out to sea on posts.
+  { sprite: 'obj_dock', col: 16, row: 10, from: 'ocean' },
+  { sprite: 'obj_dock', col: 17, row: 10, from: 'ocean' },
+  { sprite: 'obj_dock', col: 18, row: 10, from: 'ocean' },
+  { sprite: 'obj_dock_post', col: 16, row: 11, from: 'ocean' },
+  { sprite: 'obj_dock_post', col: 18, row: 11, from: 'ocean' },
 ];
+
+/** Water tiles that animate every frame. */
+const ANIMATED_TILES: readonly string[] = ['tile_water', 'tile_river', 'tile_sea'];
+
+/** The river along the bottom edge (row 10 is the bank, row 11 the current). */
+function riverTile(col: number, row: number): string | null {
+  const r = { col: 6, row: 10, cols: 9, rows: 2 };
+  if (!inRect(r, col, row)) return null;
+  const left = col === r.col;
+  const right = col === r.col + r.cols - 1;
+  if (row === r.row) return left ? 'tile_pond_corner_nw' : right ? 'tile_pond_corner_ne' : 'tile_pond_edge_n';
+  return left ? 'tile_pond_edge_w' : right ? 'tile_pond_edge_e' : 'tile_river';
+}
+
+/** The open sea beside the dock: a sandy landing at the left, then water. */
+function seaTile(col: number, row: number): string | null {
+  if (col < 15 || col > 19 || row < 10 || row > 11) return null;
+  return col === 15 ? 'tile_path' : 'tile_sea';
+}
 
 export function decorFor(expansions: readonly ExpansionId[]): Decor[] {
   return DECOR.filter(
@@ -242,8 +298,12 @@ export function buildLayout(grid: Grid, expansions: readonly ExpansionId[] = [])
     const line: string[] = [];
     for (let col = 0; col < SCENE_COLS; col++) {
       const pond = pondTile(col, row);
+      const river = expansions.includes('river') ? riverTile(col, row) : null;
+      const sea = expansions.includes('ocean') ? seaTile(col, row) : null;
       let tile: string;
       if (pond) tile = pond;
+      else if (river) tile = river;
+      else if (sea) tile = sea;
       else if (inRect(plots, col, row)) tile = 'tile_soil_dry';
       else if (paths.has(`${col},${row}`)) tile = 'tile_path';
       else {
@@ -251,7 +311,7 @@ export function buildLayout(grid: Grid, expansions: readonly ExpansionId[] = [])
         tile = v < 0.5 ? 'tile_grass_a' : v < 0.8 ? 'tile_grass_b' : 'tile_grass_c';
       }
       line.push(tile);
-      if (tile === 'tile_water') animated.push({ col, row, sprite: tile });
+      if (ANIMATED_TILES.includes(tile)) animated.push({ col, row, sprite: tile });
 
       // Wild flowers on open grass, away from buildings, zones, paths and fences.
       const onFence = inRect(fence, col, row) && !inRect(plots, col, row);

@@ -1,9 +1,10 @@
-// Upgrades (docs/BALANCE.md §4). Phase 03 added the backpack; phase 04 adds the farm and tool
-// upgrades; 05 adds the fishing ones and 06 the kitchen, after which this becomes a full Record.
+// Upgrades (docs/BALANCE.md §4). Phase 03 added the backpack; phase 04 the farm and tool upgrades;
+// phase 05 the fishing ones; phase 06 adds the kitchen, after which this becomes a full Record.
 //
 // Leveled upgrades: `effect[level]` and `effectText[level]` (index 0 = not owned). Placeables
 // (sprinkler, scarecrow): the level is the number of units bought.
 
+import { TRAP_CAPACITY, TRAP_INTERVAL_SEC } from './balance';
 import type { UpgradeId } from './ids';
 import type { UpgradeDef, UpgradeEffect } from './types';
 
@@ -27,6 +28,11 @@ const [scarecrowText, scarecrowEffect] = perUnit(
   (n) => (n === 0 ? 'none yet' : n === 1 ? '1 scarecrow' : `${n} scarecrows`),
   { shape: 'square', radius: 2, growthBonus: 0.2 },
 );
+
+const [trapText, trapEffect] = perUnit(6, (n) => (n === 0 ? 'none yet' : n === 1 ? '1 trap' : `${n} traps`), {
+  intervalSec: TRAP_INTERVAL_SEC,
+  capacity: TRAP_CAPACITY,
+});
 
 export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object.freeze({
   sprinkler: {
@@ -207,5 +213,55 @@ export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object
       { inventorySlots: 28 },
     ],
     requires: [],
+  },
+  fish_trap: {
+    id: 'fish_trap',
+    name: 'Fish Trap',
+    description:
+      'A wicker trap that catches a little something every 3 minutes, day and night. Two per open water.',
+    category: 'fishing',
+    kind: 'placeable',
+    placeOn: 'water',
+    max: 6,
+    cost: { base: 500, ratio: 1.5 }, // 500, 750, 1100, 1700, 2500, 3800
+    effectText: trapText,
+    effect: trapEffect,
+    requires: [],
+  },
+  fishing_rod: {
+    id: 'fishing_rod',
+    name: 'Fishing Rod',
+    description: 'A better rod widens the sweet zone when you reel, and nudges the rarer fish your way.',
+    category: 'fishing',
+    kind: 'leveled',
+    max: 3,
+    cost: { base: 300, ratio: 8 }, // 300, 2400, 19000
+    effectText: [
+      'Old rod',
+      'Bamboo rod: zone ×1.10, +0.05 luck',
+      'Fiberglass rod: zone ×1.20, +0.15 luck',
+      'Iridium rod: zone ×1.35, +0.30 luck',
+    ],
+    effect: [
+      { reelZoneMult: 1, luck: 0 },
+      { reelZoneMult: 1.1, luck: 0.05 },
+      { reelZoneMult: 1.2, luck: 0.15 },
+      { reelZoneMult: 1.35, luck: 0.3 },
+    ],
+    requires: [],
+    levelRequires: { 3: [{ kind: 'expansion', id: 'ocean' }] },
+  },
+  trap_collector: {
+    id: 'trap_collector',
+    name: 'Trap Collector',
+    description:
+      'A little cart that empties every trap into your bag each time the Shipping Bin is collected.',
+    category: 'fishing',
+    kind: 'leveled',
+    max: 1,
+    cost: { base: 4000, ratio: 1 },
+    effectText: ['not built', 'empties the traps at every bin pickup'],
+    effect: [{}, { flags: ['autoCollect'] }],
+    requires: [{ kind: 'upgrade', id: 'fish_trap', level: 2 }],
   },
 });

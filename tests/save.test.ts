@@ -19,10 +19,12 @@ import {
 } from '../src/core/save';
 import { createInitialState } from '../src/core/state';
 import { computeSeasonEpoch } from '../src/core/time';
+import { unlockedLocations } from '../src/systems/locations';
 import fixtureV1 from './fixtures/save-v1.json';
 import fixtureV2 from './fixtures/save-v2.json';
 import fixtureV3 from './fixtures/save-v3.json';
-import fixture from './fixtures/save-v4.json';
+import fixtureV4 from './fixtures/save-v4.json';
+import fixture from './fixtures/save-v5.json';
 import { at, NY } from './helpers';
 
 const FIXTURE_TEXT = JSON.stringify(fixture);
@@ -38,20 +40,20 @@ function memoryStorage(initial: Record<string, string> = {}): SaveStorage & { da
 }
 
 describe('save file', () => {
-  it('is at version 4 (phase 04) with one migration per older version', () => {
-    expect(SAVE_VERSION).toBe(4);
-    expect(Object.keys(migrations)).toEqual(['1', '2', '3']);
+  it('is at version 5 (phase 05) with one migration per older version', () => {
+    expect(SAVE_VERSION).toBe(5);
+    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4']);
     expect(SAVE_KEY).toBe('hearthfield-idle/save');
   });
 
-  it('the v4 fixture loads unchanged', () => {
+  it('the v5 fixture loads unchanged', () => {
     const file = parseSave(FIXTURE_TEXT);
     expect(file).toEqual(fixture);
   });
 
   it('the fixture has exactly the shape of a new state (bump SAVE_VERSION if this fails)', () => {
     // Arrays and id-keyed records (market items, upgrades) are compared by the shape of their entries.
-    const RECORDS = new Set(['market.items', 'upgrades']);
+    const RECORDS = new Set(['market.items', 'upgrades', 'fishing.collection']);
     const keys = (o: object, path = ''): string[] => {
       const out = new Set<string>();
       const children: [string, unknown][] =
@@ -71,6 +73,14 @@ describe('save file', () => {
     fresh.expansions.push('farm_1');
     fresh.placed.push({ id: 1, kind: 'sprinkler', at: { col: 0, row: 0 } });
     fresh.autoSell.turnip = false;
+    fresh.fishing.traps.push({
+      id: 1,
+      location: 'pond',
+      slot: 0,
+      progressMs: 0,
+      contents: [{ item: 'bluegill', qty: 1 }],
+    });
+    fresh.fishing.collection.bluegill = { firstCaughtAt: '2026-01-07', bestSizeCm: 20, count: 1 };
     expect(keys(fixture.state)).toEqual(keys(fresh));
   });
 
@@ -164,7 +174,7 @@ describe('migrations', () => {
     ...migrations,
     0: (old) => {
       const { coins, ...rest } = old;
-      return { ...rest, gold: coins, settings: { masterVolume: 0.8 } };
+      return { ...rest, gold: coins, settings: { masterVolume: 0.8, relaxedFishing: false } };
     },
   };
 
@@ -173,7 +183,7 @@ describe('migrations', () => {
     expect(file.version).toBe(SAVE_VERSION);
     expect(file.savedAt).toBe(42);
     expect(file.state.gold).toBe(70);
-    expect(file.state.settings).toEqual({ masterVolume: 0.8 });
+    expect(file.state.settings).toEqual({ masterVolume: 0.8, relaxedFishing: false });
     expect('coins' in file.state).toBe(false);
     expect(validateState(file.state)).toBeNull();
   });
@@ -187,7 +197,7 @@ describe('migrations', () => {
     expect(s.clock).toEqual(fixtureV1.state.clock);
     expect(s.calendar).toEqual(fixtureV1.state.calendar);
     expect(s.rngState).toBe(fixtureV1.state.rngState);
-    expect(s.settings).toEqual(fixtureV1.state.settings);
+    expect(s.settings).toEqual({ ...fixtureV1.state.settings, relaxedFishing: false });
     expect(s.meta).toEqual(fixtureV1.state.meta);
     // The new fields match a brand-new farm: starting gold, 4 × 2 plots (left half tilled), 6 turnip seeds.
     const fresh = createInitialState(0, NY);
@@ -229,14 +239,66 @@ describe('migrations', () => {
       cropsHarvested: 0,
       itemsShipped: 0,
       daysPassed: 0,
+      fishCaught: 0,
     });
     expect(s.upgrades).toEqual({});
     expect(validateState(s)).toBeNull();
   });
 
+  it('migrates a phase-04 (v4) save: everything is kept, fishing starts empty', () => {
+    const file = parseSave(JSON.stringify(fixtureV4));
+    expect(file.version).toBe(5);
+    const s = file.state;
+    const { state: old } = fixtureV4;
+    expect(s.gold).toBe(old.gold);
+    expect(s.farm).toEqual(old.farm);
+    expect(s.upgrades).toEqual(old.upgrades);
+    expect(s.expansions).toEqual(old.expansions);
+    expect(s.placed).toEqual(old.placed);
+    expect(s.lastPlantedCrop).toEqual(old.lastPlantedCrop);
+    expect(s.stats).toEqual({ ...old.stats, fishCaught: 0 });
+    expect(s.settings).toEqual({ ...old.settings, relaxedFishing: false });
+    // No traps, an empty Fish Collection, no cast in progress; only the pond is open.
+    expect(s.fishing).toEqual({ traps: [], collection: {}, session: null });
+    expect(unlockedLocations(s)).toEqual(['pond']);
+    expect(validateState(s)).toBeNull();
+  });
+
+  it('validates the fishing state', () => {
+    const bad = (mut: (s: ReturnType<typeof createInitialState>) => void): string | null => {
+      const c = structuredClone(createInitialState(0, NY));
+      mut(c);
+      return validateState(c);
+    };
+    expect(
+      bad(
+        (c) =>
+          (c.fishing.traps = [{ id: 1, location: 'lake' as never, slot: 0, progressMs: 0, contents: [] }]),
+      ),
+    ).toBe('bad trap');
+    expect(
+      bad((c) => (c.fishing.collection.koi = { firstCaughtAt: 1 as never, bestSizeCm: 3, count: 1 })),
+    ).toBe('bad fish collection');
+    expect(
+      bad(
+        (c) =>
+          (c.fishing.session = {
+            location: 'pond',
+            phase: 'reeling',
+            power: 0.5,
+            fish: 'koi',
+            sizeCm: 40,
+            waitMs: 0,
+            reel: null,
+          }),
+      ),
+    ).toBe('bad fishing session');
+    expect(bad((c) => (c.settings.relaxedFishing = 'yes' as never))).toBe('bad settings');
+  });
+
   it('migrates a phase-03 (v3) save: everything is kept, automation starts empty', () => {
     const file = parseSave(JSON.stringify(fixtureV3));
-    expect(file.version).toBe(4);
+    expect(file.version).toBe(SAVE_VERSION);
     const s = file.state;
     const { state: old } = fixtureV3;
     expect(s.gold).toBe(old.gold);
@@ -245,7 +307,7 @@ describe('migrations', () => {
     expect(s.market).toEqual(old.market);
     expect(s.shippingBin).toEqual(old.shippingBin);
     expect(s.expansions).toEqual(old.expansions);
-    expect(s.stats).toEqual(old.stats);
+    expect(s.stats).toEqual({ ...old.stats, fishCaught: 0 });
     expect(s.upgrades).toEqual(old.upgrades);
     // Nothing placed, every toggle at its default, no farmhand timer, one empty memory slot per plot.
     expect(s.placed).toEqual([]);

@@ -5,14 +5,14 @@
 import { CROP_IDS, type ExpansionId, type ItemId, type UpgradeId } from '../data/ids';
 import type { PlacedKind } from '../core/state';
 import type { UpgradeCategory } from '../data/types';
-import { FARM_EXPANSIONS } from '../data/expansions';
+import { FARM_EXPANSIONS, FISHING_EXPANSIONS } from '../data/expansions';
 import { spriteDataUrl } from '../render/spriteCache';
 import type { ActionResult } from '../systems/context';
 import { autoSellOn } from '../systems/autoSeller';
 import { expansionStatus } from '../systems/expansions';
 import { placedCount, stockOf } from '../systems/placement';
 import { unlockHints } from '../systems/unlocks';
-import { requirementsFor, upgradeCost, upgradeLevel } from '../systems/upgrades';
+import { purchaseBlock, requirementsFor, upgradeCost, upgradeLevel } from '../systems/upgrades';
 import { h } from './dom';
 import type { PanelDef } from './panel';
 import type { GameViewHooks } from './panels';
@@ -40,6 +40,7 @@ const SECTIONS: readonly { title: string; category: UpgradeCategory; ids: readon
       'greenhouse',
     ],
   },
+  { title: 'Fishing', category: 'fishing', ids: ['fish_trap', 'fishing_rod', 'trap_collector'] },
   { title: 'Tools', category: 'tools', ids: ['watering_can', 'hoe'] },
   { title: 'Storage', category: 'storage', ids: ['backpack', 'barn_storage'] },
 ];
@@ -48,6 +49,8 @@ const CARD_ICON: Partial<Record<UpgradeId, string>> = {
   sprinkler: 'obj_sprinkler',
   scarecrow: 'obj_scarecrow',
   farmhand: 'char_farmhand_idle',
+  fish_trap: 'obj_fish_trap',
+  fishing_rod: 'ui_tool_rod',
   watering_can: 'ui_tool_water',
   hoe: 'ui_tool_hoe',
 };
@@ -61,13 +64,18 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
     build(body) {
       const gold = h('p', { class: 'shop-gold' });
       const farm = h('div', { class: 'crate-list' });
+      const waters = h('div', { class: 'crate-list' });
       const sections = SECTIONS.map((sec) => ({ sec, list: h('div', { class: 'crate-list' }) }));
       const msg = h('p', { class: 'form-msg', role: 'status' });
       body.append(
         gold,
         h('h3', { text: 'Field' }),
         farm,
-        ...sections.flatMap(({ sec, list }) => [h('h3', { text: sec.title }), list]),
+        ...sections.flatMap(({ sec, list }) => [
+          h('h3', { text: sec.title }),
+          ...(sec.category === 'fishing' ? [waters] : []),
+          list,
+        ]),
         msg,
       );
       let flash: string | null = null;
@@ -126,11 +134,12 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
           document.activeElement instanceof HTMLElement ? document.activeElement.dataset.role : undefined;
         gold.textContent = `You have ${state.gold.toLocaleString('en-US')}g`;
 
-        farm.replaceChildren(
-          ...FARM_EXPANSIONS.map((id) => {
+        const expansionCards = (ids: readonly ExpansionId[]): HTMLElement[] =>
+          ids.map((id) => {
             const def = hooks.data.expansions[id];
             const status = expansionStatus(state, hooks.data, id);
             const grid = def.grid ? `${def.grid.cols} × ${def.grid.rows} plots` : '';
+            const done = def.grid ? `your field is now ${grid}` : `${def.sceneChange}`;
             const buttons: HTMLElement[] = [];
             let text = `${def.description} (${grid})`;
             if (status === 'available') {
@@ -142,18 +151,19 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
                 disabled: state.gold < def.price,
               });
               button.addEventListener('click', () => {
-                say(hooks.buyExpansion(id), `${def.name}: your field is now ${grid}.`, id);
+                say(hooks.buyExpansion(id), `${def.name}: ${done}.`, id);
                 render();
               });
               buttons.push(button);
             } else if (status === 'locked') {
               text = `${def.price.toLocaleString('en-US')}g · ${unlockHints(state, hooks.data, def.requires).join(' ')}`;
             } else {
-              text = `Done · ${grid}`;
+              text = def.grid ? `Done · ${grid}` : 'Open · fish here from the Fishing panel.';
             }
             return card(id, def.name, text, status, buttons);
-          }),
-        );
+          });
+        farm.replaceChildren(...expansionCards(FARM_EXPANSIONS));
+        waters.replaceChildren(...expansionCards(FISHING_EXPANSIONS));
 
         for (const { sec, list } of sections) {
           list.replaceChildren(
@@ -163,18 +173,24 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
               const level = upgradeLevel(state, id);
               const maxed = level >= def.max;
               const needs = requirementsFor(def, level);
-              const hints = maxed ? [] : unlockHints(state, hooks.data, needs);
+              const blocked = maxed ? null : purchaseBlock(state, id);
+              const hints = maxed
+                ? []
+                : [...unlockHints(state, hooks.data, needs), ...(blocked ? [blocked] : [])];
               const unlocked = hints.length === 0;
               const cost = maxed ? 0 : upgradeCost(def, level);
               const placeable = def.kind === 'placeable';
+              const onField = id === 'sprinkler' || id === 'scarecrow'; // traps are set out at the water for you
               const title = placeable
                 ? `${def.name} · ${level}/${def.max} bought`
                 : `${def.name} · level ${level}/${def.max}`;
               let text = def.description;
               text += ` Now: ${def.effectText[level] ?? ''}`;
               if (!maxed && !placeable) text += ` → next: ${def.effectText[level + 1] ?? ''}.`;
-              if (placeable)
+              if (placeable && onField)
                 text += ` (${placedCount(state, id as PlacedKind)} placed, ${stockOf(state, id as PlacedKind)} in stock)`;
+              else if (placeable)
+                text += ' It is set out at the water for you; collect from the Fishing panel or the scene.';
               if (!maxed && !unlocked) text += ` 🔒 ${hints.join(' ')}`;
               const buttons: HTMLElement[] = [];
               if (!maxed && unlocked) {
@@ -195,6 +211,7 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
               }
               if (
                 placeable &&
+                onField &&
                 (placedCount(state, id as PlacedKind) > 0 || stockOf(state, id as PlacedKind) > 0)
               ) {
                 const place = h('button', {

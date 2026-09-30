@@ -6,8 +6,10 @@
 //   (accounting for the demand its own harvests will push down) → water.
 //
 // Phase 04 purchases (sprinklers, scarecrows, farmhand, planter, auto-seller, tool upgrades) are
-// real: sprinklers and scarecrows are placed where they cover the most plots. River Access (phase
-// 05) is still bought as a *virtual* item: the gold is spent and the time recorded, with no effect.
+// real: sprinklers and scarecrows are placed where they cover the most plots. River Access is a real
+// expansion since phase 05. Active fishing is modelled as `fishPerMin` catches per real minute
+// (BALANCE.md §6: "3 catches per real minute while actively fishing"), drawn from the real catch
+// table at the best open location and sold with the crops; the default is 0 (a farming-only player).
 // An active player keeps clicking as well, so automation shows up as saved effort and, once the
 // whole farm is automated, as income that would continue while away.
 
@@ -28,6 +30,9 @@ import {
 } from '../../src/systems/placement';
 import { demandOf, demandStep, specialBonus } from '../../src/systems/market';
 import { farmLevel, isUnlocked } from '../../src/systems/unlocks';
+import { chooseCatch, landCatch } from '../../src/systems/fishing';
+import { unlockedLocations } from '../../src/systems/locations';
+import { makeContext } from '../../src/core/sim';
 import { upgradeCost, upgradeLevel } from '../../src/systems/upgrades';
 import { at, NY } from '../helpers';
 
@@ -44,7 +49,7 @@ export const DEFAULT_SHOPPING_LIST: readonly ShoppingItem[] = [
   { kind: 'upgrade', id: 'sprinkler', key: 'sprinkler' },
   { kind: 'upgrade', id: 'farmhand', key: 'farmhand' },
   { kind: 'expansion', id: 'farm_2' },
-  { kind: 'virtual', id: 'river', price: 2000, farmLevel: 3 },
+  { kind: 'expansion', id: 'river' },
   { kind: 'expansion', id: 'farm_3' },
 ];
 
@@ -81,6 +86,8 @@ export interface PacingOptions {
   onlyCrops?: readonly CropId[];
   /** Clear today's specials (to measure demand alone). */
   noSpecials?: boolean;
+  /** Active fishing: catches per real minute while playing (0 = never fishes). */
+  fishPerMin?: number;
 }
 
 export interface PacingReport {
@@ -108,6 +115,8 @@ export interface PacingReport {
   sold: Partial<Record<string, number>>;
   /** Average price received per unit as a fraction of the base price (Market channel included). */
   avgPriceFraction: number;
+  /** Catches made by the modelled active fishing. */
+  fished: number;
   final: GameState;
 }
 
@@ -214,6 +223,7 @@ export function simulateGreedy(opts: PacingOptions): PacingReport {
     timeline: [],
     sold: {},
     avgPriceFraction: 0,
+    fished: 0,
     final: game.state,
   };
   let soldValue = 0;
@@ -225,6 +235,8 @@ export function simulateGreedy(opts: PacingOptions): PacingReport {
   });
 
   let lastUseful = 0;
+  let fishBudget = 0;
+  let fished = 0;
   const endMs = opts.minutes * MIN;
   for (let elapsed = 0; elapsed <= endMs; elapsed += opts.reactionMs) {
     const s = game.state;
@@ -235,6 +247,20 @@ export function simulateGreedy(opts: PacingOptions): PacingReport {
     const act = (r: { ok: boolean }): void => {
       if (r.ok) useful = true;
     };
+
+    // Fish: N catches per real minute at the newest open water, then sell them with the crops.
+    if (opts.fishPerMin) {
+      fishBudget += (opts.fishPerMin * opts.reactionMs) / MIN;
+      while (fishBudget >= 1) {
+        fishBudget -= 1;
+        const fctx = makeContext(s, GAME_DATA, game.calendar(), []);
+        const location = unlockedLocations(s).at(-1)!;
+        const pick = chooseCatch(s, fctx, location, 'active', 0.5);
+        landCatch(s, fctx, pick.id, pick.sizeCm, location);
+        fished += 1;
+        useful = true;
+      }
+    }
 
     // Harvest and sell.
     const ready = all.filter((i) => isReady(s.farm.plots[i]!, GAME_DATA));
@@ -365,6 +391,7 @@ export function simulateGreedy(opts: PacingOptions): PacingReport {
     game.advance(opts.reactionMs);
   }
   report.avgPriceFraction = soldBase > 0 ? soldValue / soldBase : 0;
+  report.fished = fished;
   report.final = game.state;
   return report;
 }

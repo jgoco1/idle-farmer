@@ -4,11 +4,12 @@
 
 import { emptyPlot, type GameState } from '../core/state';
 import type { GameData } from '../data';
-import { roundNice } from '../data/balance';
+import { roundNice, TRAPS_PER_LOCATION } from '../data/balance';
 import type { UpgradeId } from '../data/ids';
 import type { AutomationFlag, UnlockCondition, UpgradeDef, UpgradeEffect } from '../data/types';
 import { fail, OK, type ActionResult, type SimContext } from './context';
 import { canAfford, spend } from './economy';
+import { addTrap, maxTraps } from './locations';
 import { isUnlocked, unlockHint } from './unlocks';
 
 export function upgradeLevel(state: GameState, id: UpgradeId): number {
@@ -40,6 +41,17 @@ export function requirementsFor(def: UpgradeDef, level: number): UnlockCondition
   return [...def.requires, ...(def.levelRequires?.[level + 1] ?? [])];
 }
 
+/**
+ * A reason `id` cannot be bought right now that has nothing to do with its unlock conditions, or
+ * null. Fish traps need a free spot: two per unlocked water.
+ */
+export function purchaseBlock(state: GameState, id: UpgradeId): string | null {
+  if (id === 'fish_trap' && upgradeLevel(state, id) >= maxTraps(state)) {
+    return `Every water you can reach already has its ${TRAPS_PER_LOCATION} traps. Open the River or the Old Dock for more.`;
+  }
+  return null;
+}
+
 /** Applies an upgrade's effect for its new level. */
 function applyEffect(state: GameState, data: GameData, id: UpgradeId, level: number): void {
   const effect = data.upgrades[id]?.effect[level];
@@ -53,6 +65,8 @@ function applyEffect(state: GameState, data: GameData, id: UpgradeId, level: num
     const interval = (effect?.intervalSec ?? 0) * 1000;
     const cd = state.automation.farmhandCooldownMs;
     state.automation.farmhandCooldownMs = cd > 0 ? Math.min(cd, interval) : interval;
+  } else if (id === 'fish_trap') {
+    addTrap(state); // set out at the next free spot at the water
   } else if (id === 'greenhouse' && effect?.greenhousePlots) {
     // Greenhouse plots start tilled; L2 adds the other six.
     while (state.farm.greenhouse.length < effect.greenhousePlots) {
@@ -75,6 +89,8 @@ export function buyUpgrade(state: GameState, ctx: SimContext, id: UpgradeId): Ac
   if (!isUnlocked(state, needs)) {
     return fail(unlockHint(state, ctx.data, needs) ?? `${def.name} is not available yet.`);
   }
+  const blocked = purchaseBlock(state, id);
+  if (blocked) return fail(blocked);
   const cost = upgradeCost(def, level);
   if (!canAfford(state, cost)) return fail(`You need ${cost.toLocaleString('en-US')}g for that.`);
   spend(state, cost);

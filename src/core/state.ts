@@ -16,7 +16,7 @@ import {
 } from '../data/balance';
 import { BIN_PICKUP_MS } from '../data/balance';
 import { GAME_DATA } from '../data';
-import type { CropId, ExpansionId, ItemId, UpgradeId } from '../data/ids';
+import type { CropId, ExpansionId, FishId, FishLocationId, ItemId, JunkId, UpgradeId } from '../data/ids';
 import type { ItemStack } from '../data/types';
 import { createRng } from './rng';
 import { openMarketDay } from '../systems/market';
@@ -68,17 +68,19 @@ export interface ShippingBin {
   msToPickup: number; // simulated ms until the next hourly pickup
 }
 
-/** Lifetime and daily statistics (@03; later phases add fish, dishes, …). */
+/** Lifetime and daily statistics (@03; @05 adds fish; later phases add dishes, …). */
 export interface Stats {
   lifetimeGold: number; // all gold ever earned (drives the provisional farm level)
   goldToday: number; // gold earned since the last 06:00 refresh
   cropsHarvested: number; // units
   itemsShipped: number; // units sold through the Shipping Bin
   daysPassed: number; // daily refreshes seen
+  fishCaught: number; // fish (not junk) landed, by rod or trap
 }
 
 export interface Settings {
   masterVolume: number; // 0..1 (@01 stub, @08 real)
+  relaxedFishing: boolean; // @05: a wider, slower sweet zone and a gentler meter
 }
 
 export interface GameState {
@@ -115,9 +117,56 @@ export interface GameState {
   automation: { farmhandCooldownMs: number };
   /** The crop last planted on each plot, for the seed planter: field plots first, then greenhouse plots. */
   lastPlantedCrop: (CropId | null)[];
+
+  // ---- fishing (@05). Unlocked locations are derived from `expansions` (river, ocean).
+  fishing: FishingState;
 }
 
-export const DEFAULT_SETTINGS: Settings = { masterVolume: 0.8 };
+/** A fish trap set out at a water zone (@05). `slot` picks its spot in the scene (0 or 1). */
+export interface TrapState {
+  id: number; // unique, monotonically increasing
+  location: FishLocationId;
+  slot: number;
+  progressMs: number; // toward the next catch roll, in simulated ms at ×1 speed
+  contents: ItemStack[]; // at most TRAP_CAPACITY items in total
+}
+
+/** The reel minigame's live state (real-time, so plain numbers, not simulated timers). */
+export interface ReelState {
+  marker: number; // 0..1 position of the player's marker on the bar
+  zoneCenter: number; // 0..1
+  zoneVel: number; // bar-widths per second, signed
+  zoneWidth: number; // fixed for this fish (rod and Relaxed fishing applied at the start)
+  zoneSpeed: number;
+  retargetMs: number; // until the zone picks a new heading
+  drainPerSec: number;
+  meter: number; // 0..1; caught at 1, escapes at 0
+}
+
+/** An in-progress cast, so saving mid-minigame is safe. */
+export interface FishingSession {
+  location: FishLocationId;
+  phase: 'charging' | 'waiting' | 'bite' | 'reeling';
+  power: number; // 0..1 cast power
+  fish: FishId | JunkId | null; // decided when the bite happens
+  sizeCm: number;
+  waitMs: number; // waiting: until the bite; bite: the window left to start reeling
+  reel: ReelState | null;
+}
+
+export interface CollectionEntry {
+  firstCaughtAt: string; // dayKey of the first catch
+  bestSizeCm: number;
+  count: number;
+}
+
+export interface FishingState {
+  traps: TrapState[];
+  collection: Partial<Record<FishId, CollectionEntry>>;
+  session: FishingSession | null;
+}
+
+export const DEFAULT_SETTINGS: Settings = { masterVolume: 0.8, relaxedFishing: false };
 
 /** A brand-new save created at real time `now`. `seed` defaults to one derived from `now`. */
 export function createInitialState(now: number, lc: LocalClock, seed: number = seedFrom(now)): GameState {
@@ -139,6 +188,7 @@ export function createInitialState(now: number, lc: LocalClock, seed: number = s
     autoSell: {},
     automation: { farmhandCooldownMs: 0 },
     lastPlantedCrop: Array.from({ length: START_GRID.cols * START_GRID.rows }, () => null),
+    fishing: { traps: [], collection: {}, session: null },
   };
   // A new farm opens with today's specials and the first sparkline point (every save starts in spring).
   openMarketDay(state, GAME_DATA, createRng(state), 'spring');
@@ -146,7 +196,7 @@ export function createInitialState(now: number, lc: LocalClock, seed: number = s
 }
 
 export function createStartingStats(): Stats {
-  return { lifetimeGold: 0, goldToday: 0, cropsHarvested: 0, itemsShipped: 0, daysPassed: 0 };
+  return { lifetimeGold: 0, goldToday: 0, cropsHarvested: 0, itemsShipped: 0, daysPassed: 0, fishCaught: 0 };
 }
 
 export function emptyPlot(state: PlotState = 'untilled'): Plot {

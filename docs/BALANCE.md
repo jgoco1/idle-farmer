@@ -248,7 +248,7 @@ Until phase 07 exists, `bundle` conditions evaluate as **met** (bundles are not 
 | `barn_storage` | Stack size: 99 → 199 → 299 → 499 → 999. |
 | `greenhouse` | L1: 6 greenhouse plots (3 × 2) that ignore seasons and are always watered. L2: 12 plots (4 × 3). |
 | `backpack` | Inventory slots: 12 → 16 → 20 → 24 → 28. |
-| `fish_trap` | Rolls one catch every 3 minutes of simulated time, holds up to 5 items. Pool: trappable fish in season at its location (any hour) and junk. |
+| `fish_trap` | Rolls one catch every 3 minutes of simulated time, holds up to 5 items. Pool: trappable fish in season at its location (any hour) and junk. Buying one sets it out at the next free water spot (pond 1, pond 2, then river 1, 2 and ocean 1, 2 as those open); the player does not choose the spot. Each location's traps float at fixed tiles (`TRAP_TILES` in `src/render/scene.ts`). |
 | `fishing_rod` | Starter "Old Rod" L0: zone ×1.00, luck 0. Bamboo L1: ×1.10, +0.05. Fiberglass L2: ×1.20, +0.15. Iridium L3: ×1.35, +0.30. |
 | `trap_collector` | `autoCollect`: at each shipping-bin pickup (every 60 min) each trap is emptied into the inventory (or the Shipping Bin if auto-sell is on for that item). |
 | `kitchen` | Old Hearth L0: 1 queue slot, +0 speed. Stove L1: 2 slots, +0.15. Oven L2: 3 slots, +0.30. Pro Kitchen L3: 4 slots, +0.50. |
@@ -298,7 +298,7 @@ If the inventory is full during an automated harvest, the crop **stays ready in 
 | `koi` | Koi | pond | spring, summer | 8–18 | rare | 65 | 30–60 | 300 | no |
 | `petal_koi` | Petal Koi | pond | spring | 0–24 | legendary | 85 | 40–80 | 1200 | no |
 | `trout` | Trout | river | spring, summer, autumn | 5–21 | common | 30 | 25–60 | 50 | yes |
-| `perch` | Perch | river | autumn, winter, spring | 0–24 | common | 25 | 15–35 | 45 | yes |
+| `perch` | Perch | river | all | 0–24 | common | 25 | 15–35 | 45 | yes |
 | `salmon` | Salmon | river | autumn | 0–24 | uncommon | 50 | 50–100 | 140 | yes |
 | `sturgeon` | Sturgeon | river | summer, winter | 6–20 | rare | 75 | 90–200 | 420 | no |
 | `ember_salmon` | Ember Salmon | river | autumn | 0–24 | legendary | 88 | 60–120 | 1300 | no |
@@ -312,7 +312,7 @@ If the inventory is full during an automated harvest, the crop **stays ready in 
 | `seaweed` | Seaweed | pond, ocean | all | — | junk | — | — | 20 | yes |
 | `driftwood` | Driftwood | river, ocean | all | — | junk | — | — | 8 | yes |
 
-Every location has at least one common fish in every season, so fishing never comes up empty. The spring legendary is in the pond, so even a brand-new player has a (small, about 1%) chance at one in their first week.
+Every location has at least one common fish in every season **and at every hour**, so fishing never comes up empty (phase 05 made Perch a year-round river fish: with Trout at 5–21 and Perch only in autumn to spring, the river had no common fish on summer nights; `tests/fishing.test.ts` now checks every location, season and half hour). The spring legendary is in the pond, so even a brand-new player has a (small, about 1%) chance at one in their first week.
 
 ### Catch selection
 
@@ -355,6 +355,8 @@ TRAP_INTERVAL_SEC = 180           // one roll every 3 minutes of simulated time
 TRAP_CAPACITY     = 5 (+ perks)
 rolls = floor((trap.progressMs + dtMs * mods.fishingSpeedModifier) / (TRAP_INTERVAL_SEC * 1000))
 // each roll adds one item if the trap has space; a full trap stops rolling (progress is kept at the threshold)
+// `progressMs` is in simulated ms at ×1 speed: it grows by round(dt * speed), so one big step = many small ones
+// (a Trap Collector pickup empties traps into the bag every 60 min, so a collector trap yields at most 5 per hour)
 ```
 
 ---
@@ -666,3 +668,18 @@ Each phase that tunes numbers adds a dated subsection here: what changed, why, a
 - **Away income.** A player who stocks 150 seeds of each crop the planter remembers and leaves the finished farm for 8 hours earns about 45,000g (803 items shipped) and the offline step takes ~9 ms. An active player earns about four times that per hour at that stage, so idling is worth roughly a quarter of playing: automation is the main thing to buy, not a replacement for playing.
 - **The Auto-Seller makes income lumpy.** The bin pays once an hour, at that moment's prices, so an active player who buys it early sees gold arrive in hourly lumps and spends the gaps with an empty purse (in the simulation their lifetime gold at 4 h was 54k against 95k without it). It is therefore the last item on the shopping list and a comfortable "I am about to leave" purchase. If phase 09 finds idle income too low, the levers are a shorter `BIN_PICKUP_MS` while a farmhand is hired, or gentler bin demand steps; neither is needed for the targets above.
 - **Sprinklers eat plots.** Each one removes a plot from the field (12 of 48 at most). Two Sprinkler Tech levels are what make a full 8 × 6 field coverable with 8–9 sprinklers.
+
+### Phase 05 tuning notes
+**Method.** `tests/sim/greedyPlayer.ts` now buys the real River Access (`{ kind: 'expansion', id: 'river' }`) and has a `fishPerMin` option: every reaction step it converts `fishPerMin × minutes` into catches drawn from the real catch table (`chooseCatch` + `landCatch`, cast power 0.5) at the newest open location, and sells them with the crops like everything else. The default is 0, so every phase 03 and 04 number above still describes a farming-only player. `tests/pacing.test.ts` has a third group for the fishing player. Medians of 8 seeds, greedy active player, 60 real minutes, spring:
+
+| Player | `farm_1` | 1st sprinkler | Farmhand | River | Lifetime gold at 60 min |
+|---|---|---|---|---|---|
+| Farming only | 9.0 min | 14.1 | 30.1 | 54.0 | 12,400 |
+| + 1 catch a minute | 6.0 | 11.0 | 24.0 | 38.9 | 17,200 (1.4×) |
+| + 3 catches a minute (BALANCE §6 model) | 3.6 | 5.7 | 8.1 | 22.9 | 25,500 (2.0×) |
+
+- **Numbers changed:** only Perch's seasons (now all four). Every price, weight, interval and cost is as in §4 and §6.
+- **Daily specials now include fish.** The pool is the in-season crops plus the in-season fish of the open locations (BALANCE §3 already said "fish at unlocked locations"), so on a new farm five of the seven candidates are pond fish. A farming-only player therefore sees crop specials less often: it sometimes plants 3-minute potatoes instead of 2-minute turnips, and its longest idle stretch before Farm Level 4 grew from 2 to 3 minutes on some seeds. The phase 03 test bound for that is now 3 minutes for a farming-only player; a player who fishes between chores is never idle for more than 2 minutes, which is the point of fishing (GDD §6.4).
+- **What one catch is worth** (base price, before the Market's 90% and demand): pond, spring noon 62g (the rare koi and the legendary Petal Koi carry most of it); summer noon 49g; winter 26g (bluegill and junk only). The reel takes about 15 s of real time per fish (charge ~1 s, wait 3–10 s, react ~1 s, reel 2–8 s), so an attentive player lands 3 to 4 a minute, which is where the "3 catches per real minute" model comes from.
+- **Finding for phase 09.** At 3 catches a minute an active fisher earns about twice what an active farmer does in the first hour and buys `farm_1` in under 4 minutes; pond commons alone (30–40g, 3 a minute) are ~100g a minute against ~50g a minute for eight turnip plots. Fishing is the attention-heavy way to play (a held button every 15 s) and the demand curve does bite (average price fraction stays ≈ 0.88 in the run), so nothing is capped yet, but the levers, in order of preference, are: a longer minimum bite wait or a short "line out" cooldown after a catch (fewer catches a minute, no price changes), lower base prices for Koi and the legendaries (they are about half of the pond's expected value in spring). The rest of the game's pacing targets (§11) are unchanged for a farming-only player.
+- **Traps.** One trap is 500g and rolls 20 catches an hour but holds 5, so it is worth at most one full load (~5 × 30g) per collection; the Trap Collector (4,000g, two traps needed) makes that at most 5 things per trap per hour. That is deliberately small: traps are for the nights and the days away, not for income (a full pond trap is ~150g).

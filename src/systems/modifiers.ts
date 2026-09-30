@@ -28,7 +28,11 @@ export const NO_MODIFIERS: Readonly<Modifiers> = Object.freeze({
   cookingXpBonus: 0,
 });
 
-/** Sources are added in later phases: `1 + (buff + perk + upgrade)`, never compounded. */
-export function computeModifiers(_state: GameState, _data: GameData): Modifiers {
-  return { ...NO_MODIFIERS };
+/**
+ * Sources are added in later phases: `1 + (buff + perk + upgrade)`, never compounded. Today: the
+ * fishing rod's luck (phase 05); buffs join in phase 06 and perks and bundles in phase 07.
+ */
+export function computeModifiers(state: GameState, data: GameData): Modifiers {
+  const rod = data.upgrades.fishing_rod?.effect[state.upgrades.fishing_rod ?? 0];
+  return { ...NO_MODIFIERS, fishingLuckModifier: NO_MODIFIERS.fishingLuckModifier + (rod?.luck ?? 0) };
 }

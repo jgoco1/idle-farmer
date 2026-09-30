@@ -841,3 +841,118 @@ textarea:focus-visible,
   height: 24px;
   object-fit: contain;
 }
+
+/* ---------- fishing */
+.fish-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.fish-tabs .btn.is-active,
+.fish-locations .btn.is-active {
+  background: var(--c-gold);
+  border-color: var(--c-gold_dark);
+}
+.fish-stage {
+  display: block;
+  width: 100%;
+  max-width: 384px;
+  aspect-ratio: 2 / 1;
+  margin: 6px auto;
+  border: 2px solid var(--c-wood_dark);
+  image-rendering: pixelated;
+  background: var(--c-water_2);
+}
+.fish-status {
+  margin: 4px 0;
+  min-height: 1.4em;
+  text-align: center;
+}
+.fish-hint,
+.fish-now {
+  margin: 4px 0;
+}
+.fish-action {
+  min-height: 56px;
+  min-width: 180px;
+  flex: 1;
+  font-size: 18px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.fish-action.is-held {
+  transform: translateY(2px);
+  filter: brightness(0.92);
+}
+.reel {
+  max-width: 384px;
+  margin: 6px auto;
+}
+.reel-track {
+  position: relative;
+  height: 28px;
+  background: var(--c-water_1);
+  border: 2px solid var(--c-outline);
+  overflow: hidden;
+}
+.reel-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--c-leaf_light);
+  opacity: 0.85;
+  box-shadow: 0 0 8px var(--c-leaf_light);
+}
+.reel-marker {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 8px;
+  margin-left: -4px;
+  background: var(--c-white_warm);
+  border: 2px solid var(--c-outline);
+}
+.reel-marker.in-zone {
+  background: var(--c-gold);
+}
+.reel-meter {
+  height: 10px;
+  margin-top: 4px;
+  background: var(--c-ui_parchment_dark);
+  border: 2px solid var(--c-outline);
+}
+.reel-meter-fill {
+  height: 100%;
+  background: var(--c-grass_2);
+}
+.fish-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  margin: 6px 0;
+}
+.fish-new {
+  color: var(--c-gold_dark);
+}
+.fish-collection {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 6px;
+}
+.fish-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 6px;
+  background: var(--c-white_warm);
+  border: 2px solid var(--c-ui_parchment_dark);
+}
+.fish-card-name {
+  font-size: 15px;
+}
+.silhouette {
+  filter: brightness(0);
+  opacity: 0.55;
+}

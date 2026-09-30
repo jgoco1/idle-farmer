@@ -1,5 +1,7 @@
 // Formula parameters from docs/BALANCE.md. Gameplay numbers live here, never in systems or UI.
 
+import type { Rarity } from './ids';
+
 /** BALANCE.md §1: the first 8 real hours away count fully. */
 export const OFFLINE_FULL_MS = 8 * 3600_000;
 /** BALANCE.md §1: the next 16 hours count at OFFLINE_REDUCED_RATE. */
@@ -90,3 +92,63 @@ export function roundNice(x: number): number {
 export const GREENHOUSE_BASE = 1000;
 /** Auto-Seller level 2 keeps up to this many of each item in the bag for cooking and ships the rest. */
 export const AUTO_SELLER_RESERVE = 10;
+
+// ---- fishing (BALANCE.md §6)
+
+/** Catch weights by rarity, before luck. */
+export const RARITY_WEIGHT: Readonly<Record<Rarity, number>> = {
+  common: 60,
+  uncommon: 25,
+  rare: 8,
+  legendary: 2,
+};
+/** How strongly luck moves each rarity: weight × max(LUCK_WEIGHT_FLOOR, 1 + luck × scale). */
+export const LUCK_SCALE: Readonly<Record<Rarity, number>> = {
+  common: -0.3,
+  uncommon: 0.5,
+  rare: 1.5,
+  legendary: 2.5,
+};
+export const LUCK_WEIGHT_FLOOR = 0.3;
+/** Weight of each junk item eligible at the location. */
+export const JUNK_WEIGHT = { active: 10, trap: 25 } as const;
+/** Size in the collection log: min + (max − min) · u^SIZE_EXPONENT, so big ones are rarer. */
+export const SIZE_EXPONENT = 1.5;
+
+/** Holding the cast button charges the cast over this long (real ms). */
+export const CAST_CHARGE_MS = 1200;
+/** A cast at or above this power gives uncommon-and-better fish CAST_POWER_BONUS × their weight. */
+export const CAST_POWER_GOOD = 0.8;
+export const CAST_POWER_BONUS = 1.15;
+/** Bite wait in real ms, divided by `fishingSpeedModifier`. */
+export const BITE_WAIT_MIN_MS = 3000;
+export const BITE_WAIT_MAX_MS = 10000;
+/** After the "!" the player has this long to start reeling before the fish loses interest. */
+export const BITE_WINDOW_MS = 4000;
+
+/** The reel minigame (positions are fractions of the bar; times in real seconds). */
+export const REEL = {
+  zoneWidthBase: 0.35,
+  zoneWidthPerDifficulty: 0.2, // × difficulty / 100 is subtracted
+  zoneSpeedBase: 0.15,
+  zoneSpeedPerDifficulty: 0.5, // × difficulty / 100 is added (bar-widths per second)
+  relaxedWidthMult: 1.5,
+  relaxedSpeedMult: 0.6,
+  fillPerSec: 0.35,
+  drainPerSec: 0.15,
+  relaxedDrainPerSec: 0.075,
+  meterStart: 0.3,
+  /** The marker rises this fast while the button is held and falls this fast when it is not. */
+  markerUpPerSec: 1.0,
+  markerDownPerSec: 0.9,
+  /** The zone picks a new heading every `retargetMinMs` to `retargetMaxMs`, at 50–100% of its speed. */
+  retargetMinMs: 800,
+  retargetMaxMs: 2000,
+  /** Longest slice the physics integrates in one go, so a slow frame cannot skip past the zone. */
+  maxSliceMs: 40,
+} as const;
+
+/** Fish traps: one roll per interval of simulated time, a small hold, two per unlocked water. */
+export const TRAP_INTERVAL_SEC = 180;
+export const TRAP_CAPACITY = 5;
+export const TRAPS_PER_LOCATION = 2;

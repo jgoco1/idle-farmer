@@ -16,10 +16,19 @@ export interface AwayTotals {
   shipped: number;
   gold: number;
   withered: number;
+  /** Catches the fish traps made while away (fish and junk). */
+  trapCatches: number;
 }
 
 export function awayTotals(report: OfflineReport): AwayTotals {
-  const t: AwayTotals = { harvested: {}, harvestedTotal: 0, shipped: 0, gold: 0, withered: 0 };
+  const t: AwayTotals = {
+    harvested: {},
+    harvestedTotal: 0,
+    shipped: 0,
+    gold: 0,
+    withered: 0,
+    trapCatches: 0,
+  };
   for (const e of report.events) {
     if (e.type === 'harvested') {
       t.harvested[e.crop] = (t.harvested[e.crop] ?? 0) + e.qty;
@@ -30,6 +39,8 @@ export function awayTotals(report: OfflineReport): AwayTotals {
       t.gold += e.amount;
     } else if (e.type === 'seasonChanged') {
       t.withered += e.withered;
+    } else if (e.type === 'caught' && e.viaTrap) {
+      t.trapCatches += 1;
     }
   }
   return t;
@@ -61,6 +72,12 @@ export function awayRows(report: OfflineReport, farm: AwayFarm): AwayRow[] {
     rows.push({
       icon: `item_${first[0]}`,
       text: `${t.harvestedTotal} crop${t.harvestedTotal === 1 ? '' : 's'} harvested (${first[1]} ${GAME_DATA.crops[first[0]].name}${rest}).`,
+    });
+  }
+  if (t.trapCatches > 0) {
+    rows.push({
+      icon: 'obj_fish_trap_full',
+      text: `Your traps caught ${t.trapCatches} thing${t.trapCatches === 1 ? '' : 's'} from the water.`,
     });
   }
   if (t.shipped > 0) {

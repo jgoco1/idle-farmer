@@ -48,12 +48,18 @@ export function buyExpansion(state: GameState, ctx: SimContext, id: ExpansionId)
   const def = ctx.data.expansions[id];
   if (!def) return fail('Unknown expansion.');
   if (state.expansions.includes(id)) return fail(`You already have “${def.name}”.`);
-  if (def.kind !== 'farm' || !def.grid) return fail(`“${def.name}” opens with fishing, in a later update.`);
   if (!isUnlocked(state, def.requires)) {
     return fail(unlockHint(state, ctx.data, def.requires) ?? `“${def.name}” is not available yet.`);
   }
   if (!canAfford(state, def.price)) return fail(`You need ${def.price.toLocaleString('en-US')}g for that.`);
   spend(state, def.price);
+  if (def.kind === 'fishing') {
+    // River and Old Dock open a fishing location; `unlockedLocations` reads `expansions`.
+    state.expansions.push(id);
+    ctx.events.push({ type: 'purchased', what: id, gold: def.price });
+    return OK;
+  }
+  if (!def.grid) return fail(`“${def.name}” cannot be bought.`);
   const farm = state.farm;
   const grid = {
     cols: Math.max(farm.grid.cols, def.grid.cols),
