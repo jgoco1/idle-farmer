@@ -93,6 +93,7 @@ export class PanelManager {
     entry.refresh?.();
     entry.root.hidden = false;
     this.host.classList.add('has-panel');
+    document.body.classList.add('panel-open');
     const first = entry.root.querySelector<HTMLElement>(`.panel-body ${FOCUSABLE}`);
     (first ?? entry.root).focus();
     this.emit();
@@ -123,6 +124,7 @@ export class PanelManager {
     this.hide(this.openId);
     this.openId = null;
     this.host.classList.remove('has-panel');
+    document.body.classList.remove('panel-open');
     this.returnFocus?.focus();
     this.returnFocus = null;
     this.emit();

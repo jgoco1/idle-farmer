@@ -3,6 +3,7 @@
 // stays quiet when the player prefers reduced motion. Driven by the event bus from src/main.ts.
 
 import { h } from './dom';
+import { isReducedMotion } from './motion';
 
 export type CelebrationKind = 'level' | 'goal' | 'big';
 
@@ -16,10 +17,6 @@ const COLOURS = [
   '--c-yellow_light',
 ];
 const PIECES: Record<CelebrationKind, number> = { level: 26, goal: 18, big: 44 };
-
-function prefersReducedMotion(): boolean {
-  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
 
 export class Celebration {
   private seed = 0x9e3779b9;
@@ -37,7 +34,7 @@ export class Celebration {
 
   /** Bursts confetti; returns how many pieces were made (0 with reduced motion). */
   burst(kind: CelebrationKind): number {
-    if (prefersReducedMotion()) return 0;
+    if (isReducedMotion()) return 0;
     this.seed ^= Math.floor(performance.now());
     const n = PIECES[kind];
     for (let i = 0; i < n; i++) {

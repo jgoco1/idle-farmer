@@ -23,7 +23,8 @@ export interface TileRect {
   rows: number;
 }
 
-export type ZoneId = 'plots' | 'farmhouse' | 'pond' | 'market' | 'bin' | 'greenhouse' | 'river' | 'dock';
+export type ZoneId =
+  'plots' | 'pet' | 'farmhouse' | 'pond' | 'market' | 'bin' | 'greenhouse' | 'river' | 'dock';
 
 /** The water tiles where each location's fish traps float, by slot (BALANCE.md §4: two per location, a third once the Pond Fish bundle is done). */
 export const TRAP_TILES: Readonly<Record<FishLocationId, readonly { col: number; row: number }[]>> = {
@@ -75,9 +76,13 @@ export function plotRect(grid: Grid): TileRect {
 }
 
 /** Clickable zones, in hit-test priority order. */
+/** Where the farm cat sleeps, beside the farmhouse door. */
+export const PET_TILE = { col: 5, row: 3 } as const;
+
 export function buildZones(grid: Grid): Zone[] {
   return [
     { id: 'plots', rect: plotRect(grid), label: 'Fields' },
+    { id: 'pet', rect: { ...PET_TILE, cols: 1, rows: 1 }, label: 'Farm cat' },
     { id: 'farmhouse', rect: { col: 1, row: 1, cols: 4, rows: 3 }, label: 'Farmhouse' },
     { id: 'pond', rect: { col: 1, row: 7, cols: 4, rows: 4 }, label: 'Pond' },
     { id: 'market', rect: { col: 15, row: 6, cols: 3, rows: 3 }, label: 'Market' },

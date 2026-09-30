@@ -5,17 +5,15 @@ import type { GameState } from '../core/state';
 import { formatDuration, formatHudDate, DAY_MS, type Calendar } from '../core/time';
 import { GAME_DATA } from '../data';
 import { spriteDataUrl } from '../render/spriteCache';
+import { formatNumber, type NumberFormat } from '../core/prefs';
 import { BuffBar } from './buffBar';
 import { h } from './dom';
+import { isReducedMotion } from './motion';
 
 /** Show the season countdown during the last two days of a season (GDD §4). */
 const SEASON_WARNING_MS = 2 * DAY_MS;
 /** Gold counts up to a new total over this long (spending snaps down at once). */
 const GOLD_TWEEN_MS = 600;
-
-function prefersReducedMotion(): boolean {
-  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
 
 /**
  * The animated gold counter: when the total rises it counts up from what is shown with an ease-out;
@@ -58,6 +56,7 @@ export class Hud {
   private last = '';
   private readonly gold = new GoldCounter();
   private goldShown = -1;
+  private numberFormat: NumberFormat = 'full';
   private readonly goldBox: HTMLElement;
   private readonly buffBar: BuffBar;
 
@@ -91,10 +90,20 @@ export class Hud {
       this.timeIcon,
       h('div', { class: 'hud-clock-text' }, this.dateText, this.seasonNote),
     );
-    const buffs = h('div', { class: 'hud-buffs', 'aria-label': 'Active buffs', 'data-testid': 'buffs' });
+    const buffs = h('div', {
+      class: 'hud-buffs',
+      role: 'group',
+      'aria-label': 'Active buffs',
+      'data-testid': 'buffs',
+    });
     this.buffBar = new BuffBar(buffs, GAME_DATA);
     this.goldBox = gold;
     root.append(gold, clock, buffs, h('div', { class: 'hud-right' }, this.settingsButton));
+  }
+
+  setNumberFormat(mode: NumberFormat): void {
+    this.numberFormat = mode;
+    this.goldShown = -1; // redraw the text in the new format
   }
 
   /** The gold icon's position, where bin payouts fly to. */
@@ -103,10 +112,10 @@ export class Hud {
   }
 
   update(state: GameState, cal: Calendar, timeMs: number = performance.now()): void {
-    const shown = this.gold.value(state.gold, timeMs, !prefersReducedMotion());
+    const shown = this.gold.value(state.gold, timeMs, !isReducedMotion());
     if (shown !== this.goldShown) {
       this.goldShown = shown;
-      this.goldText.textContent = `${shown.toLocaleString('en-US')}g`;
+      this.goldText.textContent = `${formatNumber(shown, this.numberFormat)}g`;
     }
     this.goldBox.classList.toggle('is-counting', this.gold.counting);
     this.buffBar.update(state);

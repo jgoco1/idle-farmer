@@ -4,10 +4,78 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="description" content="A cozy idle farming, fishing and cooking game in pixel art." />
-    <link rel="icon" href="data:," />
+    <meta name="theme-color" content="#7d5634" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="icon" type="image/svg+xml" href="%BASE_URL%icon.svg" />
+    <link rel="apple-touch-icon" href="%BASE_URL%icon-192.png" />
+    <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
     <title>Hearthfield Idle</title>
+    <style>
+      /* The splash is plain CSS so it shows before the game's script (and its stylesheet) loads. */
+      #splash {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        background: #44692e;
+        color: #fff4dc;
+        font-family: ui-monospace, 'Cascadia Mono', Menlo, Consolas, monospace;
+        font-weight: 700;
+        transition: opacity 0.4s;
+      }
+      #splash.splash-hide {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #splash .splash-icon {
+        width: 64px;
+        height: 64px;
+        image-rendering: pixelated;
+        animation: splash-bob 0.9s steps(2) infinite;
+      }
+      #splash .splash-bar {
+        width: 120px;
+        height: 8px;
+        border: 2px solid #2b1d1a;
+        background: #4e3326;
+      }
+      #splash .splash-bar i {
+        display: block;
+        height: 100%;
+        width: 30%;
+        background: #f2c14e;
+        animation: splash-load 1.2s steps(6) infinite;
+      }
+      @keyframes splash-bob {
+        50% {
+          transform: translateY(-4px);
+        }
+      }
+      @keyframes splash-load {
+        to {
+          margin-left: 70%;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #splash .splash-icon,
+        #splash .splash-bar i {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="splash" role="status" aria-live="polite">
+      <img src="%BASE_URL%icon.svg" alt="" width="64" height="64" class="splash-icon" />
+      <div>Hearthfield Idle</div>
+      <div class="splash-bar" aria-hidden="true"><i></i></div>
+      <noscript>This game needs JavaScript to run.</noscript>
+    </div>
     <div id="app">
       <header id="hud" class="hud" aria-label="Status"></header>
       <main id="scene" class="scene">
@@ -18,6 +86,16 @@
       <nav id="toolbar" class="toolbar" aria-label="Panels"></nav>
     </div>
     <div id="modal-host"></div>
+    <script>
+      // If the game has not started after a while, say so rather than spin forever. Saves are untouched.
+      setTimeout(function () {
+        var s = document.getElementById('splash');
+        if (!s || s.classList.contains('splash-hide')) return;
+        var p = document.createElement('p');
+        p.textContent = 'This is taking a while. Try reloading the page; your save is safe.';
+        s.appendChild(p);
+      }, 8000);
+    </script>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

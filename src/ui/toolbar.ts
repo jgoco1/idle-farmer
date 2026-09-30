@@ -9,7 +9,14 @@ export function buildToolbar(root: HTMLElement, panels: PanelManager): { nudge(i
     if (def.toolbar === false) continue;
     const btn = h(
       'button',
-      { type: 'button', class: 'tool-btn', 'data-panel-button': def.id, 'aria-pressed': 'false' },
+      {
+        type: 'button',
+        class: 'tool-btn',
+        'data-panel-button': def.id,
+        'aria-pressed': 'false',
+        'aria-label': def.title, // the text label is hidden on phones, leaving only the icon
+        title: def.title,
+      },
       h('span', { class: 'tool-icon', 'aria-hidden': 'true', text: def.icon }),
       h('span', { class: 'tool-label', text: def.title }),
     );

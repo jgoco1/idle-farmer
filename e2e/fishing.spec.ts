@@ -70,6 +70,7 @@ test('cast, wait for the bite and reel a fish in with scripted input', async ({ 
   const panel = page.getByRole('dialog', { name: 'Fishing' });
   await expect(panel).toBeVisible();
   await expect(panel).toContainText('Biting now at the pond');
+  await page.waitForTimeout(400); // the panel pops in; measure the button once it has settled
   // Record every message the result line shows. The scripted player polls the game, so its next
   // press can land just after a catch and start a new cast, which (correctly) clears the message.
   await panel.locator('.fish-result').evaluate((el) => {
@@ -80,9 +81,9 @@ test('cast, wait for the bite and reel a fish in with scripted input', async ({ 
     }).observe(el, { childList: true, subtree: true, characterData: true });
   });
   const cast = panel.getByRole('button', { name: 'Hold to cast' });
+  await cast.scrollIntoViewIfNeeded(); // the panel body scrolls when the window is short
   const box = (await cast.boundingBox())!;
   const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-
   let landed = false;
   for (let attempt = 0; attempt < 5 && !landed; attempt++) {
     // Hold to charge the cast, release to throw.
@@ -109,6 +110,7 @@ test('cast, wait for the bite and reel a fish in with scripted input', async ({ 
     // Hold to reel; keep the marker inside the zone by holding when it is below the zone's centre.
     let down = false;
     let shot = false;
+    await page.mouse.move(centre.x, centre.y); // reeling is held on the button
     for (let i = 0; i < 900; i++) {
       const s = await session(page);
       // Stop once the cast is over: no session, or a new cast started by a press after the catch.
@@ -177,7 +179,10 @@ test('traps fill while time passes and are collected by a click in the scene', a
       t.contents.reduce((n, c) => n + c.qty, 0),
     ),
   );
-  expect(after).toEqual([0, 5]);
+  // The first trap was emptied into the bag. A full trap keeps its next roll waiting, so the next
+  // game tick may already drop one new catch into the emptied trap: 0 or 1 are both right.
+  expect(after[0]).toBeLessThanOrEqual(1);
+  expect(after[1]).toBe(5);
   expect(await fishInBag(page)).toBe(5);
   expect(errors).toEqual([]);
 });

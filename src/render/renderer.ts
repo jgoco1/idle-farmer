@@ -5,13 +5,16 @@
 import type { PlacedObject } from '../core/state';
 import type { Calendar } from '../core/time';
 import type { Offset } from '../systems/placement';
+import { Ambient } from './ambient';
 import { FarmhandVisual } from './farmhand';
+import { ParticleSystem } from './particles';
 import type { ExpansionId } from '../data/ids';
 import { PALETTE } from './palette';
 import {
   buildLayout,
   buildZones,
   GREENHOUSE_ROOF_TILE,
+  PET_TILE,
   plotIndexAt,
   tileOfPlot,
   SCENE_H,
@@ -113,7 +116,20 @@ export class Renderer {
   private preview: PlacementPreview | null = null;
   private greenhousePlots = 0;
   readonly farmhand = new FarmhandVisual();
+  /** Returns true when motion should be reduced (Settings → Motion, or the system preference). */
+  reducedMotion: () => boolean = () => false;
+  readonly particles = new ParticleSystem(() => this.reducedMotion());
+  readonly ambient = new Ambient(() => this.reducedMotion());
+  private readonly snow: HTMLCanvasElement;
+  private shakeUntil = 0;
+  private steamClock = 0;
   private scale = 1;
+  private viewZoom = 1;
+  /** When on, dragging the scene pans it (phones, when zoomed in) instead of using a tool. */
+  panMode = false;
+  private pan: { pointerId: number; x: number; y: number; left: number; top: number; moved: boolean } | null =
+    null;
+  private panMoved = false;
   private lastTime = 0;
   private readonly resizeObserver: ResizeObserver;
 
@@ -127,6 +143,9 @@ export class Renderer {
     this.ground = document.createElement('canvas');
     this.ground.width = SCENE_W;
     this.ground.height = SCENE_H;
+    this.snow = document.createElement('canvas');
+    this.snow.width = SCENE_W;
+    this.snow.height = SCENE_H;
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(opts.container);
@@ -141,6 +160,10 @@ export class Renderer {
       if (job.sprite) this.fx.push({ sprite: job.sprite, col: job.col, row: job.row, start: this.lastTime });
     };
     this.canvas.addEventListener('click', (e) => {
+      if (this.panMoved) {
+        this.panMoved = false; // the end of a pan is not a click
+        return;
+      }
       const t = this.toTile(e);
       if (!t || this.plotAt(e) >= 0) return;
       const zone = zoneAt(this.zones, t.col, t.row);
@@ -155,6 +178,24 @@ export class Renderer {
 
   private pointerDown(e: PointerEvent): void {
     if (e.button !== 0) return;
+    if (this.panMode) {
+      const c = this.opts.container;
+      this.pan = {
+        pointerId: e.pointerId,
+        x: e.clientX,
+        y: e.clientY,
+        left: c.scrollLeft,
+        top: c.scrollTop,
+        moved: false,
+      };
+      this.panMoved = false;
+      try {
+        this.canvas.setPointerCapture(e.pointerId);
+      } catch {
+        // Synthetic events (tests) have no active pointer to capture.
+      }
+      return;
+    }
     const plot = this.plotAt(e);
     if (plot < 0) return;
     e.preventDefault();
@@ -168,6 +209,14 @@ export class Renderer {
   }
 
   private pointerMove(e: PointerEvent): void {
+    if (this.pan && e.pointerId === this.pan.pointerId) {
+      const dx = e.clientX - this.pan.x;
+      const dy = e.clientY - this.pan.y;
+      if (Math.abs(dx) + Math.abs(dy) > 6) this.panMoved = true;
+      this.opts.container.scrollLeft = this.pan.left - dx;
+      this.opts.container.scrollTop = this.pan.top - dy;
+      return;
+    }
     this.setHover(this.toTile(e));
     if (!this.stroke || e.pointerId !== this.stroke.pointerId) return;
     const plot = this.plotAt(e);
@@ -177,6 +226,10 @@ export class Renderer {
   }
 
   private endStroke(e: PointerEvent): void {
+    if (this.pan && e.pointerId === this.pan.pointerId) {
+      this.pan = null;
+      return;
+    }
     if (!this.stroke || e.pointerId !== this.stroke.pointerId) return;
     this.stroke = null;
     this.opts.onStrokeEnd();
@@ -206,6 +259,38 @@ export class Renderer {
     this.layout.ground.forEach((line, row) =>
       line.forEach((sprite, col) => g.drawImage(spriteFrame(sprite), col * TILE, row * TILE)),
     );
+    // Winter snow covers open grass only: plots, crops and objects are drawn over or away from it.
+    const sn = context2d(this.snow);
+    sn.clearRect(0, 0, SCENE_W, SCENE_H);
+    this.layout.ground.forEach((line, row) =>
+      line.forEach((sprite, col) => {
+        if (!sprite.startsWith('tile_grass')) return;
+        sn.globalAlpha = 0.62;
+        sn.fillStyle = PALETTE.white_warm;
+        sn.fillRect(col * TILE, row * TILE, TILE, TILE);
+        sn.globalAlpha = 1;
+        sn.fillStyle = PALETTE.water_foam;
+        for (const [dx, dy] of [
+          [3, 4],
+          [10, 2],
+          [7, 10],
+          [13, 13],
+          [2, 12],
+        ] as const)
+          sn.fillRect(col * TILE + dx, row * TILE + dy, 2, 1);
+      }),
+    );
+  }
+
+  /** A gentle 2 px screen shake for `ms` (legendary catches only). Skipped under reduced motion. */
+  shake(timeMs: number, ms = 450): void {
+    if (this.reducedMotion()) return;
+    this.shakeUntil = timeMs + ms;
+  }
+
+  /** Centre of tile (col, row) in logical scene pixels. */
+  static tileCenterPx(col: number, row: number): { x: number; y: number } {
+    return { x: col * TILE + TILE / 2, y: row * TILE + TILE / 2 };
   }
 
   /** Viewport (client) coordinates of the centre of scene tile (col, row), for DOM effects. */
@@ -217,8 +302,35 @@ export class Renderer {
     };
   }
 
+  /** Viewport rectangle covering `cols × rows` tiles from (col, row), for overlays such as the tutorial ring. */
+  tileRectClient(col: number, row: number, cols: number, rows: number): DOMRect {
+    const rect = this.canvas.getBoundingClientRect();
+    const sx = rect.width / SCENE_W;
+    const sy = rect.height / SCENE_H;
+    return new DOMRect(
+      rect.left + col * TILE * sx,
+      rect.top + row * TILE * sy,
+      cols * TILE * sx,
+      rows * TILE * sy,
+    );
+  }
+
   get currentScale(): number {
     return this.scale;
+  }
+
+  /** 1 fits the scene; 2 doubles it inside the scrollable scene area (for small phones). */
+  setViewZoom(zoom: 1 | 2): void {
+    this.viewZoom = zoom;
+    this.resize();
+    if (zoom === 1) {
+      this.opts.container.scrollLeft = 0;
+      this.opts.container.scrollTop = 0;
+    }
+  }
+
+  get zoom(): number {
+    return this.viewZoom;
   }
 
   resize(): void {
@@ -227,20 +339,33 @@ export class Renderer {
     this.scale = integerScale(w, h, dpr);
     this.canvas.width = SCENE_W * this.scale;
     this.canvas.height = SCENE_H * this.scale;
-    this.canvas.style.width = `${(SCENE_W * this.scale) / dpr}px`;
-    this.canvas.style.height = `${(SCENE_H * this.scale) / dpr}px`;
+    this.canvas.style.width = `${((SCENE_W * this.scale) / dpr) * this.viewZoom}px`;
+    this.canvas.style.height = `${((SCENE_H * this.scale) / dpr) * this.viewZoom}px`;
     this.ctx.imageSmoothingEnabled = false; // resizing resets context state
   }
 
   render(timeMs: number, calendar: Calendar, view: SceneView): void {
     const f = this.fctx;
+    const dtMs = this.lastTime > 0 ? Math.min(250, timeMs - this.lastTime) : 0;
     this.lastTime = timeMs;
+    const aclock = { hour: calendar.hour, isNight: calendar.isNight, season: calendar.season };
+    this.ambient.update(dtMs, aclock);
+    this.particles.update(dtMs);
+    if (view.cooking && !this.reducedMotion()) {
+      this.steamClock += dtMs;
+      if (this.steamClock > 380) {
+        this.steamClock = 0;
+        this.particles.emit('steam', CHIMNEY_STEAM.x + 11, CHIMNEY_STEAM.y + 18);
+      }
+    }
     this.greenhousePlots = view.greenhouse.length;
     f.globalCompositeOperation = 'source-over';
     f.globalAlpha = 1;
     f.drawImage(this.ground, 0, 0);
+    if (calendar.season === 'winter') f.drawImage(this.snow, 0, 0);
     for (const a of this.layout.animated)
       f.drawImage(spriteFrame(a.sprite, timeMs), a.col * TILE, a.row * TILE);
+    this.ambient.drawShadows(f, aclock);
     this.drawPlots(view.plots, timeMs, false);
     if (view.greenhouse.length > 0) {
       f.drawImage(
@@ -252,17 +377,33 @@ export class Renderer {
     }
     for (const o of this.layout.objects) f.drawImage(spriteFrame(o.sprite, timeMs), o.x, o.y);
     if (view.cooking) f.drawImage(spriteFrame('fx_steam', timeMs), CHIMNEY_STEAM.x, CHIMNEY_STEAM.y);
+    f.drawImage(
+      spriteFrame('obj_cat_sleep', this.reducedMotion() ? 0 : timeMs),
+      PET_TILE.col * TILE,
+      PET_TILE.row * TILE,
+    );
     this.drawTraps(view.traps, timeMs);
     this.drawPlaced(view.placed, timeMs);
     this.drawFarmhand(view.farmhand, timeMs);
 
+    this.ambient.drawAir(f, aclock);
+    this.particles.draw(f);
     this.drawTint(calendar);
+    this.ambient.drawGlow(f, timeMs, aclock);
     this.drawFx(timeMs);
     this.drawHover();
     this.drawPreview();
 
     this.ctx.imageSmoothingEnabled = false;
-    this.ctx.drawImage(this.frame, 0, 0, this.canvas.width, this.canvas.height);
+    let ox = 0;
+    let oy = 0;
+    if (timeMs < this.shakeUntil) {
+      ox = Math.round(Math.sin(timeMs / 23) * 2 * this.scale);
+      oy = Math.round(Math.cos(timeMs / 31) * 2 * this.scale);
+      this.ctx.fillStyle = PALETTE.grass_dark;
+      this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+    this.ctx.drawImage(this.frame, ox, oy, this.canvas.width, this.canvas.height);
   }
 
   /** Per-plot soil (dry, wet or untilled) and the crop growing on it. */
@@ -273,8 +414,12 @@ export class Renderer {
       f.drawImage(spriteFrame(p.soil), col * TILE, row * TILE);
       if (p.crop) {
         const pos = anchoredPosition(spriteDef(p.crop), col, row, TILE);
+        // A ready crop (stage 4) wobbles when hovered; it also twinkles, so colour is never the only cue.
+        const hovered = this.hover?.col === col && this.hover.row === row;
+        const wobble = hovered && p.crop.endsWith('_4') && !this.reducedMotion();
+        const dx = wobble ? Math.round(Math.sin(timeMs / 55)) : 0;
         // Offset the animation per plot so ready crops don't all twinkle in unison.
-        f.drawImage(spriteFrame(p.crop, timeMs + i * 137), pos.x, pos.y);
+        f.drawImage(spriteFrame(p.crop, timeMs + i * 137), pos.x + dx, pos.y);
       }
     });
   }
@@ -357,7 +502,13 @@ export class Renderer {
     for (const e of this.fx) {
       const t = Math.max(0, timeMs - e.start) / FX_MS;
       f.globalAlpha = 1 - t * t;
-      f.drawImage(spriteFrame(e.sprite), e.col * TILE, e.row * TILE - Math.round(t * FX_RISE_PX) - 4);
+      const img = spriteFrame(e.sprite);
+      // Squash and stretch: the popped item squashes flat, springs tall, then settles.
+      const k = this.reducedMotion() ? 0 : Math.sin(Math.min(1, t * 2.4) * Math.PI * 2) * (1 - t);
+      const w = Math.round(img.width * (1 - 0.3 * k));
+      const hgt = Math.round(img.height * (1 + 0.3 * k));
+      const baseY = e.row * TILE - Math.round(t * FX_RISE_PX) - 4 + img.height;
+      f.drawImage(img, e.col * TILE + Math.round((img.width - w) / 2), baseY - hgt, w, hgt);
     }
     f.globalAlpha = 1;
   }
