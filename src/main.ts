@@ -2,6 +2,10 @@
 // the UI, the loop and autosave.
 
 import './styles.css';
+import { AudioEngine, unlockOnFirstGesture, volumesOf } from './audio/engine';
+import { bindAudioEvents } from './audio/events';
+import { Music, themeKey } from './audio/music';
+import { Sfx } from './audio/sfx';
 import { Game } from './core/game';
 import { startLoop } from './core/loop';
 import type { OfflineReport } from './core/offline';
@@ -11,18 +15,20 @@ import {
   exportSave,
   importSave,
   loadGame,
+  SAVE_KEY,
   SaveError,
   toSaveFile,
   writeSave,
   type SaveStorage,
 } from './core/save';
+import { PrefsStore } from './core/prefs';
 import { createInitialState } from './core/state';
 import { systemLocalClock } from './core/time';
 import { GAME_DATA } from './data';
 import type { CropId } from './data/ids';
 import { applyPaletteCssVars } from './render/palette';
 import { Renderer } from './render/renderer';
-import { BIN_TILE, PLOT_ORIGIN, plotSprites, tileOfPlot, trapTile } from './render/scene';
+import { BIN_TILE, PET_TILE, PLOT_ORIGIN, plotSprites, tileOfPlot, trapTile } from './render/scene';
 import {
   allPlotIndexes,
   autoToolFor,
@@ -57,9 +63,22 @@ import { upgradesPanel } from './ui/upgradesPanel';
 import type { Action } from './core/actions';
 import type { ActionResult } from './systems/context';
 import { Toasts } from './ui/toast';
+import { buildSceneControls } from './ui/sceneControls';
+import { applyMotionPrefs, isReducedMotion } from './ui/motion';
+import { flyCoins } from './ui/coinFly';
+import { TutorialOverlay } from './ui/tutorial';
+import { isFreshFarm, TutorialFlow } from './ui/tutorialFlow';
 import { buildToolbar } from './ui/toolbar';
 
 applyPaletteCssVars(document.documentElement);
+
+/** The pixel-art splash in index.html fades out once the first frame is on screen. */
+function dismissSplash(): void {
+  const el = document.getElementById('splash');
+  if (!el) return;
+  el.classList.add('splash-hide');
+  window.setTimeout(() => el.remove(), 500);
+}
 
 const lc = systemLocalClock;
 const now = (): number => Date.now();
@@ -80,6 +99,23 @@ function safeStorage(): SaveStorage {
 }
 const storage = safeStorage();
 
+// ---- preferences (their own key: they belong to the browser, not the farm)
+const prefs = new PrefsStore(storage);
+function applyPrefs(): void {
+  const p = prefs.value;
+  applyMotionPrefs(p, document.documentElement);
+  document.documentElement.style.setProperty('--ui-scale', String(p.uiScale));
+  engine.setVolumes(volumesOf(p));
+  hud.setNumberFormat(p.numberFormat);
+}
+
+// ---- audio: procedural Web Audio, created on the first click or key press
+const engine = new AudioEngine();
+const sfx = new Sfx(engine);
+const music = new Music(engine);
+unlockOnFirstGesture(engine, document);
+music.start();
+
 // ---- load
 const loaded = loadGame(storage, now(), lc);
 /** While a broken save is on disk, never autosave over it until the player chooses. */
@@ -99,6 +135,8 @@ function save(): void {
 // ---- UI
 const toasts = new Toasts(byId('toasts'));
 const hud = new Hud(byId('hud'));
+applyPrefs();
+prefs.onChange(applyPrefs);
 const panels = new PanelManager(byId('panel-host'));
 const view: GameViewHooks = {
   data: GAME_DATA,
@@ -108,7 +146,24 @@ const view: GameViewHooks = {
 };
 const placement = new PlacementMode(() => syncPlacement());
 // Registration order is the toolbar order.
-const dispatch = (action: Action): ActionResult => game.dispatch(action);
+/** Dispatch with the few sounds that belong to an action rather than an event (cooking, casting, reeling). */
+let lastReelTick = 0;
+const dispatch = (action: Action): ActionResult => {
+  const phaseBefore = game.state.fishing.session?.phase;
+  const r = game.dispatch(action);
+  if (!r.ok) return r;
+  if (action.type === 'cook') sfx.play('sizzle');
+  if (action.type === 'fishTick') {
+    const session = game.state.fishing.session;
+    if (phaseBefore === 'charging' && session?.phase === 'waiting')
+      sfx.play('cast', { amount: session.power });
+    else if (session?.phase === 'reeling' && performance.now() - lastReelTick > 230) {
+      lastReelTick = performance.now();
+      sfx.play('reel');
+    }
+  }
+  return r;
+};
 panels.register(inventoryPanel({ ...view, dispatch }));
 panels.register(
   shopPanel({
@@ -129,7 +184,7 @@ panels.register(kitchenPanel({ ...view, dispatch }));
 const fishing = fishingPanel({
   ...view,
   bus: game.bus,
-  dispatch: (action) => game.dispatch(action),
+  dispatch,
   lockedHint(location) {
     const exp = expansionFor(GAME_DATA, location);
     if (!exp) return '';
@@ -162,8 +217,11 @@ panels.register(
 );
 panels.register(
   settingsPanel({
-    getVolume: () => game.state.settings.masterVolume,
-    setVolume: (value) => void game.dispatch({ type: 'setMasterVolume', value }),
+    prefs,
+    replayTutorial() {
+      panels.close();
+      tutorial.start();
+    },
     getRelaxedFishing: () => game.state.settings.relaxedFishing,
     setRelaxedFishing: (on) => void game.dispatch({ type: 'setRelaxedFishing', on }),
     exportSave: () => exportSave(toSaveFile(game.state, now())),
@@ -186,6 +244,8 @@ panels.register(
       save();
       panels.close();
       toasts.show('A fresh start. Welcome to your new farm!', 'good');
+      prefs.set('tutorial', 'pending');
+      tutorial.start();
     },
   }),
 );
@@ -193,6 +253,132 @@ hud.settingsButton.addEventListener('click', () => panels.toggle('settings'));
 const toolbar = buildToolbar(byId('toolbar'), panels);
 const celebration = new Celebration(byId('scene'));
 const tools = new FarmTools(byId('toolbar'), view);
+
+// ---- layout: panels sit between the real HUD and toolbar heights (they change with UI size and phone width)
+function trackHeights(): void {
+  const set = (): void => {
+    const root = document.documentElement.style;
+    root.setProperty('--hud-h', `${byId('hud').offsetHeight}px`);
+    root.setProperty('--toolbar-h', `${byId('toolbar').offsetHeight}px`);
+  };
+  const ro = new ResizeObserver(set);
+  ro.observe(byId('hud'));
+  ro.observe(byId('toolbar'));
+  set();
+}
+trackHeights();
+
+// ---- sound: every click, every panel, and (below) every game event
+document.addEventListener('click', (e) => {
+  const btn = e.target instanceof Element ? e.target.closest('button') : null;
+  if (btn && !btn.disabled) sfx.play('click');
+});
+panels.onChange((open) => sfx.play(open ? 'panelOpen' : 'panelClose'));
+/** Offline catch-up flushes its events through the bus too; it stays quiet and unadorned. */
+const quiet = (): boolean => game.replaying;
+bindAudioEvents(game.bus, sfx, quiet);
+
+// ---- juice: particles at the spot an event happened (cosmetic; the renderer owns them)
+const PX = 16; // a tile in logical scene pixels
+const WATER_SPOT: Record<FishLocationId, { col: number; row: number }> = {
+  pond: { col: 3, row: 9 },
+  river: { col: 10, row: 11 },
+  ocean: { col: 17, row: 11 },
+};
+function plotPx(plot: number): { x: number; y: number } {
+  const t = tileOfPlot(game.state.farm.grid, plot);
+  return { x: t.col * PX + PX / 2, y: t.row * PX + PX / 2 };
+}
+function burstOnPlots(kind: 'soil' | 'droplet' | 'leaf', plots: number[]): void {
+  if (quiet()) return;
+  for (const p of plots.slice(0, 6)) {
+    const at = plotPx(p);
+    renderer.particles.emit(kind, at.x, kind === 'droplet' ? at.y - 4 : at.y, plots.length > 3 ? 0.6 : 1);
+  }
+}
+game.bus.on('tilled', (e) => e.auto || burstOnPlots('soil', e.plots));
+game.bus.on('watered', (e) => e.auto || burstOnPlots('droplet', e.plots));
+game.bus.on('harvested', (e) => e.auto || burstOnPlots('leaf', [e.plot]));
+const ripple = (location: FishLocationId): void => {
+  if (quiet()) return;
+  const at = WATER_SPOT[location];
+  renderer.particles.emit('ripple', at.col * PX + PX / 2, at.row * PX + PX / 2);
+};
+game.bus.on('bite', (e) => ripple(e.location));
+game.bus.on('escaped', (e) => ripple(e.location));
+game.bus.on('caught', (e) => {
+  if (quiet() || e.viaTrap) return;
+  ripple(e.location);
+  const fish = GAME_DATA.fish[e.catch as keyof typeof GAME_DATA.fish];
+  if (fish?.rarity === 'legendary') {
+    renderer.shake(performance.now());
+    const at = WATER_SPOT[e.location];
+    renderer.particles.emit('sparkle', at.col * PX + PX / 2, at.row * PX + PX / 2);
+  }
+});
+const sparkleBurst = (): void => {
+  if (quiet()) return;
+  renderer.particles.emit('sparkle', 160, 70, 1.4);
+};
+game.bus.on('levelUp', sparkleBurst);
+game.bus.on('farmLevelUp', sparkleBurst);
+game.bus.on('sold', (e) => {
+  if (quiet() || e.via !== 'market') return;
+  flyCoins(renderer.tileClientCenter(16, 7), hud.goldElement, e.gold);
+});
+game.bus.on('binCollected', (e) => {
+  if (quiet()) return;
+  flyCoins(renderer.tileClientCenter(BIN_TILE.col, BIN_TILE.row), hud.goldElement, e.gold);
+});
+let petted = 0;
+function petTheCat(): void {
+  sfx.play('pet');
+  const at = { x: PET_TILE.col * PX + PX / 2, y: PET_TILE.row * PX };
+  for (let i = 0; i < 3; i++)
+    window.setTimeout(() => renderer.particles.emit('heart', at.x + (i - 1) * 4, at.y - i * 3), i * 160);
+  if (petted++ % 6 === 0) toasts.show('The farm cat purrs in its sleep.', 'good');
+}
+
+// ---- first-time tutorial: plots → seeds → water → harvest → sell → shop, then the milestones take over
+const tutorial = new TutorialFlow();
+const tutorialRects = {
+  rectOf(target: string): DOMRect | null {
+    switch (target) {
+      case 'plots': {
+        const g = game.state.farm.grid;
+        return renderer.tileRectClient(PLOT_ORIGIN.col, PLOT_ORIGIN.row, g.cols, g.rows);
+      }
+      case 'auto-tool':
+        return document.querySelector('[data-tool="auto"]')?.getBoundingClientRect() ?? null;
+      case 'market-button':
+        return document.querySelector('[data-panel-button="market"]')?.getBoundingClientRect() ?? null;
+      case 'shop-button':
+        return document.querySelector('[data-panel-button="shop"]')?.getBoundingClientRect() ?? null;
+      case 'goals-button':
+        return document.querySelector('[data-panel-button="goals"]')?.getBoundingClientRect() ?? null;
+    }
+    return null;
+  },
+};
+const tutorialOverlay = new TutorialOverlay(byId('scene'), tutorial, tutorialRects);
+for (const type of ['planted', 'watered', 'harvested', 'sold'] as const)
+  game.bus.on(type, (e) => {
+    if ('auto' in e && e.auto) return;
+    tutorial.signal({ kind: 'event', type });
+  });
+panels.onChange((open) => open && tutorial.signal({ kind: 'panel', id: open }));
+tutorial.onChange(() => {
+  if (tutorial.status === 'finished') {
+    prefs.set('tutorial', 'done');
+    toolbar.nudge('goals');
+  } else if (tutorial.status === 'skipped') prefs.set('tutorial', 'skipped');
+});
+/** A fresh farm gets the tutorial once; a save with progress never sees it unasked. */
+function maybeStartTutorial(): void {
+  if (saveBlocked) return;
+  if (prefs.value.tutorial === 'pending' && isFreshFarm(game.state)) tutorial.start();
+  else if (prefs.value.tutorial === 'pending') prefs.set('tutorial', 'done');
+}
 
 game.bus.on('notify', (e) => toasts.show(e.text, e.tone));
 game.bus.on('recipeLearned', (e) => {
@@ -391,6 +577,8 @@ const renderer = new Renderer({
       );
     };
     switch (zone.id) {
+      case 'pet':
+        return petTheCat();
       case 'farmhouse':
         return panels.open('kitchen');
       case 'pond':
@@ -437,6 +625,8 @@ const renderer = new Renderer({
     flushStrokeToasts();
   },
 });
+renderer.reducedMotion = isReducedMotion;
+buildSceneControls(byId('scene'), renderer);
 renderer.setScene(game.state.farm.grid, game.state.expansions);
 
 // ---- offline catch-up for the time since the last save
@@ -456,30 +646,48 @@ function onResume(report: OfflineReport): void {
 }
 if (initialFile && loaded.kind === 'loaded') onResume(game.catchUp(initialFile.savedAt, now()));
 else save();
+maybeStartTutorial();
 
 if (loaded.kind === 'error') {
   const box = h('textarea', { class: 'save-text', readonly: true, rows: 4, 'aria-label': 'Raw save' });
   box.value = loaded.raw;
+  /** Saves the raw text as a file, so even a broken save can be kept or repaired by hand. */
+  const download = (): void => {
+    const url = URL.createObjectURL(new Blob([loaded.raw], { type: 'text/plain' }));
+    const a = h('a', { href: url, download: 'hearthfield-idle-save-backup.txt' });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
   showModal({
-    title: 'Your save could not be loaded',
+    title: 'Oh no, your save would not open',
     dismissible: false,
     body: h(
       'div',
       {},
       h('p', { text: loaded.message }),
       h('p', {
-        text: 'Nothing has been overwritten. Copy the text below to keep it, then start a new farm.',
+        text: 'Nothing has been changed or deleted. Download or copy the text below to keep a backup, then start a new farm. The old save stays in place until you do.',
       }),
       box,
     ),
     buttons: [
+      { label: 'Download the raw save', onClick: () => (download(), false) },
       {
         label: 'Start a new farm',
         primary: true,
         onClick() {
+          // Keep the broken text under another key before the new farm takes the slot.
+          try {
+            storage.setItem(`${SAVE_KEY}-corrupt-backup`, loaded.raw);
+          } catch {
+            // Storage full: the download button above was the other way out.
+          }
           saveBlocked = false;
           game.replaceState(createInitialState(now(), lc));
           save();
+          maybeStartTutorial();
         },
       },
     ],
@@ -487,9 +695,17 @@ if (loaded.kind === 'error') {
 }
 
 // ---- loop and autosave
+let splashGone = false;
+let lastTheme: ReturnType<typeof themeKey> | null = null;
 const loop = startLoop(game, {
   render() {
     const cal = game.calendar();
+    const theme = themeKey(cal.season, cal.isNight);
+    if (theme !== lastTheme) {
+      lastTheme = theme;
+      music.setTheme(theme);
+    }
+    tutorialOverlay.update();
     renderer.setScene(game.state.farm.grid, game.state.expansions);
     renderer.render(performance.now(), cal, {
       plots: plotSprites(
@@ -518,6 +734,10 @@ const loop = startLoop(game, {
       panels.refreshOpen();
     }
     panels.tickOpen(performance.now());
+    if (!splashGone) {
+      splashGone = true;
+      dismissSplash();
+    }
   },
   onHide: save,
   onResume,

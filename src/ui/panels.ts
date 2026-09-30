@@ -18,7 +18,9 @@ import type { Modifiers } from '../systems/modifiers';
 import { maxAffordableSeeds, seedStock } from '../systems/shop';
 import { recipeCards } from '../systems/cooking';
 import { farmLevel } from '../systems/unlocks';
+import { reducedMotion, type PrefsStore, type UiScale } from '../core/prefs';
 import { h } from './dom';
+import { systemPrefersReducedMotion } from './motion';
 import { seedNote } from './farmTools';
 import type { PanelDef } from './panel';
 import { buffEffectText } from './buffBar';
@@ -28,8 +30,9 @@ import { buffDurationMs, buffMagnitude } from '../systems/buffs';
 import { formatDuration } from '../core/time';
 
 export interface SettingsHooks {
-  getVolume(): number;
-  setVolume(v: number): void;
+  prefs: PrefsStore;
+  /** Replays the first-time tutorial (closes Settings). */
+  replayTutorial(): void;
   getRelaxedFishing(): boolean;
   setRelaxedFishing(on: boolean): void;
   exportSave(): string;
@@ -45,13 +48,63 @@ export function settingsPanel(hooks: SettingsHooks): PanelDef {
     icon: '⚙',
     toolbar: false,
     build(body) {
-      // Volume (stub until phase 08 adds audio).
-      const vol = h('input', { type: 'range', min: 0, max: 100, step: 1, id: 'set-volume' });
-      const volOut = h('output', { for: 'set-volume' });
-      vol.addEventListener('input', () => {
-        hooks.setVolume(Number(vol.value) / 100);
-        volOut.textContent = `${vol.value}%`;
-      });
+      // Sound: master / effects / music sliders and a mute switch (saved in the prefs key, not the farm).
+      const prefs = hooks.prefs;
+      const slider = (id: string, label: string, key: 'master' | 'sfx' | 'music') => {
+        const input = h('input', { type: 'range', min: 0, max: 100, step: 1, id });
+        const out = h('output', { for: id });
+        input.addEventListener('input', () => {
+          prefs.set(key, Number(input.value) / 100);
+          out.textContent = `${input.value}%`;
+        });
+        const row = h('label', { class: 'field', for: id }, `${label} `, input, out);
+        return { row, input, out, key };
+      };
+      const sliders = [
+        slider('set-volume', 'Master', 'master'),
+        slider('set-sfx', 'Effects', 'sfx'),
+        slider('set-music', 'Music', 'music'),
+      ];
+      const mute = h('input', { type: 'checkbox', id: 'set-mute' });
+      mute.addEventListener('change', () => prefs.set('muted', mute.checked));
+
+      // Display: reduced motion (follows the system until changed), UI size, number format.
+      const motion = h('input', { type: 'checkbox', id: 'set-reduce-motion' });
+      motion.addEventListener('change', () => prefs.set('motion', motion.checked ? 'reduce' : 'full'));
+      const scale = h(
+        'select',
+        { id: 'set-ui-scale' },
+        ...([1, 1.5, 2] as const).map((v) => h('option', { value: String(v), text: `${v}×` })),
+      );
+      scale.addEventListener('change', () => prefs.set('uiScale', Number(scale.value) as UiScale));
+      const numbers = h(
+        'select',
+        { id: 'set-number-format' },
+        h('option', { value: 'full', text: 'Full (12,345)' }),
+        h('option', { value: 'short', text: 'Short (12.3K, 3.4M)' }),
+      );
+      numbers.addEventListener('change', () =>
+        prefs.set('numberFormat', numbers.value === 'short' ? 'short' : 'full'),
+      );
+
+      // Help: replay the tutorial and a short glossary.
+      const replay = h('button', { type: 'button', class: 'btn', text: 'Replay the tutorial' });
+      replay.addEventListener('click', () => hooks.replayTutorial());
+      const glossary = h(
+        'dl',
+        { class: 'glossary' },
+        ...(
+          [
+            ['Plot', 'A square of soil. Till it, plant a seed, water it, then harvest.'],
+            ['Watered', 'Crops grow twice as fast while their soil is wet.'],
+            ['Shipping Bin', 'Drop crops here and they are sold at the next hourly pickup.'],
+            ['Demand', 'Prices drop as you sell one item and recover with time. Mix your crops.'],
+            ['Buff', 'A food effect. Eat a dish from your bag; it lasts a few minutes.'],
+            ['Farm Level', 'Grows with milestones and skills, and unlocks seeds, recipes and upgrades.'],
+            ['Season', 'Follows the real-world week: each Sunday at midnight the season changes.'],
+          ] as const
+        ).flatMap(([t, d]) => [h('dt', { text: t }), h('dd', { text: d })]),
+      );
 
       // Accessibility: Relaxed fishing (a wider, slower sweet zone and a gentler meter).
       const relaxed = h('input', { type: 'checkbox', id: 'set-relaxed-fishing' });
@@ -127,14 +180,25 @@ export function settingsPanel(hooks: SettingsHooks): PanelDef {
 
       body.append(
         h('h3', { text: 'Sound' }),
-        h('label', { class: 'field', for: 'set-volume' }, 'Volume ', vol, volOut),
-        h('p', { class: 'muted', text: 'Sounds arrive in a later update.' }),
+        ...sliders.map((x) => x.row),
+        h('label', { class: 'field', for: 'set-mute' }, mute, ' Mute everything'),
+        h('h3', { text: 'Display' }),
+        h('label', { class: 'field', for: 'set-reduce-motion' }, motion, ' Reduce motion'),
+        h('p', {
+          class: 'muted',
+          text: 'Turns off particles, shakes, bounces and ambient creatures. Follows your system setting until you change it.',
+        }),
+        h('label', { class: 'field', for: 'set-ui-scale' }, 'Interface size ', scale),
+        h('label', { class: 'field', for: 'set-number-format' }, 'Numbers ', numbers),
         h('h3', { text: 'Accessibility' }),
         h('label', { class: 'field', for: 'set-relaxed-fishing' }, relaxed, ' Relaxed fishing'),
         h('p', {
           class: 'muted',
           text: 'A wider, slower sweet zone and a meter that drains half as fast. Applies to your next catch.',
         }),
+        h('h3', { text: 'Help' }),
+        h('div', { class: 'btn-row' }, replay),
+        glossary,
         h('h3', { text: 'Your save' }),
         h('div', { class: 'btn-row' }, exportBtn, copyBtn),
         exportBox,
@@ -148,9 +212,16 @@ export function settingsPanel(hooks: SettingsHooks): PanelDef {
 
       return {
         refresh() {
-          const v = Math.round(hooks.getVolume() * 100);
-          vol.value = String(v);
-          volOut.textContent = `${v}%`;
+          const p = prefs.value;
+          for (const sl of sliders) {
+            const v = Math.round(p[sl.key] * 100);
+            sl.input.value = String(v);
+            sl.out.textContent = `${v}%`;
+          }
+          mute.checked = p.muted;
+          motion.checked = reducedMotion(p, systemPrefersReducedMotion());
+          scale.value = String(p.uiScale);
+          numbers.value = p.numberFormat;
           relaxed.checked = hooks.getRelaxedFishing();
           exportBox.hidden = true;
           copyBtn.hidden = true;

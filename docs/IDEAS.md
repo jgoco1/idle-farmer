@@ -36,3 +36,9 @@ Ideas that came up during a phase but were outside its scope. Add one line per i
 - **Milestone chain art**: a small illustrated trail (a path with 15 stones) on the Milestones tab instead of a list. Phase 08.
 - **A daily goal streak** (three goals done in a day) for the casual idler. Owner call; phase 09 if idle pacing wants a reason to visit.
 
+
+- **Pinch-to-zoom and two-finger pan for the scene** on phones (today: a 2× button and a pan switch). Phase 09 or later.
+- **A real-device audio pass**: listen on phone speakers and headphones, tune `vol` in `SOUNDS` and `loopNotes`, and consider a per-season second melody. Phase 09.
+- **A dog as well as a cat**, chosen by save, with a second pet sprite and a sleeping-pose variation at night. Later polish.
+- **Number format everywhere** (panels, toasts, popups), and a Settings "Compact HUD" for phones. Later polish.
+- **A sticky tab row and collapsible sections** for the Goals and Upgrades bottom sheets on phones. Later polish.
