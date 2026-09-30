@@ -6,7 +6,7 @@ import { capitalize, formatDuration } from '../core/time';
 import { h } from './dom';
 import { showModal } from './modal';
 
-export function awaySummaryLines(report: OfflineReport): string[] {
+export function awaySummaryLines(report: OfflineReport, readyPlots = 0): string[] {
   const lines = [`You were away for ${formatDuration(report.awayMs)}.`];
   lines.push(
     report.simulatedMs > 0
@@ -16,12 +16,22 @@ export function awaySummaryLines(report: OfflineReport): string[] {
   if (report.awayMs > report.simulatedMs) {
     lines.push('(Time away counts fully for 8 hours, then at a quarter pace up to a day.)');
   }
-  for (const s of report.seasonChanges) lines.push(`${capitalize(s)} arrived.`);
+  for (const e of report.events) {
+    if (e.type !== 'seasonChanged') continue;
+    lines.push(`${capitalize(e.season)} arrived.`);
+    if (e.withered > 0) {
+      lines.push(`${e.withered} crop${e.withered === 1 ? '' : 's'} withered at the change of season.`);
+    }
+  }
   if (report.dayStarts > 0) lines.push('A new morning dawned over the farm.');
+  if (readyPlots > 0) {
+    lines.push(`${readyPlots} crop${readyPlots === 1 ? ' is' : 's are'} ready to harvest.`);
+  }
   return lines;
 }
 
-export function showAwaySummary(report: OfflineReport): void {
-  const body = h('div', { class: 'away' }, ...awaySummaryLines(report).map((t) => h('p', { text: t })));
+export function showAwaySummary(report: OfflineReport, readyPlots = 0): void {
+  const lines = awaySummaryLines(report, readyPlots);
+  const body = h('div', { class: 'away' }, ...lines.map((t) => h('p', { text: t })));
   showModal({ title: 'While you were away…', body, buttons: [{ label: 'Back to the farm', primary: true }] });
 }

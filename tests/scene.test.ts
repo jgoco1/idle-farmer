@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
+import type { Plot } from '../src/core/state';
 import { integerScale } from '../src/render/renderer';
 import {
   buildLayout,
   buildZones,
   plotIndexAt,
+  plotSprites,
+  plotTile,
   SCENE_COLS,
   SCENE_H,
   SCENE_ROWS,
@@ -97,5 +100,30 @@ describe('day/night tint', () => {
     expect(tintAt(6, 45).dusk).toBeCloseTo(0.25);
     expect(tintAt(18, 29).dusk).toBe(0);
     expect(tintAt(7, 30).dusk).toBe(0);
+  });
+});
+
+describe('plot sprites (phase 02)', () => {
+  it('maps plot state to soil and crop sprites', () => {
+    const plots: Plot[] = [
+      { state: 'untilled', crop: null, growthMs: 0, harvests: 0, waterMsLeft: 0 },
+      { state: 'tilled', crop: null, growthMs: 0, harvests: 0, waterMsLeft: 0 },
+      { state: 'tilled', crop: null, growthMs: 0, harvests: 0, waterMsLeft: 5 },
+      { state: 'planted', crop: 'melon', growthMs: 0, harvests: 0, waterMsLeft: 0 },
+      { state: 'dead', crop: null, growthMs: 0, harvests: 0, waterMsLeft: 0 },
+    ];
+    expect(plotSprites(plots, () => 3)).toEqual([
+      { soil: 'tile_soil_untilled', crop: null },
+      { soil: 'tile_soil_dry', crop: null },
+      { soil: 'tile_soil_wet', crop: null },
+      { soil: 'tile_soil_dry', crop: 'crop_melon_3' },
+      { soil: 'tile_soil_dry', crop: 'crop_dead' },
+    ]);
+  });
+
+  it('places plots row-major from the grid origin', () => {
+    expect(plotTile({ cols: 4, rows: 2 }, 0)).toEqual({ col: 6, row: 2 });
+    expect(plotTile({ cols: 4, rows: 2 }, 5)).toEqual({ col: 7, row: 3 });
+    expect(plotIndexAt({ cols: 4, rows: 2 }, 7, 3)).toBe(5);
   });
 });

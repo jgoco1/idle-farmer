@@ -15,6 +15,8 @@ export interface PanelDef {
   build(body: HTMLElement): { refresh?(): void } | void;
   /** Hidden from the toolbar (e.g. Settings, which has its own HUD button). */
   toolbar?: boolean;
+  /** Re-run `refresh` while open when the game state changes (Inventory, Shop). */
+  live?: boolean;
 }
 
 interface PanelEntry {
@@ -91,6 +93,12 @@ export class PanelManager {
     const first = entry.root.querySelector<HTMLElement>(`.panel-body ${FOCUSABLE}`);
     (first ?? entry.root).focus();
     this.emit();
+  }
+
+  /** Refreshes the open panel if it shows live game state. */
+  refreshOpen(): void {
+    const entry = this.openId ? this.panels.get(this.openId) : undefined;
+    if (entry?.def.live) entry.refresh?.();
   }
 
   toggle(id: PanelId): void {

@@ -1,6 +1,7 @@
 // The farm scene as data: a 20 × 12 tile map, the objects placed on it, and the clickable zones
 // (GDD §5). Pure (no DOM), so layout and hit-testing are unit-tested.
 
+import type { Plot } from '../core/state';
 import { anchoredPosition } from './spriteCache';
 import { spriteDef } from './sprites';
 
@@ -196,4 +197,36 @@ export function buildLayout(grid: Grid): SceneLayout {
   const bottom = (o: PlacedSprite): number => o.y + (spriteDef(o.sprite).frames[0]?.length ?? TILE);
   objects.sort((a, b) => bottom(a) - bottom(b));
   return { ground, animated, objects };
+}
+
+// ---- plots (phase 02)
+
+/** What to draw on one plot: its soil tile and, if anything grows there, the crop sprite. */
+export interface PlotSprites {
+  soil: string;
+  crop: string | null;
+}
+
+/** Tile (col, row) of plot `index` in a row-major grid. */
+export function plotTile(grid: Grid, index: number): { col: number; row: number } {
+  return { col: PLOT_ORIGIN.col + (index % grid.cols), row: PLOT_ORIGIN.row + Math.floor(index / grid.cols) };
+}
+
+/**
+ * Sprites for every plot. `stageOf` returns the crop stage 0–4 (see systems/farming `plotStage`),
+ * passed in so the renderer stays free of game rules.
+ */
+export function plotSprites(plots: readonly Plot[], stageOf: (plot: Plot) => number): PlotSprites[] {
+  return plots.map((plot) => {
+    const soil =
+      plot.state === 'untilled'
+        ? 'tile_soil_untilled'
+        : plot.waterMsLeft > 0
+          ? 'tile_soil_wet'
+          : 'tile_soil_dry';
+    let crop: string | null = null;
+    if (plot.state === 'dead') crop = 'crop_dead';
+    else if (plot.state === 'planted' && plot.crop) crop = `crop_${plot.crop}_${Math.max(0, stageOf(plot))}`;
+    return { soil, crop };
+  });
 }
