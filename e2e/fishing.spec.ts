@@ -70,6 +70,7 @@ test('cast, wait for the bite and reel a fish in with scripted input', async ({ 
   const panel = page.getByRole('dialog', { name: 'Fishing' });
   await expect(panel).toBeVisible();
   await expect(panel).toContainText('Biting now at the pond');
+  await page.waitForTimeout(400); // the panel pops in; measure the button once it has settled
   // Record every message the result line shows. The scripted player polls the game, so its next
   // press can land just after a catch and start a new cast, which (correctly) clears the message.
   await panel.locator('.fish-result').evaluate((el) => {
@@ -80,9 +81,9 @@ test('cast, wait for the bite and reel a fish in with scripted input', async ({ 
     }).observe(el, { childList: true, subtree: true, characterData: true });
   });
   const cast = panel.getByRole('button', { name: 'Hold to cast' });
+  await cast.scrollIntoViewIfNeeded(); // the panel body scrolls when the window is short
   const box = (await cast.boundingBox())!;
   const centre = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-
   let landed = false;
   for (let attempt = 0; attempt < 5 && !landed; attempt++) {
     // Hold to charge the cast, release to throw.
@@ -109,6 +110,7 @@ test('cast, wait for the bite and reel a fish in with scripted input', async ({ 
     // Hold to reel; keep the marker inside the zone by holding when it is below the zone's centre.
     let down = false;
     let shot = false;
+    await page.mouse.move(centre.x, centre.y); // reeling is held on the button
     for (let i = 0; i < 900; i++) {
       const s = await session(page);
       // Stop once the cast is over: no session, or a new cast started by a press after the catch.

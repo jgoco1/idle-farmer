@@ -54,6 +54,7 @@ export class TutorialOverlay {
   private render(): void {
     const step = this.flow.step;
     this.card.hidden = !step;
+    document.body.classList.toggle('tutorial-on', !!step);
     if (!step) {
       this.ring.hidden = true;
       return;

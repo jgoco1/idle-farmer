@@ -1522,13 +1522,13 @@ summary:focus-visible,
   }
 }
 
-body:has(.tutorial-card:not([hidden])) .toasts {
+body.tutorial-on .toasts {
   bottom: calc(var(--toolbar-h) + 190px);
 }
 
 /* On a phone an open panel covers the bottom of the screen, so toasts move to the top. */
 @media (max-width: 600px) {
-  body:has(.panel-host.has-panel) .toasts {
+  body.panel-open .toasts {
     bottom: auto;
     top: calc(var(--hud-h) + 8px);
   }
