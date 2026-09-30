@@ -11,6 +11,7 @@ import type { ActiveBuff, GameState } from '../core/state';
 import type { GameData } from '../data';
 import {
   BUFF_BASE_DURATION_MS,
+  BUFF_DURATION_GROWTH,
   BUFF_MAGNITUDE_PER_TIER,
   HEARTY_DURATION_BONUS,
   MAX_BUFF_SLOTS,
@@ -27,12 +28,14 @@ export function buffMagnitude(data: GameData, type: BuffType, tier: RecipeTier):
 }
 
 /**
- * `6 min × 2^(tier − 1) × (1 + perk + hearty)`, whole simulated ms (BALANCE.md §7). `perkBonus` is
+ * `10 min × 3^(tier − 1) × (1 + perk + hearty)`, whole simulated ms (BALANCE.md §7). `perkBonus` is
  * `ctx.mods.buffDurationBonus` (the Cooking perks); hearty (winter) adds 50%.
  */
 export function buffDurationMs(tier: RecipeTier, hearty: boolean, perkBonus = 0): number {
   return Math.round(
-    BUFF_BASE_DURATION_MS * 2 ** (tier - 1) * (1 + perkBonus + (hearty ? HEARTY_DURATION_BONUS : 0)),
+    BUFF_BASE_DURATION_MS *
+      BUFF_DURATION_GROWTH ** (tier - 1) *
+      (1 + perkBonus + (hearty ? HEARTY_DURATION_BONUS : 0)),
   );
 }
 
@@ -44,11 +47,6 @@ export function buffSlotCount(state: GameState, data: GameData): number {
 
 export function activeBuff(state: GameState, type: BuffType): ActiveBuff | undefined {
   return state.buffs.active.find((b) => b.type === type);
-}
-
-/** The summed bonus of the active buff of `type` (0 when none): what `computeModifiers` folds in. */
-export function buffBonus(state: GameState, type: BuffType): number {
-  return activeBuff(state, type)?.magnitude ?? 0;
 }
 
 /** The buff that would be replaced when the slots are full: the one with the least time left. */

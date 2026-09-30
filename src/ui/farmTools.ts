@@ -63,7 +63,8 @@ export class FarmTools {
   private readonly seedCount: HTMLElement;
   private readonly picker: HTMLElement;
   private readonly pickerList: HTMLElement;
-  private last = '';
+  private lastSeed: CropId | null | undefined = undefined;
+  private lastCount = -1;
 
   constructor(
     root: HTMLElement,
@@ -138,16 +139,18 @@ export class FarmTools {
 
   /** Keeps the seed button in step with the inventory (runs every frame; cheap when unchanged). */
   update(): void {
+    // Runs every frame, so it allocates nothing unless the chosen seed ran out or the count changed.
     const state = this.deps.state();
-    const owned = CROP_IDS.filter((c) => countItem(state.inventory, seedOf(c)) > 0);
-    if (this.seed === null || !owned.includes(this.seed)) {
+    let n = this.seed ? countItem(state.inventory, seedOf(this.seed)) : 0;
+    if (n === 0) {
+      const owned = CROP_IDS.filter((c) => countItem(state.inventory, seedOf(c)) > 0);
       const season = this.deps.calendar().season;
       this.seed = owned.find((c) => inSeason(this.deps.data.crops[c], season)) ?? owned[0] ?? this.seed;
+      n = this.seed ? countItem(state.inventory, seedOf(this.seed)) : 0;
     }
-    const n = this.seed ? countItem(state.inventory, seedOf(this.seed)) : 0;
-    const key = `${this.seed}|${n}`;
-    if (key === this.last) return;
-    this.last = key;
+    if (this.seed === this.lastSeed && n === this.lastCount) return;
+    this.lastSeed = this.seed;
+    this.lastCount = n;
     this.seedIcon.src = spriteDataUrl(this.seed ? `item_seed_${this.seed}` : 'item_seed_turnip');
     this.seedCount.textContent = String(n);
     const btn = this.buttons.get('seeds');
@@ -189,7 +192,7 @@ export class FarmTools {
       );
       btn.addEventListener('click', () => {
         this.seed = crop;
-        this.last = '';
+        this.lastSeed = undefined;
         this.update();
         this.select('seeds');
         this.closePicker();

@@ -18,8 +18,3 @@ export function applyMotionPrefs(prefs: Pick<Prefs, 'motion'>, root?: HTMLElemen
   reduced = reducedMotion(prefs, systemPrefersReducedMotion());
   root?.setAttribute('data-motion', reduced ? 'reduce' : 'full');
 }
-
-/** Test hook. */
-export function setReducedMotion(value: boolean): void {
-  reduced = value;
-}

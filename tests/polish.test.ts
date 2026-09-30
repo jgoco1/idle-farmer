@@ -168,8 +168,8 @@ describe('ambient life', () => {
 
   it('butterflies by day, fireflies at night, never both', () => {
     const a = new Ambient();
-    const day = a.visible(clock(12, 'summer'));
-    const night = a.visible(clock(22, 'summer'));
+    const day = { ...a.visible(clock(12, 'summer')) }; // the result is reused: copy it
+    const night = { ...a.visible(clock(22, 'summer')) };
     expect(day.butterflies).toBeGreaterThan(0);
     expect(day.fireflies).toBe(0);
     expect(night.butterflies).toBe(0);

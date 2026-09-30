@@ -57,9 +57,25 @@ export function plotAt(state: GameState, index: number): Plot | undefined {
   return isGreenhouseIndex(index) ? state.farm.greenhouse[index - GREENHOUSE_BASE] : state.farm.plots[index];
 }
 
-/** Every plot index: the field first, then the greenhouse. */
-export function allPlotIndexes(state: GameState): number[] {
-  return [...state.farm.plots.map((_, i) => i), ...state.farm.greenhouse.map((_, i) => GREENHOUSE_BASE + i)];
+const indexCache = new Map<number, readonly number[]>();
+
+/**
+ * Every plot index: the field first, then the greenhouse. Asked several times per simulation step,
+ * so the list is shared per farm size: never modify it.
+ */
+export function allPlotIndexes(state: GameState): readonly number[] {
+  const f = state.farm.plots.length;
+  const g = state.farm.greenhouse.length;
+  const key = f * 1024 + g;
+  let out = indexCache.get(key);
+  if (!out) {
+    out = [
+      ...Array.from({ length: f }, (_, i) => i),
+      ...Array.from({ length: g }, (_, i) => GREENHOUSE_BASE + i),
+    ];
+    indexCache.set(key, out);
+  }
+  return out;
 }
 
 /** Index into `state.lastPlantedCrop` (field plots first, then the greenhouse). */
@@ -71,7 +87,20 @@ export function lastPlantedIndex(state: GameState, index: number): number {
 export function envFor(cov: Coverage | null, index: number): PlotEnv {
   if (isGreenhouseIndex(index)) return GREENHOUSE_ENV;
   if (!cov) return NO_ENV;
-  return { sprinkled: cov.sprinkled[index] === 1, bonus: cov.bonus[index]! };
+  return sharedEnv(cov.sprinkled[index] === 1, cov.bonus[index]!);
+}
+
+// A handful of distinct surroundings exist (sprinkled or not × a scarecrow bonus or none), so they
+// are shared rather than built per plot per step.
+const envCache = new Map<number, PlotEnv>();
+function sharedEnv(sprinkled: boolean, bonus: number): PlotEnv {
+  const key = bonus * 2 + (sprinkled ? 1 : 0);
+  let env = envCache.get(key);
+  if (!env) {
+    env = Object.freeze({ sprinkled, bonus });
+    envCache.set(key, env);
+  }
+  return env;
 }
 
 /** Whether plot `index` counts as watered right now (hand watering, a sprinkler or the greenhouse). */
@@ -83,12 +112,6 @@ export function plotWatered(state: GameState, data: GameData, index: number): bo
 export function isReady(plot: Plot, data: GameData): boolean {
   if (plot.state !== 'planted' || plot.crop === null) return false;
   return plot.growthMs >= needMs(plot, data.crops[plot.crop]);
-}
-
-/** 0..1 through the current cycle. */
-export function growthProgress(plot: Plot, data: GameData): number {
-  if (plot.state !== 'planted' || plot.crop === null) return 0;
-  return Math.min(1, plot.growthMs / needMs(plot, data.crops[plot.crop]));
 }
 
 /**
@@ -145,14 +168,17 @@ export function msUntilReady(plot: Plot, crop: CropDef, mods: Modifiers, env: Pl
 
 export function tickFarming(state: GameState, ctx: SimContext, dtMs: number): void {
   const cov = coverageOf(state, ctx.data);
-  const grow = (plot: Plot, env: PlotEnv): void => {
-    if (plot.state === 'planted' && plot.crop !== null) {
-      plot.growthMs = growthAfter(plot, ctx.data.crops[plot.crop], dtMs, ctx.mods, env);
-    }
-    if (plot.waterMsLeft > 0) plot.waterMsLeft = Math.max(0, plot.waterMsLeft - dtMs);
-  };
-  state.farm.plots.forEach((plot, i) => grow(plot, envFor(cov, i)));
-  for (const plot of state.farm.greenhouse) grow(plot, GREENHOUSE_ENV);
+  const plots = state.farm.plots;
+  for (let i = 0; i < plots.length; i++) growPlot(plots[i]!, envFor(cov, i), ctx, dtMs);
+  const greenhouse = state.farm.greenhouse;
+  for (let i = 0; i < greenhouse.length; i++) growPlot(greenhouse[i]!, GREENHOUSE_ENV, ctx, dtMs);
+}
+
+function growPlot(plot: Plot, env: PlotEnv, ctx: SimContext, dtMs: number): void {
+  if (plot.state === 'planted' && plot.crop !== null) {
+    plot.growthMs = growthAfter(plot, ctx.data.crops[plot.crop], dtMs, ctx.mods, env);
+  }
+  if (plot.waterMsLeft > 0) plot.waterMsLeft = Math.max(0, plot.waterMsLeft - dtMs);
 }
 
 /** The soonest moment a growing crop's water runs out (its growth rate halves), or Infinity. */
@@ -212,21 +238,48 @@ function cropName(data: GameData, id: CropId): string {
   return data.crops[id].name.toLowerCase();
 }
 
-/** Hoe: tills untilled soil and clears dead crops. */
+/**
+ * Whether the Hoe may pull up this plot's crop: a regrower that has given at least one harvest and
+ * is not ready now. Without this a regrowing crop would hold its plot until its seasons end (and
+ * the seed planter keeps replanting it), which could lock a field for weeks (phase 09).
+ */
+export function canPullUp(plot: Plot, data: GameData): boolean {
+  if (plot.state !== 'planted' || plot.crop === null) return false;
+  return data.crops[plot.crop].regrowSec !== null && plot.harvests > 0 && !isReady(plot, data);
+}
+
+/**
+ * Hoe: tills untilled soil and clears dead crops. `pullUp` (plots the player aimed at directly, never
+ * an upgraded hoe's wider area) may also clear an old regrower (see `canPullUp`).
+ */
 export function tillPlots(
   state: GameState,
   ctx: SimContext,
   plots: readonly number[],
   auto = false,
+  pullUp: readonly number[] = [],
 ): ActionResult {
   const done: number[] = [];
+  let young: CropId | null = null;
   for (const i of validPlots(state, plots)) {
     const plot = plotAt(state, i)!;
-    if (plot.state !== 'untilled' && plot.state !== 'dead') continue;
+    if (plot.state === 'planted' && pullUp.includes(i)) {
+      if (!canPullUp(plot, ctx.data)) {
+        if (plot.crop && ctx.data.crops[plot.crop].regrowSec !== null) young ??= plot.crop;
+        continue;
+      }
+      state.lastPlantedCrop[lastPlantedIndex(state, i)] = null; // pulled up: the planter should not bring it back
+    } else if (plot.state !== 'untilled' && plot.state !== 'dead') continue;
     Object.assign(plot, emptyPlot('tilled'), { waterMsLeft: plot.waterMsLeft });
     done.push(i);
   }
-  if (done.length === 0) return fail('Nothing to till here.');
+  if (done.length === 0) {
+    return fail(
+      young
+        ? `Let the ${cropName(ctx.data, young)} give a harvest (and pick it) before pulling it up.`
+        : 'Nothing to till here.',
+    );
+  }
   ctx.events.push(auto ? { type: 'tilled', plots: done, auto: true } : { type: 'tilled', plots: done });
   return OK;
 }
@@ -460,7 +513,13 @@ export function useTool(
   }
   switch (t) {
     case 'hoe':
-      return tillPlots(state, ctx, expandToolArea(state, valid, toolArea(state, ctx.data, 'hoe')));
+      return tillPlots(
+        state,
+        ctx,
+        expandToolArea(state, valid, toolArea(state, ctx.data, 'hoe')),
+        false,
+        valid,
+      );
     case 'water':
       return waterPlots(state, ctx, expandToolArea(state, valid, toolArea(state, ctx.data, 'water')));
     case 'hand':

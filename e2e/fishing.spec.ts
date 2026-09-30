@@ -156,6 +156,8 @@ test('traps fill while time passes and are collected by a click in the scene', a
   await page.getByRole('button', { name: /Upgrades/ }).click();
   const upgrades = page.getByRole('dialog', { name: 'Upgrades' });
   await upgrades.getByRole('button', { name: 'Buy Fish Trap for 500 gold' }).click();
+  // A second click straight away would count as a double click (phase 09 guard): pause like a person.
+  await page.waitForTimeout(450);
   await upgrades.getByRole('button', { name: 'Buy Fish Trap for 750 gold' }).click();
   await page.keyboard.press('Escape');
   expect(await page.evaluate(() => (window as unknown as Win).__game.state.fishing.traps.length)).toBe(2);

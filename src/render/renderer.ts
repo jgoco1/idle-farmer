@@ -86,6 +86,14 @@ interface Fx {
 }
 
 const FX_MS = 700;
+
+const byRow = (a: PlacedObject, b: PlacedObject): number => a.at.row - b.at.row;
+/** A number that changes when any placed object's row changes (a move within the field). */
+function rowsKey(placed: readonly PlacedObject[]): number {
+  let k = placed.length;
+  for (let i = 0; i < placed.length; i++) k = (k * 31 + placed[i]!.at.row * 7 + placed[i]!.id) | 0;
+  return k;
+}
 const FX_RISE_PX = 10;
 
 function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
@@ -110,6 +118,17 @@ export class Renderer {
   private zones: Zone[] = [];
   private grid: Grid = { cols: 0, rows: 0 };
   private sceneKey = '';
+  private sceneExpansions = -1;
+  // Scratch objects reused every frame, so drawing allocates nothing (no garbage-collection stutter).
+  private readonly tileScratch = { col: 0, row: 0 };
+  private readonly posScratch = { x: 0, y: 0 };
+  private readonly placedScratch: PlacedObject[] = [];
+  private placedRows = 0;
+  private readonly aclock: { hour: number; isNight: boolean; season: Calendar['season'] } = {
+    hour: 0,
+    isNight: false,
+    season: 'spring',
+  };
   private hover: { col: number; row: number } | null = null;
   private stroke: { pointerId: number; lastPlot: number } | null = null;
   private fx: Fx[] = [];
@@ -248,6 +267,14 @@ export class Renderer {
 
   /** Rebuilds the static layer when the plot grid or the bought expansions change. */
   setScene(grid: Grid, expansions: readonly ExpansionId[] = []): void {
+    // Called every frame: compare without building the key string unless something may have changed.
+    if (
+      grid.cols === this.grid.cols &&
+      grid.rows === this.grid.rows &&
+      expansions.length === this.sceneExpansions
+    )
+      return;
+    this.sceneExpansions = expansions.length;
     const key = `${grid.cols}x${grid.rows}|${expansions.join(',')}`;
     if (key === this.sceneKey) return;
     this.sceneKey = key;
@@ -348,7 +375,10 @@ export class Renderer {
     const f = this.fctx;
     const dtMs = this.lastTime > 0 ? Math.min(250, timeMs - this.lastTime) : 0;
     this.lastTime = timeMs;
-    const aclock = { hour: calendar.hour, isNight: calendar.isNight, season: calendar.season };
+    const aclock = this.aclock;
+    aclock.hour = calendar.hour;
+    aclock.isNight = calendar.isNight;
+    aclock.season = calendar.season;
     this.ambient.update(dtMs, aclock);
     this.particles.update(dtMs);
     if (view.cooking && !this.reducedMotion()) {
@@ -363,8 +393,11 @@ export class Renderer {
     f.globalAlpha = 1;
     f.drawImage(this.ground, 0, 0);
     if (calendar.season === 'winter') f.drawImage(this.snow, 0, 0);
-    for (const a of this.layout.animated)
+    const { animated, objects } = this.layout;
+    for (let i = 0; i < animated.length; i++) {
+      const a = animated[i]!;
       f.drawImage(spriteFrame(a.sprite, timeMs), a.col * TILE, a.row * TILE);
+    }
     this.ambient.drawShadows(f, aclock);
     this.drawPlots(view.plots, timeMs, false);
     if (view.greenhouse.length > 0) {
@@ -375,7 +408,10 @@ export class Renderer {
       );
       this.drawPlots(view.greenhouse, timeMs, true);
     }
-    for (const o of this.layout.objects) f.drawImage(spriteFrame(o.sprite, timeMs), o.x, o.y);
+    for (let i = 0; i < objects.length; i++) {
+      const o = objects[i]!;
+      f.drawImage(spriteFrame(o.sprite, timeMs), o.x, o.y);
+    }
     if (view.cooking) f.drawImage(spriteFrame('fx_steam', timeMs), CHIMNEY_STEAM.x, CHIMNEY_STEAM.y);
     f.drawImage(
       spriteFrame('obj_cat_sleep', this.reducedMotion() ? 0 : timeMs),
@@ -409,11 +445,12 @@ export class Renderer {
   /** Per-plot soil (dry, wet or untilled) and the crop growing on it. */
   private drawPlots(plots: readonly PlotSprites[], timeMs: number, greenhouse: boolean): void {
     const f = this.fctx;
-    plots.forEach((p, i) => {
-      const { col, row } = tileOfPlot(this.grid, greenhouse ? 1000 + i : i);
+    for (let i = 0; i < plots.length; i++) {
+      const p = plots[i]!;
+      const { col, row } = tileOfPlot(this.grid, greenhouse ? 1000 + i : i, this.tileScratch);
       f.drawImage(spriteFrame(p.soil), col * TILE, row * TILE);
       if (p.crop) {
-        const pos = anchoredPosition(spriteDef(p.crop), col, row, TILE);
+        const pos = anchoredPosition(spriteDef(p.crop), col, row, TILE, this.posScratch);
         // A ready crop (stage 4) wobbles when hovered; it also twinkles, so colour is never the only cue.
         const hovered = this.hover?.col === col && this.hover.row === row;
         const wobble = hovered && p.crop.endsWith('_4') && !this.reducedMotion();
@@ -421,22 +458,32 @@ export class Renderer {
         // Offset the animation per plot so ready crops don't all twinkle in unison.
         f.drawImage(spriteFrame(p.crop, timeMs + i * 137), pos.x + dx, pos.y);
       }
-    });
+    }
   }
 
   /** Sprinklers and scarecrows, bottom rows last so nearer ones overlap farther ones. */
   private drawPlaced(placed: readonly PlacedObject[], timeMs: number): void {
     const f = this.fctx;
-    const sorted = [...placed].sort((a, b) => a.at.row - b.at.row);
-    for (const o of sorted) {
+    // Re-sorted only when something was placed, moved or picked up.
+    const sorted = this.placedScratch;
+    let same = sorted.length === placed.length;
+    for (let i = 0; same && i < placed.length; i++) same = sorted.includes(placed[i]!);
+    if (!same || this.placedRows !== rowsKey(placed)) {
+      sorted.length = 0;
+      for (let i = 0; i < placed.length; i++) sorted.push(placed[i]!);
+      sorted.sort(byRow);
+      this.placedRows = rowsKey(placed);
+    }
+    for (let i = 0; i < sorted.length; i++) {
+      const o = sorted[i]!;
       const id =
         o.kind === 'sprinkler'
           ? 'obj_sprinkler'
           : o.kind === 'golden_scarecrow'
             ? 'obj_golden_scarecrow'
             : 'obj_scarecrow';
-      const { col, row } = tileOfPlot(this.grid, o.at.row * this.grid.cols + o.at.col);
-      const pos = anchoredPosition(spriteDef(id), col, row, TILE);
+      const { col, row } = tileOfPlot(this.grid, o.at.row * this.grid.cols + o.at.col, this.tileScratch);
+      const pos = anchoredPosition(spriteDef(id), col, row, TILE, this.posScratch);
       // Offset each object's animation so a field of sprinklers doesn't spray in unison.
       f.drawImage(spriteFrame(id, timeMs + o.id * 331), pos.x, pos.y);
     }
@@ -445,10 +492,11 @@ export class Renderer {
   /** Traps bob calmly on the water (offset per trap so they do not ripple in unison). */
   private drawTraps(traps: SceneView['traps'], timeMs: number): void {
     const f = this.fctx;
-    traps.forEach((t, i) => {
+    for (let i = 0; i < traps.length; i++) {
+      const t = traps[i]!;
       const id = t.full ? 'obj_fish_trap_full' : 'obj_fish_trap';
       f.drawImage(spriteFrame(id, timeMs + i * 290), t.col * TILE, t.row * TILE);
-    });
+    }
   }
 
   private drawFarmhand(hired: boolean, timeMs: number): void {
@@ -498,8 +546,12 @@ export class Renderer {
 
   private drawFx(timeMs: number): void {
     const f = this.fctx;
-    this.fx = this.fx.filter((e) => timeMs - e.start < FX_MS);
-    for (const e of this.fx) {
+    let kept = 0;
+    for (let i = 0; i < this.fx.length; i++)
+      if (timeMs - this.fx[i]!.start < FX_MS) this.fx[kept++] = this.fx[i]!;
+    this.fx.length = kept;
+    for (let i = 0; i < kept; i++) {
+      const e = this.fx[i]!;
       const t = Math.max(0, timeMs - e.start) / FX_MS;
       f.globalAlpha = 1 - t * t;
       const img = spriteFrame(e.sprite);

@@ -92,7 +92,7 @@ function handleAction(state: GameState, ctx: SimContext, action: Action): Action
       return OK;
     }
     case 'till':
-      return tillPlots(state, ctx, action.plots);
+      return tillPlots(state, ctx, action.plots, false, action.plots);
     case 'water':
       return waterPlots(state, ctx, action.plots);
     case 'harvest':

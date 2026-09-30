@@ -486,3 +486,51 @@ Duration is minutes of simulated time, normal / hearty. Magnitude is after the t
 - New files to know: `src/core/prefs.ts`, `src/audio/*`, `src/render/particles.ts`, `src/render/ambient.ts`, `src/ui/{motion,coinFly,tutorial,tutorialFlow,sceneControls}.ts`. Sounds and particles hook in `src/main.ts` (search "sound:" and "juice:") and `src/audio/events.ts`; add a sound for a new event there.
 - The tutorial waits for real events, so any change to the first two minutes (starting seeds, the turnip grow time, the first sale) should be checked against `TUTORIAL_STEPS` in `src/ui/tutorialFlow.ts`.
 - `e2e` tests get a pre-skipped tutorial from `playwright.config.ts`; a test of the tutorial itself uses `test.use({ storageState: { cookies: [], origins: [] } })` as in `e2e/polish.spec.ts`.
+
+---
+
+## Phase 09: Balance, QA and performance
+
+### Built
+- **Headless simulator** (`npm run simulate` → `scripts/simulate.ts`, bundled with the rolldown that ships with Vite, no new dependency). `scripts/sim/driver.ts` (`SimRun`: owns a real `Game` and the injected `now`; `play(ms, reactionMs, look)` advances in exact bulk steps split at 06:00 and Sunday midnight; `away(ms)` saves to JSON, parses it back and runs the real `catchUp`, so every absence goes through the save code and the offline cap), `scripts/sim/brain.ts` (one configurable player: fish as catches per minute from the real catch table, harvest, donate, cards, experiments, cook, eat, sell, shop from a wish list, place sprinklers and scarecrows, till, plant by profit per plot-minute, water; before leaving it stocks seeds for the planter, ships and eats), `scripts/sim/bots.ts` (Greedy Farmer, Angler, Chef, a "Chef who sells" control, Casual Idler, Active Player; sessions at local times from Wednesday 25 February 2026 19:00 New York, across a DST change and four season changes), `scripts/sim/report.ts` (markdown summary, milestone times as play · simulated · real, the gold-per-hour curve, the tuning checks; CSV of every snapshot, moment and run in `scripts/out/`). Deterministic per seed; one bot plays 30 days in 3–7 s; bots run in worker threads. It replaced `tests/sim/greedyPlayer.ts`, `tests/pacing.test.ts` and `tests/pacingReport.test.ts`; `tests/simulate.test.ts` asserts determinism, speed, the calendar, the first session and the tuning criteria on 7-day runs.
+- **Tuning** (BALANCE.md "Phase 09 balance report" has the method, the before/after table and the full report): buffs last 15 min × 3^(tier − 1) (15 / 45 / 135 / 405 min, was 6 × 2^(tier − 1)); Blueberry Muffin gives Silver Tongue; farmhand harvests give a quarter of the Farming XP (`AUTO_HARVEST_XP_FRACTION`); `FARM_LEVEL_POINTS` 0, 2, 5, 8, 11, 14, 18, 25, 32, 39; farmhand 1,000 × 3ⁿ, seed planter 2,000 × 3ⁿ, Auto-Seller 5,000 / 20,000, Sprinkler Tech 6,000 / 30,000.
+- **A gameplay fix the simulator found:** the Hoe can pull up a regrowing crop that has given at least one harvest (`canPullUp`, `tillPlots(…, pullUp)`), only on plots aimed at directly (never Auto, never an upgraded hoe's area); the planter forgets the pulled crop. Before, a field of tomatoes or corn could not be cleared for up to two weeks and the planter kept replanting it. Placing on such a plot says to pull it up first.
+- **QA sweep** (`tests/qa.test.ts`, 23 tests): offline across season/year/DST boundaries with everything running, a clock set back, 30 days away, saving mid-cast/-wait/-reel and mid-cook, every save version and broken saves, integer timers over long sessions, double clicks, a full bag under automation, market floor and ceiling, the hoe rule and the farmhand XP share. Fixes: `Game.advance` carries fractional frame time instead of rounding each frame (time played was overcounted by ~2% at 60 Hz, and the ×60 warp's calendar offset drifted); `src/ui/purchaseGuard.ts` stops a double click on a rebuilt buy button from buying the next level too (used by the Shop and Upgrades hooks in `main.ts`; e2e test in `e2e/automation.spec.ts`).
+- **Performance.** Render path: the scene view is rebuilt in place (`sceneView()` in `main.ts`, `plotSpritesInto` with cached `crop_<id>_<stage>` ids, reused trap list, coverage read once per frame), the renderer reuses scratch objects (`tileOfPlot`/`anchoredPosition` take an `out`), re-sorts placed objects only when they change, filters effects in place, and particles and ambient life use indexed loops and a reused visibility object; the toolbar's seed button no longer filters every crop each frame. Simulation: `coverageOf` is cached per `placed` array, `allPlotIndexes` shared per farm size, plot surroundings shared, `tickFarming` without closures, `tickMarket` without `Object.values`, milestones and goals only look at events that can move them (`EVENT_FOR` in `progression.ts`), one shared gold formatter for reward text, the next season boundary memoised, and `zoneClock` (tests and the simulator) remembers recent minutes. `main.ts` marks the load-time catch-up (`performance.measure('hearthfield:catch-up')`). `e2e/perf.spec.ts` measures it all; its screenshot of the full farm is `docs/screenshots/phase09-full-farm.png`.
+- **Code health:** removed unused `buffBonus`, `greenhouseUnlocked`, `growthProgress`, `isScarecrow`, `itemDef`, `setReducedMotion`, `plotTile`; no `TODO(phaseNN)` markers remain; `scripts/` is type-checked (`tsconfig.json`), `scripts/out/` excluded. `CLAUDE.md` gained an architecture map and the balance/performance conventions; `README.md` describes the finished game; `docs/RELEASE.md` is the release checklist.
+
+### Performance numbers
+| Measure | Before | After | Budget |
+|---|---|---|---|
+| Frame rate, fully automated 8 × 6 farm + 12 greenhouse plots (headless Chromium) | 60 fps | 60 fps (worst frame 16.8 ms) | 60 fps |
+| Script time per frame | 1.6 ms | 1.3–1.4 ms | – |
+| Allocated per frame | ~34 KB | ~7.8 KB | no GC stutter |
+| 8 h away on that farm, page load (Chromium) | ~99 ms (after the other fixes; ~120 ms in Vitest before) | 60–66 ms | < 100 ms |
+| 8 h away, `tests/automation.test.ts` in Vitest (this container) | 105–122 ms | 96–140 ms (bound 250 ms, container ~1.5× slower) | < 100 ms on a laptop |
+| 30 days away, everything running (Vitest) | – | 92–122 ms | < 300 ms |
+| Bundle (JS / gzip) | 277.5 / 85.6 kB | 281.7 / 88.2 kB | – |
+| Simulator: one bot, 30 real days | – | 3–7 s | "seconds" |
+| Unit suite | 95 s | ~30 s | – |
+
+### Deviations
+- **How the pacing targets are read.** The calendar is real time and absences count, so BALANCE.md §11's "hours for an active player" are read as **hours of play of a player who plays one hour a day** (so "4–6 h" is days 4–6). This also puts the greenhouse (8–12 h) in the autumn week its bundle needs. Documented in §11.
+- **The buff target is measured over the first week** (the buying phase) against the same Chef selling its dishes, paired by seed: +22% (day 3), +21% (day 7). By day 14 it is +8%, because summer and winter dishes mostly boost XP, fishing and cooking (IDEAS.md).
+- **Content changes beyond numbers:** Blueberry Muffin's buff (Scholar's Snack → Silver Tongue), so summer has a gold buff, and the Hoe's pull-up rule (a bug fix: fields could lock for weeks). GDD §6.1 and §7 updated.
+- **The five bots are six:** a "Chef who sells" control run makes the buff comparison possible. Active fishing is modelled as catches per minute (≈3 a minute, BALANCE §6), not by playing the reel minigame.
+- **The simulator runs through `rolldown`** (bundled with Vite) and Node, not a new devDependency; `npm run simulate -- --days 7 --seeds 1,2 --bots farmer` narrows a run.
+- **Old pacing tests replaced**, as their header anticipated: the one-crop "variety" check went with them (the market's depth and floor keep their own unit tests).
+- **No `SAVE_VERSION` bump**: nothing in the save's shape changed.
+- **The purchase guard refuses a second purchase of the same item within 400 ms.** `e2e/fishing.spec.ts` now pauses between buying two traps.
+
+### Known issues
+- Gold has nothing to buy after the first week for a keen player; Busy Bees is worth ~0 once the farmhand is Level 3+ (both in IDEAS.md).
+- Goal draws depend on how an offline walk is split into steps (goals are redrawn with the seeded RNG at step ends), so the goal board after an absence can differ from a live session's; everything else agrees within growth rounding (IDEAS.md).
+- The bots are competent, not optimal: a bot that fills its field with regrowers or cannot afford the planter's seeds does worse, and runs diverge by seed (the report shows medians of 8 seeds; the buff check pairs seeds).
+- The Casual Idler out-earns the one-hour-a-day player (four-hourly visits never hit the offline cap). The target was only a floor; the owner may want the offline curve reconsidered.
+- The pull-up rule has no tooltip; the fishing e2e cast test is still occasionally flaky; performance was measured in headless Chromium in a container, not on a real laptop or phone.
+
+### Next-phase notes (for phase 10: the optional Fullness meter, or v2)
+- **Balance changes go through the simulator:** `npm run simulate` (defaults: all bots, 30 days, seeds 1–5; `--seeds 1,…,8` for the numbers in BALANCE.md) and `tests/simulate.test.ts`. A Fullness meter would change the Chef's eating: teach `Brain.eat` (`scripts/sim/brain.ts`) to respect "too full", keep the "Chef who sells" control, and compare against the phase 09 buff numbers (+21% at day 7).
+- **Buff seams:** durations are `buffDurationMs(tier, hearty, perk)` in `src/systems/buffs.ts` from `BUFF_BASE_DURATION_MS` and `BUFF_DURATION_GROWTH`; slots are `buffSlotCount`; eating is `eatDish` / `planEat`. A well-fed bonus belongs in `computeModifiers` (`src/systems/modifiers.ts`), which folds buffs in one pass.
+- **State changes need a `SAVE_VERSION` 8** with a migration and `tests/fixtures/save-v8.json`; `tests/qa.test.ts` "there is a fixture for every save version" will fail until the fixture exists.
+- **Keep the render path allocation-free** (see CLAUDE.md) and rerun `e2e/perf.spec.ts` (`PERF_PROFILE=1` writes the heap profile to `test-results/heap.json`).

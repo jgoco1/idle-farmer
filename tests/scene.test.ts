@@ -6,7 +6,7 @@ import {
   buildZones,
   plotIndexAt,
   plotSprites,
-  plotTile,
+  tileOfPlot,
   SCENE_COLS,
   SCENE_H,
   SCENE_ROWS,
@@ -122,8 +122,8 @@ describe('plot sprites (phase 02)', () => {
   });
 
   it('places plots row-major from the grid origin', () => {
-    expect(plotTile({ cols: 4, rows: 2 }, 0)).toEqual({ col: 6, row: 2 });
-    expect(plotTile({ cols: 4, rows: 2 }, 5)).toEqual({ col: 7, row: 3 });
+    expect(tileOfPlot({ cols: 4, rows: 2 }, 0)).toEqual({ col: 6, row: 2 });
+    expect(tileOfPlot({ cols: 4, rows: 2 }, 5)).toEqual({ col: 7, row: 3 });
     expect(plotIndexAt({ cols: 4, rows: 2 }, 7, 3)).toBe(5);
   });
 });

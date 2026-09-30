@@ -38,6 +38,8 @@ export class Game {
   /** True while an offline catch-up's events are being flushed to the bus, so the UI can summarise instead of reacting to each one. */
   replaying = false;
   private readonly stepper = new FixedStepper(TICK_MS);
+  private playCarry = 0;
+  private warpCarry = 0;
 
   constructor(
     public state: GameState,
@@ -75,8 +77,18 @@ export class Game {
   advance(realDtMs: number): number {
     if (!(realDtMs > 0)) return 0;
     const speed = this.state.clock.speed;
-    this.state.meta.playTimeMs += Math.round(realDtMs);
-    if (speed !== 1) this.state.calendar.debugOffsetMs += Math.round(realDtMs * (speed - 1));
+    // Frame times are fractional (16.67 ms at 60 Hz): whole ms go into the saved integers and the
+    // fraction is carried, so time played and the warp's calendar offset never drift (phase 09).
+    this.playCarry += realDtMs;
+    const played = Math.floor(this.playCarry);
+    this.playCarry -= played;
+    this.state.meta.playTimeMs += played;
+    if (speed !== 1) {
+      this.warpCarry += realDtMs * (speed - 1);
+      const warped = Math.floor(this.warpCarry);
+      this.warpCarry -= warped;
+      this.state.calendar.debugOffsetMs += warped;
+    }
 
     const events: GameEvent[] = [];
     const t = this.calendarNow();
@@ -103,6 +115,8 @@ export class Game {
   replaceState(state: GameState): void {
     this.state = state;
     this.stepper.reset();
+    this.playCarry = 0;
+    this.warpCarry = 0;
   }
 
   // ---- debug helpers (used only by the debug overlay)

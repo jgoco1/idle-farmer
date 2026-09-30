@@ -17,6 +17,12 @@ This repo builds **Hearthfield Idle** (working title), a cozy idle farming, fish
 - **Offline correctness:** anything timed must give the same result in one large step as in many small steps (within a stated tolerance). Every timed system has a test for this.
 - **Derived values are computed, not stored** (day, season, stage, farm level, slots).
 
+## The finished architecture (v1, after phase 09)
+- `src/core/`: `game.ts` (owns state, bus, stepper; `dispatch`, `advance`, `catchUp`), `sim.ts` (`step` splits at every `msToNextSimEvent`; `processCalendar` fires season changes and the 06:00 refresh), `offline.ts` (the capped real-time walk), `time.ts` (calendar from an injected `now`), `save.ts` (`SAVE_VERSION` 7, migrations 1→7, validation), `actions.ts`, `events.ts`, `rng.ts`, `prefs.ts` (per-device settings, not in the save).
+- `src/systems/`: farming, market, shipping bin, shop, expansions, upgrades, placement, automation (farmhand + planter), auto-seller, fishing, traps, locations, cooking, buffs, modifiers, progression (XP, milestones, goals), skills, bundles, unlocks, inventory, economy. `systems/index.ts` is the tick order.
+- `src/data/`: content tables and `balance.ts`. `src/render/`: `renderer.ts`, `scene.ts` (layout and hit-testing), sprites, particles, ambient life. `src/ui/`: HUD, panels, toasts, tutorial, placement mode, `purchaseGuard.ts`. `src/audio/`: procedural sound and music. `src/main.ts` wires everything.
+- `scripts/simulate.ts` + `scripts/sim/` (`driver.ts` the harness, `brain.ts` the player, `bots.ts` the strategies and schedules, `report.ts`): the balance simulator.
+
 ## Code conventions (from phase 01)
 - **Where things plug in:** a new system is a `tickX(state, ctx, dtMs)` in `src/systems/x.ts`, called from `tickSystems` in `src/systems/index.ts`. Any timer that changes a rate mid-step (water running out, a buff expiring) must be reported by `msToNextSimEvent` so the core splits steps there. Daily and seasonal reactions go in `onDayStarted` / `onSeasonChanged`.
 - **Adding an action:** add a variant to `Action` in `src/core/actions.ts`, handle it in `applyAction` by calling a system function, return an `ActionResult`. UI code calls `game.dispatch(action)` and shows `result.reason` on failure.
@@ -24,7 +30,9 @@ This repo builds **Hearthfield Idle** (working title), a cozy idle farming, fish
 - **Adding a sprite:** a `SpriteDef` string grid in `src/render/sprites/*.ts`, included in `ALL_SPRITES` (`src/render/sprites/index.ts`); `tests/sprites.test.ts` checks it. Draw with `spriteFrame(id, timeMs)`, or `spriteDataUrl(id)` for DOM icons. Scene placement lives in `src/render/scene.ts`.
 - **Time in the core:** only `src/main.ts` reads `Date.now()` (injected into `Game` as `now`). Tests use `zoneClock('America/New_York')` and the `at()` helper in `tests/helpers.ts`.
 - **Debugging:** `?debug` (or any dev build) enables the overlay on `` ` ``; `window.__game` exposes the `Game` for e2e tests and the console.
-- **e2e:** `npm run test:e2e` builds and serves the app and uses the Chromium in `PLAYWRIGHT_BROWSERS_PATH`; never run `playwright install` in cloud sessions. Look at `test-results/farm.png` after visual changes.
+- **e2e:** `npm run test:e2e` builds and serves the app and uses the Chromium in `PLAYWRIGHT_BROWSERS_PATH`; never run `playwright install` in cloud sessions. Look at `test-results/farm.png` after visual changes. Some specs rewrite `docs/screenshots/*.png`; `git checkout docs/screenshots` unless you meant to update them.
+- **Balance (phase 09):** after changing any number, run `npm run simulate` (report + CSV in `scripts/out/`) and `npx vitest run tests/simulate.test.ts`; record the change in `docs/BALANCE.md`. The bots act only through `Game.dispatch`; teach the brain (`scripts/sim/brain.ts`) about a new action rather than letting it edit state.
+- **Performance (phase 09):** the render path (`Renderer.render`, `sceneView()` in `main.ts`, `plotSpritesInto`, particles, ambient) must not allocate per frame: reuse scratch objects and indexed loops. Budgets: 8 h offline on a full farm < 100 ms and 30 days < 300 ms (`tests/automation.test.ts`, `tests/qa.test.ts`, `e2e/perf.spec.ts`); a timed system that asks for data every step should cache it (see `coverageOf`, `allPlotIndexes`).
 
 ## Save rules
 - Any change to the shape of `GameState` needs a `SAVE_VERSION` bump **and** a migration in `src/core/save.ts` **and** a test that migrates a fixture save of the previous version (`tests/fixtures/save-vN.json`). Add the new fixture for your version too.
@@ -32,7 +40,7 @@ This repo builds **Hearthfield Idle** (working title), a cozy idle farming, fish
 - Adding content to data tables does not need a migration unless state shape changes.
 
 ## Quality bar
-- `npm run typecheck && npm test && npm run build` must pass before every push (plus `npm run lint` and `npm run test:e2e` once they exist).
+- `npm run typecheck && npm run lint && npm test && npm run build && npm run test:e2e` must pass before every push.
 - Every new system gets unit tests. Every bug fix gets a regression test.
 - TypeScript `strict`. No `any` except in migrations operating on old raw JSON.
 - Keep runtime dependencies at zero unless a phase prompt allows one.

@@ -1,6 +1,7 @@
 // Browser entry point: load the save, catch up offline time, and wire the game to the renderer,
 // the UI, the loop and autosave.
 
+import { PurchaseGuard } from './ui/purchaseGuard';
 import './styles.css';
 import { AudioEngine, unlockOnFirstGesture, volumesOf } from './audio/engine';
 import { bindAudioEvents } from './audio/events';
@@ -22,13 +23,21 @@ import {
   type SaveStorage,
 } from './core/save';
 import { PrefsStore } from './core/prefs';
-import { createInitialState } from './core/state';
+import { createInitialState, type Plot } from './core/state';
 import { systemLocalClock } from './core/time';
 import { GAME_DATA } from './data';
 import type { CropId } from './data/ids';
 import { applyPaletteCssVars } from './render/palette';
-import { Renderer } from './render/renderer';
-import { BIN_TILE, PET_TILE, PLOT_ORIGIN, plotSprites, tileOfPlot, trapTile } from './render/scene';
+import { Renderer, type SceneView } from './render/renderer';
+import {
+  BIN_TILE,
+  PET_TILE,
+  PLOT_ORIGIN,
+  plotSpritesInto,
+  tileOfPlot,
+  trapTile,
+  type PlotSprites,
+} from './render/scene';
 import {
   allPlotIndexes,
   autoToolFor,
@@ -37,11 +46,19 @@ import {
   plotStage,
   type ConcreteTool,
 } from './systems/farming';
-import { areaOf, areaOffsets, inGrid, objectAt, placementProblem, stockOf } from './systems/placement';
+import {
+  areaOf,
+  areaOffsets,
+  coverageOf,
+  inGrid,
+  objectAt,
+  placementProblem,
+  stockOf,
+  type Coverage,
+} from './systems/placement';
 import { PlacementMode } from './ui/placement';
 import { fishingPanel } from './ui/fishingPanel';
 import { expansionFor, isLocationUnlocked } from './systems/locations';
-import { trapItemCount } from './systems/traps';
 import { unlockHints } from './systems/unlocks';
 import { LOCATION_NAMES } from './data/fish';
 import type { FishLocationId } from './data/ids';
@@ -145,6 +162,8 @@ const view: GameViewHooks = {
   mods: () => computeModifiers(game.state, GAME_DATA, game.calendar().season),
 };
 const placement = new PlacementMode(() => syncPlacement());
+/** Keeps a double click on a buy button from buying twice (the button is rebuilt for the next level). */
+const guard = new PurchaseGuard(() => performance.now());
 // Registration order is the toolbar order.
 /** Dispatch with the few sounds that belong to an action rather than an event (cooking, casting, reeling). */
 let lastReelTick = 0;
@@ -168,8 +187,8 @@ panels.register(inventoryPanel({ ...view, dispatch }));
 panels.register(
   shopPanel({
     ...view,
-    buySeeds: (crop, qty) => game.dispatch({ type: 'buySeeds', crop, qty }),
-    buyRecipe: (recipe) => game.dispatch({ type: 'buyRecipe', recipe }),
+    buySeeds: (crop, qty) => guard.run(`seeds:${crop}`, () => game.dispatch({ type: 'buySeeds', crop, qty })),
+    buyRecipe: (recipe) => guard.run(`recipe:${recipe}`, () => game.dispatch({ type: 'buyRecipe', recipe })),
   }),
 );
 panels.register(
@@ -196,8 +215,8 @@ panels.register(fishing.def);
 panels.register(
   upgradesPanel({
     ...view,
-    buyExpansion: (id) => game.dispatch({ type: 'buyExpansion', id }),
-    buyUpgrade: (id) => game.dispatch({ type: 'buyUpgrade', id }),
+    buyExpansion: (id) => guard.run(`expansion:${id}`, () => game.dispatch({ type: 'buyExpansion', id })),
+    buyUpgrade: (id) => guard.run(`upgrade:${id}`, () => game.dispatch({ type: 'buyUpgrade', id })),
     place: (kind) => {
       panels.close();
       placement.start(kind);
@@ -644,8 +663,13 @@ function onResume(report: OfflineReport): void {
   save();
   if (report.showSummary) showAwaySummary(report, awayFarm());
 }
-if (initialFile && loaded.kind === 'loaded') onResume(game.catchUp(initialFile.savedAt, now()));
-else save();
+if (initialFile && loaded.kind === 'loaded') {
+  // Timed for the phase-09 budget (8 h away < 100 ms); visible in the browser's performance panel.
+  performance.mark('hearthfield:catch-up:start');
+  const report = game.catchUp(initialFile.savedAt, now());
+  performance.measure('hearthfield:catch-up', 'hearthfield:catch-up:start');
+  onResume(report);
+} else save();
 maybeStartTutorial();
 
 if (loaded.kind === 'error') {
@@ -694,6 +718,47 @@ if (loaded.kind === 'error') {
   });
 }
 
+// ---- the scene view, rebuilt in place every frame (no per-frame allocation: see docs/PROGRESS.md phase 09)
+const view$: SceneView = {
+  plots: [],
+  greenhouse: [],
+  placed: [],
+  farmhand: false,
+  traps: [],
+  cooking: false,
+};
+const plotsView: PlotSprites[] = [];
+const greenhouseView: PlotSprites[] = [];
+const trapsView: { col: number; row: number; full: boolean }[] = [];
+let coverage: Coverage | null = null;
+const stageOf = (p: Plot): number => plotStage(p, GAME_DATA);
+const wetAt = (i: number): boolean => {
+  const plot = game.state.farm.plots[i]!;
+  return plot.waterMsLeft > 0 || coverage?.sprinkled[i] === 1;
+};
+const alwaysWet = (): boolean => true;
+function sceneView(): SceneView {
+  const s = game.state;
+  coverage = coverageOf(s, GAME_DATA);
+  view$.plots = plotSpritesInto(plotsView, s.farm.plots, stageOf, wetAt);
+  view$.greenhouse = plotSpritesInto(greenhouseView, s.farm.greenhouse, stageOf, alwaysWet);
+  view$.placed = s.placed;
+  view$.farmhand = (s.upgrades.farmhand ?? 0) > 0;
+  trapsView.length = s.fishing.traps.length;
+  for (let i = 0; i < s.fishing.traps.length; i++) {
+    const t = s.fishing.traps[i]!;
+    const tile = trapTile(t.location, t.slot);
+    const e = (trapsView[i] ??= { col: 0, row: 0, full: false });
+    e.col = tile.col;
+    e.row = tile.row;
+    e.full = t.contents.length > 0;
+  }
+  view$.traps = trapsView;
+  view$.cooking = false;
+  for (const j of s.kitchen.queue) if (j.remainingMs > 0) view$.cooking = true;
+  return view$;
+}
+
 // ---- loop and autosave
 let splashGone = false;
 let lastTheme: ReturnType<typeof themeKey> | null = null;
@@ -707,25 +772,7 @@ const loop = startLoop(game, {
     }
     tutorialOverlay.update();
     renderer.setScene(game.state.farm.grid, game.state.expansions);
-    renderer.render(performance.now(), cal, {
-      plots: plotSprites(
-        game.state.farm.plots,
-        (p) => plotStage(p, GAME_DATA),
-        (i) => game.isPlotWatered(i),
-      ),
-      greenhouse: plotSprites(
-        game.state.farm.greenhouse,
-        (p) => plotStage(p, GAME_DATA),
-        () => true,
-      ),
-      placed: game.state.placed,
-      farmhand: (game.state.upgrades.farmhand ?? 0) > 0,
-      traps: game.state.fishing.traps.map((t) => ({
-        ...trapTile(t.location, t.slot),
-        full: trapItemCount(t) > 0,
-      })),
-      cooking: game.state.kitchen.queue.some((j) => j.remainingMs > 0),
-    });
+    renderer.render(performance.now(), cal, sceneView());
     if (placement.kind) syncPlacement();
     hud.update(game.state, cal);
     tools.update();

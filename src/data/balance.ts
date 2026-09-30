@@ -162,9 +162,14 @@ export const TIER_THRESHOLDS: readonly [number, number, number] = [8, 15, 28];
 /** A dish sells for the ingredients' value × this. */
 export const TIER_SELL_MULT: Readonly<Record<RecipeTier, number>> = { 1: 1.25, 2: 1.4, 3: 1.6, 4: 2 };
 
-/** Buff strength `0.10 × tier × magnitudeScale`; duration `6 min × 2^(tier − 1)` of simulated time. */
+/**
+ * Buff strength `0.10 × tier × magnitudeScale`; duration `BUFF_BASE_DURATION_MS × BUFF_DURATION_GROWTH^(tier − 1)`
+ * of simulated time (phase 09: 10 / 30 / 90 / 270 minutes, so a T3 or T4 dish eaten before leaving
+ * lasts into the absence; was 6 min × 2^(tier − 1)).
+ */
 export const BUFF_MAGNITUDE_PER_TIER = 0.1;
-export const BUFF_BASE_DURATION_MS = 6 * 60_000;
+export const BUFF_BASE_DURATION_MS = 15 * 60_000;
+export const BUFF_DURATION_GROWTH = 3;
 /** A hearty (winter-cooked) dish's buff lasts this much longer. */
 export const HEARTY_DURATION_BONUS = 0.5;
 /** Buff slots at the start; perks and bundles add up to MAX_BUFF_SLOTS (phase 07). */
@@ -191,6 +196,8 @@ export const FISHING_XP_BY_RARITY: Readonly<Record<Rarity, number>> = {
 export const FISHING_XP_DIFFICULTY_DIV = 10;
 export const JUNK_XP = 2;
 export const TRAP_XP_FRACTION = 0.5;
+/** Farming XP for a crop the farmhand harvests, as a share of a hand harvest (phase 09; like traps). */
+export const AUTO_HARVEST_XP_FRACTION = 0.25;
 /** Cooking XP per dish: `round(COOKING_XP_BASE × tier ^ COOKING_XP_EXPONENT)`. */
 export const COOKING_XP_BASE = 8;
 export const COOKING_XP_EXPONENT = 1.5;
@@ -203,7 +210,7 @@ export const COOKING_XP_EXPONENT = 1.5;
  * hours, and Level 3 needs to stay reachable by a player who only farms (its five farming
  * milestones are 5 points) while the top levels want nearly everything done.
  */
-export const FARM_LEVEL_POINTS: readonly number[] = [0, 0, 2, 5, 7, 10, 12, 15, 20, 27, 36];
+export const FARM_LEVEL_POINTS: readonly number[] = [0, 0, 2, 5, 8, 11, 14, 18, 25, 32, 39];
 export const FARM_LEVEL_MAX = FARM_LEVEL_POINTS.length - 1;
 
 /** The golden scarecrow (Spring Crops bundle): a bigger, stronger scarecrow. */

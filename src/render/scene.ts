@@ -133,9 +133,24 @@ export function greenhouseTile(i: number): { col: number; row: number } {
   return { col: GREENHOUSE_ORIGIN.col + dc, row: GREENHOUSE_ORIGIN.row + dr };
 }
 
-/** Tile of any plot index (field row-major, or GREENHOUSE_BASE + n). */
-export function tileOfPlot(grid: Grid, index: number): { col: number; row: number } {
-  return index >= GREENHOUSE_BASE ? greenhouseTile(index - GREENHOUSE_BASE) : plotTile(grid, index);
+/**
+ * Tile of any plot index (field row-major, or GREENHOUSE_BASE + n). `out` lets the renderer reuse
+ * one object every frame instead of allocating one per plot.
+ */
+export function tileOfPlot(
+  grid: Grid,
+  index: number,
+  out: { col: number; row: number } = { col: 0, row: 0 },
+): { col: number; row: number } {
+  if (index >= GREENHOUSE_BASE) {
+    const at = GREENHOUSE_LAYOUT[index - GREENHOUSE_BASE];
+    out.col = GREENHOUSE_ORIGIN.col + (at ? at[0] : 0);
+    out.row = GREENHOUSE_ORIGIN.row + (at ? at[1] : 0);
+  } else {
+    out.col = PLOT_ORIGIN.col + (index % grid.cols);
+    out.row = PLOT_ORIGIN.row + Math.floor(index / grid.cols);
+  }
+  return out;
 }
 
 /**
@@ -371,9 +386,15 @@ export interface PlotSprites {
   crop: string | null;
 }
 
-/** Tile (col, row) of plot `index` in a row-major grid. */
-export function plotTile(grid: Grid, index: number): { col: number; row: number } {
-  return { col: PLOT_ORIGIN.col + (index % grid.cols), row: PLOT_ORIGIN.row + Math.floor(index / grid.cols) };
+/** `crop_<id>_<stage>` sprite ids, built once rather than as a new string for every plot every frame. */
+const cropSpriteIds = new Map<string, string[]>();
+function cropSpriteId(crop: string, stage: number): string {
+  let ids = cropSpriteIds.get(crop);
+  if (!ids) {
+    ids = [0, 1, 2, 3, 4].map((st) => `crop_${crop}_${st}`);
+    cropSpriteIds.set(crop, ids);
+  }
+  return ids[stage]!;
 }
 
 /**
@@ -385,12 +406,27 @@ export function plotSprites(
   stageOf: (plot: Plot) => number,
   wetAt: (index: number) => boolean = (i) => (plots[i]?.waterMsLeft ?? 0) > 0,
 ): PlotSprites[] {
-  return plots.map((plot, i) => {
-    const soil =
-      plot.state === 'untilled' ? 'tile_soil_untilled' : wetAt(i) ? 'tile_soil_wet' : 'tile_soil_dry';
-    let crop: string | null = null;
-    if (plot.state === 'dead') crop = 'crop_dead';
-    else if (plot.state === 'planted' && plot.crop) crop = `crop_${plot.crop}_${Math.max(0, stageOf(plot))}`;
-    return { soil, crop };
-  });
+  return plotSpritesInto([], plots, stageOf, wetAt);
+}
+
+/** `plotSprites` into an array that is reused from frame to frame (its entries are overwritten). */
+export function plotSpritesInto(
+  out: PlotSprites[],
+  plots: readonly Plot[],
+  stageOf: (plot: Plot) => number,
+  wetAt: (index: number) => boolean = (i) => (plots[i]?.waterMsLeft ?? 0) > 0,
+): PlotSprites[] {
+  out.length = plots.length;
+  for (let i = 0; i < plots.length; i++) {
+    const plot = plots[i]!;
+    const e = (out[i] ??= { soil: 'tile_soil_dry', crop: null });
+    e.soil = plot.state === 'untilled' ? 'tile_soil_untilled' : wetAt(i) ? 'tile_soil_wet' : 'tile_soil_dry';
+    e.crop =
+      plot.state === 'dead'
+        ? 'crop_dead'
+        : plot.state === 'planted' && plot.crop
+          ? cropSpriteId(plot.crop, Math.min(4, Math.max(0, stageOf(plot))))
+          : null;
+  }
+  return out;
 }

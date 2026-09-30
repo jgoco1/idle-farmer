@@ -42,3 +42,12 @@ Ideas that came up during a phase but were outside its scope. Add one line per i
 - **A dog as well as a cat**, chosen by save, with a second pet sprite and a sleeping-pose variation at night. Later polish.
 - **Number format everywhere** (panels, toasts, popups), and a Settings "Compact HUD" for phones. Later polish.
 - **A sticky tab row and collapsible sections** for the Goals and Upgrades bottom sheets on phones. Later polish.
+
+Phase 09 (simulator findings, for v2):
+- **A late-game gold sink**: by day 7 a keen player has earned 3 million gold and every upgrade, expansion and card together costs about 523k, so gold means nothing for the last three weeks of a 30-day run. Farmhouse rooms, decorations, town projects on the Community Board, or a "gift to the market" that raises every price floor. v2 content.
+- **Busy Bees that matters late**: once the farmhand is Level 3+, it is never the bottleneck, so `automationSpeed` is worth ~0 gold. Let it also shorten the Shipping Bin interval or speed regrowth of automated plots. v2 balance.
+- **A gold-buff dish for winter** (and a second one for summer): today's winter dishes boost XP, fishing and cooking, so keeping buffs up in winter is about XP, not gold. Could ride the "winter-only recipes" idea above. v2 content.
+- **Goal draws that do not depend on how an offline walk is split**: goals are redrawn with the seeded RNG at the end of a step, so the same absence walked in different step sizes can draw different goals (and seed or card rewards). A separate RNG stream for goals, or drawing only at the end of a catch-up, would make an absence fully reproducible. v2 engine.
+- **A "Pull up" hint and confirm**: phase 09 lets the Hoe pull up a regrower that has given a harvest; a tooltip on such plots ("Hoe: pull up") and a one-time confirmation would make the rule discoverable. Later polish.
+- **A human-like fisher in the simulator**: the bots model active fishing as catches per minute; replaying the real reel minigame with a reaction-time model would test the minigame's difficulty curve and Relaxed fishing. Tooling.
+- **Seed restocking for idle farms** (see "Buy seeds from the farmhand's route" above): the simulator confirms it: an automated farm of single-harvest crops stalls overnight without a big seed stock, which is the main thing a casual player must remember before leaving. v2.

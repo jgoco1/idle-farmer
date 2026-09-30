@@ -12,11 +12,6 @@ import { upgradeLevel } from './upgrades';
 
 export const PLACED_KINDS: readonly PlacedKind[] = ['sprinkler', 'scarecrow', 'golden_scarecrow'];
 
-/** The kinds that speed up growth around them (overlaps do not stack). */
-export function isScarecrow(kind: PlacedKind): boolean {
-  return kind === 'scarecrow' || kind === 'golden_scarecrow';
-}
-
 export interface AreaSpec {
   shape: 'plus' | 'square';
   radius: number;
@@ -105,7 +100,11 @@ export function placementProblem(
   const there = objectAt(state, col, row);
   if (there) return `A ${there.kind} already stands there.`;
   const plot = state.farm.plots[row * state.farm.grid.cols + col]!;
-  if (plot.state === 'planted') return 'Harvest or clear the crop first.';
+  if (plot.state === 'planted') {
+    return plot.harvests > 0
+      ? 'A regrowing crop stands here: pull it up with the Hoe first.'
+      : 'Harvest or clear the crop first.';
+  }
   if (stockOf(state, kind) <= 0) {
     return kind === 'golden_scarecrow'
       ? 'Your golden scarecrow is already standing on the field.'
@@ -143,15 +142,45 @@ export function pickUpObject(state: GameState, ctx: SimContext, id: number): Act
 
 // ---- coverage
 
-/** Per field plot: kept watered by a sprinkler, and the best scarecrow growth bonus. */
 export interface Coverage {
   sprinkled: Uint8Array;
   bonus: Float64Array;
 }
 
-/** Null when nothing is placed (the common early case), so callers can skip the work. */
+// The coverage is asked for several times per simulation step (growth, water-outs, the farmhand's
+// forecast, the UI per plot), but only changes when something is placed, picked up or widened, so
+// the last one is kept per `placed` array and reused while the grid, the sprinkler area and every
+// object's kind and position are unchanged (compared without allocating).
+interface CoverageCacheEntry {
+  data: GameData;
+  cols: number;
+  rows: number;
+  tech: number;
+  objects: { kind: PlacedKind; col: number; row: number }[];
+  cov: Coverage;
+}
+const coverageCache = new WeakMap<readonly PlacedObject[], CoverageCacheEntry>();
+
+function cacheHolds(e: CoverageCacheEntry, state: GameState, data: GameData): boolean {
+  const placed = state.placed;
+  if (e.data !== data || e.cols !== state.farm.grid.cols || e.rows !== state.farm.grid.rows) return false;
+  if (e.tech !== upgradeLevel(state, 'sprinkler_tech') || e.objects.length !== placed.length) return false;
+  for (let i = 0; i < placed.length; i++) {
+    const a = placed[i]!;
+    const b = e.objects[i]!;
+    if (a.kind !== b.kind || a.at.col !== b.col || a.at.row !== b.row) return false;
+  }
+  return true;
+}
+
+/**
+ * Per field plot: sprinkled or not, and the best scarecrow bonus. Null when nothing is placed (the
+ * common early case), so callers can skip the work. The result is shared: never modify it.
+ */
 export function coverageOf(state: GameState, data: GameData): Coverage | null {
   if (state.placed.length === 0) return null;
+  const cached = coverageCache.get(state.placed);
+  if (cached && cacheHolds(cached, state, data)) return cached.cov;
   const { cols, rows } = state.farm.grid;
   const cov: Coverage = { sprinkled: new Uint8Array(cols * rows), bonus: new Float64Array(cols * rows) };
   for (const o of state.placed) {
@@ -165,5 +194,13 @@ export function coverageOf(state: GameState, data: GameData): Coverage | null {
       else if (bonus > cov.bonus[i]!) cov.bonus[i] = bonus;
     }
   }
+  coverageCache.set(state.placed, {
+    data,
+    cols,
+    rows,
+    tech: upgradeLevel(state, 'sprinkler_tech'),
+    objects: state.placed.map((o) => ({ kind: o.kind, col: o.at.col, row: o.at.row })),
+    cov,
+  });
   return cov;
 }

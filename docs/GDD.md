@@ -52,7 +52,7 @@ The game has **two clocks**.
 | **Calendar** | the player's real local clock | time of day (night is 20:00–06:00), the daily 06:00 refresh, seasons (one real week each, changing at local Saturday → Sunday midnight), the year (4 weeks) |
 | **Simulated time** | real time while playing; a capped amount while away | every timer: crop growth, watering, cooking, buffs, traps, the farmhand, shipping-bin pickups, market recovery |
 
-**Why two clocks.** A real calendar makes the farm feel like it lives alongside the player: it's dark on the farm when it's dark outside, specials change each morning, and each week has a season with its own crops and fish. That gives a gentle reason to look in daily and weekly without ever demanding it. But crops can't take real days to grow in an idle game's first session, so timers stay short: a turnip takes 2 minutes, a pumpkin 20, a T4 dish 4 minutes to cook, and buffs last 6–48 minutes. That keeps the "nobody waits more than ~2 minutes early on" target.
+**Why two clocks.** A real calendar makes the farm feel like it lives alongside the player: it's dark on the farm when it's dark outside, specials change each morning, and each week has a season with its own crops and fish. That gives a gentle reason to look in daily and weekly without ever demanding it. But crops can't take real days to grow in an idle game's first session, so timers stay short: a turnip takes 2 minutes, a pumpkin 20, a T4 dish 4 minutes to cook, and buffs last 15 minutes to about 7 hours. That keeps the "nobody waits more than ~2 minutes early on" target.
 
 **What follows from it:**
 - **Seasons:** every save starts in **spring**, whatever the real date. The first counted Saturday → Sunday midnight at least 3 days after the save was made changes spring to summer; after that, seasons change every week in the order spring, summer, autumn, winter. At a season change, crops that can't grow in the new season wither (greenhouse excepted). During the last two days of a season the HUD shows "Season changes in 2d 4h", and the shop warns about seeds that won't finish in time.
@@ -113,7 +113,7 @@ One screen. The scene is a 320 × 192 logical-pixel canvas (20 × 12 tiles) scal
 Each section lists: player actions · idle behaviour · unlocks · the phase that builds it.
 
 ### 6.1 Farming (phase 02; automation hooks in 04)
-- **Actions:** select a tool (Auto, Hoe, Seeds, Watering Can, Hand) and click or drag across plots. Hoe tills or clears a dead crop; Seeds plants the chosen seed; Can waters; Hand harvests. Shift-click or drag applies to many plots. Upgraded tools hit an area (BALANCE.md §4).
+- **Actions:** select a tool (Auto, Hoe, Seeds, Watering Can, Hand) and click or drag across plots. Hoe tills or clears a dead crop, and can pull up an old regrowing crop (one that has already given a harvest) so a plot is never stuck with it for the rest of its seasons; Seeds plants the chosen seed; Can waters; Hand harvests. Shift-click or drag applies to many plots. Upgraded tools hit an area (BALANCE.md §4).
 - **Plot states:** untilled → tilled → planted (stage 0–4) → ready → harvested (back to tilled, or back to stage 2 for regrowers). Plus `dead` after a season change.
 - **Watering:** a watered plot grows at full speed; a dry one at half speed. One watering lasts 2 hours of simulated time; sprinkler-covered plots are always watered. This is gentle on purpose: the farm still progresses offline without sprinklers, but sprinklers double it.
 - **Seasons:** seeds can only be planted in season. A crop still in the ground when its seasons end (at the weekly season change) withers into a clearable dead crop. The UI warns when a crop won't finish in time. Multi-season crops (garlic, wheat, tomato, corn, kale) carry over.
@@ -196,19 +196,19 @@ The owner's key idea: **each dish gives a different benefit, and its strength an
 (`fishingSpeed` / Quick Bite is a seventh type beyond the six in the phase-06 prompt; it gives fish dishes a second theme. Phase 06 should add it.)
 
 ### Recipe → buff mapping (themed)
-Vegetable and grain dishes that feel "earthy" boost growth (Roasted Turnip, Vegetable Soup, Pumpkin Soup). Sweet, sellable treats and feasts boost prices (Glazed Yams, Cranberry Pie, Harvest Feast). Fish dishes boost fishing: salads and stews for luck (Seaweed Salad, Garlic Trout, Seafood Stew, Royal Sturgeon), quick grilled things for speed (Grilled Bluegill, Fish Tacos). Hearty energy food helps workers (Wheat Flatbread, Corn Chowder, Catfish Gumbo). Comfort food and a spring banquet help the cook (Baked Potato, Tomato Pasta, Garden Banquet). Brain food boosts XP (Berry Bowl, Blueberry Muffin, Scholar's Stew, Moonfin Sushi). Full table: BALANCE.md §7.
+Vegetable and grain dishes that feel "earthy" boost growth (Roasted Turnip, Vegetable Soup, Pumpkin Soup). Sweet, sellable treats and feasts boost prices (Blueberry Muffin, Glazed Yams, Cranberry Pie, Harvest Feast). Fish dishes boost fishing: salads and stews for luck (Seaweed Salad, Garlic Trout, Seafood Stew, Royal Sturgeon), quick grilled things for speed (Grilled Bluegill, Fish Tacos). Hearty energy food helps workers (Wheat Flatbread, Corn Chowder, Catfish Gumbo). Comfort food and a spring banquet help the cook (Baked Potato, Tomato Pasta, Garden Banquet). Brain food boosts XP (Berry Bowl, Scholar's Stew, Moonfin Sushi). Full table: BALANCE.md §7.
 
 ### Tier
 Tier T1–T4 is **computed from the recipe's inputs**: `score = ingredient units + ingredient value / 50 + cook minutes / 60`, with thresholds 8 / 15 / 28. More ingredients, pricier ingredients and longer cooking all push a dish up a tier. A test keeps the data and the formula in agreement.
 
 ### Strength and duration
-`magnitude = 10% × tier × typeScale` and `duration = 6 minutes × 2^(tier − 1)` of simulated time, +50% for hearty (winter-cooked) dishes. So a T1 Green Thumb is +10% for 6 minutes; a T4 Green Thumb is +40% for 48 minutes (72 if hearty). Per-type scales keep strong effects fair: Silver Tongue is halved (T4 = +20% gold), Quick Hands and Scholar's Snack are ×1.5.
+`magnitude = 10% × tier × typeScale` and `duration = 15 minutes × 3^(tier − 1)` of simulated time, +50% for hearty (winter-cooked) dishes. So a T1 Green Thumb is +10% for 15 minutes; a T3 one +30% for 2¼ hours; a T4 Silver Tongue +20% for 6¾ hours (about 10 if hearty), enough to cover most of a night away. (Phase 09 lengthened them from 6 minutes × 2^(tier − 1): most gold is earned while away, and a 48-minute buff made "which dish to eat before you leave" an empty choice.) Per-type scales keep strong effects fair: Silver Tongue is halved (T4 = +20% gold), Quick Hands and Scholar's Snack are ×1.5.
 
 ### Stacking
 - **One buff per type.** Eating a dish of a type you already have keeps the **stronger** magnitude and the **longer** remaining time. It never weakens or shortens anything.
 - **Slots:** 3 at the start, +1 at Cooking level 7, +1 from the Cozy Dinner bundle (max 5 of the 7 types). If all slots are full and you eat a new type, a confirmation offers to replace the buff with the least time left.
 - Buffs tick in simulated time, keep running offline, and expire exactly (offline steps split at the expiry moment).
-- Buffs are **nice, not needed**: kept up well they speed progression by about 10–25% (a phase 09 target).
+- Buffs are **nice, not needed**: kept up well they speed progression by about 10–25% (phase 09 measured +21% over the first week against selling the same dishes).
 
 ## 8. Optional future: the Fullness meter (phase 10)
 
