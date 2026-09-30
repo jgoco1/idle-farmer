@@ -16,6 +16,7 @@ type Win = {
 interface LooseState {
   gold: number;
   stats: { lifetimeGold: number; cropsHarvested: number };
+  progression: { farmLevelFloor: number };
   upgrades: Record<string, number>;
   automation: { farmhandCooldownMs: number };
   shippingBin: { items: unknown[] };
@@ -89,7 +90,7 @@ test('an automated farm: farmhand, sprinklers and a scarecrow at work', async ({
   await page.evaluate(() => {
     const g = (window as unknown as { __game: { state: LooseState } }).__game;
     g.state.gold = 1_000_000;
-    g.state.stats.lifetimeGold = 100_000;
+    g.state.progression.farmLevelFloor = 10; // test shortcut: every unlock open
     Object.assign(g.state.upgrades, {
       farmhand: 2,
       seed_planter: 2,

@@ -15,7 +15,6 @@ Ideas that came up during a phase but were outside its scope. Add one line per i
 - **A "bag full" notice from the farmhand** (a speech bubble over the sprite and one toast per pickup) instead of skipping ready crops silently. Phase 04 only mentions waiting crops in the away summary. Phase 08 (polish).
 - **A visible sprinkler radius on hover** in normal play (not only in placement mode) and coloured soil for scarecrow-boosted plots. Phase 08 (polish).
 - **Buy seeds from the farmhand's route**: a planter that draws down gold to restock its last crop (opt-in, with a cap), so a lapsed seed supply does not stall the farm. Phase 09 if the idle pacing shows farms stalling.
-- **Golden scarecrow** (Spring Crops bundle reward, radius 3, +0.30): `scarecrowBonus` and `areaOf` in `src/systems/placement.ts` are the seams. Phase 07.
 - **Choose where a trap goes** (drag it to any free water tile, or three traps in the river's wider water), and a trap "bait" item that skews its pool. Phase 05 sets traps out automatically at two fixed spots per water. Phase 08 (polish) or 09.
 - **A "line out" cooldown or minimum bite wait after each catch**, if phase 09 finds active fishing too strong (BALANCE.md "Phase 05 tuning notes"). Phase 09.
 - **Fish sounds and a rod-tug rumble on touch devices** (`navigator.vibrate`) during the reel. Phase 08.
@@ -26,3 +25,14 @@ Ideas that came up during a phase but were outside its scope. Add one line per i
 - **A dish on the windowsill**: a plated dish or a cat that appears at the farmhouse while something is on the stove. Phase 08 (juice).
 - **A sparkle when a buff starts and a soft chime when it ends**: hook `buffStarted` and `buffExpired`. Phase 08 (audio and juice).
 - **A "Running now" buff summary in the Kitchen** so phone players, whose HUD strip is hidden, still see what is active. Phase 08 (mobile).
+
+- **A goal reroll** ("Not today", once a day per goal) and a small badge on the Goals toolbar button when a goal is close to done or a new milestone is next. Phase 08 (UI polish).
+- **Farm Level and skill levels in the HUD** (a small "Lv 4" chip that opens the Goals panel), so the level the shop's "Reach Farm Level N" hints mention is always visible. Phase 08.
+- **Bundle planning help**: mark which bundle slots can be filled this season, and show "in season again in 2 days" for the rest, so the seasonal bundles read as a plan and not a wall. Phase 08 or 09.
+- **Perk toasts with a preview** of the next perk ("Farming 4 gives a 5% double harvest"), and a tiny sparkle on the crop that doubled. Phase 08 (juice).
+- **A sound and a longer flourish for a bundle or a Farm Level** (the confetti is silent and short). Phase 08 (audio).
+- **Per-skill XP floaters**: a small "+3 XP" that rises from the plot, catch or dish. Phase 08 (juice).
+- **A "what changed while you were away" list of unlocked content** in the away summary (new seeds, recipe cards, upgrades). The unlock events are silent offline today; only the toolbar buttons pulse. Phase 08.
+- **Milestone chain art**: a small illustrated trail (a path with 15 stones) on the Milestones tab instead of a list. Phase 08.
+- **A daily goal streak** (three goals done in a day) for the casual idler. Owner call; phase 09 if idle pacing wants a reason to visit.
+

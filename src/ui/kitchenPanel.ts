@@ -175,8 +175,8 @@ export function kitchenPanel(hooks: KitchenHooks): PanelDef {
         const buff = hooks.data.buffs[r.buff];
         const winter = hooks.data.seasons[cal.season].effects.heartyDishes === true;
         const mag = buffMagnitude(hooks.data, r.buff, r.tier);
-        const dur = buffDurationMs(r.tier, false);
-        const hearty = buffDurationMs(r.tier, true);
+        const dur = buffDurationMs(r.tier, false, mods.buffDurationBonus);
+        const hearty = buffDurationMs(r.tier, true, mods.buffDurationBonus);
         const free = kitchenSlots(state, hooks.data) - state.kitchen.queue.length;
         const can = canCook(state, r);
         const cook = h('button', {

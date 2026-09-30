@@ -256,11 +256,15 @@ function stepReel(reel: ReelState, rng: Rng, holding: boolean, ms: number): 'cau
 /** The starting reel for a fish: zone in the middle, meter at 30%. */
 export function startReel(
   state: GameState,
-  ctx: Pick<SimContext, 'data' | 'rng'>,
+  ctx: Pick<SimContext, 'data' | 'rng' | 'mods'>,
   id: FishId | JunkId,
 ): ReelState {
   const rod = effectOf(state, ctx.data, 'fishing_rod');
-  const p = reelParams(difficultyOf(ctx.data, id), rod?.reelZoneMult ?? 1, state.settings.relaxedFishing);
+  const p = reelParams(
+    difficultyOf(ctx.data, id),
+    (rod?.reelZoneMult ?? 1) * (1 + ctx.mods.reelZoneBonus),
+    state.settings.relaxedFishing,
+  );
   const reel: ReelState = {
     marker: 0.5,
     zoneCenter: 0.5,

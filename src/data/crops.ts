@@ -32,6 +32,7 @@ export const CROPS: Readonly<Record<CropId, CropDef>> = Object.freeze({
   }),
   potato: crop('potato', {
     name: 'Potato',
+    plural: 'Potatoes',
     seasons: ['spring'],
     growSec: 240,
     regrowSec: null,
@@ -44,6 +45,7 @@ export const CROPS: Readonly<Record<CropId, CropDef>> = Object.freeze({
   }),
   garlic: crop('garlic', {
     name: 'Garlic',
+    plural: 'Garlic',
     seasons: ['winter', 'spring'],
     growSec: 300,
     regrowSec: null,
@@ -80,6 +82,7 @@ export const CROPS: Readonly<Record<CropId, CropDef>> = Object.freeze({
   }),
   wheat: crop('wheat', {
     name: 'Wheat',
+    plural: 'Wheat',
     seasons: ['summer', 'autumn'],
     growSec: 180,
     regrowSec: null,
@@ -92,6 +95,7 @@ export const CROPS: Readonly<Record<CropId, CropDef>> = Object.freeze({
   }),
   tomato: crop('tomato', {
     name: 'Tomato',
+    plural: 'Tomatoes',
     seasons: ['summer', 'autumn'],
     growSec: 360,
     regrowSec: 180,
@@ -116,6 +120,7 @@ export const CROPS: Readonly<Record<CropId, CropDef>> = Object.freeze({
   }),
   corn: crop('corn', {
     name: 'Corn',
+    plural: 'Corn',
     seasons: ['summer', 'autumn'],
     growSec: 720,
     regrowSec: 360,
@@ -152,6 +157,7 @@ export const CROPS: Readonly<Record<CropId, CropDef>> = Object.freeze({
   }),
   kale: crop('kale', {
     name: 'Kale',
+    plural: 'Kale',
     seasons: ['autumn', 'winter'],
     growSec: 300,
     regrowSec: null,

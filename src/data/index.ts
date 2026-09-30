@@ -1,13 +1,17 @@
 import { START_GRID } from './balance';
 import { BUFFS } from './buffs';
+import { BUNDLES, GOAL_TEMPLATES, MILESTONES } from './quests';
+import { SKILL_PERKS } from './skills';
 import { CROPS } from './crops';
 import { EXPANSIONS } from './expansions';
 import { FISH, JUNK } from './fish';
 import type {
   BuffType,
+  BundleId,
   CropId,
   ExpansionId,
   FishId,
+  GoalTemplateId,
   ItemId,
   JunkId,
   RecipeId,
@@ -19,13 +23,16 @@ import { RECIPES } from './recipes';
 import { SEASONS } from './seasons';
 import type {
   BuffDef,
+  BundleDef,
   CropDef,
   ExpansionDef,
   FishDef,
   ItemDef,
   JunkDef,
+  QuestDef,
   RecipeDef,
   SeasonDef,
+  SkillPerkDef,
   UpgradeDef,
 } from './types';
 import { UPGRADES } from './upgrades';
@@ -47,6 +54,12 @@ export interface GameData {
   expansions: Readonly<Record<ExpansionId, ExpansionDef>>;
   /** Every upgrade; `Partial` keeps lookups by an arbitrary id checked. */
   upgrades: Readonly<Partial<Record<UpgradeId, UpgradeDef>>>;
+  /** Skill perks, by skill and level (phase 07). */
+  perks: readonly SkillPerkDef[];
+  /** The story milestones, in chain order (phase 07). */
+  milestones: readonly QuestDef[];
+  goalTemplates: Readonly<Record<GoalTemplateId, QuestDef>>;
+  bundles: Readonly<Record<BundleId, BundleDef>>;
 }
 
 export const GAME_DATA: GameData = Object.freeze({
@@ -60,4 +73,8 @@ export const GAME_DATA: GameData = Object.freeze({
   seasons: SEASONS,
   expansions: EXPANSIONS,
   upgrades: UPGRADES,
+  perks: SKILL_PERKS,
+  milestones: MILESTONES,
+  goalTemplates: GOAL_TEMPLATES,
+  bundles: BUNDLES,
 });

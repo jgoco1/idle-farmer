@@ -10,7 +10,7 @@
 import { createInitialState, cloneState, type GameState } from './state';
 import type { LocalClock } from './time';
 
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 export const SAVE_KEY = 'hearthfield-idle/save';
 export const AUTOSAVE_MS = 15_000;
 
@@ -91,6 +91,69 @@ export const migrations: Record<number, Migration> = {
     kitchen: { known: ['roasted_turnip', 'baked_potato', 'grilled_bluegill'], queue: [] },
     buffs: { active: [], baseSlots: 3 },
   }),
+  /**
+   * v6 → v7 (phase 07, progression): skills, milestones, goals, bundles. Nothing the player has done
+   * is lost: milestones whose deed the save already shows are marked done (without paying their gold
+   * again, but their recipes are learned), each skill starts with the XP that harvests, catches and
+   * dishes so far are worth on average, and `farmLevelFloor` keeps the Farm Level the old lifetime-gold
+   * formula showed (1 + floor(log2(1 + gold / 300))) until the skills catch up. The goal board is
+   * drawn on the first tick. Constants are written out here so later balance changes never alter it.
+   */
+  6: (old) => {
+    const stats = old.stats ?? {};
+    const upgrades = old.upgrades ?? {};
+    const expansions: string[] = old.expansions ?? [];
+    const placed: { kind: string }[] = old.placed ?? [];
+    const anyPlanted = (old.farm?.plots ?? []).some((p: { state: string }) => p.state === 'planted');
+    const floor = 1 + Math.floor(Math.log2(1 + Math.max(0, stats.lifetimeGold ?? 0) / 300));
+    const seen: Record<string, boolean> = {
+      m01_first_seed: anyPlanted || (stats.cropsHarvested ?? 0) > 0 || (stats.lifetimeGold ?? 0) > 0,
+      m02_first_harvest: (stats.cropsHarvested ?? 0) > 0,
+      m03_first_sale: (stats.lifetimeGold ?? 0) > 0,
+      m04_first_expansion: expansions.includes('farm_1'),
+      m05_first_sprinkler: (upgrades.sprinkler ?? 0) > 0 || placed.some((o) => o.kind === 'sprinkler'),
+      m06_first_catch: (stats.fishCaught ?? 0) > 0,
+      m07_first_dish: (stats.dishesCooked ?? 0) > 0,
+      m08_first_buff: (stats.dishesEaten ?? 0) > 0,
+      m09_hire_farmhand: (upgrades.farmhand ?? 0) >= 1,
+      m10_unlock_river: expansions.includes('river'),
+      m11_farm_level_5: floor >= 5,
+      m12_cook_t3: (stats.bestDishTier ?? 0) >= 3,
+      m13_unlock_ocean: expansions.includes('ocean'),
+      m14_first_bundle: false,
+      m15_greenhouse: (upgrades.greenhouse ?? 0) >= 1,
+    };
+    const done = Object.keys(seen).filter((id) => seen[id]);
+    const recipes: Record<string, string> = {
+      m06_first_catch: 'seaweed_salad',
+      m07_first_dish: 'vegetable_soup',
+      m10_unlock_river: 'garlic_trout',
+      m11_farm_level_5: 'scholars_stew',
+      m12_cook_t3: 'garden_banquet',
+    };
+    const known: string[] = [...(old.kitchen?.known ?? [])];
+    for (const id of done) {
+      const r = recipes[id];
+      if (r && !known.includes(r)) known.push(r);
+    }
+    return {
+      ...old,
+      kitchen: { ...old.kitchen, known },
+      progression: {
+        skills: {
+          farming: { xp: (stats.cropsHarvested ?? 0) * 4 },
+          fishing: { xp: (stats.fishCaught ?? 0) * 10 },
+          cooking: { xp: (stats.dishesCooked ?? 0) * 20 },
+        },
+        milestones: { done },
+        goals: [],
+        goalsDone: 0,
+        bundles: {},
+        completedBundles: [],
+        farmLevelFloor: floor,
+      },
+    };
+  },
 };
 
 export class SaveError extends Error {
@@ -205,7 +268,11 @@ function automationProblem(s: Record<string, unknown>): string | null {
   if (!Array.isArray(placed)) return 'bad placed objects';
   const seen = new Set<string>();
   for (const o of placed) {
-    if (!isObj(o) || !isInt(o.id) || !['sprinkler', 'scarecrow'].includes(o.kind as string))
+    if (
+      !isObj(o) ||
+      !isInt(o.id) ||
+      !['sprinkler', 'scarecrow', 'golden_scarecrow'].includes(o.kind as string)
+    )
       return 'bad placed object';
     const at = o.at;
     if (!isObj(at) || !isInt(at.col) || !isInt(at.row)) return 'bad placed object';
@@ -225,6 +292,29 @@ function automationProblem(s: Record<string, unknown>): string | null {
     !lastPlantedCrop.every((c) => c === null || typeof c === 'string')
   )
     return 'bad planter memory';
+  return null;
+}
+
+function progressionProblem(s: Record<string, unknown>): string | null {
+  const p = s.progression;
+  if (!isObj(p) || !isObj(p.skills) || !isObj(p.milestones)) return 'bad progression';
+  for (const skill of ['farming', 'fishing', 'cooking']) {
+    const e = p.skills[skill];
+    if (!isObj(e) || !isInt(e.xp) || e.xp < 0) return 'bad skills';
+  }
+  if (!Array.isArray(p.milestones.done) || !p.milestones.done.every((m) => typeof m === 'string'))
+    return 'bad milestones';
+  if (!Array.isArray(p.goals)) return 'bad goals';
+  for (const g of p.goals) {
+    if (!isObj(g) || typeof g.template !== 'string' || !isObj(g.objective) || !isNum(g.progress))
+      return 'bad goal';
+    if (typeof g.objective.kind !== 'string' || !Array.isArray(g.rewards)) return 'bad goal';
+  }
+  if (!isInt(p.goalsDone) || !isInt(p.farmLevelFloor) || p.farmLevelFloor < 1) return 'bad progression';
+  if (!isObj(p.bundles) || !Object.values(p.bundles).every((l) => Array.isArray(l) && !l.some(stackProblem)))
+    return 'bad bundles';
+  if (!Array.isArray(p.completedBundles) || !p.completedBundles.every((b) => typeof b === 'string'))
+    return 'bad bundles';
   return null;
 }
 
@@ -325,7 +415,8 @@ export function validateState(s: unknown): string | null {
     economyProblem(s) ??
     automationProblem(s) ??
     fishingProblem(s) ??
-    cookingProblem(s)
+    cookingProblem(s) ??
+    progressionProblem(s)
   );
 }
 

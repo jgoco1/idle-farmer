@@ -9,11 +9,17 @@
 
 import type { GameState, TrapState } from '../core/state';
 import { TRAP_CAPACITY, TRAP_INTERVAL_SEC } from '../data/balance';
+import type { Modifiers } from './modifiers';
 import { fail, OK, type ActionResult, type SimContext } from './context';
 import { stowHarvest } from './autoSeller';
 import { chooseCatch, recordCatch } from './fishing';
 
 export const TRAP_INTERVAL_MS = TRAP_INTERVAL_SEC * 1000;
+
+/** What a trap holds: the base capacity plus the Fishing perks. */
+export function trapCapacity(mods: Pick<Modifiers, 'trapCapacityBonus'>): number {
+  return TRAP_CAPACITY + mods.trapCapacityBonus;
+}
 
 export function trapItemCount(trap: TrapState): number {
   return trap.contents.reduce((n, s) => n + s.qty, 0);
@@ -32,10 +38,11 @@ function putIn(trap: TrapState, item: TrapState['contents'][number]['item']): vo
 export function tickTraps(state: GameState, ctx: SimContext, dtMs: number): void {
   if (state.fishing.traps.length === 0 || dtMs <= 0) return;
   const scaled = Math.round(dtMs * Math.max(0, ctx.mods.fishingSpeedModifier));
+  const capacity = trapCapacity(ctx.mods);
   for (const trap of state.fishing.traps) {
     let progress = trap.progressMs + scaled;
     while (progress >= TRAP_INTERVAL_MS) {
-      if (trapItemCount(trap) >= TRAP_CAPACITY) {
+      if (trapItemCount(trap) >= capacity) {
         progress = TRAP_INTERVAL_MS;
         break;
       }
@@ -67,7 +74,7 @@ export function collectTrap(state: GameState, ctx: SimContext, id: number): Acti
   const trap = state.fishing.traps.find((t) => t.id === id);
   if (!trap) return fail('There is no trap there.');
   if (trap.contents.length === 0) {
-    return fail(`Still filling: ${trapItemCount(trap)} / ${TRAP_CAPACITY} so far.`);
+    return fail(`Still filling: ${trapItemCount(trap)} / ${trapCapacity(ctx.mods)} so far.`);
   }
   emptyTrap(state, ctx, trap);
   return trap.contents.length === 0 ? OK : fail('Your bag is too full to take it all.');
@@ -78,4 +85,20 @@ export function collectAllTraps(state: GameState, ctx: SimContext): number {
   let moved = 0;
   for (const trap of state.fishing.traps) moved += emptyTrap(state, ctx, trap);
   return moved;
+}
+
+/**
+ * Simulated ms until the next trap roll, or Infinity. A catch pays Fishing XP, and a level-up
+ * changes luck and trap capacity, so a large step must stop at each roll for one step to equal many.
+ */
+export function msToNextTrapRoll(state: GameState, ctx: Pick<SimContext, 'mods'>): number {
+  const speed = ctx.mods.fishingSpeedModifier;
+  if (state.fishing.traps.length === 0 || !(speed > 0)) return Infinity;
+  const capacity = trapCapacity(ctx.mods);
+  let ms = Infinity;
+  for (const trap of state.fishing.traps) {
+    if (trapItemCount(trap) >= capacity) continue; // full: waits to be emptied, rolls nothing
+    ms = Math.min(ms, Math.max(1, Math.ceil((TRAP_INTERVAL_MS - trap.progressMs) / speed)));
+  }
+  return ms;
 }

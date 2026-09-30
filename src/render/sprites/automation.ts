@@ -96,6 +96,30 @@ export const objScarecrow: SpriteDef = {
   frames: [SCARECROW_FRONT, swayed(SCARECROW_FRONT, 1), SCARECROW_FRONT, swayed(SCARECROW_FRONT, -1)],
 };
 
+// ---- the golden scarecrow (Spring Crops bundle): the same post in gold, with a glint that comes and goes
+
+const GOLDEN_FRONT = recolored(SCARECROW_FRONT, { j: 'f', J: 'F', u: 'U', U: 'w', q: 'F', Q: 'f' });
+const glint = (rows: readonly string[], spots: readonly (readonly [number, number])[]): string[] =>
+  dots(
+    rows,
+    spots.map(([x, y]) => [x, y, 'w'] as const),
+  );
+
+export const objGoldenScarecrow: SpriteDef = {
+  id: 'obj_golden_scarecrow',
+  anchor: 'bottom-center',
+  frameMs: 520,
+  frames: [
+    glint(GOLDEN_FRONT, [[3, 4]]),
+    glint(swayed(GOLDEN_FRONT, 1), [[12, 6]]),
+    glint(GOLDEN_FRONT, [
+      [4, 9],
+      [12, 3],
+    ]),
+    glint(swayed(GOLDEN_FRONT, -1), [[11, 8]]),
+  ],
+};
+
 // ---- the farmhand: 16 × 16, front view, 4-frame walk, 2-frame harvest pop, a slow idle
 
 /** The body from the hat to the overalls (11 rows); `eyes` false = a blink, `armsUp` = reaching high. */
@@ -209,6 +233,7 @@ export const objGreenhouseRoof: SpriteDef = {
 export const AUTOMATION_SPRITES: readonly SpriteDef[] = [
   objSprinkler,
   objScarecrow,
+  objGoldenScarecrow,
   charFarmhandWalk,
   charFarmhandIdle,
   charFarmhandPop,

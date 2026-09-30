@@ -31,7 +31,7 @@ import {
 import { NO_MODIFIERS } from '../src/systems/modifiers';
 import { binCount, shipItems, unshipItems } from '../src/systems/shippingBin';
 import { createRng } from '../src/core/rng';
-import { at, DAY, HOUR, NY } from './helpers';
+import { at, DAY, HOUR, NY, setFarmLevel } from './helpers';
 
 // Wednesday 7 Jan 2026, 10:00 in New York: spring.
 const CREATED = at(NY, 2026, 1, 7, 10);
@@ -187,7 +187,7 @@ describe("today's specials", () => {
   it('rolls 1–3 distinct obtainable items at +20% to +50% in 5% steps', () => {
     for (let seed = 1; seed <= 40; seed++) {
       const s = farm(seed);
-      s.stats.lifetimeGold = 2100; // Farm Level 4: turnip, potato, garlic, strawberry, cauliflower
+      setFarmLevel(s, 4); // Farm Level 4: turnip, potato, garlic, strawberry, cauliflower
       rollSpecials(s, GAME_DATA, createRng(s), 'spring');
       const sp = s.market.specials;
       expect(sp.length).toBeGreaterThanOrEqual(1);
@@ -218,7 +218,7 @@ describe("today's specials", () => {
       ...starters,
     ]);
     expect(specialCandidates(s, GAME_DATA, 'winter')).toEqual(['bluegill', ...starters]); // winter crops start at Farm Level 2
-    s.stats.lifetimeGold = 300;
+    setFarmLevel(s, 2);
     expect(specialCandidates(s, GAME_DATA, 'winter')).toEqual([
       'garlic',
       'kale',
@@ -403,6 +403,6 @@ describe('shipping bin', () => {
     t += HOUR;
     game.advance(HOUR);
     expect(seen).toEqual([22 + 4 * 21]); // demand drops a little after the first unit
-    expect(game.state.gold).toBe(60 + 106);
+    expect(game.state.gold).toBe(60 + 106 + 50); // + the first-sale milestone's 50g
   });
 });

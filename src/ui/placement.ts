@@ -44,7 +44,12 @@ export class PlacementMode {
   /** Updates the banner text, e.g. "Placing sprinklers · 2 left · click a placed one to pick it up". */
   describe(left: number): void {
     if (!this.kind) return;
-    const name = this.kind === 'sprinkler' ? 'sprinkler' : 'scarecrow';
+    const name =
+      this.kind === 'sprinkler'
+        ? 'sprinkler'
+        : this.kind === 'golden_scarecrow'
+          ? 'golden scarecrow'
+          : 'scarecrow';
     this.text.textContent =
       left > 0
         ? `Placing ${name}s · ${left} left · click a plot to place, a placed one to pick it up`

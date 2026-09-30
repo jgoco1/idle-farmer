@@ -7,9 +7,15 @@ import type { GameState, PlacedKind, PlacedObject } from '../core/state';
 import type { GameData } from '../data';
 import { emptyPlot } from '../core/state';
 import { fail, OK, type ActionResult, type SimContext } from './context';
+import { GOLDEN_SCARECROW } from '../data/balance';
 import { upgradeLevel } from './upgrades';
 
-export const PLACED_KINDS: readonly PlacedKind[] = ['sprinkler', 'scarecrow'];
+export const PLACED_KINDS: readonly PlacedKind[] = ['sprinkler', 'scarecrow', 'golden_scarecrow'];
+
+/** The kinds that speed up growth around them (overlaps do not stack). */
+export function isScarecrow(kind: PlacedKind): boolean {
+  return kind === 'scarecrow' || kind === 'golden_scarecrow';
+}
 
 export interface AreaSpec {
   shape: 'plus' | 'square';
@@ -46,12 +52,14 @@ export function areaOf(state: GameState, data: GameData, kind: PlacedKind): Area
     const e = tech?.effect[upgradeLevel(state, 'sprinkler_tech')] ?? tech?.effect[0];
     return { shape: e?.shape ?? 'plus', radius: e?.radius ?? 1 };
   }
+  if (kind === 'golden_scarecrow') return { shape: 'square', radius: GOLDEN_SCARECROW.radius };
   const e = data.upgrades.scarecrow?.effect[1];
   return { shape: e?.shape ?? 'square', radius: e?.radius ?? 2 };
 }
 
-/** Growth bonus a scarecrow gives the plots in its area. */
-export function scarecrowBonus(data: GameData): number {
+/** Growth bonus a scarecrow of `kind` gives the plots in its area. */
+export function scarecrowBonus(data: GameData, kind: PlacedKind = 'scarecrow'): number {
+  if (kind === 'golden_scarecrow') return GOLDEN_SCARECROW.growthBonus;
   return data.upgrades.scarecrow?.effect[1]?.growthBonus ?? 0;
 }
 
@@ -59,9 +67,16 @@ export function placedCount(state: GameState, kind: PlacedKind): number {
   return state.placed.reduce((n, o) => n + (o.kind === kind ? 1 : 0), 0);
 }
 
-/** Units bought but not standing on the field. */
+/** Units owned: bought upgrades, or the one golden scarecrow the Spring Crops bundle gives. */
+export function ownedCount(state: GameState, kind: PlacedKind): number {
+  if (kind === 'golden_scarecrow')
+    return state.progression.completedBundles.includes(GOLDEN_SCARECROW.bundle) ? 1 : 0;
+  return upgradeLevel(state, kind);
+}
+
+/** Units owned but not standing on the field. */
 export function stockOf(state: GameState, kind: PlacedKind): number {
-  return Math.max(0, upgradeLevel(state, kind) - placedCount(state, kind));
+  return Math.max(0, ownedCount(state, kind) - placedCount(state, kind));
 }
 
 export function objectAt(state: GameState, col: number, row: number): PlacedObject | undefined {
@@ -91,7 +106,11 @@ export function placementProblem(
   if (there) return `A ${there.kind} already stands there.`;
   const plot = state.farm.plots[row * state.farm.grid.cols + col]!;
   if (plot.state === 'planted') return 'Harvest or clear the crop first.';
-  if (stockOf(state, kind) <= 0) return `You have no ${kind}s left to place. Buy one in Upgrades.`;
+  if (stockOf(state, kind) <= 0) {
+    return kind === 'golden_scarecrow'
+      ? 'Your golden scarecrow is already standing on the field.'
+      : `You have no ${kind}s left to place. Buy one in Upgrades.`;
+  }
   return null;
 }
 
@@ -135,8 +154,8 @@ export function coverageOf(state: GameState, data: GameData): Coverage | null {
   if (state.placed.length === 0) return null;
   const { cols, rows } = state.farm.grid;
   const cov: Coverage = { sprinkled: new Uint8Array(cols * rows), bonus: new Float64Array(cols * rows) };
-  const bonus = scarecrowBonus(data);
   for (const o of state.placed) {
+    const bonus = scarecrowBonus(data, o.kind);
     for (const [dc, dr] of areaOffsets(areaOf(state, data, o.kind))) {
       const c = o.at.col + dc;
       const r = o.at.row + dr;

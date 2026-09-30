@@ -4,7 +4,8 @@
 import type { OfflineReport } from '../core/offline';
 import { capitalize, formatDuration } from '../core/time';
 import { GAME_DATA } from '../data';
-import type { CropId, RecipeId } from '../data/ids';
+import type { CropId, RecipeId, SkillId } from '../data/ids';
+import { SKILL_ICONS, SKILL_NAMES } from '../data/skills';
 import { spriteDataUrl } from '../render/spriteCache';
 import { h } from './dom';
 import { showModal } from './modal';
@@ -24,6 +25,10 @@ export interface AwayTotals {
   heartyTotal: number;
   /** Buffs that ran out while away. */
   buffsExpired: number;
+  /** Skill levels reached, goals and milestones finished while away (phase 07). */
+  levelUps: { skill: string; level: number }[];
+  goalsDone: number;
+  milestonesDone: number;
 }
 
 export function awayTotals(report: OfflineReport): AwayTotals {
@@ -38,6 +43,9 @@ export function awayTotals(report: OfflineReport): AwayTotals {
     cookedTotal: 0,
     heartyTotal: 0,
     buffsExpired: 0,
+    levelUps: [],
+    goalsDone: 0,
+    milestonesDone: 0,
   };
   for (const e of report.events) {
     if (e.type === 'harvested') {
@@ -57,6 +65,11 @@ export function awayTotals(report: OfflineReport): AwayTotals {
       if (e.hearty) t.heartyTotal += 1;
     } else if (e.type === 'buffExpired') {
       t.buffsExpired += 1;
+    } else if (e.type === 'levelUp') {
+      t.levelUps.push({ skill: e.skill, level: e.level });
+    } else if (e.type === 'questDone') {
+      if (e.kind === 'goal') t.goalsDone += 1;
+      else t.milestonesDone += 1;
     }
   }
   return t;
@@ -115,6 +128,24 @@ export function awayRows(report: OfflineReport, farm: AwayFarm): AwayRow[] {
       icon: 'obj_shipping_bin',
       text: `${t.shipped} item${t.shipped === 1 ? '' : 's'} shipped.`,
     });
+  }
+  if (t.levelUps.length > 0) {
+    const best = new Map<string, number>();
+    for (const l of t.levelUps) best.set(l.skill, Math.max(best.get(l.skill) ?? 0, l.level));
+    const text = [...best]
+      .map(([skill, level]) => `${SKILL_NAMES[skill as SkillId]} level ${level}`)
+      .join(', ');
+    rows.push({
+      icon: SKILL_ICONS[[...best.keys()][0] as SkillId],
+      text: `Skills grew while you were away: ${text}.`,
+    });
+  }
+  if (t.goalsDone + t.milestonesDone > 0) {
+    const parts = [
+      t.goalsDone > 0 ? `${t.goalsDone} goal${t.goalsDone === 1 ? '' : 's'}` : '',
+      t.milestonesDone > 0 ? `${t.milestonesDone} milestone${t.milestonesDone === 1 ? '' : 's'}` : '',
+    ].filter(Boolean);
+    rows.push({ icon: 'ui_gold', text: `You finished ${parts.join(' and ')}. See the Goals panel.` });
   }
   if (t.gold > 0) rows.push({ icon: 'ui_gold', text: `${t.gold.toLocaleString('en-US')}g earned.` });
   if (t.withered > 0) {

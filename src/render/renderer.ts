@@ -284,7 +284,12 @@ export class Renderer {
     const f = this.fctx;
     const sorted = [...placed].sort((a, b) => a.at.row - b.at.row);
     for (const o of sorted) {
-      const id = o.kind === 'sprinkler' ? 'obj_sprinkler' : 'obj_scarecrow';
+      const id =
+        o.kind === 'sprinkler'
+          ? 'obj_sprinkler'
+          : o.kind === 'golden_scarecrow'
+            ? 'obj_golden_scarecrow'
+            : 'obj_scarecrow';
       const { col, row } = tileOfPlot(this.grid, o.at.row * this.grid.cols + o.at.col);
       const pos = anchoredPosition(spriteDef(id), col, row, TILE);
       // Offset each object's animation so a field of sprinklers doesn't spray in unison.

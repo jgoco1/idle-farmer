@@ -93,14 +93,14 @@ test('till, plant, water, grow and harvest a turnip', async ({ page }) => {
   expect((await plots(page))[2]?.state).toBe('tilled');
   await clickPlot(canvas, 2);
   expect((await plots(page))[2]).toMatchObject({ state: 'planted', crop: 'turnip' });
-  await expect(page.getByTestId('seed-count')).toHaveText('5');
+  await expect(page.getByTestId('seed-count')).toHaveText('10'); // 6 − 1 planted, + 5 from the first-seed milestone
   await clickPlot(canvas, 2);
   expect((await plots(page))[2]?.waterMsLeft).toBeGreaterThan(0);
 
   // Shift-click plants the whole field: the four plots that start tilled.
   await clickPlot(canvas, 0, ['Shift']);
   expect((await plots(page)).filter((p) => p.state === 'planted')).toHaveLength(5);
-  await expect(page.getByTestId('seed-count')).toHaveText('1');
+  await expect(page.getByTestId('seed-count')).toHaveText('6'); // 10 − 4 planted
 
   // The Shop sells a potato seed; locked seeds show how to unlock them; summer seeds are not stocked.
   await page.getByRole('button', { name: /Shop/ }).click();
@@ -150,7 +150,7 @@ test('till, plant, water, grow and harvest a turnip', async ({ page }) => {
   await page.getByRole('button', { name: /Inventory/ }).click();
   const inventory = page.getByRole('dialog', { name: 'Inventory' });
   await expect(inventory.locator('[data-item="turnip"] .inv-qty')).toHaveText('1');
-  await expect(inventory.locator('[data-item="seed_turnip"] .inv-qty')).toHaveText('1');
+  await expect(inventory.locator('[data-item="seed_turnip"] .inv-qty')).toHaveText('6'); // the seeds left, with the 5 from the first-seed milestone
   await inventory.locator('[data-item="turnip"]').hover();
   await expect(inventory).toContainText(/Sells for \d+g each at the Market right now/);
   await page.screenshot({ path: 'test-results/inventory.png' });
@@ -169,7 +169,7 @@ test('till, plant, water, grow and harvest a turnip', async ({ page }) => {
     () => (window as unknown as { __game: { state: { gold: number } } }).__game.state.gold,
   );
   await row.locator('[data-sell="all"]').click();
-  await expect(page.getByTestId('gold')).toHaveText(`${goldBefore + price}g`);
+  await expect(page.getByTestId('gold')).toHaveText(`${goldBefore + price + 50}g`); // + the first-sale milestone's 50g
   await expect(page.locator('.gold-popup')).toHaveText(`+${price}g`);
   await expect(market).toContainText('Nothing to sell yet');
   await expect(market).toContainText(/The bin is empty\. Next pickup in \d+m/);

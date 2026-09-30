@@ -35,6 +35,8 @@ export class Game {
   readonly lc: LocalClock;
   readonly now: () => number;
   tickCount = 0;
+  /** True while an offline catch-up's events are being flushed to the bus, so the UI can summarise instead of reacting to each one. */
+  replaying = false;
   private readonly stepper = new FixedStepper(TICK_MS);
 
   constructor(
@@ -124,7 +126,12 @@ export class Game {
 
   private runOfflineCal(from: number, to: number): OfflineReport {
     const report = runOffline(this.state, this.data, this.lc, from, to);
-    this.bus.emitAll(report.events);
+    this.replaying = true;
+    try {
+      this.bus.emitAll(report.events);
+    } finally {
+      this.replaying = false;
+    }
     return report;
   }
 }

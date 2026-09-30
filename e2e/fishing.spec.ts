@@ -11,6 +11,7 @@ type Win = {
     state: {
       gold: number;
       stats: { lifetimeGold: number; fishCaught: number };
+      progression: { farmLevelFloor: number };
       upgrades: Record<string, number>;
       settings: { relaxedFishing: boolean };
       inventory: { slots: ({ item: string; qty: number } | null)[] };
@@ -195,7 +196,7 @@ test('River Access opens the river in the scene and the Fishing panel', async ({
   await page.evaluate(() => {
     const g = (window as unknown as Win).__game.state;
     g.gold = 10_000;
-    g.stats.lifetimeGold = 1000; // Farm Level 3
+    g.progression.farmLevelFloor = 3; // Farm Level 3
   });
   await page.getByRole('button', { name: /Upgrades/ }).click();
   const upgrades = page.getByRole('dialog', { name: 'Upgrades' });
@@ -215,7 +216,7 @@ test('River Access opens the river in the scene and the Fishing panel', async ({
   await page.evaluate(() => {
     const g = (window as unknown as Win).__game.state;
     g.gold = 100_000;
-    g.stats.lifetimeGold = 20_000; // Farm Level 6
+    g.progression.farmLevelFloor = 6; // Farm Level 6
   });
   await dispatch(page, { type: 'buyExpansion', id: 'ocean' });
   for (let i = 0; i < 6; i++) await dispatch(page, { type: 'buyUpgrade', id: 'fish_trap' });

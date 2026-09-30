@@ -34,7 +34,6 @@ import {
   ingredientValue,
   kitchenSlots,
   knownRecipes,
-  learnMilestoneRecipes,
   msToNextCookFinish,
   recipeCards,
   recipeScore,
@@ -51,7 +50,8 @@ import { tickTraps, TRAP_INTERVAL_MS } from '../src/systems/traps';
 import { awayRows } from '../src/ui/awaySummary';
 import { buffEffectText, buffTooltip, formatBuffAmount } from '../src/ui/buffBar';
 import { ALL_SPRITES, SPRITES } from '../src/render/sprites';
-import { at, HOUR, NY } from './helpers';
+import { runProgression } from '../src/systems/progression';
+import { at, HOUR, NY, setFarmLevel } from './helpers';
 
 const CREATED = at(NY, 2026, 1, 7, 10); // Wednesday; spring until Sunday 11 Jan, then summer, autumn, winter (25 Jan)
 const NOON = at(NY, 2026, 1, 7, 12);
@@ -285,9 +285,9 @@ describe('eating and stacking', () => {
   it('starts with three slots, capped at five', () => {
     const s = farm();
     expect(BASE_BUFF_SLOTS).toBe(3);
-    expect(buffSlotCount(s)).toBe(3);
+    expect(buffSlotCount(s, GAME_DATA)).toBe(3);
     s.buffs.baseSlots = 9;
-    expect(buffSlotCount(s)).toBe(MAX_BUFF_SLOTS);
+    expect(buffSlotCount(s, GAME_DATA)).toBe(MAX_BUFF_SLOTS);
     expect(MAX_BUFF_SLOTS).toBe(5);
   });
 
@@ -768,18 +768,16 @@ describe('winter is cooking season', () => {
 });
 
 describe('recipe discovery', () => {
-  it('learns milestone recipes when the milestone is reached', () => {
+  it('learns milestone recipes when the milestone completes', () => {
     const s = farm();
-    const ctx = ctxAt(s);
-    learnMilestoneRecipes(s, ctx);
     expect(knownRecipes(s)).toEqual(['roasted_turnip', 'baked_potato', 'grilled_bluegill']);
-    s.stats.fishCaught = 1; // m06
-    s.stats.dishesCooked = 1; // m07
-    s.expansions.push('river'); // m10
-    s.stats.lifetimeGold = 300 * (2 ** 4 - 1); // farm level 5, m11
-    s.stats.bestDishTier = 3; // m12
     const events: GameEvent[] = [];
-    learnMilestoneRecipes(s, ctxAt(s, NOON, events));
+    const ctx = ctxAt(s, NOON, events);
+    events.push({ type: 'caught', catch: 'bluegill', sizeCm: 10, location: 'pond', viaTrap: false }); // m06
+    events.push({ type: 'cooked', recipe: 'roasted_turnip', tier: 3, hearty: false }); // m07 and m12
+    events.push({ type: 'purchased', what: 'river', gold: 2000 }); // m10
+    setFarmLevel(s, 5); // m11
+    runProgression(s, ctx);
     expect(knownRecipes(s)).toEqual([
       'roasted_turnip',
       'baked_potato',
@@ -791,14 +789,15 @@ describe('recipe discovery', () => {
       'garden_banquet',
     ]);
     expect(events.filter((e) => e.type === 'recipeLearned')).toHaveLength(5);
-    learnMilestoneRecipes(s, ctxAt(s, NOON, events));
+    runProgression(s, ctx);
     expect(events.filter((e) => e.type === 'recipeLearned')).toHaveLength(5); // once only
   });
 
   it('learns them during the simulation, without any action', () => {
     const s = farm();
-    s.stats.fishCaught = 1;
-    step(s, ctxAt(s), 100);
+    const ctx = ctxAt(s);
+    ctx.events.push({ type: 'caught', catch: 'bluegill', sizeCm: 10, location: 'pond', viaTrap: false });
+    step(s, ctx, 100);
     expect(s.kitchen.known).toContain('seaweed_salad');
   });
 

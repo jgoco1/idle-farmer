@@ -9,7 +9,7 @@ import { FarmhandVisual } from '../src/render/farmhand';
 import { GREENHOUSE_LAYOUT, greenhouseTile, plotIndexAt, plotSprites, tileOfPlot } from '../src/render/scene';
 import { SPRITES } from '../src/render/sprites';
 import { awayRows, awayTotals } from '../src/ui/awaySummary';
-import { at, NY } from './helpers';
+import { at, NY, PROGRESSION_EVENTS } from './helpers';
 
 const grid = { cols: 4, rows: 2 };
 
@@ -147,7 +147,10 @@ describe('actions', () => {
     expect(game.isPlotWatered(3)).toBe(false);
     expect(game.dispatch({ type: 'pickUp', id: 1 }).ok).toBe(true);
     expect(game.isPlotWatered(0)).toBe(false);
-    expect(events.map((e) => e.type)).toEqual(['placed', 'pickedUp']);
+    expect(events.filter((e) => !PROGRESSION_EVENTS.includes(e.type)).map((e) => e.type)).toEqual([
+      'placed',
+      'pickedUp',
+    ]);
     expect(game.dispatch({ type: 'setAutoSell', item: 'turnip', on: false }).ok).toBe(true);
     expect(game.state.autoSell.turnip).toBe(false);
     expect(game.dispatch({ type: 'setAutoSell', item: 'seed_turnip', on: true }).ok).toBe(false);

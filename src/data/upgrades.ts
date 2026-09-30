@@ -29,7 +29,7 @@ const [scarecrowText, scarecrowEffect] = perUnit(
   { shape: 'square', radius: 2, growthBonus: 0.2 },
 );
 
-const [trapText, trapEffect] = perUnit(6, (n) => (n === 0 ? 'none yet' : n === 1 ? '1 trap' : `${n} traps`), {
+const [trapText, trapEffect] = perUnit(9, (n) => (n === 0 ? 'none yet' : n === 1 ? '1 trap' : `${n} traps`), {
   intervalSec: TRAP_INTERVAL_SEC,
   capacity: TRAP_CAPACITY,
 });
@@ -218,12 +218,12 @@ export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object
     id: 'fish_trap',
     name: 'Fish Trap',
     description:
-      'A wicker trap that catches a little something every 3 minutes, day and night. Two per open water.',
+      'A wicker trap that catches a little something every 3 minutes, day and night. Two per open water (three once the Pond Fish bundle is done).',
     category: 'fishing',
     kind: 'placeable',
     placeOn: 'water',
-    max: 6,
-    cost: { base: 500, ratio: 1.5 }, // 500, 750, 1100, 1700, 2500, 3800
+    max: 9, // 3 waters × (2 spots + 1 from the Pond Fish bundle)
+    cost: { base: 500, ratio: 1.5 }, // 500, 750, 1100, 1700, 2500, 3800, 5700, 8600, 12800
     effectText: trapText,
     effect: trapEffect,
     requires: [],

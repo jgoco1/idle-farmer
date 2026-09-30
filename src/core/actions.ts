@@ -18,7 +18,18 @@ import { cancelCast, startCast, stepFishing } from '../systems/fishing';
 import { collectTrap } from '../systems/traps';
 import { buyRecipe, cancelCooking, experiment, startCooking } from '../systems/cooking';
 import { eatDish } from '../systems/buffs';
-import type { CropId, DishId, ExpansionId, FishLocationId, ItemId, RecipeId, UpgradeId } from '../data/ids';
+import { donate } from '../systems/bundles';
+import { runProgression } from '../systems/progression';
+import type {
+  BundleId,
+  CropId,
+  DishId,
+  ExpansionId,
+  FishLocationId,
+  ItemId,
+  RecipeId,
+  UpgradeId,
+} from '../data/ids';
 import type { GameState, PlacedKind } from './state';
 
 export type Action =
@@ -57,11 +68,23 @@ export type Action =
   | { type: 'buyRecipe'; recipe: RecipeId }
   /** Inventory: eat a dish for its buff. `hearty` picks the stack; `replace` confirms swapping out the buff with the least time left. */
   | { type: 'eat'; dish: DishId; hearty?: boolean; replace?: boolean }
+  /** Community Board: give up to `qty` of an item from the bag to a bundle. */
+  | { type: 'donate'; bundle: BundleId; item: ItemId; qty: number }
   | { type: 'debugSetTimeWarp'; on: boolean };
 
 export const TIME_WARP_SPEED = 60;
 
+/**
+ * Runs an action, then lets progression read whatever it reported (XP, milestones, goals), so a
+ * click counts exactly as a simulation step does.
+ */
 export function applyAction(state: GameState, ctx: SimContext, action: Action): ActionResult {
+  const result = handleAction(state, ctx, action);
+  runProgression(state, ctx);
+  return result;
+}
+
+function handleAction(state: GameState, ctx: SimContext, action: Action): ActionResult {
   switch (action.type) {
     case 'setMasterVolume': {
       if (!Number.isFinite(action.value)) return fail('Volume must be a number.');
@@ -117,6 +140,8 @@ export function applyAction(state: GameState, ctx: SimContext, action: Action): 
       return buyRecipe(state, ctx, action.recipe);
     case 'eat':
       return eatDish(state, ctx, action.dish, action.hearty, action.replace ?? false);
+    case 'donate':
+      return donate(state, ctx, action.bundle, action.item, action.qty);
     case 'debugSetTimeWarp':
       state.clock.speed = action.on ? TIME_WARP_SPEED : 1;
       return OK;

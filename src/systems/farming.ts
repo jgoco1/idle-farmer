@@ -313,8 +313,9 @@ export function harvestOne(state: GameState, ctx: SimContext, index: number, aut
   const crop = ctx.data.crops[plot.crop];
   if (!isReady(plot, ctx.data)) return 'notReady';
   const rngBefore = state.rngState;
-  const qty = ctx.rng.int(crop.yield.min, crop.yield.max);
-  // phase 07: + 1 with probability doubleHarvestChance (Farming perks)
+  let qty = ctx.rng.int(crop.yield.min, crop.yield.max);
+  // Farming perks: a chance of a double harvest (the RNG is only touched once the perk exists).
+  if (ctx.mods.doubleHarvestChance > 0 && ctx.rng.next() < ctx.mods.doubleHarvestChance) qty *= 2;
   const stowed = stowHarvest(state, ctx.data, crop.id, qty);
   if (!stowed) {
     state.rngState = rngBefore;

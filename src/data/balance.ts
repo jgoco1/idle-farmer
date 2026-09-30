@@ -174,3 +174,62 @@ export const MAX_BUFF_SLOTS = 5;
 /** Experiment mode: how many distinct ingredients may be tried at once. */
 export const EXPERIMENT_MIN_ITEMS = 2;
 export const EXPERIMENT_MAX_ITEMS = 4;
+
+// ---- progression (BALANCE.md §8–10)
+
+export const MAX_SKILL_LEVEL = 10;
+/** `xpToNext(L) = round(XP_BASE × XP_GROWTH^(L − 1))` for L = 1..9. */
+export const XP_BASE = 150;
+export const XP_GROWTH = 1.5;
+/** Fishing XP per catch: by rarity, plus `floor(difficulty / FISHING_XP_DIFFICULTY_DIV)`; junk gives JUNK_XP, a trap catch a fraction of it. */
+export const FISHING_XP_BY_RARITY: Readonly<Record<Rarity, number>> = {
+  common: 6,
+  uncommon: 14,
+  rare: 30,
+  legendary: 100,
+};
+export const FISHING_XP_DIFFICULTY_DIV = 10;
+export const JUNK_XP = 2;
+export const TRAP_XP_FRACTION = 0.5;
+/** Cooking XP per dish: `round(COOKING_XP_BASE × tier ^ COOKING_XP_EXPONENT)`. */
+export const COOKING_XP_BASE = 8;
+export const COOKING_XP_EXPONENT = 1.5;
+
+/**
+ * Farm Level from farm points: `farmPoints = Σ(skill level − 1) + milestonesDone` (BALANCE.md §8),
+ * then the highest level whose entry here is reached. Index = level (levels 1..10). BALANCE.md gave
+ * the linear `1 + floor(points / 2)`; see its "Phase 07 tuning notes" for why this table replaced it:
+ * the milestones alone are worth 15 points, so a linear formula put Farm Level 10 within a few
+ * hours, and Level 3 needs to stay reachable by a player who only farms (its five farming
+ * milestones are 5 points) while the top levels want nearly everything done.
+ */
+export const FARM_LEVEL_POINTS: readonly number[] = [0, 0, 2, 5, 7, 10, 12, 15, 20, 27, 36];
+export const FARM_LEVEL_MAX = FARM_LEVEL_POINTS.length - 1;
+
+/** The golden scarecrow (Spring Crops bundle): a bigger, stronger scarecrow. */
+export const GOLDEN_SCARECROW = { bundle: 'spring_crops', radius: 3, growthBonus: 0.3 } as const;
+
+/** The goal board (BALANCE.md §10): how many goals are open, and how they are sized. */
+export const GOAL_SLOTS = 3;
+/** Goals are sized to take about this many real minutes at the player's estimated rate … */
+export const GOAL_TARGET_MINUTES = 8;
+/** … assuming the player only manages this share of the ideal rate (they also shop, cook, fish). */
+export const GOAL_EFFICIENCY = 0.5;
+/** Hard bounds on a goal's target so a tiny or a huge farm still gets a sensible one. */
+export const GOAL_TARGET_MIN = 5;
+export const GOAL_TARGET_MAX = 400;
+/** Extra real minutes a crop cycle takes on top of its grow time (the player has to come back to it). */
+export const GOAL_CYCLE_OVERHEAD_MIN = 0.5;
+/** `goalGoldReward = roundNice(max(GOAL_GOLD_MIN, GOAL_GOLD_SHARE × estimatedGoldPerMin × 10))`. */
+export const GOAL_GOLD_MIN = 20;
+export const GOAL_GOLD_SHARE = 0.05;
+/** Some goals pay half the gold plus seeds, or a recipe card (chance of each, of the goals that roll a bonus). */
+export const GOAL_SEED_REWARD = { chance: 0.3, qty: 5 } as const;
+export const GOAL_CARD_CHANCE = 0.15;
+/** Catch goals: fish to catch, and the Fishing level from which a rare fish can be asked for. */
+export const GOAL_CATCH_COUNT = 5;
+export const GOAL_RARE_FISHING_LEVEL = 6;
+/** Cook goals: dishes for a T2 goal, and for a higher tier. */
+export const GOAL_COOK_COUNT = { t2: 3, higher: 2 } as const;
+export const GOAL_DISTINCT_COUNT = 3;
+export const GOAL_EAT_COUNT = 2;

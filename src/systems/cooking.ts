@@ -12,13 +12,13 @@ import {
   TIER_THRESHOLDS,
   TIER_VALUE_DIV,
 } from '../data/balance';
-import { RECIPE_IDS, type ItemId, type MilestoneId, type RecipeId, type RecipeTier } from '../data/ids';
+import { RECIPE_IDS, type ItemId, type RecipeId, type RecipeTier } from '../data/ids';
 import type { ItemDef, RecipeDef } from '../data/types';
 import { fail, OK, type ActionResult, type SimContext } from './context';
 import { canAfford, spend } from './economy';
 import { addItem, countItem, hasItems, removeItem } from './inventory';
 import { effectOf } from './upgrades';
-import { farmLevel, isUnlocked, unlockHint } from './unlocks';
+import { isUnlocked, unlockHint } from './unlocks';
 
 // ---- tier
 
@@ -80,7 +80,8 @@ export function cookMs(recipe: RecipeDef, cookSpeedModifier: number): number {
   return Math.max(1, Math.ceil((recipe.cookSec * 1000) / Math.max(0.01, cookSpeedModifier)));
 }
 
-function learn(
+/** Teaches a recipe (no-op when known) and reports it. Milestone and goal rewards use it too. */
+export function learn(
   state: GameState,
   ctx: SimContext,
   id: RecipeId,
@@ -102,8 +103,20 @@ export function startCooking(state: GameState, ctx: SimContext, id: RecipeId): A
     return fail('The stove is full. Wait for a dish to finish, or upgrade the Kitchen.');
   }
   if (!canCook(state, recipe)) return fail(`You don't have everything for ${recipe.name}.`);
-  for (const i of recipe.ingredients) removeItem(state.inventory, i.item, i.qty, false);
-  state.kitchen.queue.push({ recipe: id, remainingMs: recipe.cookSec * 1000 });
+  // Cooking perks: a chance that one ingredient is not used up. `saved` remembers it, so taking the
+  // dish off the stove gives back only what was really spent.
+  let saved: ItemId | undefined;
+  if (ctx.mods.ingredientSaveChance > 0 && ctx.rng.next() < ctx.mods.ingredientSaveChance) {
+    saved = ctx.rng.pick(recipe.ingredients).item;
+  }
+  for (const i of recipe.ingredients) {
+    removeItem(state.inventory, i.item, i.item === saved ? i.qty - 1 : i.qty, false);
+  }
+  state.kitchen.queue.push(
+    saved
+      ? { recipe: id, remainingMs: recipe.cookSec * 1000, saved }
+      : { recipe: id, remainingMs: recipe.cookSec * 1000 },
+  );
   return OK;
 }
 
@@ -113,9 +126,14 @@ export function cancelCooking(state: GameState, ctx: SimContext, index: number):
   if (!job) return fail('There is nothing on the stove there.');
   if (job.remainingMs === 0) return fail('That dish is finished; it is only waiting for space in your bag.');
   const recipe = ctx.data.recipes[job.recipe];
-  for (const i of recipe.ingredients) {
-    if (!addItem(state.inventory, i.item, i.qty)) return fail('Your bag has no room for the ingredients.');
-  }
+  const back = recipe.ingredients.map((i) => ({
+    item: i.item,
+    qty: i.item === job.saved ? i.qty - 1 : i.qty,
+  }));
+  const scratch = structuredClone(state.inventory);
+  for (const i of back)
+    if (!addItem(scratch, i.item, i.qty)) return fail('Your bag has no room for the ingredients.');
+  for (const i of back) addItem(state.inventory, i.item, i.qty);
   state.kitchen.queue.splice(index, 1);
   return OK;
 }
@@ -165,40 +183,6 @@ export function msToNextCookFinish(state: GameState, ctx: Pick<SimContext, 'mods
 }
 
 // ---- discovery
-
-const MILESTONES_MET: Partial<Record<MilestoneId, (s: GameState) => boolean>> = {
-  m06_first_catch: (s) => s.stats.fishCaught >= 1,
-  m07_first_dish: (s) => s.stats.dishesCooked >= 1,
-  m10_unlock_river: (s) => s.expansions.includes('river'),
-  m11_farm_level_5: (s) => farmLevel(s) >= 5,
-  m12_cook_t3: (s) => s.stats.bestDishTier >= 3,
-};
-
-/** The milestone recipes of a data set, found once (this runs every tick). */
-const milestoneRecipes = new WeakMap<GameData, { id: RecipeId; milestone: MilestoneId }[]>();
-
-function milestoneRecipesOf(data: GameData): { id: RecipeId; milestone: MilestoneId }[] {
-  let list = milestoneRecipes.get(data);
-  if (!list) {
-    list = [];
-    for (const id of RECIPE_IDS) {
-      const d = data.recipes[id].discovery;
-      if (d.kind === 'milestone') list.push({ id, milestone: d.id });
-    }
-    milestoneRecipes.set(data, list);
-  }
-  return list;
-}
-
-/**
- * Teaches the recipes whose milestone the player has reached. Phase 07's milestone chain replaces
- * this table: it should call the same `learn` when a milestone completes.
- */
-export function learnMilestoneRecipes(state: GameState, ctx: SimContext): void {
-  for (const { id, milestone } of milestoneRecipesOf(ctx.data)) {
-    if (!isKnown(state, id) && MILESTONES_MET[milestone]?.(state)) learn(state, ctx, id, 'milestone');
-  }
-}
 
 /** Recipes on sale in the Shop that the player does not know yet, cheapest first. */
 export function recipeCards(
