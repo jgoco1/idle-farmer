@@ -1,6 +1,6 @@
 // UI icons, 16 × 16, shown at 2× in the HUD and panels.
 
-import type { SpriteDef } from './types';
+import { outlined, type SpriteDef } from './types';
 
 export const uiGold: SpriteDef = {
   id: 'ui_gold',
@@ -95,5 +95,103 @@ export const uiMoon: SpriteDef = {
       '.....kkkkkk.....',
       '................',
     ],
+  ],
+};
+
+// ---- farming tools (toolbar), drawn as fills and outlined
+
+export const uiToolAuto: SpriteDef = {
+  id: 'ui_tool_auto',
+  frames: [
+    outlined([
+      '................',
+      '.......U........',
+      '.......f........',
+      '......UfF.......',
+      '..UffffwfffF....',
+      '....UfffffF.....',
+      '.....ffffF......',
+      '....fffFffF.....',
+      '...fF.....fF....',
+      '................',
+      '..........G.....',
+      '.........GHG....',
+      '...GG.....G.....',
+      '..GHG...........',
+      '...G............',
+      '................',
+    ]),
+  ],
+};
+
+export const uiToolHoe: SpriteDef = {
+  id: 'ui_tool_hoe',
+  frames: [
+    outlined([
+      '................',
+      '..NNNNn.........',
+      '.NNnnnn.........',
+      '.Nn.mMp.........',
+      '.n...mMp........',
+      '......mMp.......',
+      '.......mMp......',
+      '........mMp.....',
+      '.........mMp....',
+      '..........mMp...',
+      '...........mMp..',
+      '............mM..',
+      '................',
+      '................',
+      '................',
+      '................',
+    ]),
+  ],
+};
+
+export const uiToolWater: SpriteDef = {
+  id: 'ui_tool_water',
+  frames: [
+    outlined([
+      '................',
+      '................',
+      '.....NNNNN......',
+      '....N.....n.....',
+      '...N.......n....',
+      '..NNNNNNNNn.....',
+      '..NcNNNNNnn...n.',
+      '..NNNNNNNnnnnNn.',
+      '..NNNNNNnnnn....',
+      '..NNNNNNnnn.....',
+      '..NNNNNnnnn.....',
+      '..nnnnnnnnn...c.',
+      '.............c.C',
+      '...............c',
+      '................',
+      '................',
+    ]),
+  ],
+};
+
+export const uiToolHand: SpriteDef = {
+  id: 'ui_tool_hand',
+  frames: [
+    outlined([
+      '................',
+      '......P.P.......',
+      '.....PPkPPP.....',
+      '.....PPkPPkP....',
+      '.....PPkPPkP....',
+      '..P..PPkPPkP....',
+      '.PPP.PPPPPPP....',
+      '..PPPPPPPPPp....',
+      '...PPPPPPPPp....',
+      '....PPPPPPpp....',
+      '....PPPPPPp.....',
+      '.....PPPPpp.....',
+      '.....RRRRRR.....',
+      '.....rrrrrr.....',
+      '................',
+      '................',
+    ]),
   ],
 };

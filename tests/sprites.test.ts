@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { KEY_TO_NAME, PALETTE, TRANSPARENT } from '../src/render/palette';
 import { ALL_SPRITES, SPRITES } from '../src/render/sprites';
+import { CROP_IDS } from '../src/data/ids';
+import { ITEMS } from '../src/data/items';
 
 describe('palette', () => {
   it('has the 47 colours of ART_STYLE.md, each with one key', () => {
@@ -72,5 +74,47 @@ describe('sprites', () => {
     }
     expect(SPRITES.tile_water!.frames).toHaveLength(2);
     expect(SPRITES.obj_farmhouse!.frames[0]![0]!.length).toBeGreaterThan(16);
+  });
+});
+
+describe('farming sprites (phase 02)', () => {
+  it('every crop has 5 stages, a sparkling ready stage, an item icon and a seed packet', () => {
+    for (const id of CROP_IDS) {
+      for (let stage = 0; stage < 5; stage++) {
+        const def = SPRITES[`crop_${id}_${stage}`];
+        expect(def, `crop_${id}_${stage}`).toBeDefined();
+        expect(def!.anchor).toBe('bottom-center');
+      }
+      const ready = SPRITES[`crop_${id}_4`]!;
+      expect(ready.frames).toHaveLength(2);
+      expect(ready.frameMs).toBe(400);
+      expect(ready.frames[0]).not.toEqual(ready.frames[1]);
+      expect(SPRITES[`item_${id}`], `item_${id}`).toBeDefined();
+      expect(SPRITES[`item_seed_${id}`], `item_seed_${id}`).toBeDefined();
+    }
+    for (const id of [
+      'crop_dead',
+      'tile_soil_untilled',
+      'ui_tool_auto',
+      'ui_tool_hoe',
+      'ui_tool_water',
+      'ui_tool_hand',
+    ]) {
+      expect(SPRITES[id], id).toBeDefined();
+    }
+  });
+
+  it('near-ready and ready stages differ, and crops look different from each other', () => {
+    const readies = new Set<string>();
+    for (const id of CROP_IDS) {
+      expect(SPRITES[`crop_${id}_3`]!.frames[0]).not.toEqual(SPRITES[`crop_${id}_4`]!.frames[0]);
+      readies.add(SPRITES[`crop_${id}_4`]!.frames[0]!.join(''));
+      readies.add(SPRITES[`item_${id}`]!.frames[0]!.join(''));
+    }
+    expect(readies.size).toBe(CROP_IDS.length * 2);
+  });
+
+  it('every item has a sprite', () => {
+    for (const def of Object.values(ITEMS)) expect(SPRITES[def.sprite], def.sprite).toBeDefined();
   });
 });
