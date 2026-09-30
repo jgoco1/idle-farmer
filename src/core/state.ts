@@ -7,6 +7,7 @@
 import { createCalendarState, type CalendarState, type LocalClock } from './time';
 import { seedFrom } from './rng';
 import {
+  BASE_BUFF_SLOTS,
   START_GOLD,
   START_GRID,
   START_INVENTORY_SLOTS,
@@ -16,7 +17,19 @@ import {
 } from '../data/balance';
 import { BIN_PICKUP_MS } from '../data/balance';
 import { GAME_DATA } from '../data';
-import type { CropId, ExpansionId, FishId, FishLocationId, ItemId, JunkId, UpgradeId } from '../data/ids';
+import { RECIPE_IDS } from '../data/ids';
+import type {
+  BuffType,
+  CropId,
+  ExpansionId,
+  FishId,
+  FishLocationId,
+  ItemId,
+  JunkId,
+  RecipeId,
+  RecipeTier,
+  UpgradeId,
+} from '../data/ids';
 import type { ItemStack } from '../data/types';
 import { createRng } from './rng';
 import { openMarketDay } from '../systems/market';
@@ -76,6 +89,9 @@ export interface Stats {
   itemsShipped: number; // units sold through the Shipping Bin
   daysPassed: number; // daily refreshes seen
   fishCaught: number; // fish (not junk) landed, by rod or trap
+  dishesCooked: number; // @06
+  dishesEaten: number; // @06
+  bestDishTier: number; // @06: the highest tier cooked so far, 0 = none
 }
 
 export interface Settings {
@@ -120,6 +136,37 @@ export interface GameState {
 
   // ---- fishing (@05). Unlocked locations are derived from `expansions` (river, ocean).
   fishing: FishingState;
+
+  // ---- cooking and buffs (@06)
+  kitchen: KitchenState;
+  buffs: BuffsState;
+}
+
+/** A dish on the stove. `remainingMs` is work at ×1 cook speed; `hearty` is set when it finishes in winter. */
+export interface CookJob {
+  recipe: RecipeId;
+  remainingMs: number;
+  /** Set once the dish is done but the bag had no room for it; it waits on the stove. */
+  hearty?: true;
+}
+
+export interface KitchenState {
+  known: RecipeId[]; // recipes the player can cook, in the order learned
+  queue: CookJob[]; // all cook at once; at most the kitchen's slots
+}
+
+/** A food buff, counting down in simulated time. `magnitude` is already scaled by the type. */
+export interface ActiveBuff {
+  type: BuffType;
+  magnitude: number;
+  tier: RecipeTier;
+  remainingMs: number;
+  source: RecipeId;
+}
+
+export interface BuffsState {
+  active: ActiveBuff[];
+  baseSlots: number; // BASE_BUFF_SLOTS; perks and bundles add on top (@07)
 }
 
 /** A fish trap set out at a water zone (@05). `slot` picks its spot in the scene (0 or 1). */
@@ -189,6 +236,8 @@ export function createInitialState(now: number, lc: LocalClock, seed: number = s
     automation: { farmhandCooldownMs: 0 },
     lastPlantedCrop: Array.from({ length: START_GRID.cols * START_GRID.rows }, () => null),
     fishing: { traps: [], collection: {}, session: null },
+    kitchen: { known: starterRecipes(), queue: [] },
+    buffs: { active: [], baseSlots: BASE_BUFF_SLOTS },
   };
   // A new farm opens with today's specials and the first sparkline point (every save starts in spring).
   openMarketDay(state, GAME_DATA, createRng(state), 'spring');
@@ -196,7 +245,22 @@ export function createInitialState(now: number, lc: LocalClock, seed: number = s
 }
 
 export function createStartingStats(): Stats {
-  return { lifetimeGold: 0, goldToday: 0, cropsHarvested: 0, itemsShipped: 0, daysPassed: 0, fishCaught: 0 };
+  return {
+    lifetimeGold: 0,
+    goldToday: 0,
+    cropsHarvested: 0,
+    itemsShipped: 0,
+    daysPassed: 0,
+    fishCaught: 0,
+    dishesCooked: 0,
+    dishesEaten: 0,
+    bestDishTier: 0,
+  };
+}
+
+/** The recipes a new save already knows, in table order. */
+export function starterRecipes(): RecipeId[] {
+  return RECIPE_IDS.filter((id) => GAME_DATA.recipes[id].discovery.kind === 'starter');
 }
 
 export function emptyPlot(state: PlotState = 'untilled'): Plot {

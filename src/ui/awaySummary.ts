@@ -4,7 +4,7 @@
 import type { OfflineReport } from '../core/offline';
 import { capitalize, formatDuration } from '../core/time';
 import { GAME_DATA } from '../data';
-import type { CropId } from '../data/ids';
+import type { CropId, RecipeId } from '../data/ids';
 import { spriteDataUrl } from '../render/spriteCache';
 import { h } from './dom';
 import { showModal } from './modal';
@@ -18,6 +18,12 @@ export interface AwayTotals {
   withered: number;
   /** Catches the fish traps made while away (fish and junk). */
   trapCatches: number;
+  /** Dishes that finished cooking, by recipe (hearty ones counted separately). */
+  cooked: Partial<Record<RecipeId, number>>;
+  cookedTotal: number;
+  heartyTotal: number;
+  /** Buffs that ran out while away. */
+  buffsExpired: number;
 }
 
 export function awayTotals(report: OfflineReport): AwayTotals {
@@ -28,6 +34,10 @@ export function awayTotals(report: OfflineReport): AwayTotals {
     gold: 0,
     withered: 0,
     trapCatches: 0,
+    cooked: {},
+    cookedTotal: 0,
+    heartyTotal: 0,
+    buffsExpired: 0,
   };
   for (const e of report.events) {
     if (e.type === 'harvested') {
@@ -41,6 +51,12 @@ export function awayTotals(report: OfflineReport): AwayTotals {
       t.withered += e.withered;
     } else if (e.type === 'caught' && e.viaTrap) {
       t.trapCatches += 1;
+    } else if (e.type === 'cooked') {
+      t.cooked[e.recipe] = (t.cooked[e.recipe] ?? 0) + 1;
+      t.cookedTotal += 1;
+      if (e.hearty) t.heartyTotal += 1;
+    } else if (e.type === 'buffExpired') {
+      t.buffsExpired += 1;
     }
   }
   return t;
@@ -72,6 +88,20 @@ export function awayRows(report: OfflineReport, farm: AwayFarm): AwayRow[] {
     rows.push({
       icon: `item_${first[0]}`,
       text: `${t.harvestedTotal} crop${t.harvestedTotal === 1 ? '' : 's'} harvested (${first[1]} ${GAME_DATA.crops[first[0]].name}${rest}).`,
+    });
+  }
+  if (t.cookedTotal > 0) {
+    const [first] = (Object.entries(t.cooked) as [RecipeId, number][]).sort((a, b) => b[1] - a[1]);
+    const hearty = t.heartyTotal > 0 ? ` (${t.heartyTotal} hearty)` : '';
+    rows.push({
+      icon: `item_${first![0]}`,
+      text: `${t.cookedTotal} dish${t.cookedTotal === 1 ? '' : 'es'} finished cooking${hearty}.`,
+    });
+  }
+  if (t.buffsExpired > 0) {
+    rows.push({
+      icon: 'buff_growth',
+      text: `${t.buffsExpired} food buff${t.buffsExpired === 1 ? '' : 's'} wore off while you were away.`,
     });
   }
   if (t.trapCatches > 0) {

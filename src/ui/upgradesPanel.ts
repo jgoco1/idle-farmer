@@ -41,6 +41,7 @@ const SECTIONS: readonly { title: string; category: UpgradeCategory; ids: readon
     ],
   },
   { title: 'Fishing', category: 'fishing', ids: ['fish_trap', 'fishing_rod', 'trap_collector'] },
+  { title: 'Kitchen', category: 'kitchen', ids: ['kitchen'] },
   { title: 'Tools', category: 'tools', ids: ['watering_can', 'hoe'] },
   { title: 'Storage', category: 'storage', ids: ['backpack', 'barn_storage'] },
 ];
@@ -53,6 +54,7 @@ const CARD_ICON: Partial<Record<UpgradeId, string>> = {
   fishing_rod: 'ui_tool_rod',
   watering_can: 'ui_tool_water',
   hoe: 'ui_tool_hoe',
+  kitchen: 'buff_cookSpeed',
 };
 
 export function upgradesPanel(hooks: UpgradesHooks): PanelDef {

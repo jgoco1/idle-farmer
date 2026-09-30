@@ -33,6 +33,8 @@ function conditionMet(state: GameState, c: UnlockCondition): boolean {
       return state.stats.lifetimeGold >= c.amount;
     case 'bundle':
       return true; // bundles count as met until phase 07 (BALANCE.md §4)
+    case 'caught':
+      return state.fishing.collection[c.fish] !== undefined;
     default:
       return false; // later phases: skills, milestones, catches
   }
@@ -72,6 +74,8 @@ function hintFor(state: GameState, data: GameData, c: UnlockCondition): string {
       return `Needs ${data.upgrades[c.id]?.name ?? c.id} level ${c.level}.`;
     case 'lifetimeGold':
       return `Earn ${c.amount.toLocaleString('en-US')}g in total.`;
+    case 'caught':
+      return `Catch a ${data.fish[c.fish].name} first.`;
     default:
       return 'Not available yet.';
   }

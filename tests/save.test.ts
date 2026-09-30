@@ -24,7 +24,8 @@ import fixtureV1 from './fixtures/save-v1.json';
 import fixtureV2 from './fixtures/save-v2.json';
 import fixtureV3 from './fixtures/save-v3.json';
 import fixtureV4 from './fixtures/save-v4.json';
-import fixture from './fixtures/save-v5.json';
+import fixtureV5 from './fixtures/save-v5.json';
+import fixture from './fixtures/save-v6.json';
 import { at, NY } from './helpers';
 
 const FIXTURE_TEXT = JSON.stringify(fixture);
@@ -40,13 +41,13 @@ function memoryStorage(initial: Record<string, string> = {}): SaveStorage & { da
 }
 
 describe('save file', () => {
-  it('is at version 5 (phase 05) with one migration per older version', () => {
-    expect(SAVE_VERSION).toBe(5);
-    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4']);
+  it('is at version 6 (phase 06) with one migration per older version', () => {
+    expect(SAVE_VERSION).toBe(6);
+    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4', '5']);
     expect(SAVE_KEY).toBe('hearthfield-idle/save');
   });
 
-  it('the v5 fixture loads unchanged', () => {
+  it('the v6 fixture loads unchanged', () => {
     const file = parseSave(FIXTURE_TEXT);
     expect(file).toEqual(fixture);
   });
@@ -81,6 +82,15 @@ describe('save file', () => {
       contents: [{ item: 'bluegill', qty: 1 }],
     });
     fresh.fishing.collection.bluegill = { firstCaughtAt: '2026-01-07', bestSizeCm: 20, count: 1 };
+    fresh.kitchen.queue.push({ recipe: 'baked_potato', remainingMs: 0, hearty: true });
+    fresh.buffs.active.push({
+      type: 'growth',
+      magnitude: 0.2,
+      tier: 2,
+      remainingMs: 1,
+      source: 'vegetable_soup',
+    });
+    fresh.inventory.slots[4] = { item: 'roasted_turnip', qty: 2, hearty: true };
     expect(keys(fixture.state)).toEqual(keys(fresh));
   });
 
@@ -240,6 +250,9 @@ describe('migrations', () => {
       itemsShipped: 0,
       daysPassed: 0,
       fishCaught: 0,
+      dishesCooked: 0,
+      dishesEaten: 0,
+      bestDishTier: 0,
     });
     expect(s.upgrades).toEqual({});
     expect(validateState(s)).toBeNull();
@@ -247,7 +260,7 @@ describe('migrations', () => {
 
   it('migrates a phase-04 (v4) save: everything is kept, fishing starts empty', () => {
     const file = parseSave(JSON.stringify(fixtureV4));
-    expect(file.version).toBe(5);
+    expect(file.version).toBe(SAVE_VERSION);
     const s = file.state;
     const { state: old } = fixtureV4;
     expect(s.gold).toBe(old.gold);
@@ -256,12 +269,58 @@ describe('migrations', () => {
     expect(s.expansions).toEqual(old.expansions);
     expect(s.placed).toEqual(old.placed);
     expect(s.lastPlantedCrop).toEqual(old.lastPlantedCrop);
-    expect(s.stats).toEqual({ ...old.stats, fishCaught: 0 });
+    expect(s.stats).toEqual({
+      ...old.stats,
+      fishCaught: 0,
+      dishesCooked: 0,
+      dishesEaten: 0,
+      bestDishTier: 0,
+    });
     expect(s.settings).toEqual({ ...old.settings, relaxedFishing: false });
     // No traps, an empty Fish Collection, no cast in progress; only the pond is open.
     expect(s.fishing).toEqual({ traps: [], collection: {}, session: null });
     expect(unlockedLocations(s)).toEqual(['pond']);
     expect(validateState(s)).toBeNull();
+  });
+
+  it('migrates a phase-05 (v5) save: everything is kept, the kitchen starts with the starter recipes', () => {
+    const file = parseSave(JSON.stringify(fixtureV5));
+    expect(file.version).toBe(6);
+    const s = file.state;
+    const { state: old } = fixtureV5;
+    expect(s.gold).toBe(old.gold);
+    expect(s.farm).toEqual(old.farm);
+    expect(s.inventory).toEqual(old.inventory);
+    expect(s.fishing).toEqual(old.fishing);
+    expect(s.upgrades).toEqual(old.upgrades);
+    expect(s.stats).toEqual({ ...old.stats, dishesCooked: 0, dishesEaten: 0, bestDishTier: 0 });
+    expect(s.kitchen).toEqual({ known: ['roasted_turnip', 'baked_potato', 'grilled_bluegill'], queue: [] });
+    expect(s.kitchen.known).toEqual(createInitialState(0, NY).kitchen.known); // stays in step with the data
+    expect(s.buffs).toEqual({ active: [], baseSlots: 3 });
+    expect(validateState(s)).toBeNull();
+  });
+
+  it('validates the kitchen and the buffs', () => {
+    const bad = (mut: (s: ReturnType<typeof createInitialState>) => void): string | null => {
+      const c = structuredClone(createInitialState(0, NY));
+      mut(c);
+      return validateState(c);
+    };
+    expect(bad((c) => (c.kitchen.queue = [{ recipe: 'baked_potato', remainingMs: 1.5 }]))).toBe(
+      'bad cook job',
+    );
+    expect(bad((c) => delete (c as Partial<typeof c>).kitchen)).toBe('bad kitchen');
+    expect(bad((c) => (c.buffs.baseSlots = 0))).toBe('bad buffs');
+    const buff = {
+      type: 'growth',
+      magnitude: 0.1,
+      tier: 1,
+      remainingMs: 5,
+      source: 'roasted_turnip',
+    } as const;
+    expect(bad((c) => c.buffs.active.push({ ...buff }, { ...buff }))).toBe('bad buff'); // one per type
+    expect(bad((c) => c.buffs.active.push({ ...buff, remainingMs: 0 }))).toBe('bad buff');
+    expect(bad((c) => c.buffs.active.push({ ...buff }))).toBeNull();
   });
 
   it('validates the fishing state', () => {
@@ -307,7 +366,13 @@ describe('migrations', () => {
     expect(s.market).toEqual(old.market);
     expect(s.shippingBin).toEqual(old.shippingBin);
     expect(s.expansions).toEqual(old.expansions);
-    expect(s.stats).toEqual({ ...old.stats, fishCaught: 0 });
+    expect(s.stats).toEqual({
+      ...old.stats,
+      fishCaught: 0,
+      dishesCooked: 0,
+      dishesEaten: 0,
+      bestDishTier: 0,
+    });
     expect(s.upgrades).toEqual(old.upgrades);
     // Nothing placed, every toggle at its default, no farmhand timer, one empty memory slot per plot.
     expect(s.placed).toEqual([]);

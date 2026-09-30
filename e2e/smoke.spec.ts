@@ -57,13 +57,13 @@ test('the farm loads, renders and opens Settings', async ({ page }) => {
   await page.keyboard.press('Escape');
   await expect(settings).toBeHidden();
 
-  // Clicking the farmhouse (tile 2,2) opens the Kitchen stub.
+  // Clicking the farmhouse (tile 2,2) opens the Kitchen.
   const box = await canvas.boundingBox();
   if (!box) throw new Error('canvas has no box');
   await canvas.click({ position: { x: (box.width * 2.5) / 20, y: (box.height * 2.5) / 12 } });
   const kitchen = page.getByRole('dialog', { name: 'Kitchen' });
   await expect(kitchen).toBeVisible();
-  await expect(kitchen).toContainText('Coming soon');
+  await expect(kitchen).toContainText('Recipe book');
 
   expect(errors).toEqual([]);
 });

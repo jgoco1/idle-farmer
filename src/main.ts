@@ -49,7 +49,10 @@ import { PanelManager } from './ui/panel';
 import { goldPopupAt } from './ui/goldFx';
 import { marketPanel } from './ui/marketPanel';
 import { inventoryPanel, settingsPanel, shopPanel, STUB_PANELS, type GameViewHooks } from './ui/panels';
+import { kitchenPanel } from './ui/kitchenPanel';
 import { upgradesPanel } from './ui/upgradesPanel';
+import type { Action } from './core/actions';
+import type { ActionResult } from './systems/context';
 import { Toasts } from './ui/toast';
 import { buildToolbar } from './ui/toolbar';
 
@@ -98,14 +101,19 @@ const view: GameViewHooks = {
   data: GAME_DATA,
   state: () => game.state,
   calendar: () => game.calendar(),
-  mods: () => computeModifiers(game.state, GAME_DATA),
+  mods: () => computeModifiers(game.state, GAME_DATA, game.calendar().season),
 };
 const placement = new PlacementMode(() => syncPlacement());
 const stubPanel = (id: string) => STUB_PANELS.find((d) => d.id === id)!;
 // Registration order is the toolbar order.
-panels.register(inventoryPanel(view));
+const dispatch = (action: Action): ActionResult => game.dispatch(action);
+panels.register(inventoryPanel({ ...view, dispatch }));
 panels.register(
-  shopPanel({ ...view, buySeeds: (crop, qty) => game.dispatch({ type: 'buySeeds', crop, qty }) }),
+  shopPanel({
+    ...view,
+    buySeeds: (crop, qty) => game.dispatch({ type: 'buySeeds', crop, qty }),
+    buyRecipe: (recipe) => game.dispatch({ type: 'buyRecipe', recipe }),
+  }),
 );
 panels.register(
   marketPanel({
@@ -115,7 +123,7 @@ panels.register(
     unship: (item) => game.dispatch({ type: 'unship', item }),
   }),
 );
-panels.register(stubPanel('kitchen'));
+panels.register(kitchenPanel({ ...view, dispatch }));
 const fishing = fishingPanel({
   ...view,
   bus: game.bus,
@@ -175,6 +183,14 @@ buildToolbar(byId('toolbar'), panels);
 const tools = new FarmTools(byId('toolbar'), view);
 
 game.bus.on('notify', (e) => toasts.show(e.text, e.tone));
+game.bus.on('recipeLearned', (e) => {
+  toasts.show(`New recipe: ${GAME_DATA.recipes[e.recipe].name}! Find it in the Kitchen.`, 'good');
+});
+game.bus.on('cooked', (e) => {
+  const name = GAME_DATA.recipes[e.recipe].name;
+  toasts.show(`${name} is ready${e.hearty ? ' and extra hearty' : ''}! It is in your bag.`, 'good');
+});
+game.bus.on('buffExpired', (e) => toasts.show(`${GAME_DATA.buffs[e.buff].name} has worn off.`));
 game.bus.on('seasonChanged', (e) => {
   const season = `${e.season[0]?.toUpperCase()}${e.season.slice(1)}`;
   toasts.show(`${season} has arrived!`, 'good');
@@ -441,6 +457,7 @@ const loop = startLoop(game, {
         ...trapTile(t.location, t.slot),
         full: trapItemCount(t) > 0,
       })),
+      cooking: game.state.kitchen.queue.some((j) => j.remainingMs > 0),
     });
     if (placement.kind) syncPlacement();
     hud.update(game.state, cal);

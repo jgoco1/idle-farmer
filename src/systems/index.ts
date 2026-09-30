@@ -11,6 +11,8 @@ import { openMarketDay, tickMarket } from './market';
 import { msToNextPickup, tickShippingBin } from './shippingBin';
 import { hasFlag } from './upgrades';
 import { collectAllTraps, tickTraps } from './traps';
+import { learnMilestoneRecipes, msToNextCookFinish, tickCooking } from './cooking';
+import { msToNextBuffExpiry, tickBuffs } from './buffs';
 
 /**
  * Advances every system by `dtMs` of simulated time. The core guarantees that no simulated-time
@@ -27,7 +29,9 @@ export function tickSystems(state: GameState, ctx: SimContext, dtMs: number): vo
     collectAllTraps(state, ctx);
   }
   tickShippingBin(state, ctx, dtMs); // last: a pickup lands at the end of the step, at that moment's prices
-  // phase 06: tickKitchen(...); tickBuffs(...)
+  tickCooking(state, ctx, dtMs); // dishes finish (hearty in winter) into the bag
+  learnMilestoneRecipes(state, ctx);
+  tickBuffs(state, ctx, dtMs); // last: this step's bonuses were applied through ctx.mods
 }
 
 /**
@@ -36,7 +40,13 @@ export function tickSystems(state: GameState, ctx: SimContext, dtMs: number): vo
  * core to split steps.
  */
 export function msToNextSimEvent(state: GameState, ctx: SimContext): number {
-  return Math.min(msToNextWaterOut(state, ctx), msToNextPickup(state), msToNextAutomation(state, ctx));
+  return Math.min(
+    msToNextWaterOut(state, ctx),
+    msToNextPickup(state),
+    msToNextAutomation(state, ctx),
+    msToNextCookFinish(state, ctx),
+    msToNextBuffExpiry(state),
+  );
 }
 
 /** Daily refresh at 06:00 local (BALANCE.md §1): market specials and sparkline, goldToday, per-day goals. */

@@ -18,7 +18,13 @@ export function makeContext(
   calendar: Calendar,
   events: GameEvent[] = [],
 ): SimContext {
-  return { data, rng: createRng(state), calendar, mods: computeModifiers(state, data), events };
+  return {
+    data,
+    rng: createRng(state),
+    calendar,
+    mods: computeModifiers(state, data, calendar.season),
+    events,
+  };
 }
 
 /**
@@ -28,7 +34,7 @@ export function makeContext(
 export function step(state: GameState, ctx: SimContext, dtMs: number): void {
   let remaining = Math.max(0, Math.round(dtMs));
   while (remaining > 0) {
-    ctx.mods = computeModifiers(state, ctx.data); // before the event query: it reads the modifiers too
+    ctx.mods = computeModifiers(state, ctx.data, ctx.calendar.season); // before the event query: it reads the modifiers too
     const untilEvent = msToNextSimEvent(state, ctx);
     const d =
       Number.isFinite(untilEvent) && untilEvent > 0 ? Math.min(remaining, Math.ceil(untilEvent)) : remaining;

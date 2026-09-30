@@ -16,7 +16,9 @@ import { pickUpObject, placeObject } from '../systems/placement';
 import { buyUpgrade } from '../systems/upgrades';
 import { cancelCast, startCast, stepFishing } from '../systems/fishing';
 import { collectTrap } from '../systems/traps';
-import type { CropId, ExpansionId, FishLocationId, ItemId, UpgradeId } from '../data/ids';
+import { buyRecipe, cancelCooking, experiment, startCooking } from '../systems/cooking';
+import { eatDish } from '../systems/buffs';
+import type { CropId, DishId, ExpansionId, FishLocationId, ItemId, RecipeId, UpgradeId } from '../data/ids';
 import type { GameState, PlacedKind } from './state';
 
 export type Action =
@@ -46,6 +48,15 @@ export type Action =
   /** Click a trap: take what is in it. */
   | { type: 'collectTrap'; id: number }
   | { type: 'setRelaxedFishing'; on: boolean }
+  /** Kitchen: put a known recipe on the stove, or take a dish off it (the ingredients come back). */
+  | { type: 'cook'; recipe: RecipeId }
+  | { type: 'cancelCook'; index: number }
+  /** Kitchen: try 2 to 4 ingredients together; a match teaches the recipe, a miss costs nothing. */
+  | { type: 'experiment'; items: ItemId[] }
+  /** Shop: buy a recipe card. */
+  | { type: 'buyRecipe'; recipe: RecipeId }
+  /** Inventory: eat a dish for its buff. `hearty` picks the stack; `replace` confirms swapping out the buff with the least time left. */
+  | { type: 'eat'; dish: DishId; hearty?: boolean; replace?: boolean }
   | { type: 'debugSetTimeWarp'; on: boolean };
 
 export const TIME_WARP_SPEED = 60;
@@ -96,6 +107,16 @@ export function applyAction(state: GameState, ctx: SimContext, action: Action): 
     case 'setRelaxedFishing':
       state.settings.relaxedFishing = action.on;
       return OK;
+    case 'cook':
+      return startCooking(state, ctx, action.recipe);
+    case 'cancelCook':
+      return cancelCooking(state, ctx, action.index);
+    case 'experiment':
+      return experiment(state, ctx, action.items);
+    case 'buyRecipe':
+      return buyRecipe(state, ctx, action.recipe);
+    case 'eat':
+      return eatDish(state, ctx, action.dish, action.hearty, action.replace ?? false);
     case 'debugSetTimeWarp':
       state.clock.speed = action.on ? TIME_WARP_SPEED : 1;
       return OK;

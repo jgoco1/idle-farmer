@@ -3,6 +3,7 @@
 
 import type { GameState } from '../core/state';
 import type { GameData } from '../data';
+import type { SeasonId } from '../data/ids';
 
 export interface Modifiers {
   growthModifier: number; // × crop growth rate          (phase 02 seam)
@@ -29,10 +30,32 @@ export const NO_MODIFIERS: Readonly<Modifiers> = Object.freeze({
 });
 
 /**
- * Sources are added in later phases: `1 + (buff + perk + upgrade)`, never compounded. Today: the
- * fishing rod's luck (phase 05); buffs join in phase 06 and perks and bundles in phase 07.
+ * Folds every source into one struct as `1 + (buff + perk + upgrade)`, never compounded. Sources
+ * today: food buffs (phase 06), the fishing rod's luck (05) and the kitchen's speed (06); perks and
+ * bundles join in phase 07. `season` (from `ctx.calendar`) brings in the seasonal dish sell bonus
+ * and Cooking XP bonus; leave it out and there are none.
  */
-export function computeModifiers(state: GameState, data: GameData): Modifiers {
+export function computeModifiers(state: GameState, data: GameData, season?: SeasonId): Modifiers {
   const rod = data.upgrades.fishing_rod?.effect[state.upgrades.fishing_rod ?? 0];
-  return { ...NO_MODIFIERS, fishingLuckModifier: NO_MODIFIERS.fishingLuckModifier + (rod?.luck ?? 0) };
+  const kitchen = data.upgrades.kitchen?.effect[state.upgrades.kitchen ?? 0];
+  const effects = season ? data.seasons[season].effects : NO_EFFECTS;
+  const mods: Modifiers = {
+    growthModifier: 1,
+    sellPriceModifier: 1,
+    fishingLuckModifier: rod?.luck ?? 0,
+    fishingSpeedModifier: 1,
+    cookSpeedModifier: 1 + (kitchen?.cookSpeed ?? 0),
+    automationSpeedModifier: 1,
+    xpModifier: 1,
+    dishSellBonus: effects.dishSellBonus ?? 0,
+    cookingXpBonus: effects.cookingXpBonus ?? 0,
+  };
+  // This runs every simulation step, so buffs are folded in one pass rather than looked up per type.
+  for (const b of state.buffs.active) {
+    const seam = data.buffs[b.type].seam;
+    mods[seam] += b.magnitude;
+  }
+  return mods;
 }
+
+const NO_EFFECTS: { dishSellBonus?: number; cookingXpBonus?: number } = {};

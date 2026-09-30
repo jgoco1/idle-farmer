@@ -31,6 +31,8 @@ import {
 import { demandOf, demandStep, specialBonus } from '../../src/systems/market';
 import { farmLevel, isUnlocked } from '../../src/systems/unlocks';
 import { chooseCatch, landCatch } from '../../src/systems/fishing';
+import { canCook, ingredientValue, kitchenSlots } from '../../src/systems/cooking';
+import type { RECIPE_IDS } from '../../src/data/ids';
 import { unlockedLocations } from '../../src/systems/locations';
 import { makeContext } from '../../src/core/sim';
 import { upgradeCost, upgradeLevel } from '../../src/systems/upgrades';
@@ -88,6 +90,11 @@ export interface PacingOptions {
   noSpecials?: boolean;
   /** Active fishing: catches per real minute while playing (0 = never fishes). */
   fishPerMin?: number;
+  /**
+   * Cooking (phase 06): after each harvest the player puts the best-margin dish they can make on
+   * the stove. `sell` sells the dishes at the Market; `eat` eats every dish for its buff instead.
+   */
+  cooking?: 'sell' | 'eat';
 }
 
 export interface PacingReport {
@@ -117,6 +124,12 @@ export interface PacingReport {
   avgPriceFraction: number;
   /** Catches made by the modelled active fishing. */
   fished: number;
+  /** Dishes cooked and eaten, and the gold dishes fetched at the Market. */
+  cooked: number;
+  eaten: number;
+  dishGold: number;
+  /** Simulated minutes each buff type was active over the run. */
+  buffMinutes: Record<string, number>;
   final: GameState;
 }
 
@@ -224,6 +237,10 @@ export function simulateGreedy(opts: PacingOptions): PacingReport {
     sold: {},
     avgPriceFraction: 0,
     fished: 0,
+    cooked: 0,
+    eaten: 0,
+    dishGold: 0,
+    buffMinutes: {},
     final: game.state,
   };
   let soldValue = 0;
@@ -232,7 +249,10 @@ export function simulateGreedy(opts: PacingOptions): PacingReport {
     report.sold[e.item] = (report.sold[e.item] ?? 0) + e.qty;
     soldValue += e.gold;
     soldBase += e.qty * (GAME_DATA.items[e.item]?.basePrice ?? 0);
+    if (GAME_DATA.items[e.item]?.category === 'dish') report.dishGold += e.gold;
   });
+  game.bus.on('cooked', () => (report.cooked += 1));
+  game.bus.on('ate', () => (report.eaten += 1));
 
   let lastUseful = 0;
   let fishBudget = 0;
@@ -268,10 +288,46 @@ export function simulateGreedy(opts: PacingOptions): PacingReport {
       act(game.dispatch({ type: 'harvest', plots: ready }));
       report.firstHarvestMs ??= elapsed;
     }
+    // Cook: the best margin per second of stove time among the dishes the bag can make now.
+    if (opts.cooking) {
+      while (s.kitchen.queue.length < kitchenSlots(s, GAME_DATA)) {
+        let best: (typeof RECIPE_IDS)[number] | null = null;
+        let bestScore = 0;
+        for (const id of s.kitchen.known) {
+          const r = GAME_DATA.recipes[id];
+          if (!canCook(s, r)) continue;
+          const score = (r.basePrice - ingredientValue(r, GAME_DATA.items)) / r.cookSec;
+          if (score > bestScore) {
+            best = id;
+            bestScore = score;
+          }
+        }
+        if (!best || !game.dispatch({ type: 'cook', recipe: best }).ok) break;
+        useful = true;
+      }
+    }
     for (const stack of [...s.inventory.slots]) {
-      if (stack && GAME_DATA.items[stack.item]?.sellable) {
+      if (!stack) continue;
+      const def = GAME_DATA.items[stack.item];
+      if (def?.category === 'dish' && opts.cooking === 'eat') {
+        for (let n = 0; n < stack.qty; n++) {
+          if (
+            game.dispatch({
+              type: 'eat',
+              dish: stack.item as never,
+              hearty: stack.hearty === true,
+              replace: true,
+            }).ok
+          )
+            useful = true;
+        }
+      } else if (def?.sellable) {
         act(game.dispatch({ type: 'sell', item: stack.item, qty: stack.qty }));
       }
+    }
+    for (const b of s.buffs.active) {
+      report.buffMinutes[b.type] =
+        (report.buffMinutes[b.type] ?? 0) + Math.min(b.remainingMs, opts.reactionMs) / MIN;
     }
 
     // Shopping list: buy the next item if it leaves enough to replant every plot.

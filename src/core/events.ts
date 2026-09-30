@@ -37,7 +37,8 @@ export type GameEvent =
   | { type: 'trapCollected'; location: FishLocationId; items: number }
   | { type: 'caught'; catch: FishId | JunkId; sizeCm: number; location: FishLocationId; viaTrap: boolean }
   | { type: 'cooked'; recipe: RecipeId; tier: RecipeTier; hearty: boolean }
-  | { type: 'ate'; recipe: RecipeId; buff: BuffType }
+  | { type: 'ate'; recipe: RecipeId; buff: BuffType; hearty: boolean }
+  | { type: 'recipeLearned'; recipe: RecipeId; how: 'card' | 'milestone' | 'experiment' }
   | { type: 'buffStarted' | 'buffExpired'; buff: BuffType }
   | { type: 'levelUp'; skill: SkillId; level: number }
   | { type: 'questDone'; id: MilestoneId | GoalTemplateId }

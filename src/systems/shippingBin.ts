@@ -7,8 +7,8 @@ import type { GameState } from '../core/state';
 import { BIN_CHANNEL, BIN_PICKUP_MS } from '../data/balance';
 import type { ItemId } from '../data/ids';
 import { fail, OK, type ActionResult, type SimContext } from './context';
-import { addItem, canAdd, countItem, removeItem } from './inventory';
-import { quoteSale, settleSale } from './market';
+import { addItem, countItem } from './inventory';
+import { quoteSale, settleSale, takeForSale } from './market';
 
 /** Moves `qty` of `item` from the inventory into the bin. */
 export function shipItems(state: GameState, ctx: SimContext, item: ItemId, qty: number): ActionResult {
@@ -17,26 +17,31 @@ export function shipItems(state: GameState, ctx: SimContext, item: ItemId, qty: 
   if (!def.sellable) return fail(`${def.name} can't be shipped.`);
   if (!Number.isInteger(qty) || qty <= 0) return fail('Choose how many to ship.');
   if (countItem(state.inventory, item) < qty) return fail(`You don't have ${qty} ${def.name}.`);
-  removeItem(state.inventory, item, qty);
-  addToBin(state, item, qty);
+  const taken = takeForSale(state, item, qty);
+  if (taken.plain > 0) addToBin(state, item, taken.plain);
+  if (taken.hearty > 0) addToBin(state, item, taken.hearty, true);
   return OK;
 }
 
-/** Puts `qty` of `item` in the bin, merging with an existing stack. */
-export function addToBin(state: GameState, item: ItemId, qty: number): void {
-  const stack = state.shippingBin.items.find((s) => s.item === item);
+/** Puts `qty` of `item` in the bin, merging with an existing stack of the same kind (hearty dishes keep their own). */
+export function addToBin(state: GameState, item: ItemId, qty: number, hearty = false): void {
+  const stack = state.shippingBin.items.find((s) => s.item === item && Boolean(s.hearty) === hearty);
   if (stack) stack.qty += qty;
-  else state.shippingBin.items.push({ item, qty });
+  else state.shippingBin.items.push(hearty ? { item, qty, hearty: true } : { item, qty });
 }
 
 /** Takes everything of `item` back out of the bin (all or nothing, if the bag has room). */
 export function unshipItems(state: GameState, _ctx: SimContext, item: ItemId): ActionResult {
-  const i = state.shippingBin.items.findIndex((s) => s.item === item);
-  const stack = state.shippingBin.items[i];
-  if (!stack) return fail('That is not in the bin.');
-  if (!canAdd(state.inventory, item, stack.qty)) return fail('Your bag is too full to take it back.');
-  addItem(state.inventory, item, stack.qty);
-  state.shippingBin.items.splice(i, 1);
+  const stacks = state.shippingBin.items.filter((s) => s.item === item);
+  if (stacks.length === 0) return fail('That is not in the bin.');
+  // Plain and hearty stacks need their own slots, so check them one by one on a scratch copy.
+  const scratch = structuredClone(state.inventory);
+  for (const s of stacks) {
+    if (!addItem(scratch, item, s.qty, s.hearty === true))
+      return fail('Your bag is too full to take it back.');
+  }
+  for (const s of stacks) addItem(state.inventory, item, s.qty, s.hearty === true);
+  state.shippingBin.items = state.shippingBin.items.filter((s) => s.item !== item);
   return OK;
 }
 

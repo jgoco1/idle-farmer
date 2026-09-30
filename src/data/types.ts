@@ -2,6 +2,7 @@
 // current phases use live here; later phases add theirs (FishDef, RecipeDef, …).
 
 import type {
+  BuffType,
   BundleId,
   CropId,
   ExpansionId,
@@ -11,6 +12,8 @@ import type {
   JunkId,
   MilestoneId,
   Rarity,
+  RecipeId,
+  RecipeTier,
   SeasonId,
   SkillId,
   UpgradeId,
@@ -82,14 +85,14 @@ export interface UpgradeEffect {
   shape?: 'plus' | 'square';
   growthBonus?: number; // scarecrow: added to the growth modifier of the plots in its area
   intervalSec?: number; // farmhand: simulated seconds between visits
-  capacity?: number; // farmhand (and planter) plots per visit
+  capacity?: number; // farmhand (and planter) plots per visit; kitchen: cook-queue slots
   toolArea?: 1 | 3 | 9 | 25; // watering can / hoe tiles per click
   stackSize?: number; // barn storage
   greenhousePlots?: number; // greenhouse
   flags?: readonly AutomationFlag[]; // seed planter, auto-seller, trap collector
   reelZoneMult?: number; // fishing rod: × the reel minigame's sweet zone
   luck?: number; // fishing rod: additive fishing luck
-  // phase 06+: cookSpeed, …
+  cookSpeed?: number; // kitchen: added to cookSpeedModifier
 }
 
 export interface UpgradeDef {
@@ -156,4 +159,54 @@ export interface JunkDef {
   basePrice: number;
   locations: readonly FishLocationId[];
   description: string;
+}
+
+// ---- cooking and buffs (phase 06)
+
+export type RecipeDiscovery =
+  | { kind: 'starter' }
+  | { kind: 'card'; price: number; unlock: readonly UnlockCondition[] } // bought in the Shop
+  | { kind: 'milestone'; id: MilestoneId }
+  | { kind: 'experiment' }; // only by experimenting
+
+export interface RecipeDef {
+  id: RecipeId;
+  name: string;
+  ingredients: readonly ItemStack[]; // crops, fish and seaweed only (no dish in a dish)
+  cookSec: number; // seconds of simulated time at 1× cook speed
+  tier: RecipeTier; // declared; tests check it against recipeTier()
+  buff: BuffType;
+  basePrice: number; // round(ingredient value × TIER_SELL_MULT[tier])
+  discovery: RecipeDiscovery;
+  description: string; // one cozy line
+}
+
+export interface BuffDef {
+  type: BuffType;
+  name: string;
+  /** "{pct}" is replaced by the magnitude, e.g. "Crops grow {pct} faster." */
+  description: string;
+  magnitudeScale: number; // multiplies the tier magnitude
+  /** The modifier it drives (a key of `Modifiers`). */
+  seam:
+    | 'growthModifier'
+    | 'sellPriceModifier'
+    | 'fishingLuckModifier'
+    | 'fishingSpeedModifier'
+    | 'cookSpeedModifier'
+    | 'automationSpeedModifier'
+    | 'xpModifier';
+  /** Luck is additive (+0.10); every other buff is a percentage. */
+  additive: boolean;
+  icon: string; // sprite id
+}
+
+export interface SeasonDef {
+  id: SeasonId;
+  name: string;
+  effects: {
+    heartyDishes?: boolean; // dishes finishing in this season are hearty
+    cookingXpBonus?: number;
+    dishSellBonus?: number;
+  };
 }
