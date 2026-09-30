@@ -27,7 +27,7 @@ import {
   SPECIAL_BONUS_STEPS,
   SPECIALS_EXTRA_MAX,
 } from '../data/balance';
-import { CROP_IDS, FISH_IDS, type ItemId, type SeasonId } from '../data/ids';
+import { CROP_IDS, FISH_IDS, RECIPE_IDS, type ItemId, type SeasonId } from '../data/ids';
 import { isLocationUnlocked } from './locations';
 import type { ItemDef } from '../data/types';
 import { fail, OK, type ActionResult, type SimContext } from './context';
@@ -149,6 +149,15 @@ export function settleSale(
   return q.gold;
 }
 
+/** Takes `qty` from the bag for a sale: plain stacks first, so hearty dishes (better to eat) are kept. */
+export function takeForSale(state: GameState, item: ItemId, qty: number): { plain: number; hearty: number } {
+  const plain = Math.min(qty, countItem(state.inventory, item, false));
+  if (plain > 0) removeItem(state.inventory, item, plain, false);
+  const hearty = qty - plain;
+  if (hearty > 0) removeItem(state.inventory, item, hearty, true);
+  return { plain, hearty };
+}
+
 /** Market panel: sells `qty` of `item` from the inventory instantly at 90%. */
 export function sellItems(state: GameState, ctx: SimContext, item: ItemId, qty: number): ActionResult {
   const def = ctx.data.items[item];
@@ -156,8 +165,7 @@ export function sellItems(state: GameState, ctx: SimContext, item: ItemId, qty: 
   if (!def.sellable) return fail(`${def.name} can't be sold.`);
   if (!Number.isInteger(qty) || qty <= 0) return fail('Choose how many to sell.');
   if (countItem(state.inventory, item) < qty) return fail(`You don't have ${qty} ${def.name}.`);
-  // Plain (non-hearty) stacks go first; phase 06 decides how hearty dishes are offered.
-  removeItem(state.inventory, item, qty);
+  takeForSale(state, item, qty);
   settleSale(state, ctx, item, qty, MARKET_CHANNEL, 'market', state.clock.simMs);
   return OK;
 }
@@ -226,7 +234,7 @@ export function tickMarket(state: GameState, _ctx: SimContext, dtMs: number): vo
 
 /**
  * Sellable items the player can obtain now: unlocked, in-season crops and the in-season fish of the
- * locations they have opened (dishes join in phase 06).
+ * locations they have opened, and the dishes of known recipes.
  */
 export function specialCandidates(state: GameState, data: GameData, season: SeasonId): ItemId[] {
   const crops = CROP_IDS.filter((c) => {
@@ -237,7 +245,9 @@ export function specialCandidates(state: GameState, data: GameData, season: Seas
     const def = data.fish[f];
     return def.seasons.includes(season) && isLocationUnlocked(state, def.location);
   });
-  return [...crops, ...fish];
+  // Dishes the player knows how to cook (any season: winter only makes them dearer).
+  const dishes = RECIPE_IDS.filter((r) => state.kitchen.known.includes(r));
+  return [...crops, ...fish, ...dishes];
 }
 
 /** Draws today's specials: 1–3 items without replacement, each +20% to +50%. */
@@ -254,10 +264,14 @@ export function rollSpecials(state: GameState, data: GameData, rng: Rng, season:
   state.market.specials = specials;
 }
 
-/** Adds today's point to every sellable item's sparkline (keeping the last 7). */
+/**
+ * Adds today's point to every sellable item's sparkline (keeping the last 7). Dishes join once
+ * their recipe is known, which also keeps the per-tick demand loop short.
+ */
 export function recordHistory(state: GameState, data: GameData): void {
   for (const def of Object.values(data.items)) {
     if (!def?.sellable) continue;
+    if (def.category === 'dish' && !state.kitchen.known.includes(def.id as never)) continue;
     const e = entry(state, def.id);
     e.history.push(Math.round(effectiveMultiplier(state, def.id) * 1000) / 1000);
     if (e.history.length > MARKET_HISTORY_DAYS) e.history.splice(0, e.history.length - MARKET_HISTORY_DAYS);

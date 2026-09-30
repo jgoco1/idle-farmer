@@ -253,6 +253,8 @@ export type RecipeDiscovery =
 
 `recipeTier(recipe, items)` is a pure function in `src/systems/cooking.ts`. It computes the tier from the ingredients and cook time with the formula in BALANCE.md §7. The declared `tier` is kept in data for readability, and a test asserts the two match for every recipe.
 
+> **Phase 06 status.** `RecipeDef` and `RecipeDiscovery` also carry `description` (one cozy line) in `src/data/types.ts`. `recipeTier()` uses `cookSec / 30` (BALANCE.md §7).
+
 ### 4.5 `BuffDef` (`buffs.ts`)
 
 ```ts
@@ -263,6 +265,7 @@ export interface BuffDef {
   magnitudeScale: number;       // multiplies the tier magnitude (BALANCE.md §7)
   seam: keyof Modifiers;        // which modifier it drives
   icon: string;                 // sprite id
+  additive: boolean;            // phase 06: luck is added (+0.10); the others are percentages
 }
 ```
 
@@ -602,7 +605,8 @@ export interface FishingSession {
   reel: ReelState | null;
 }
 
-export interface CookJob { recipe: RecipeId; remainingMs: number }
+/** Phase 06: all jobs cook at once (at most the kitchen's slots). `hearty` is set when a dish that finished in winter is waiting for room in the bag. */
+export interface CookJob { recipe: RecipeId; remainingMs: number; hearty?: true }
 
 export interface ActiveBuff {
   type: BuffType;

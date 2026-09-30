@@ -1,5 +1,6 @@
 // Renders every sprite (or those whose id starts with a prefix) to scripts/out/sprites.png, on a
-// soil-coloured background, for eyeballing art without a browser: `node scripts/sprite-sheet.mjs crop_`.
+// soil-coloured background, for eyeballing art without a browser: `node scripts/sprite-sheet.mjs crop_`,
+// or `IDS=item_roasted_turnip,ui_hearty node scripts/sprite-sheet.mjs` for an explicit list.
 // Each sprite is scaled ×SCALE; animated sprites show all frames side by side.
 
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -16,7 +17,10 @@ try {
   const { ALL_SPRITES } = await server.ssrLoadModule('/src/render/sprites/index.ts');
   const { PALETTE, KEY_TO_NAME } = await server.ssrLoadModule('/src/render/palette.ts');
   const soilTile = ALL_SPRITES.find((s) => s.id === 'tile_soil_dry').frames[0];
-  const cells = ALL_SPRITES.filter((s) => s.id.startsWith(prefix)).flatMap((s) => s.frames);
+  const only = process.env.IDS?.split(',');
+  const cells = ALL_SPRITES.filter((s) => (only ? only.includes(s.id) : s.id.startsWith(prefix))).flatMap(
+    (s) => s.frames,
+  );
   const cellW = 16 * SCALE + 8;
   const cellH = 48 * SCALE + 8;
   const maxH = Math.max(...cells.map((f) => f.length));

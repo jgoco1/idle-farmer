@@ -52,6 +52,9 @@ export interface RendererOptions {
 }
 
 /** Everything the renderer needs from the game state each frame. */
+/** Top-left of the steam sprite above the farmhouse chimney (chimney top at x 59–68, y 16). */
+const CHIMNEY_STEAM = { x: 56, y: 0 } as const;
+
 export interface SceneView {
   plots: readonly PlotSprites[];
   greenhouse: readonly PlotSprites[];
@@ -59,6 +62,8 @@ export interface SceneView {
   farmhand: boolean;
   /** Fish traps floating at the water, with whether each one has something to collect. */
   traps: readonly { col: number; row: number; full: boolean }[];
+  /** Something is cooking: steam curls from the farmhouse chimney. */
+  cooking: boolean;
 }
 
 /** The range preview while placing: the offsets around the hovered plot, and whether the spot is valid. */
@@ -246,6 +251,7 @@ export class Renderer {
       this.drawPlots(view.greenhouse, timeMs, true);
     }
     for (const o of this.layout.objects) f.drawImage(spriteFrame(o.sprite, timeMs), o.x, o.y);
+    if (view.cooking) f.drawImage(spriteFrame('fx_steam', timeMs), CHIMNEY_STEAM.x, CHIMNEY_STEAM.y);
     this.drawTraps(view.traps, timeMs);
     this.drawPlaced(view.placed, timeMs);
     this.drawFarmhand(view.farmhand, timeMs);

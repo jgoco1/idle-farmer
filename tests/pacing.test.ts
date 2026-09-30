@@ -11,6 +11,8 @@ import { runOffline } from '../src/core/offline';
 import { makeContext } from '../src/core/sim';
 import { buildCalendar } from '../src/core/time';
 import { GAME_DATA } from '../src/data';
+import { RECIPE_IDS } from '../src/data/ids';
+import { ingredientValue } from '../src/systems/cooking';
 import { buySeeds } from '../src/systems/shop';
 import { AUTOMATION_SHOPPING_LIST, simulateGreedy, type PacingReport } from './sim/greedyPlayer';
 import { at, NY } from './helpers';
@@ -170,5 +172,46 @@ describe('pacing: adding fishing (phase 05)', { timeout: 60_000 }, () => {
     expect(lifetime(casual)).toBeGreaterThan(lifetime(farmOnly) * 1.1);
     expect(lifetime(keen)).toBeGreaterThan(lifetime(casual));
     expect(lifetime(keen)).toBeLessThan(lifetime(farmOnly) * 3);
+  });
+});
+
+// Phase 06: a player who cooks. `sell` cooks the best-margin dish they can and sells it at the Market;
+// `eat` eats every dish for its buff instead. See BALANCE.md "Phase 06 tuning notes".
+describe('pacing: cooking (phase 06)', { timeout: 60_000 }, () => {
+  const farmOnly = runs();
+  const selling = runs({ cooking: 'sell' });
+  const eating = runs({ cooking: 'eat' });
+  const lifetime = (rs: readonly PacingReport[]): number => median(rs.map((r) => r.final.stats.lifetimeGold));
+
+  it('cooks and sells real dishes from the crops it grows', () => {
+    for (const r of selling) {
+      expect(r.cooked).toBeGreaterThanOrEqual(3);
+      expect(r.dishGold).toBeGreaterThan(0);
+    }
+  });
+
+  it('a dish fetches about a quarter more than the raw ingredients it used (T1: +25%, less the Market cut)', () => {
+    const ratios = selling.map((r) => {
+      let raw = 0;
+      for (const id of RECIPE_IDS) {
+        const n = r.sold[id] ?? 0;
+        raw += n * ingredientValue(GAME_DATA.recipes[id], GAME_DATA.items) * 0.9;
+      }
+      return r.dishGold / raw;
+    });
+    expect(median(ratios)).toBeGreaterThan(1.1);
+    expect(median(ratios)).toBeLessThan(1.35);
+  });
+
+  it('cooking is not required: a farmer who also cooks stays within 10% of one who only sells crops', () => {
+    expect(lifetime(selling)).toBeGreaterThan(lifetime(farmOnly) * 0.9);
+    expect(lifetime(selling)).toBeLessThan(lifetime(farmOnly) * 1.1);
+  });
+
+  it('a player who eats what they cook keeps Green Thumb up most of the hour, and is not ruined by it', () => {
+    expect(median(eating.map((r) => r.eaten))).toBeGreaterThan(10);
+    expect(median(eating.map((r) => r.buffMinutes.growth ?? 0))).toBeGreaterThan(20);
+    // T1 buffs are small (+10% for 6 minutes): eating instead of selling costs a little in hour one.
+    expect(lifetime(eating)).toBeGreaterThan(lifetime(farmOnly) * 0.75);
   });
 });

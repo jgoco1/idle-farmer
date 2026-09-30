@@ -10,7 +10,7 @@
 import { createInitialState, cloneState, type GameState } from './state';
 import type { LocalClock } from './time';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 export const SAVE_KEY = 'hearthfield-idle/save';
 export const AUTOSAVE_MS = 15_000;
 
@@ -79,6 +79,17 @@ export const migrations: Record<number, Migration> = {
     settings: { ...old.settings, relaxedFishing: false },
     stats: { ...old.stats, fishCaught: 0 },
     fishing: { traps: [], collection: {}, session: null },
+  }),
+  /**
+   * v5 → v6 (phase 06, cooking): the three starter recipes, an empty stove, no buffs, three buff
+   * slots and zeroed dish statistics. Recipes that milestones or the farm level would have given
+   * are learned on the first tick, and the Shop lists the cards the player qualifies for.
+   */
+  5: (old) => ({
+    ...old,
+    stats: { ...old.stats, dishesCooked: 0, dishesEaten: 0, bestDishTier: 0 },
+    kitchen: { known: ['roasted_turnip', 'baked_potato', 'grilled_bluegill'], queue: [] },
+    buffs: { active: [], baseSlots: 3 },
   }),
 };
 
@@ -178,6 +189,9 @@ function economyProblem(s: Record<string, unknown>): string | null {
     'itemsShipped',
     'daysPassed',
     'fishCaught',
+    'dishesCooked',
+    'dishesEaten',
+    'bestDishTier',
   ]) {
     if (!isInt(stats[k])) return 'bad stats';
   }
@@ -263,6 +277,27 @@ function fishingProblem(s: Record<string, unknown>): string | null {
   return sessionProblem(f.session);
 }
 
+function cookingProblem(s: Record<string, unknown>): string | null {
+  const { kitchen, buffs } = s;
+  if (!isObj(kitchen) || !Array.isArray(kitchen.known) || !Array.isArray(kitchen.queue)) return 'bad kitchen';
+  if (!kitchen.known.every((r) => typeof r === 'string')) return 'bad kitchen';
+  for (const j of kitchen.queue) {
+    if (!isObj(j) || typeof j.recipe !== 'string' || !isInt(j.remainingMs) || j.remainingMs < 0)
+      return 'bad cook job';
+  }
+  if (!isObj(buffs) || !Array.isArray(buffs.active) || !isInt(buffs.baseSlots) || buffs.baseSlots < 1)
+    return 'bad buffs';
+  const types = new Set<string>();
+  for (const b of buffs.active) {
+    if (!isObj(b) || typeof b.type !== 'string' || typeof b.source !== 'string') return 'bad buff';
+    if (!isNum(b.magnitude) || !isInt(b.tier) || !isInt(b.remainingMs) || b.remainingMs <= 0)
+      return 'bad buff';
+    if (types.has(b.type)) return 'bad buff';
+    types.add(b.type);
+  }
+  return null;
+}
+
 /** Structural check of a current-version state. Returns a reason, or null if it looks valid. */
 export function validateState(s: unknown): string | null {
   if (!isObj(s)) return 'state is not an object';
@@ -289,7 +324,8 @@ export function validateState(s: unknown): string | null {
     inventoryProblem(s.inventory) ??
     economyProblem(s) ??
     automationProblem(s) ??
-    fishingProblem(s)
+    fishingProblem(s) ??
+    cookingProblem(s)
   );
 }
 

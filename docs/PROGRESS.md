@@ -285,3 +285,79 @@ Budget in the test: < 100 ms. The cost is proportional to the number of *useful*
 - **XP (phase 07):** grant Fishing XP from the `caught` event (rarity from `data.fish[id].rarity`, difficulty from `data.fish[id].difficulty`); Fishing perks that add trap capacity or luck belong in `computeModifiers` and `TRAP_CAPACITY` (traps read the constant in `src/systems/traps.ts`).
 - **Bundles:** `pond_fish` (+1 trap per location) changes `TRAPS_PER_LOCATION` in `maxTraps` and `nextTrapSpot` (`src/systems/locations.ts`) and needs a third `TRAP_TILES` entry per location; `river_and_sea` adds luck in `computeModifiers`.
 - **Settings:** `settings.relaxedFishing` and its Settings checkbox are the pattern for the other accessibility options (phase 08).
+
+---
+
+## Phase 06: Cooking and food buffs
+
+### Built
+- **Data:** `src/data/recipes.ts` (the 22 recipes of BALANCE.md §7: ingredients, cook seconds, declared tier, buff, base price, discovery, one cozy line each), `src/data/buffs.ts` (`BUFFS`, `BUFF_TYPES`: name, description with `{pct}`, `magnitudeScale`, seam, icon), `src/data/seasons.ts` (`SEASONS`; only winter has effects: hearty dishes, +50% Cooking XP, +25% dish sell). Dishes are generated into `ITEMS` (`items.ts`, category `dish`, sprite `item_<recipe>`). Cooking constants are in `src/data/balance.ts` (`TIER_*`, `BUFF_*`, `HEARTY_DURATION_BONUS`, `BASE_BUFF_SLOTS`, `MAX_BUFF_SLOTS`, `EXPERIMENT_*`). `GameData` gained `recipes`, `buffs` and `seasons`. The `kitchen` upgrade (Old Hearth, Stove, Oven, Pro Kitchen: 1,000 / 3,500 / 12,000g) is in `upgrades.ts`; `UpgradeEffect` gained `cookSpeed` and reuses `capacity` for stove slots.
+- **State and save:** `kitchen { known, queue }`, `buffs { active, baseSlots }`, `stats.dishesCooked / dishesEaten / bestDishTier`. `SAVE_VERSION = 6`; `migrations[5]` gives the three starter recipes, an empty stove, no buffs, three slots and zeroed stats. `validateState` checks the kitchen, every cook job and every buff (one per type). Fixture `tests/fixtures/save-v6.json` (five recipes known, a dish cooking and a hearty one waiting on the stove, two running buffs, a hearty stack in the bag).
+- **Systems:**
+  - `src/systems/cooking.ts`: `recipeScore` / `recipeTier` (the tier is computed from the inputs), `kitchenSlots`, `startCooking`, `cancelCooking`, `tickCooking`, `msToNextCookFinish`, `cookMs`, `ingredientStatus`, `canCook`, and discovery (`learnMilestoneRecipes`, `recipeCards`, `buyRecipe`, `experiment`, `experimentHint`).
+  - `src/systems/buffs.ts`: `buffMagnitude`, `buffDurationMs`, `buffSlotCount`, `planEat` (start / refresh / replace), `dishBuff`, `eatDish`, `tickBuffs`, `msToNextBuffExpiry`, `leastTimeLeft`.
+  - `computeModifiers(state, data, season?)` (`src/systems/modifiers.ts`) now folds the buffs in (`1 + bonus`, luck additive, one pass), plus the kitchen's speed and the season's `dishSellBonus` / `cookingXpBonus`. `step()` and `makeContext()` pass `ctx.calendar.season`. `tickSystems` runs `tickCooking`, `learnMilestoneRecipes`, then `tickBuffs` last; `msToNextSimEvent` reports dish finishes and buff expiries, so a step is split exactly where a buff runs out (offline too).
+  - `market.ts`: dishes sell at their base price with the winter bonus (`priceFactor` already read `dishSellBonus`), plain stacks are taken first (`takeForSale`), known recipes join `specialCandidates`, and a dish gets a sparkline once its recipe is known. `shippingBin.ts` keeps hearty dishes as their own bin stacks. `unlocks.ts` now evaluates `caught` (from the Fish Collection) and has a hint for it.
+- **Actions:** `cook` (`recipe`), `cancelCook` (`index`), `experiment` (`items`), `buyRecipe` (`recipe`), `eat` (`dish`, `hearty?`, `replace?`). Events: new `recipeLearned` (`recipe`, `how`); `ate` gained `hearty`; `cooked`, `buffStarted` and `buffExpired` are now emitted.
+- **UI:** `src/ui/kitchenPanel.ts` (Cook tab: the stove with progress bars and "Take off", the recipe book with tier badge, buff line, cook time, sell price and have/need ingredient chips; Experiment tab: pick 2 to 4 ingredients), `src/ui/buffBar.ts` (HUD icons with a remaining-time ring, m:ss and a tooltip with the exact effect), `src/ui/eat.ts` (the "Replace a buff?" confirmation). The Inventory detail shows the buff a dish gives and an **Eat** button, and hearty stacks carry a snowflake. The Shop lists Recipe cards, Upgrades has a Kitchen section, and the away summary lists dishes finished and buffs worn off. Toasts for a learned recipe, a finished dish and an expired buff.
+- **Art** (`src/render/sprites/cooking.ts`): 22 dish icons (bowls, plates, a pie and a muffin), 7 buff icons, `ui_hearty` (snowflake) and `fx_steam` (3 frames, 250 ms as ART_STYLE.md says) drawn over the farmhouse chimney while anything is cooking (`SceneView.cooking`). Screenshots: `docs/screenshots/phase06-kitchen.png` and `docs/screenshots/phase06-hud-buffs.png` (two buffs running). `scripts/sprite-sheet.mjs` takes `IDS=a,b,c` for an explicit list.
+- **Pacing:** `tests/sim/greedyPlayer.ts` has `cooking: 'sell' | 'eat'`; the results are in BALANCE.md "Phase 06 tuning notes".
+- **Tests:** 592 unit tests (was 486). `tests/cooking.test.ts` covers tier derivation for all 22 recipes, prices, one-season T3 and T4, buff magnitude and duration for every type and tier, every stacking, replacement and slot rule, each buff on its seam, a growth buff expiring 20 minutes into an 8 hour absence, one step equal to many, cook timing online and offline, a full bag, hearty dishes and the winter sell bonus, discovery by milestone, card and experiment (including a miss that loses nothing), and the art. Also the v5 → v6 migration and validation, and a cooking group in the pacing test. E2E (`e2e/cooking.spec.ts`): cook a T1 dish, eat it and assert the buff in the HUD (and that it expires); experiment and recipe cards.
+
+### Modifier seams (existing `*Modifier` reads, for the record)
+`growthModifier` (`rate()` in `src/systems/farming.ts`), `sellPriceModifier` and `dishSellBonus` (`priceFactor()` in `src/systems/market.ts`), `fishingLuckModifier` (`catchTable` callers in `src/systems/fishing.ts`), `fishingSpeedModifier` (`release()` in `fishing.ts` and `tickTraps` in `traps.ts`), `automationSpeedModifier` (`farmhandStats` in `src/systems/automation.ts`), `cookSpeedModifier` (new: `tickCooking`, `msToNextCookFinish` and `cookMs` in `cooking.ts`), `xpModifier` and `cookingXpBonus` (stubs, read by phase 07).
+
+### Every recipe
+Duration is minutes of simulated time, normal / hearty. Magnitude is after the type's scale (luck is additive).
+
+| id | Name | Ingredients | Tier | Buff | Magnitude | Duration (min) | Base price | Discovery |
+|---|---|---|---|---|---|---|---|---|
+| `roasted_turnip` | Roasted Turnip | turnip ×2 | T1 | Green Thumb | +10% | 6 / 9 | 55 | starter |
+| `baked_potato` | Baked Potato | potato ×2 | T1 | Quick Hands | +15% | 6 / 9 | 90 | starter |
+| `grilled_bluegill` | Grilled Bluegill | bluegill ×1 | T1 | Quick Bite | +10% | 6 / 9 | 38 | starter |
+| `berry_bowl` | Berry Bowl | strawberry ×2 | T1 | Scholar's Snack | +15% | 6 / 9 | 50 | card 150 |
+| `seaweed_salad` | Seaweed Salad | seaweed ×2, turnip ×1 | T1 | Angler's Luck | +0.10 | 6 / 9 | 78 | milestone m06_first_catch |
+| `wheat_flatbread` | Wheat Flatbread | wheat ×3 | T1 | Busy Bees | +10% | 6 / 9 | 94 | card 120 |
+| `vegetable_soup` | Vegetable Soup | turnip ×2, potato ×1, garlic ×1 | T2 | Green Thumb | +20% | 12 / 18 | 234 | milestone m07_first_dish |
+| `fish_tacos` | Fish Tacos | wheat ×2, tomato ×2, sardine ×1 | T2 | Quick Bite | +20% | 12 / 18 | 153 | card 600 |
+| `tomato_pasta` | Tomato Pasta | wheat ×2, tomato ×3, corn ×1 | T2 | Quick Hands | +30% | 12 / 18 | 176 | card 500 |
+| `corn_chowder` | Corn Chowder | corn ×2, wheat ×1, perch ×1 | T2 | Busy Bees | +20% | 12 / 18 | 210 | experiment |
+| `blueberry_muffin` | Blueberry Muffin | wheat ×2, blueberry ×4 | T2 | Scholar's Snack | +30% | 12 / 18 | 137 | card 450 |
+| `glazed_yams` | Glazed Yams | yam ×2, cranberry ×2 | T2 | Silver Tongue | +10% | 12 / 18 | 350 | experiment |
+| `garlic_trout` | Garlic Trout | trout ×1, garlic ×1, potato ×1 | T2 | Angler's Luck | +0.20 | 12 / 18 | 242 | milestone m10_unlock_river |
+| `seafood_stew` | Seafood Stew | tuna ×1, mackerel ×2, tomato ×2, corn ×1 | T3 | Angler's Luck | +0.30 | 24 / 36 | 534 | card 2500 |
+| `pumpkin_soup` | Pumpkin Soup | pumpkin ×1, kale ×1, yam ×1 | T3 | Green Thumb | +30% | 24 / 36 | 1339 | card 2000 |
+| `cranberry_pie` | Cranberry Pie | wheat ×3, cranberry ×4, yam ×1 | T3 | Silver Tongue | +15% | 24 / 36 | 387 | experiment |
+| `catfish_gumbo` | Catfish Gumbo | catfish ×2, corn ×1, tomato ×2, wheat ×1 | T3 | Busy Bees | +30% | 24 / 36 | 494 | card 1800 |
+| `scholars_stew` | Scholar's Stew | perch ×2, garlic ×2, bluegill ×2 | T3 | Scholar's Snack | +45% | 24 / 36 | 518 | milestone m11_farm_level_5 |
+| `garden_banquet` | Garden Banquet | cauliflower ×2, strawberry ×4, garlic ×1, potato ×2 | T4 | Quick Hands | +60% | 48 / 72 | 1442 | milestone m12_cook_t3 |
+| `royal_sturgeon` | Royal Sturgeon | sturgeon ×1, koi ×1, melon ×1, tomato ×2, corn ×1 | T4 | Angler's Luck | +0.40 | 48 / 72 | 2694 | experiment |
+| `harvest_feast` | Harvest Feast | pumpkin ×1, yam ×2, corn ×2, wheat ×2, cranberry ×3 | T4 | Silver Tongue | +20% | 48 / 72 | 2066 | card 6000 |
+| `moonfin_sushi` | Moonfin Sushi | moonfin ×1, seaweed ×3, leek ×1 | T4 | Scholar's Snack | +60% | 48 / 72 | 3434 | card 12000 |
+
+### Deviations
+- **The tier formula uses `cookSec / 30`**, as BALANCE.md §7 and GDD §7 say, not the prompt's "cook minutes / 60" (which would make cooking time irrelevant). Thresholds 8 / 15 / 28 as given. Docs win.
+- **All jobs on the stove cook at once.** BALANCE.md says "1 queue slot, +1 per kitchen upgrade"; I read a slot as a pan, so `queue.length ≤ kitchenSlots` and every job progresses, rather than a serial queue.
+- **Milestone recipes come from a small table in `cooking.ts`** (`MILESTONES_MET`), checked every tick, because phase 07's milestone chain does not exist yet. `m06_first_catch` is "any fish caught" (BALANCE.md), not the prompt's example of a river fish. Phase 07 should call `learn()` when a milestone completes and delete the table.
+- **Experiment results** travel as an `ActionResult`: a hit is `ok` (plus a `recipeLearned` event); a miss is `{ ok: false, reason }` where `reason` is the friendly line with the hint, since actions return no data. Nothing is ever consumed. Experiments can also find `card` recipes (BALANCE.md), never milestone ones.
+- **A finished dish waits on the stove until the bag has room** (`CookJob.hearty` was added so the winter decision is made when it finishes, not when it lands). `cancelCook` is an extra action (the ingredients come back), in the spirit of "nothing is wasted".
+- **`eat` takes `replace: boolean`** instead of naming the buff to drop: the buff with the least time left is always the one replaced, and the UI (`src/ui/eat.ts`) asks first via `planEat`.
+- **`computeModifiers` takes an optional `season`** so the winter dish bonus reaches `ctx.mods`; without it there are no seasonal effects.
+- **`stats.bestDishTier` was added** (the schema has only `dishesCooked` and `dishesEaten`) for the `m12_cook_t3` recipe.
+- **Dishes join the daily specials and get a sparkline once their recipe is known**, not before. This also keeps the per-tick demand loop short: 22 dish entries from day one cost the 8 hour simulation about 40% more time.
+- **HUD buffs are still hidden below 600 px** (the phone layout has hidden that strip since phase 01); phase 08 owns the mobile HUD.
+- `GameData.items` and `GameData.upgrades` stay typed `Partial<Record<…>>` so lookups by arbitrary ids stay checked.
+
+### Known issues
+- **Eating a T1 dish loses to selling it** for a farmer in the first hour (BALANCE.md "Phase 06 tuning notes"): +10% growth for 6 minutes on a few plots is worth less than the 55g the dish sells for. Buffs are meant to matter at T3 and T4 and over long absences; phase 09 should check the "buffs speed progression by 10–25%" target.
+- `e2e/fishing.spec.ts` "cast, wait for the bite…" fails about 1 run in 6, with or without this phase (random fish, scripted player); it passes on a re-run. The e2e specs also rewrite `docs/screenshots/phase05-*.png` as they run; `git checkout` them if you do not mean to update them.
+- The HUD ring's full length is the longest time the buff has shown in this page load, so after a reload a partly used buff shows a full ring.
+- Some dish icons are close in silhouette (the eight bowls differ mainly by colour). The steam is three small puffs.
+- Cooking is one dish per click; there is no "cook ×5".
+
+### Next-phase notes (for phase 07: progression)
+- **XP:** `cooked` events carry `recipe`, `tier` and `hearty`; grant Cooking XP there, scaled by tier, times `ctx.mods.xpModifier` and `1 + ctx.mods.cookingXpBonus` (+0.5 in winter; `computeModifiers` already fills both). `ate` has `hearty` too. `stats.dishesCooked`, `dishesEaten` and `bestDishTier` exist for the Stats tab and the `cook_tier`, `cook_distinct` and `eat_dish` goals.
+- **Buff slots:** `buffSlotCount(state)` in `src/systems/buffs.ts` is `min(5, state.buffs.baseSlots)`; add the Cooking level 7 perk and the `cozy_dinner` bundle there. A buff-duration perk belongs in `buffDurationMs(tier, hearty)`: BALANCE.md's formula is `(1 + buffDurationPerk + hearty)`.
+- **Milestones:** replace `MILESTONES_MET` / `learnMilestoneRecipes` in `src/systems/cooking.ts`; the recipes' `discovery: { kind: 'milestone', id }` is already in the data, and `UnlockCondition { kind: 'milestone' }` still evaluates as not met in `unlocks.ts`.
+- **Kitchen perks:** a cooking-speed perk goes in `computeModifiers` next to the kitchen upgrade (`cookSpeedModifier = 1 + buff + kitchen + perk`).
+- **Farm level** gates the recipe cards through `farmLevel(state)`; when phase 07 replaces the provisional formula the cards follow.

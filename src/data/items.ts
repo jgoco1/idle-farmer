@@ -1,19 +1,21 @@
 // Item definitions (docs/DATA_SCHEMAS.md §4.1). Items are generated from the other tables so names
 // and prices are defined once: a crop item and a seed item per crop, an item per fish and per junk
-// item (phase 05). Dishes join in phase 06.
+// item (phase 05) and a dish per recipe (phase 06).
 
 import { CROPS } from './crops';
 import { FISH, JUNK } from './fish';
+import { RECIPES } from './recipes';
 import {
   CROP_IDS,
   FISH_IDS,
   JUNK_IDS,
+  RECIPE_IDS,
   seedOf,
   type CropId,
   type FishId,
   type ItemId,
   type JunkId,
-  type SeedId,
+  type RecipeId,
 } from './ids';
 import type { ItemDef } from './types';
 
@@ -74,8 +76,22 @@ function junkItem(id: JunkId): ItemDef {
   };
 }
 
-/** Every item that exists so far. Phase 06 widens this to the full `Record<ItemId, ItemDef>` with dishes. */
-export type FarmItemId = CropId | SeedId | FishId | JunkId;
+function dishItem(id: RecipeId): ItemDef {
+  const r = RECIPES[id];
+  return {
+    id,
+    name: r.name,
+    description: r.description,
+    category: 'dish',
+    basePrice: r.basePrice,
+    sellable: true,
+    edible: true,
+    sprite: `item_${id}`,
+  };
+}
+
+/** Every item in the game. */
+export type FarmItemId = ItemId;
 
 const ENTRIES: [FarmItemId, ItemDef][] = [
   ...CROP_IDS.flatMap((id): [FarmItemId, ItemDef][] => [
@@ -84,6 +100,7 @@ const ENTRIES: [FarmItemId, ItemDef][] = [
   ]),
   ...FISH_IDS.map((id): [FarmItemId, ItemDef] => [id, fishItem(id)]),
   ...JUNK_IDS.map((id): [FarmItemId, ItemDef] => [id, junkItem(id)]),
+  ...RECIPE_IDS.map((id): [FarmItemId, ItemDef] => [id, dishItem(id)]),
 ];
 
 export const ITEMS: Readonly<Record<FarmItemId, ItemDef>> = Object.freeze(

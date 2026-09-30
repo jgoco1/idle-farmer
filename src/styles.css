@@ -107,6 +107,40 @@ canvas {
   flex: 1;
   min-width: 40px;
   min-height: 32px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.hud-buffs[hidden] {
+  display: none;
+}
+.buff {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  --p: 100%;
+}
+/* A ring that empties as the buff runs out. */
+.buff-ring {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: conic-gradient(var(--c-gold) var(--p), var(--c-shadow) 0);
+}
+.buff-ring img {
+  width: 30px;
+  height: 30px;
+  padding: 1px;
+  border-radius: 50%;
+  background: var(--c-wood_dark);
+}
+.buff-time {
+  font-size: 13px;
+  min-width: 2.6em;
+  color: var(--c-white_warm);
 }
 
 .hud-right {
@@ -843,13 +877,15 @@ textarea:focus-visible,
 }
 
 /* ---------- fishing */
-.fish-tabs {
+.fish-tabs,
+.tabs {
   display: flex;
   gap: 4px;
   margin-bottom: 6px;
 }
 .fish-tabs .btn.is-active,
-.fish-locations .btn.is-active {
+.fish-locations .btn.is-active,
+.ex-item.is-active {
   background: var(--c-gold);
   border-color: var(--c-gold_dark);
 }
@@ -955,4 +991,114 @@ textarea:focus-visible,
 .silhouette {
   filter: brightness(0);
   opacity: 0.55;
+}
+
+/* ---------- kitchen and food */
+.kitchen-head {
+  margin: 6px 0 4px;
+}
+.stove {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.stove-slot {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  padding: 4px 6px;
+  background: var(--c-white_warm);
+  border: 2px solid var(--c-ui_parchment_dark);
+}
+.stove-slot.is-empty {
+  display: block;
+  color: var(--c-stone_dark);
+  border-style: dashed;
+}
+.meter {
+  height: 8px;
+  margin-top: 2px;
+  background: var(--c-ui_parchment_dark);
+  border: 1px solid var(--c-wood_mid);
+}
+.meter-fill {
+  height: 100%;
+  background: var(--c-orange);
+}
+.recipe-row {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  align-items: center;
+  column-gap: 8px;
+  padding: 4px 6px;
+  background: var(--c-white_warm);
+  border: 2px solid var(--c-ui_parchment_dark);
+}
+.recipe-row.can-cook {
+  border-color: var(--c-grass_1);
+}
+.ingredients {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 2px;
+}
+.ingredient {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+}
+.ingredient img {
+  width: 20px;
+  height: 20px;
+}
+.ingredient.is-missing {
+  color: var(--c-roof_dark);
+}
+.ingredient.is-have {
+  color: var(--c-leaf_dark);
+}
+.tier {
+  display: inline-block;
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--c-white_warm);
+  background: var(--c-wood_mid);
+  border: 1px solid var(--c-outline);
+}
+.tier-2 {
+  background: var(--c-grass_1);
+}
+.tier-3 {
+  background: var(--c-berry_blue);
+}
+.tier-4 {
+  background: var(--c-purple);
+}
+.ex-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 6px 0;
+}
+.ex-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.ex-item img {
+  width: 20px;
+  height: 20px;
+}
+.inv-hearty {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 18px;
+  height: 18px;
+}
+.inv-buff {
+  color: var(--c-leaf_dark);
 }

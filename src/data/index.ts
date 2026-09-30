@@ -1,10 +1,33 @@
 import { START_GRID } from './balance';
+import { BUFFS } from './buffs';
 import { CROPS } from './crops';
 import { EXPANSIONS } from './expansions';
 import { FISH, JUNK } from './fish';
-import type { CropId, ExpansionId, FishId, ItemId, JunkId, UpgradeId } from './ids';
+import type {
+  BuffType,
+  CropId,
+  ExpansionId,
+  FishId,
+  ItemId,
+  JunkId,
+  RecipeId,
+  SeasonId,
+  UpgradeId,
+} from './ids';
 import { ITEMS } from './items';
-import type { CropDef, ExpansionDef, FishDef, ItemDef, JunkDef, UpgradeDef } from './types';
+import { RECIPES } from './recipes';
+import { SEASONS } from './seasons';
+import type {
+  BuffDef,
+  CropDef,
+  ExpansionDef,
+  FishDef,
+  ItemDef,
+  JunkDef,
+  RecipeDef,
+  SeasonDef,
+  UpgradeDef,
+} from './types';
 import { UPGRADES } from './upgrades';
 
 /**
@@ -16,10 +39,13 @@ export interface GameData {
   crops: Readonly<Record<CropId, CropDef>>;
   fish: Readonly<Record<FishId, FishDef>>;
   junk: Readonly<Record<JunkId, JunkDef>>;
-  /** Partial until phase 06 adds dishes. */
+  /** Every item, dishes included. Typed `Partial` so lookups by an arbitrary id stay checked. */
   items: Readonly<Partial<Record<ItemId, ItemDef>>>;
+  recipes: Readonly<Record<RecipeId, RecipeDef>>;
+  buffs: Readonly<Record<BuffType, BuffDef>>;
+  seasons: Readonly<Record<SeasonId, SeasonDef>>;
   expansions: Readonly<Record<ExpansionId, ExpansionDef>>;
-  /** Partial until phase 06 adds the kitchen. */
+  /** Every upgrade; `Partial` keeps lookups by an arbitrary id checked. */
   upgrades: Readonly<Partial<Record<UpgradeId, UpgradeDef>>>;
 }
 
@@ -29,6 +55,9 @@ export const GAME_DATA: GameData = Object.freeze({
   fish: FISH,
   junk: JUNK,
   items: ITEMS,
+  recipes: RECIPES,
+  buffs: BUFFS,
+  seasons: SEASONS,
   expansions: EXPANSIONS,
   upgrades: UPGRADES,
 });

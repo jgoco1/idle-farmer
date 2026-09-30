@@ -3,10 +3,11 @@
 // plus the Market and Upgrades panels in marketPanel.ts and upgradesPanel.ts).
 
 import type { GameState } from '../core/state';
+import type { DishId } from '../data/ids';
 import { capitalize, seasonOfWeek, type Calendar } from '../core/time';
 import type { GameData } from '../data';
 import { SHOP_BUY_AMOUNTS } from '../data/balance';
-import { CROP_IDS, type CropId, type PanelId } from '../data/ids';
+import { CROP_IDS, type CropId, type PanelId, type RecipeId } from '../data/ids';
 import type { ItemDef } from '../data/types';
 import { spriteDataUrl } from '../render/spriteCache';
 import type { ActionResult } from '../systems/context';
@@ -15,10 +16,16 @@ import { usedSlots } from '../systems/inventory';
 import { unitPrice } from '../systems/market';
 import type { Modifiers } from '../systems/modifiers';
 import { maxAffordableSeeds, seedStock } from '../systems/shop';
+import { recipeCards } from '../systems/cooking';
 import { farmLevel } from '../systems/unlocks';
 import { h } from './dom';
 import { seedNote } from './farmTools';
 import type { PanelDef } from './panel';
+import { buffEffectText } from './buffBar';
+import { eatWithConfirm } from './eat';
+import type { Action } from '../core/actions';
+import { buffDurationMs, buffMagnitude } from '../systems/buffs';
+import { formatDuration } from '../core/time';
 
 function stub(id: PanelId, title: string, icon: string, blurb: string): PanelDef {
   return {
@@ -35,7 +42,6 @@ function stub(id: PanelId, title: string, icon: string, blurb: string): PanelDef
 }
 
 export const STUB_PANELS: readonly PanelDef[] = [
-  stub('kitchen', 'Kitchen', '🍲', 'Cook what you grow and catch into dishes with gentle buffs.'),
   stub('goals', 'Goals', '★', 'Milestones and the Community Board will point the way.'),
 ];
 
@@ -193,8 +199,20 @@ function itemTooltip(hooks: GameViewHooks, def: ItemDef): string {
   return `${def.name}\n${def.description}\n${sellText(hooks, def)}`;
 }
 
+export interface InventoryHooks extends GameViewHooks {
+  dispatch(action: Action): ActionResult;
+}
+
+/** What eating a dish gives, as one line: "Green Thumb: Crops grow 10% faster for 6m". */
+function eatText(hooks: GameViewHooks, def: ItemDef, hearty: boolean): string {
+  const r = hooks.data.recipes[def.id as keyof GameData['recipes']];
+  const buff = hooks.data.buffs[r.buff];
+  const mag = buffMagnitude(hooks.data, r.buff, r.tier);
+  return `${buff.name} (tier ${r.tier}): ${buffEffectText(buff, mag)} Lasts ${formatDuration(buffDurationMs(r.tier, hearty))}${hearty ? ', hearty' : ''}.`;
+}
+
 /** Inventory: a grid of slots with icons and counts; hovering or focusing a slot shows its details. */
-export function inventoryPanel(hooks: GameViewHooks): PanelDef {
+export function inventoryPanel(hooks: InventoryHooks): PanelDef {
   return {
     id: 'inventory',
     title: 'Inventory',
@@ -208,16 +226,35 @@ export function inventoryPanel(hooks: GameViewHooks): PanelDef {
       let selected: number | null = null;
       body.append(summary, grid, detail);
 
-      const describe = (def: ItemDef | undefined, qty: number): void => {
+      const eatMsg = h('p', { class: 'form-msg', role: 'status' });
+      const describe = (def: ItemDef | undefined, qty: number, hearty = false): void => {
         if (!def) {
-          detail.replaceChildren(h('p', { class: 'muted', text: blank }));
+          detail.replaceChildren(h('p', { class: 'muted', text: blank }), eatMsg);
           return;
         }
-        detail.replaceChildren(
-          h('p', { class: 'inv-name', text: `${def.name} ×${qty}` }),
+        const parts: (HTMLElement | null)[] = [
+          h('p', { class: 'inv-name', text: `${def.name}${hearty ? ' ❄ hearty' : ''} ×${qty}` }),
           h('p', { text: def.description }),
-          h('p', { class: def.sellable ? 'inv-value' : 'muted', text: sellText(hooks, def) }),
-        );
+        ];
+        if (def.edible) {
+          parts.push(h('p', { class: 'inv-buff', text: eatText(hooks, def, hearty) }));
+          const eat = h('button', {
+            type: 'button',
+            class: 'btn btn-small btn-primary',
+            'data-eat': def.id,
+            text: 'Eat',
+            'aria-label': `Eat ${def.name}`,
+          });
+          eat.addEventListener('click', () => {
+            eatWithConfirm(hooks, def.id as DishId, hearty, (r) => {
+              eatMsg.textContent = r ? (r.ok ? `You ate the ${def.name}. Delicious!` : r.reason) : '';
+              eatMsg.className = r && !r.ok ? 'form-msg form-error' : 'form-msg form-ok';
+            });
+          });
+          parts.push(h('div', { class: 'btn-row' }, eat));
+        }
+        parts.push(h('p', { class: def.sellable ? 'inv-value' : 'muted', text: sellText(hooks, def) }));
+        detail.replaceChildren(...parts.filter((p): p is HTMLElement => p !== null), eatMsg);
       };
 
       return {
@@ -232,15 +269,28 @@ export function inventoryPanel(hooks: GameViewHooks): PanelDef {
               class: `inv-slot${stack ? '' : ' is-empty'}`,
               role: 'listitem',
               'data-item': stack?.item,
-              'aria-label': stack && def ? `${def.name}, ${stack.qty}` : 'Empty slot',
+              'aria-label':
+                stack && def ? `${def.name}${stack.hearty ? ' (hearty)' : ''}, ${stack.qty}` : 'Empty slot',
               title: def ? itemTooltip(hooks, def) : undefined,
             });
             if (stack && def) {
               slot.append(
                 h('img', { class: 'pixel', alt: '', width: 32, height: 32, src: spriteDataUrl(def.sprite) }),
-                h('span', { class: 'inv-qty', text: String(stack.qty) }),
               );
-              const show = (): void => describe(def, stack.qty);
+              if (stack.hearty) {
+                slot.append(
+                  h('img', {
+                    class: 'pixel inv-hearty',
+                    alt: 'Hearty',
+                    width: 20,
+                    height: 20,
+                    src: spriteDataUrl('ui_hearty'),
+                  }),
+                );
+              }
+              slot.append(h('span', { class: 'inv-qty', text: String(stack.qty) }));
+              if (stack.hearty) slot.dataset.hearty = 'true';
+              const show = (): void => describe(def, stack.qty, stack.hearty === true);
               slot.addEventListener('mouseenter', show);
               slot.addEventListener('focus', show);
               slot.addEventListener('click', () => {
@@ -251,7 +301,7 @@ export function inventoryPanel(hooks: GameViewHooks): PanelDef {
             grid.append(slot);
           });
           const sel = selected !== null ? inv.slots[selected] : null;
-          describe(sel ? hooks.data.items[sel.item] : undefined, sel?.qty ?? 0);
+          describe(sel ? hooks.data.items[sel.item] : undefined, sel?.qty ?? 0, sel?.hearty === true);
         },
       };
     },
@@ -260,6 +310,7 @@ export function inventoryPanel(hooks: GameViewHooks): PanelDef {
 
 export interface ShopHooks extends GameViewHooks {
   buySeeds(crop: CropId, qty: number): ActionResult;
+  buyRecipe(recipe: RecipeId): ActionResult;
 }
 
 /**
@@ -277,7 +328,55 @@ export function shopPanel(hooks: ShopHooks): PanelDef {
       const list = h('div', { class: 'crate-list' });
       const later = h('p', { class: 'muted' });
       const msg = h('p', { class: 'form-msg', role: 'status' });
-      body.append(h('h3', { text: 'Seeds' }), gold, list, msg, later);
+      const cardsHead = h('h3', { text: 'Recipe cards' });
+      const cards = h('div', { class: 'crate-list', 'data-testid': 'recipe-cards' });
+      body.append(h('h3', { text: 'Seeds' }), gold, list, msg, later, cardsHead, cards);
+
+      const renderCards = (state: GameState): void => {
+        const stock = recipeCards(state, hooks.data);
+        cardsHead.hidden = cards.hidden = stock.length === 0;
+        cards.replaceChildren();
+        for (const c of stock) {
+          const r = hooks.data.recipes[c.id];
+          const buy = h('button', {
+            type: 'button',
+            class: 'btn btn-small',
+            'data-card': c.id,
+            text: `Buy · ${c.price.toLocaleString('en-US')}g`,
+            'aria-label': `Buy the ${r.name} recipe for ${c.price} gold`,
+            disabled: !c.unlocked || state.gold < c.price,
+          });
+          buy.addEventListener('click', () => {
+            const res = hooks.buyRecipe(c.id);
+            msg.textContent = res.ok ? `You learned ${r.name}!` : res.reason;
+            msg.className = res.ok ? 'form-msg form-ok' : 'form-msg form-error';
+            render();
+          });
+          cards.append(
+            h(
+              'div',
+              { class: `crate-row${c.unlocked ? '' : ' is-locked'}`, 'data-recipe-card': c.id },
+              h('img', {
+                class: 'pixel',
+                alt: '',
+                width: 32,
+                height: 32,
+                src: spriteDataUrl(`item_${c.id}`),
+              }),
+              h(
+                'div',
+                { class: 'crate-text' },
+                h('span', { text: `${r.name} (tier ${r.tier})` }),
+                h('span', {
+                  class: 'seed-note',
+                  text: c.unlocked ? r.description : `Locked. ${c.hint ?? ''}`,
+                }),
+              ),
+              h('div', { class: 'btn-row' }, buy),
+            ),
+          );
+        }
+      };
 
       const render = (): void => {
         // The list is rebuilt, so remember which buy button had focus and restore it after.
@@ -350,6 +449,7 @@ export function shopPanel(hooks: ShopHooks): PanelDef {
             .map((c) => hooks.data.crops[c].name.toLowerCase())
             .join(', ') || 'no new seeds'
         }.`;
+        renderCards(state);
         if (focusLabel) {
           list.querySelector<HTMLButtonElement>(`[data-buy="${focusLabel}"]:not([disabled])`)?.focus();
         }

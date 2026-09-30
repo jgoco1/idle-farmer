@@ -1,5 +1,5 @@
 // Upgrades (docs/BALANCE.md §4). Phase 03 added the backpack; phase 04 the farm and tool upgrades;
-// phase 05 the fishing ones; phase 06 adds the kitchen, after which this becomes a full Record.
+// phase 05 the fishing ones; phase 06 the kitchen.
 //
 // Leveled upgrades: `effect[level]` and `effectText[level]` (index 0 = not owned). Placeables
 // (sprinkler, scarecrow): the level is the number of units bought.
@@ -263,5 +263,27 @@ export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object
     effectText: ['not built', 'empties the traps at every bin pickup'],
     effect: [{}, { flags: ['autoCollect'] }],
     requires: [{ kind: 'upgrade', id: 'fish_trap', level: 2 }],
+  },
+  kitchen: {
+    id: 'kitchen',
+    name: 'Kitchen',
+    description: 'A better stove, a bigger oven: more dishes cooking at once, and faster.',
+    category: 'kitchen',
+    kind: 'leveled',
+    max: 3,
+    cost: { base: 1000, ratio: 3.5 }, // 1000, 3500, 12000
+    effectText: [
+      'Old Hearth: 1 dish at a time',
+      'Stove: 2 dishes at once, cooks 15% faster',
+      'Oven: 3 dishes at once, cooks 30% faster',
+      'Pro Kitchen: 4 dishes at once, cooks 50% faster',
+    ],
+    effect: [
+      { capacity: 1, cookSpeed: 0 },
+      { capacity: 2, cookSpeed: 0.15 },
+      { capacity: 3, cookSpeed: 0.3 },
+      { capacity: 4, cookSpeed: 0.5 },
+    ],
+    requires: [],
   },
 });

@@ -1,0 +1,435 @@
+// Phase 06 art: an item icon per dish (bowls, plates, a pie and a muffin that read at 16 × 16), an
+// icon per buff type for the HUD, the winter snowflake badge for hearty dishes, and the chimney
+// steam. Dishes are authored as fills and wrapped in `outlined()`.
+
+import { RECIPE_IDS, type RecipeId } from '../../data/ids';
+import { BUFF_TYPES } from '../../data/buffs';
+import { outlined, recolored, type SpriteDef } from './types';
+
+const BLANK = '.'.repeat(16);
+
+/** A 16-wide row, padded on the right with transparency. Throws on a row that is too long. */
+function row(s: string): string {
+  if (s.length > 16) throw new Error(`sprite row too long (${s.length}): ${s}`);
+  return s.padEnd(16, '.');
+}
+
+/** Seven rows of food (drawn at rows 3–9) resting on a plate at rows 10–12. */
+function onPlate(food: readonly string[]): string[] {
+  const rows = [BLANK, BLANK, BLANK, ...food.map(row)];
+  while (rows.length < 10) rows.push(BLANK);
+  rows.push(row('..wwwwwwwwwwww..'), row('.wxxxxxxxxxxxxy.'), row('..yyyyyyyyyyyy..'));
+  while (rows.length < 16) rows.push(BLANK);
+  return rows;
+}
+
+/** A bowl (cream with a blue band) holding `a`-coloured contents; `top` are extra rows 3–5. */
+function inBowl(top: readonly string[]): string[] {
+  return [
+    BLANK,
+    BLANK,
+    BLANK,
+    ...top.map(row),
+    row('.jjjjjjjjjjjjjj.'),
+    row('..xxxxxxxxxxxxy.'),
+    row('..xwxxxxxxxxxyy.'),
+    row('...xxxxxxxxxyy..'),
+    row('...xxxxxxxxyy...'),
+    row('....xxxxxxyy....'),
+    row('.....yyyyyy.....'),
+    BLANK,
+    BLANK,
+    BLANK,
+  ];
+}
+
+// ---- dishes
+
+const DISH_ART: Record<RecipeId, readonly string[]> = {
+  roasted_turnip: onPlate([
+    '...G.....G',
+    '..GGG...GGG',
+    '.vVvvv.vVvvv',
+    '.OOOooOOOOooO',
+    '.OOoooOOOooo',
+    '..OOoo..OOoo',
+  ]),
+  baked_potato: onPlate([
+    '',
+    '....PPPPPPPP',
+    '..PPPPPPPPPPPP',
+    '.PPMPuUUUuPMPPp',
+    '.pPPuUUUUUuPPpp',
+    '..pPPPPPPPPPpp',
+    '...pppppppppp',
+  ]),
+  grilled_bluegill: onPlate([
+    '',
+    '....BBBBBBB',
+    '..BBcccccBBB.BB',
+    '.BkBccccccBBBBB',
+    '.BBmBmBmBBBBB',
+    '..BBBBBBBBBB.B',
+    '...cccccccc',
+  ]),
+  berry_bowl: inBowl(['....qqQqqQqq', '..qQqqqIqqQqqq', '.qqQqqqqqqqqQqq']),
+  seaweed_salad: inBowl(['....LlLLlLLl', '..lLLGLLlLGLlL', '.LlGLLllLLlLGLl']),
+  wheat_flatbread: onPlate([
+    '',
+    '',
+    '..PPPPPPPPPPPP',
+    '.PuPPPPMPPPPuPp',
+    '.pPPMPPPPPMPPpp',
+    '..ppPPPPPPPppp',
+    '',
+  ]),
+  vegetable_soup: inBowl(['....ooOooOoo', '..oOgoOqOloOoo', '.oOooLOoqOooOGo']),
+  fish_tacos: onPlate([
+    '..PPPPPPP.PPPPPP',
+    '.PuPqPLP.PuPqLPp',
+    '.PPqLLqP.PPqLLqp',
+    '.pPBBBPPPPBBBPpp',
+    '..pppppp..pppppp',
+    '',
+    '',
+  ]),
+  tomato_pasta: onPlate([
+    '',
+    '....qqqQqq',
+    '..uUuUuUuUuUuU',
+    '.UuUqquUuqqUuUu',
+    '.uUuUuUUuUuUuUU',
+    '..uUuUuUuUuUuU',
+    '...uuuuuuuuuu',
+  ]),
+  corn_chowder: inBowl(['....uUuuUuuU', '..uUuuUuuUsuUuu', '.uUuuUxuUuuUuUu']),
+  blueberry_muffin: [
+    BLANK,
+    BLANK,
+    row('....PPPPPPPP'),
+    row('..PPjPPpPPjPPP'),
+    row('.PPPPPPPPPPPPPp'),
+    row('.PpPPPPjPPPPPpp'),
+    row('.pppppppppppppp'),
+    row('..xxxxxxxxxxxx'),
+    row('..xYxYxYxYxYxx'),
+    row('...xYxYxYxYxx'),
+    row('...xYxYxYxYx'),
+    row('....xxxxxxxx'),
+    BLANK,
+    BLANK,
+    BLANK,
+    BLANK,
+  ],
+  glazed_yams: onPlate([
+    '',
+    '..oOOoo..oOOoo',
+    '.oOffOoo.oOffOoo',
+    '.OoOoOOoOOoOoOOo',
+    '.ooOqOoooOqOooo',
+    '..oooooo.oooooo',
+    '',
+  ]),
+  garlic_trout: onPlate([
+    '',
+    '...BBBBBBBB',
+    '.BBBcLcLcLcBBB.B',
+    'BkBBLBLBLBBBBBBB',
+    '.BBBBBBBBBBBBB.B',
+    '..BBcccccccBB',
+    '',
+  ]),
+  seafood_stew: inBowl(['....qqoQqoqq', '..qoBqQxqoqqoq', '.qQqxoqBqqoQqxq']),
+  pumpkin_soup: inBowl(['....OoOOoOOo', '..OoOOoLOOoOOoO', '.OOoOOoOOwOOoOO']),
+  cranberry_pie: [
+    BLANK,
+    BLANK,
+    BLANK,
+    row('....PPPPPPPP'),
+    row('..PPqPPqPPqPPP'),
+    row('.PqPPqPPqPPqPPp'),
+    row('.PPqPPqPPqPPqPp'),
+    row('.pPPqPPqPPqPPpp'),
+    row('..ppPPPPPPPPpp'),
+    row('...pppppppppp'),
+    row('..wwwwwwwwwwww'),
+    row('.wxxxxxxxxxxxxy'),
+    row('..yyyyyyyyyyyy'),
+    BLANK,
+    BLANK,
+    BLANK,
+  ],
+  catfish_gumbo: inBowl(['....MmMMmMMm', '..MmMqMMlMmMMm', '.MmMMoMmMMlMqMm']),
+  scholars_stew: inBowl(['....pMppMppM', '..MpBpMpLMpMpM', '.pMpMpjMpMpMLpM']),
+  garden_banquet: onPlate([
+    '..GG.....qq',
+    '.GLGG..wwqQq',
+    '.GGLwwwwwqqq',
+    'ooGwwwwwwGG.qq',
+    '.oOwwwwwwOOGqq',
+    '..OOOOOOOOOOo',
+    '',
+  ]),
+  royal_sturgeon: onPlate([
+    '..f.f.f.f',
+    '.ffffffffFf',
+    '..BBBBBBBBBBB',
+    '.BkBcccccBBBBBB',
+    '.BBBnBnBnBBBBBB',
+    '..BBBBBBBBBBB.B',
+    '...JJJJJJJJ',
+  ]),
+  harvest_feast: onPlate([
+    '...oOo..GG',
+    '..oOOOo.GLG.uu',
+    '.oOOoOOo.GG.uUu',
+    '.qqqqQq.PPPPPP',
+    '.qQqqqq.PpPPPp',
+    '..qqqq..pppppp',
+    '',
+  ]),
+  moonfin_sushi: onPlate([
+    '',
+    '',
+    '.wwwwwww.wwwwwww',
+    '.wJJJJJw.wJJJJJw',
+    '.lllllll.lllllll',
+    '.xwxxxwx.xwxxxwx',
+    '..xxxxx...xxxxx',
+  ]),
+};
+
+/** Recolours so two dishes never share pixels even if their art is close. */
+const TWEAKS: Partial<Record<RecipeId, Record<string, string>>> = {};
+
+const DISH_SPRITES: SpriteDef[] = RECIPE_IDS.map((id) => ({
+  id: `item_${id}`,
+  frames: [outlined(recolored(DISH_ART[id], TWEAKS[id] ?? {}))],
+}));
+
+// ---- buff icons
+
+const BUFF_ART: Record<string, readonly string[]> = {
+  growth: [
+    BLANK,
+    row('.....GG....GG'),
+    row('....GHGG..GHGG'),
+    row('....GGGG..GGGG'),
+    row('.....GGGGGGG'),
+    row('......GGGG'),
+    row('.......Gh'),
+    row('.......Gh'),
+    row('.......Gh'),
+    row('......sSSs'),
+    row('....sSSSSSSs'),
+    row('...ssssssssss'),
+    BLANK,
+    BLANK,
+    BLANK,
+    BLANK,
+  ],
+  sellPrice: [
+    BLANK,
+    row('.....NNNNNN'),
+    row('...NNwwNNNNNN'),
+    row('..NNwNNNNNNnnn'),
+    row('..NwNNNnnnNNnn'),
+    row('.NNNNNNnNnNNNn'),
+    row('.NNNNNNnnNNNNn'),
+    row('.NNNNNNNnNNNNn'),
+    row('.NNNNNNnNnNNNn'),
+    row('..NNNNNNNNNNnn'),
+    row('..nNNNNNNNNnn'),
+    row('...nnnNNNnnn'),
+    row('.....nnnnnn'),
+    BLANK,
+    BLANK,
+    BLANK,
+  ],
+  fishingLuck: [
+    BLANK,
+    row('..........f'),
+    row('.........fwf'),
+    row('..........f.'),
+    row('..BBBBBB..f'),
+    row('.BBcccBBBBBB'),
+    row('BBkBccBBBBBBB'),
+    row('.BBBBBBBBBBB'),
+    row('..BBBBBBBBB.B'),
+    row('....cccBB..BB'),
+    BLANK,
+    BLANK,
+    BLANK,
+    BLANK,
+    BLANK,
+    BLANK,
+  ],
+  fishingSpeed: [
+    BLANK,
+    row('........UUU'),
+    row('.......UuuU'),
+    row('......UuuU'),
+    row('.....UuuU'),
+    row('....UuuuuUU'),
+    row('....UUUuuuU'),
+    row('.......uuU'),
+    row('......uuU'),
+    row('.....uuU'),
+    row('....uuU'),
+    row('....uU'),
+    row('....U'),
+    BLANK,
+    BLANK,
+    BLANK,
+  ],
+  cookSpeed: [
+    BLANK,
+    row('.....C.C.C'),
+    row('......C.C'),
+    row('..nnnnnnnnnnn'),
+    row('.nNNNNNNNNNNnn'),
+    row('nnNNnnnnnnNNNnn'),
+    row('.nnnnnnnnnnnnn'),
+    row('..nnnnnnnnnnn'),
+    row('...ooOOooOOoo'),
+    row('...oOOUOOUOOo'),
+    row('....oOOUOUOo'),
+    row('.....oooooo'),
+    BLANK,
+    BLANK,
+    BLANK,
+    BLANK,
+  ],
+  automationSpeed: [
+    BLANK,
+    row('.......CC.CC'),
+    row('.....CCCCCCCC'),
+    row('........uu'),
+    row('...uuuuuuuuuu'),
+    row('..uUuukkuukkuu'),
+    row('..uUuuuuuuuuuu'),
+    row('..kkkkkkkkkkkk'),
+    row('..uuuuuuuuuuuu'),
+    row('...uuUuukkuu'),
+    row('....kkkkkkk'),
+    row('.....kkkkk'),
+    BLANK,
+    BLANK,
+    BLANK,
+    BLANK,
+  ],
+  xp: [
+    BLANK,
+    BLANK,
+    row('..jjjjjj..jjjjjj'),
+    row('.jJJJJJj.jJJJJJj'),
+    row('.jxxxxxj.jxxxxxj'),
+    row('.jxYYYxj.jxYYYxj'),
+    row('.jxxxxxj.jxxxxxj'),
+    row('.jxYYYxj.jxYYYxj'),
+    row('.jxxxxxj.jxxxxxj'),
+    row('.jxYYYxjjjxYYYxj'),
+    row('.jjjjjjjjjjjjjjj'),
+    row('.........f'),
+    BLANK,
+    BLANK,
+    BLANK,
+    BLANK,
+  ],
+};
+
+const BUFF_SPRITES: SpriteDef[] = BUFF_TYPES.map((t) => ({
+  id: `buff_${t}`,
+  frames: [outlined(BUFF_ART[t]!)],
+}));
+
+// ---- winter and the chimney
+
+/** The hearty dishes' snowflake badge (winter-cooked). */
+const uiHearty: SpriteDef = {
+  id: 'ui_hearty',
+  frames: [
+    outlined([
+      BLANK,
+      BLANK,
+      BLANK,
+      row('.......C'),
+      row('....C..C..C'),
+      row('.....C.C.C'),
+      row('......CCC'),
+      row('...CCCCwCCCC'),
+      row('......CCC'),
+      row('.....C.C.C'),
+      row('....C..C..C'),
+      row('.......C'),
+      BLANK,
+      BLANK,
+      BLANK,
+      BLANK,
+    ]),
+  ],
+};
+
+/** Steam curling up from the farmhouse chimney while something is cooking (3 frames). */
+const fxSteam: SpriteDef = {
+  id: 'fx_steam',
+  frameMs: 250,
+  frames: [
+    [
+      BLANK,
+      BLANK,
+      BLANK,
+      BLANK,
+      BLANK,
+      BLANK,
+      BLANK,
+      BLANK,
+      row('................'),
+      row('................'),
+      row('.......w........'),
+      row('......wCw.......'),
+      row('.....wCCCw......'),
+      row('......wCw.......'),
+      row('.......w........'),
+      row('................'),
+    ],
+    [
+      BLANK,
+      BLANK,
+      BLANK,
+      BLANK,
+      BLANK,
+      BLANK,
+      row('................'),
+      row('................'),
+      row('........w.......'),
+      row('.......wCw......'),
+      row('......wCCw......'),
+      row('.......wCw......'),
+      row('..............w.'),
+      row('.............wCw'),
+      row('..............w.'),
+      row('................'),
+    ],
+    [
+      BLANK,
+      BLANK,
+      BLANK,
+      row('................'),
+      row('.........w......'),
+      row('........wCw.....'),
+      row('.......wCCw.....'),
+      row('........wCw.....'),
+      row('.........w.....w'),
+      row('..............wC'),
+      row('.......w.......w'),
+      row('......wCw.......'),
+      row('.......w........'),
+      row('................'),
+      BLANK,
+      BLANK,
+    ],
+  ],
+};
+
+export const COOKING_SPRITES: readonly SpriteDef[] = [...DISH_SPRITES, ...BUFF_SPRITES, uiHearty, fxSteam];

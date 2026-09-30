@@ -1,6 +1,6 @@
 // Formula parameters from docs/BALANCE.md. Gameplay numbers live here, never in systems or UI.
 
-import type { Rarity } from './ids';
+import type { Rarity, RecipeTier } from './ids';
 
 /** BALANCE.md §1: the first 8 real hours away count fully. */
 export const OFFLINE_FULL_MS = 8 * 3600_000;
@@ -152,3 +152,25 @@ export const REEL = {
 export const TRAP_INTERVAL_SEC = 180;
 export const TRAP_CAPACITY = 5;
 export const TRAPS_PER_LOCATION = 2;
+
+// ---- cooking and buffs (BALANCE.md §7)
+
+/** Recipe tier: `score = units + value / TIER_VALUE_DIV + cookSec / TIER_COOK_DIV`, tier by these thresholds. */
+export const TIER_VALUE_DIV = 50;
+export const TIER_COOK_DIV = 30;
+export const TIER_THRESHOLDS: readonly [number, number, number] = [8, 15, 28];
+/** A dish sells for the ingredients' value × this. */
+export const TIER_SELL_MULT: Readonly<Record<RecipeTier, number>> = { 1: 1.25, 2: 1.4, 3: 1.6, 4: 2 };
+
+/** Buff strength `0.10 × tier × magnitudeScale`; duration `6 min × 2^(tier − 1)` of simulated time. */
+export const BUFF_MAGNITUDE_PER_TIER = 0.1;
+export const BUFF_BASE_DURATION_MS = 6 * 60_000;
+/** A hearty (winter-cooked) dish's buff lasts this much longer. */
+export const HEARTY_DURATION_BONUS = 0.5;
+/** Buff slots at the start; perks and bundles add up to MAX_BUFF_SLOTS (phase 07). */
+export const BASE_BUFF_SLOTS = 3;
+export const MAX_BUFF_SLOTS = 5;
+
+/** Experiment mode: how many distinct ingredients may be tried at once. */
+export const EXPERIMENT_MIN_ITEMS = 2;
+export const EXPERIMENT_MAX_ITEMS = 4;

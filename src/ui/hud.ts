@@ -1,9 +1,11 @@
-// The HUD strip: gold, season/date/time with a sun or moon, a placeholder for active buffs, and the
+// The HUD strip: gold, season/date/time with a sun or moon, a active food buffs, and the
 // settings button. Reads state and the calendar; never changes them.
 
 import type { GameState } from '../core/state';
 import { formatDuration, formatHudDate, DAY_MS, type Calendar } from '../core/time';
+import { GAME_DATA } from '../data';
 import { spriteDataUrl } from '../render/spriteCache';
+import { BuffBar } from './buffBar';
 import { h } from './dom';
 
 /** Show the season countdown during the last two days of a season (GDD §4). */
@@ -57,6 +59,7 @@ export class Hud {
   private readonly gold = new GoldCounter();
   private goldShown = -1;
   private readonly goldBox: HTMLElement;
+  private readonly buffBar: BuffBar;
 
   constructor(root: HTMLElement) {
     this.goldText = h('span', { class: 'gold-amount', 'data-testid': 'gold' });
@@ -88,11 +91,8 @@ export class Hud {
       this.timeIcon,
       h('div', { class: 'hud-clock-text' }, this.dateText, this.seasonNote),
     );
-    const buffs = h('div', {
-      class: 'hud-buffs',
-      'aria-label': 'Active buffs',
-      title: 'Food buffs appear here',
-    });
+    const buffs = h('div', { class: 'hud-buffs', 'aria-label': 'Active buffs', 'data-testid': 'buffs' });
+    this.buffBar = new BuffBar(buffs, GAME_DATA);
     this.goldBox = gold;
     root.append(gold, clock, buffs, h('div', { class: 'hud-right' }, this.settingsButton));
   }
@@ -109,6 +109,7 @@ export class Hud {
       this.goldText.textContent = `${shown.toLocaleString('en-US')}g`;
     }
     this.goldBox.classList.toggle('is-counting', this.gold.counting);
+    this.buffBar.update(state);
     const key = `${cal.dayKey}|${cal.hour}:${cal.minute}|${cal.weekIndex}|${Math.floor(cal.msToSeasonChange / 60000)}`;
     if (key === this.last) return;
     this.last = key;

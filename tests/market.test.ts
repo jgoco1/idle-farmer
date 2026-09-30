@@ -204,7 +204,9 @@ describe("today's specials", () => {
 
   it('only offers what the player can grow now', () => {
     const s = farm();
-    // Crops in season, then the in-season fish of the open locations (the pond, until the river opens).
+    // Crops in season, the in-season fish of the open locations (the pond, until the river opens),
+    // then the dishes of the recipes the player knows (the three starters).
+    const starters = ['roasted_turnip', 'baked_potato', 'grilled_bluegill'];
     expect(specialCandidates(s, GAME_DATA, 'spring')).toEqual([
       'turnip',
       'potato',
@@ -213,10 +215,17 @@ describe("today's specials", () => {
       'catfish',
       'koi',
       'petal_koi',
+      ...starters,
     ]);
-    expect(specialCandidates(s, GAME_DATA, 'winter')).toEqual(['bluegill']); // winter crops start at Farm Level 2
+    expect(specialCandidates(s, GAME_DATA, 'winter')).toEqual(['bluegill', ...starters]); // winter crops start at Farm Level 2
     s.stats.lifetimeGold = 300;
-    expect(specialCandidates(s, GAME_DATA, 'winter')).toEqual(['garlic', 'kale', 'leek', 'bluegill']);
+    expect(specialCandidates(s, GAME_DATA, 'winter')).toEqual([
+      'garlic',
+      'kale',
+      'leek',
+      'bluegill',
+      ...starters,
+    ]);
     s.expansions.push('river');
     expect(specialCandidates(s, GAME_DATA, 'winter')).toEqual([
       'garlic',
@@ -225,6 +234,7 @@ describe("today's specials", () => {
       'bluegill',
       'perch',
       'sturgeon',
+      ...starters,
     ]);
   });
 
