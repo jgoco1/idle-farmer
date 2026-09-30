@@ -534,3 +534,43 @@ Duration is minutes of simulated time, normal / hearty. Magnitude is after the t
 - **Buff seams:** durations are `buffDurationMs(tier, hearty, perk)` in `src/systems/buffs.ts` from `BUFF_BASE_DURATION_MS` and `BUFF_DURATION_GROWTH`; slots are `buffSlotCount`; eating is `eatDish` / `planEat`. A well-fed bonus belongs in `computeModifiers` (`src/systems/modifiers.ts`), which folds buffs in one pass.
 - **State changes need a `SAVE_VERSION` 8** with a migration and `tests/fixtures/save-v8.json`; `tests/qa.test.ts` "there is a fixture for every save version" will fail until the fixture exists.
 - **Keep the render path allocation-free** (see CLAUDE.md) and rerun `e2e/perf.spec.ts` (`PERF_PROFILE=1` writes the heap profile to `test-results/heap.json`).
+
+---
+
+## v2 Phase 00: Design update (world, decorations, orchard, animals)
+
+### Built
+Documentation only; no game code changed.
+- **`docs/GDD.md`:** §4 (trees count real days through a monotonic `calendar.dayIndex`), §5 (the world and camera note, phone layout), §6.4 and §6.6 notes, a new §6.8 summary table of the four v2 systems, §9 amended (animals in scope; artisan machines, quality tiers, games of chance and decoration income out), §10 (v2 phases), §11 **"v2 open questions"** (12 choices for the owner), and a new **§12** with each feature's player actions, idle behaviour, unlocks and phase: §12.1 the 36 × 22 world (ASCII map, regions, three parcels, controls, off-screen pips, phones), §12.2 decorations (three sets, 32 pieces), charm and six town projects, §12.3 the orchard (7 trees, fruit on calendar days with the reasoning), §12.4 chickens and cows (coop, barn, silo, feed, simulated-time production, gentle rules), §12.5 recipes, milestones, goals and bundles.
+- **`docs/BALANCE.md` §13:** parcel prices (680k), decoration price bands and every piece (catalogue 2.77M), charm formula and thresholds, town-project stages (8.5M, one `TOWN_PROJECT_SCALE` lever), the **"gold still to spend"** catalogue (≈ 13.8M with v1), its target curve by day and three simulator checks, the tree table and fruit formulas (`saplingPrice = 4 × V × seasons`), buildings, animals, feed and the production rule, 10 new recipes with scores and tiers (8/11/9/4 after v2), v2 milestones, goals and bundles, v2 pacing targets, what the simulator must learn per phase, and the constants for `balance.ts`.
+- **`docs/DATA_SCHEMAS.md` §9:** the new id unions (`ParcelId`, `DecorSetId`, `DecorId`, `TownProjectId`, `FruitId`, `TreeId`, `SaplingId`, `AnimalId`, `AnimalProductId`, `FeedId`, `BuildingId`) and extended ones, the new `UnlockCondition`, quest, reward and bundle kinds, **world coordinates** (§9.3: the v1 scene is the world's top-left at the same tiles; four coordinate spaces; the world only grows right and down), `ParcelDef`, `WorldLayout`, `DecorSetDef`, `DecorDef`, `TownProjectDef`, `TreeDef`, `AnimalDef`, `BuildingDef`, `FeedDef`, the calendar day index, the `GameState` additions, the camera in `Prefs`, actions and events, "no new modifiers", and the **save plan 8 → 11** with each migration's contract.
+- **`docs/ART_STYLE.md` §6:** two palette additions (`a` lamp glow, `A` slate → 49), the world scale rule, sizes and ids for trees (32 × 48, stages, seasonal canopies, fruit overlays), buildings with levels, animals with walk/idle/eat/sleep frames, decorations (auto-tiled paths and fences by a 4-bit mask, farmhouse layers), how glow is drawn after the night tint, set consistency rules, and two worked sprites (`tree_cherry_spring` 32 × 48, `animal_chicken_idle` 16 × 16) checked against the `tests/sprites.test.ts` rules.
+- **`CLAUDE.md`:** a "v2" section (world coordinates, camera in prefs, decorations are cosmetic, trees on real days, no games of chance). **`docs/IDEAS.md`:** six entries marked absorbed or partly absorbed, and a short list of ideas deliberately left out of v2.
+
+### Deviations
+- **World size 36 × 22 (3.3× the v1 area).** The prompt asks for "roughly 2 to 3 times" and gives 40 × 24 (4×) as an example; 36 × 22 sits between them and fits the four regions without empty filler. Open question 1 offers 40 × 24.
+- **No offset for the v1 area.** The prompt suggests the v1 area could become an offset region; it sits at world (0, 0) instead. Nothing in a v7 save stores a scene coordinate (sprinklers are in plot coordinates, traps are slots), so v7 → v8 only adds `land.parcels`, and every zone, e2e tile and test coordinate keeps its value.
+- **The sea under the old dock is always drawn** (the dock planks still come with `ocean`). A small visual change for v1 players who haven't bought the dock, needed so the inlet and the new coast join up.
+- **Trees stand on 10 fixed spots**, not anywhere; **saplings are bag items** (like seeds). Both keep planting legible and reuse existing patterns (trap slots, the seed shop).
+- **The farmhand's route covers plots and trees, not animals.** The prompt lists "an auto-feeder and a collector, the farmhand's routes"; the silo (auto-feeder) and the Collecting Basket automate animals, and the farmhand picks trees. Open question 10 offers the alternative.
+- **Feed can be bought** at the Ranch as a fallback (open question 9), because wheat and corn do not grow in spring or winter.
+- **No new T4 recipe.** Ten new recipes are T1–T3, so the phase 06 test that each season has exactly one T4 still holds unchanged.
+- **v2 milestones give no farm points**, so the Farm Level table (phase 09) does not shift.
+- **`docs/DATA_SCHEMAS.md` §8** still showed `SAVE_VERSION = 3` from phase 01; it now says 7 and points to the v2 plan.
+
+### Known issues
+- **Every v2 number is a first cut.** The gold-sink sizes assume about 40% of lifetime gold goes back into seeds (from the phase 09 notes, not measured); v2 phase 02's simulator run is expected to move `TOWN_PROJECT_SCALE`, and phases 03–04 to recheck after the orchard and animals add income.
+- The fruit and animal income targets (≈ 10% each) are estimates at base price; demand, specials, cooking and the Auto-Seller's hourly lumps will move them.
+- The world, decoration cap (260) and animal counts are sized for the phase 09 performance budgets, but nothing is measured yet: v2-01 extends `e2e/perf.spec.ts` to the full world.
+- GDD §5's ASCII screen still shows the v1 single screen; §12.1 has the world map.
+- Open questions (GDD §11) are unanswered until the owner replies.
+
+### Next-phase notes (for v2 phase 01: world and camera)
+- **Confirm GDD §11 "v2 open questions" 1 and 2 (world size, parcels) with the owner first.** If the size changes, update GDD §12.1's map, BALANCE §13.1's rects and DATA_SCHEMAS §9.3 in the same PR.
+- **Layout as data:** create `src/data/world.ts` (`WORLD_COLS = 36`, `WORLD_ROWS = 22`, `HOME_ORIGIN`, `HOME_RECT`, `WORLD_LAYOUT` with regions, lanes, sea rects, the bridge, town sites, the board tile, `treeSpots` and `forSaleSigns`, per DATA_SCHEMAS §9.3) and `src/data/parcels.ts` (`PARCELS: Record<ParcelId, ParcelDef>`, BALANCE §13.1). Add `ParcelId` to `src/data/ids.ts` and `parcels`, `world` to `GameData`.
+- **Rename first:** `Decor`/`DECOR`/`decorFor` in `src/render/scene.ts` → `Scenery`/`SCENERY`/`sceneryFor` (v2-02's decorations need the name).
+- **Keep v1 coordinates:** `PLOT_ORIGIN`, `BIN_TILE`, `PET_TILE`, `TRAP_TILES`, `GREENHOUSE_ORIGIN` and `buildZones` stay as they are (they are world tiles now); `tileAt` and `buildLayout` cover `WORLD_COLS × WORLD_ROWS`; the ground cache becomes 16 × 16-tile chunks.
+- **Parcels:** a `buyParcel` action → `src/systems/parcels.ts` (`buyParcel`, `parcelStatus`, `ownsParcel`), `UnlockCondition { kind: 'parcel' }` in `src/systems/unlocks.ts`, a `parcelBought` event, a **Land** section in the Upgrades panel (`src/ui/upgradesPanel.ts`, `purchaseGuard`), overgrowth and `obj_for_sale` from the scenery table shown `until` the parcel is owned.
+- **Camera:** `src/render/camera.ts` (pure: world ↔ screen, clamp, zoom around a point, integer zooms, default view = the home region at the v1 scale), `Prefs.camera` in `src/core/prefs.ts` (sanitised; `null` = default), the Home button replacing `src/ui/sceneControls.ts`'s zoom and pan buttons, input rules in GDD §12.1 (drag threshold 6 CSS px; keys ignored while typing).
+- **Save 8:** `migrations[7]` adds `land: { parcels: [] }`; add `tests/fixtures/save-v8.json` and a migration test that also hit-tests every v1 zone, plot and trap spot of the v7 fixture.
+- **Simulator:** add the `{ kind: 'parcel' }` want to `scripts/sim/brain.ts` after the v1 wish list, and the "Gold still to spend" table (BALANCE §13.4) to `scripts/sim/report.ts` so later phases extend it.

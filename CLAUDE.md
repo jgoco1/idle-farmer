@@ -23,6 +23,13 @@ This repo builds **Hearthfield Idle** (working title), a cozy idle farming, fish
 - `src/data/`: content tables and `balance.ts`. `src/render/`: `renderer.ts`, `scene.ts` (layout and hit-testing), sprites, particles, ambient life. `src/ui/`: HUD, panels, toasts, tutorial, placement mode, `purchaseGuard.ts`. `src/audio/`: procedural sound and music. `src/main.ts` wires everything.
 - `scripts/simulate.ts` + `scripts/sim/` (`driver.ts` the harness, `brain.ts` the player, `bots.ts` the strategies and schedules, `report.ts`): the balance simulator.
 
+## v2 (from v2 phase 00; details in GDD §12, BALANCE §13, DATA_SCHEMAS §9, ART_STYLE §6)
+- **World coordinates:** the world is 36 × 22 tiles and the v1 scene is its top-left corner **at the same tile coordinates** (`HOME_ORIGIN = (0, 0)` in `src/data/world.ts`). The world only grows right and down; never shift the home region. Plots keep plot coordinates and indexes, traps keep slots, trees use tree-spot indexes, decorations and buildings store the world tile of their footprint's top-left. The layout (regions, parcels, lanes, sea, town sites, tree spots) is data in `src/data/world.ts`, not constants scattered in render code.
+- **The camera is per device:** its position and zoom live in prefs (`src/core/prefs.ts`), never in `GameState` or the save. Zoom is an integer pixel scale. A drag past the threshold is a pan and never runs a farm action.
+- **Decorations are cosmetic.** Decorations, charm and town projects never feed `computeModifiers`, prices, growth or any timer, and no town project gives gold or an income multiplier. Charm is derived, never stored, and only unlocks decorations, milestones and goals.
+- **Trees count real days** through `ctx.calendar.dayIndex` (monotonic, like the week index); everything else in v2 is simulated time. Animals are gentle: unfed means no product, and nothing is ever lost or reduced. Wandering animals use the render-side RNG only.
+- **No games of chance**, and nothing that imitates one.
+
 ## Code conventions (from phase 01)
 - **Where things plug in:** a new system is a `tickX(state, ctx, dtMs)` in `src/systems/x.ts`, called from `tickSystems` in `src/systems/index.ts`. Any timer that changes a rate mid-step (water running out, a buff expiring) must be reported by `msToNextSimEvent` so the core splits steps there. Daily and seasonal reactions go in `onDayStarted` / `onSeasonChanged`.
 - **Adding an action:** add a variant to `Action` in `src/core/actions.ts`, handle it in `applyAction` by calling a system function, return an `ActionResult`. UI code calls `game.dispatch(action)` and shows `result.reason` on failure.

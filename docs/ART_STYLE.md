@@ -266,3 +266,164 @@ export const uiGold: SpriteDef = {
 2. Outline items and objects with `k`; light from the top-left.
 3. Check it at 1× and at 3× next to its neighbours in the scene.
 4. Give it a distinct silhouette from other items in the same category.
+
+---
+
+## 6. v2: world, decorations, trees, buildings and animals
+
+Written by v2 phase 00. Everything in §1–§5 still holds: palette keys only, 1 px `k` outlines on objects, light from the top-left, sizes in multiples of 16, frames on the render clock.
+
+**Scale rule in the world (amends §3).** The world is 576 × 352 logical px (36 × 22 tiles). The camera's zoom is the integer scale; the default zoom is §3's rule applied to the home region (320 × 192), so v1 players see the same scale. Positions stay whole logical pixels and the camera's offset is rounded to whole screen pixels, so nothing shimmers while panning. Letterboxing (a world smaller than the viewport at 1×) is `grass_dark`, as before. The static ground is cached in 16 × 16-tile chunks; the day/night tint covers the viewport, not the world.
+
+### 6.1 Palette additions (2, making 49)
+
+| Key | Name | Hex | Use |
+|---|---|---|---|
+| `a` | `lamp_glow` | `#ffe3a3` | the warm halo of lit lamps, lanterns, the lighthouse beam and lit windows at night. Only in glow sprites (`fx_glow_*`) and lit frames, never as a surface colour by day. |
+| `A` | `slate` | `#5b6478` | slate roof tiles, the harbour lamp's iron, the lighthouse cap, a cow's nose shading. A cool grey-blue the warm `stone_*` pair cannot give. |
+
+Everything else is drawn from the v1 palette: farmhouse paints use existing pairs (sage walls `G`/`H` with `h` shading; sky walls `J`/`c` with `j`), thatch uses `y`/`Y`/`P`, fruit uses `q`/`Q` (cherry, apple), `o`/`O` (apricot, persimmon), `i`/`I` with `O` (peach), `L`/`u` (pear), `u`/`U` (lemon); hens are `w`/`x` with a `q` comb and `o` beak and feet; cows are `w` with `k`/`K` patches and a `i` muzzle. Adding the two keys changes `tests/sprites.test.ts` "has the 47 colours" to 49 (v2-02 adds `a` with the lamps; v2-02 or v2-04 adds `A`, whichever first needs it).
+
+### 6.2 Sizes and names
+
+| Thing | Sprite size (px) | Footprint (tiles) | Anchor | Ids | Frames |
+|---|---|---|---|---|---|
+| Tree, every stage | **32 × 48** | 2 × 2 spot | bottom-center | `tree_<fruit>_sapling`, `tree_<fruit>_young`, `tree_<fruit>_<season>` (mature: spring, summer, autumn, winter) | 1 (a 2-frame sway for the mature canopy is optional, 900 ms) |
+| Fruit overlay | 32 × 48 | – | bottom-center | `fx_fruit_<fruit>_<n>`, n = 1, 2, 3 (a little, some, full: `fruit / cap` ≤ ⅓, ≤ ⅔, more) | 1 |
+| Coop | 48 × 48 | 3 × 2 | bottom-center | `obj_coop_1`, `_2`, `_3` | 1 (+ a lit-window night frame) |
+| Barn | 64 × 64 | 4 × 3 | bottom-center | `obj_barn_1`, `_2`, `_3` | 1 (+ night frame) |
+| Silo | 32 × 64 | 2 × 2 | bottom-center | `obj_silo_1`, `_2` | 1 |
+| Trough (drawn beside the coop and barn) | 16 × 16 | – | top-left | `obj_trough_empty`, `_some`, `_full` | 1 |
+| Hen | 16 × 16 | – (free, render only) | bottom-center | `animal_chicken_walk`, `_idle`, `_eat`, `_sleep` | walk 2 × 150 ms, idle 2 × 600 ms (look about), eat 2 × 200 ms (peck), sleep 1 |
+| Cow | 32 × 32 | – | bottom-center | `animal_cow_walk`, `_idle`, `_eat`, `_sleep` | walk 4 × 180 ms, idle 2 × 900 ms (tail swish), eat 2 × 300 ms (graze), sleep 1 |
+| Hearts (petting) | 16 × 16 | – | – | `fx_heart` | 3 × 120 ms, drawn as particles |
+| Decoration 1 × 1 | 16 × 16 (lamps and tall pieces 16 × 32) | 1 × 1 | bottom-center | `decor_<id>` | 1; glow pieces have a second, lit frame chosen by time of day, not animated |
+| Decoration 2 × 1 | 32 × 16 or 32 × 32 (arches, carts) | 2 × 1 | bottom-center | `decor_<id>` | 1 |
+| Decoration 2 × 2 | 32 × 32 (well, stall, figurehead), 32 × 64 (windmill) | 2 × 2 | bottom-center | `decor_<id>`; the windmill's sails are a separate 2-frame `decor_windmill_sails` (1,200 ms) | 1 |
+| Seasonal decoration | as its base | | | `decor_<id>_<season>` for the seasons that differ | 1 |
+| Path, fence (auto-tiled) | 16 × 16 | 1 × 1 | top-left | `decor_<id>_<mask>`, mask 0–15 = N 1, E 2, S 4, W 8 of same-id neighbours | 1 |
+| Farmhouse layers | 64 × 48 (walls), 64 × 48 (roof), 64 × 64 (roof with loft) | the v1 4 × 3 | top-left at (1, 1); the loft rises one tile into row 0 | `obj_farmhouse_walls_red` / `_sage` / `_sky`, `obj_farmhouse_roof_tile` / `_thatch` / `_slate`, each roof also as `…_loft` | 1 (the v1 chimney steam still plays on top) |
+| Town project sites | the site's size × 16, plus one tile of height | see GDD §12.1 | bottom-center | `obj_<project>_<stage>`, stage 0 = ruin | 1 (fountain water 2 × 400 ms; lighthouse beam is drawn as a glow, not a frame) |
+| Parcel overgrowth, sign | 16 × 16 | 1 × 1 | bottom-center | `obj_tall_grass`, `obj_weeds` (v1), `obj_stump` (v1), `obj_for_sale` | 1 |
+| Items | 16 × 16 | – | – | `item_<fruit>`, `item_sapling_<fruit>`, `item_egg`, `item_large_egg`, `item_milk`, `item_hay`, `item_corn_feed`, `item_<recipe>` | 1 |
+| Edge pip | 16 × 16 | – | – | `ui_pip_arrow` (rotated in 4 steps) plus the target's item icon | 1 |
+
+The generated sets (16 masks per path or fence) are built from a few hand-drawn parts (centre, straight, corner, end) by a helper in `src/render/sprites/`, and `tests/sprites.test.ts` checks the generated sprites like any other.
+
+### 6.3 Trees
+
+- **Stages grow up the same 32 × 48 frame:** a sapling is a stick with a few leaves in the bottom 16 px; a young tree is a thin trunk and a canopy about 20 px across; a mature tree fills the frame (canopy about 28 px across, trunk 5 px wide), its canopy rising about one tile above the spot. Orchard trees are **smaller and rounder than the v1 forest `obj_tree`**, so the orchard reads as planted.
+- **Three canopy families** keep seven trees consistent: `round` (apple, pear, persimmon), `tall` (lemon, cherry), `spread` (apricot, peach). Trees of one family share a canopy shape; each has its own leaf shading and blossom colour.
+- **Seasons:** spring blossom (pink `i`/`I` on cherry, apricot and peach; white `w` on apple, pear and lemon), summer full green, autumn gold and orange leaves (`u`, `o`, `O` mixed into `G`), winter bare branches (`m`, `M`) with a line of `w` snow. The two winter bearers (persimmon, lemon) keep their leaves in winter, snow-dusted, with fruit showing.
+- **Fruit** is an overlay in the fruit's colours (1 or 2 px fruit with a 1 px highlight, no outline inside the canopy), in three fullness levels, so seven trees need 21 overlays, not 7 × 4 × 3 full sprites.
+
+### 6.4 Buildings and animals
+
+- The **coop** is a small red-roofed hen house on legs with a ramp and a nest window; level 2 adds a side run with a wire front, level 3 a second storey and a weathervane. The **barn** is the classic red barn with white trim (`R`/`r` walls, `w` trim, `M` doors); level 2 adds a hay loft door, level 3 a lean-to and a cupola. The **silo** is a tall `N`/`n` metal cylinder with a `A` slate cap; level 2 adds a little chute to the troughs. Each building has a lit-window night frame.
+- **Hens** are 10–12 px tall inside their 16 × 16 cell, **cows** about 28 × 20 px inside 32 × 32, both with a 1 px `k` outline and a 1 px `K` ground shadow drawn by the renderer. Walking faces left or right by flipping the frame at draw time (no separate right-facing sprites). Asleep, hens tuck their heads (a round shape) and cows lie down.
+- Animals are drawn in the yard between the ground and the tall objects, sorted by their feet like every other object.
+
+### 6.5 Lamps and glow at night
+
+- A glowing piece has two frames: frame 0 by day, frame 1 **lit** (a `U`/`O` flame or bulb and `a` panes). The renderer picks the frame from the calendar: lit from dusk (18:30) to dawn (07:30).
+- After the day/night tint (§3), the renderer draws a **halo** for each visible lit piece: `fx_glow_small` (16 × 16) or `fx_glow_large` (32 × 32), made of `a` pixels in a soft round pattern (dense centre, sparse edge; dithering is allowed here), with the `lighter` composite at an alpha that follows the night tint's strength (0 by day, full at midnight). That is how fireflies are drawn (phase 08), so glow never touches the scene cache and allocates nothing per frame.
+- The lighthouse beam is a long, thin `a` wedge from the lamp room, rotating on the render clock (a full turn every 8 s), drawn with the halos and clipped to the sea. Under reduced motion it stays still, pointing out to sea.
+- Lit farmhouse, coop and barn windows use the same halo at a lower alpha.
+
+### 6.6 Keeping the decoration sets consistent
+
+- **One material per set, used everywhere in it.** Cottage: pale painted wood (`P`, `p`, `w`), cobbles (`N`, `n`), flowers in `i`, `u`, `V`. Seaside: weathered driftwood (`p`, `N`, `K`), rope (`y`, `Y`), sea blues (`c`, `B`), sand (`y`). Harvest Fair: warm red brick (`R`, `r`), straw (`y`, `Y`, `u`), pumpkin orange (`o`, `O`), dark wood (`m`, `M`).
+- **Same outline and light as v1:** a 1 px `k` outline on every placed piece, top-left highlights, a `K` shadow on the bottom-right edge. Paths and fences are terrain-like: paths have no outline (like `tile_path`), fences do (like `obj_fence_h`).
+- **A 16 px grid inside every piece:** posts, legs and lamp stands sit on tile centres or edges, so pieces placed side by side line up.
+- **Every set has one path, one fence, one lamp and one showpiece**, so any set can decorate a whole area on its own.
+- Check each new piece at 1× and 3× next to the farmhouse, a crop and another piece of its set, by day and at midnight (debug time-warp), and in winter with the snow dusting.
+
+### 6.7 Worked examples
+
+Both use only v1 palette keys and pass the rules of `tests/sprites.test.ts` (width and height multiples of 16, equal rows, palette keys only, no `t`/`T`).
+
+**Mature cherry tree in spring bloom (`tree_cherry_spring`), 32 × 48, bottom-center.** The canopy rises about a tile above its 2 × 2 spot; pink `i`/`I` blossom; trunk `m`/`M`/`p`. The summer, autumn and winter sprites keep the same outline and trunk and change only the canopy's colours.
+
+```ts
+export const treeCherrySpring: SpriteDef = {
+  id: 'tree_cherry_spring',
+  anchor: 'bottom-center',
+  frames: [[
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '................................',
+    '.............kkkkkk.............',
+    '..........kkkGHHHHGkkk..........',
+    '........kkGHHIGGGGHHGGkk........',
+    '.......kGHHGGGGGiGGGHHGGk.......',
+    '......kGHIGGGGGGGGGGGGGGGk......',
+    '.....kGHGGGGiGGGGGIGGGgGGGk.....',
+    '.....kHGGGGGGGGGGGGGGGGGgGk.....',
+    '.....kHGGGGGGGGGGGGGGGGGgGk.....',
+    '....kGHGIGGGGGgGGGGGGiGGGggk....',
+    '....kHGGGGGGGGGGGGGgGGGGGggk....',
+    '....kHGGGGGGGGGGGGGgGGGGGggk....',
+    '....kGGGGGGiGGGGIGGGGGGgGggk....',
+    '...kGHGGGGGGGGGGGGGGGGgGgggk....',
+    '...kGHGGGGGGGGGGGGGGGGgGgggk....',
+    '...kHGGGIGGGGGGgGGGGiGGGgghgk...',
+    '...kGGGGGGGGGGGGGGGGGGGgghggk...',
+    '...kGGGGGGGGGGGGGGGGGGGgghggk...',
+    '...kGGGGGGGGgGGiGGGGgGGGgghhk...',
+    '...kgGGiGGGGGGGGGGGGGGggghhgk...',
+    '...kgGGiGGGGGGGGGGGGGGggghhgk...',
+    '....kgGGGGGGGGGGGGGGgGgghhhk....',
+    '....kggGGGGIGGGGgGGGgggghhhk....',
+    '....kggGGGGIGGGGgGGGgggghhhk....',
+    '....kgggGGGGGGGGGGGggiggghhk....',
+    '.....kgggGgGGGgGGgggghhhhlk.....',
+    '.....kggggggggggggghhhhhlk......',
+    '......kkgghhggghhhhhhllkk.......',
+    '........kkhhhlhhhllllkk.........',
+    '..........kkkkmMMmkkkk..........',
+    '.............kmMpmk.............',
+    '.............kmMpmk.............',
+    '.............kmMpmk.............',
+    '.............kmMpmk.............',
+    '.............kmMpmk.............',
+    '.............kmMpmk.............',
+    '............kmMMpMmk............',
+    '...........kmMmMMmMmk...........',
+    '...........kkkkkkkkkk...........',
+  ]],
+};
+```
+
+**Hen, idle (`animal_chicken_idle`, frame 1 of 2), 16 × 16, bottom-center.** White body `w`, cream wing `x`, red comb `q`, orange beak and feet `o`. The real sprite adds a second idle frame (`frameMs: 600`) that turns the head (the eye moves one pixel); the walk, eat and sleep frames keep the same body.
+
+```ts
+export const animalChickenIdle: SpriteDef = {
+  id: 'animal_chicken_idle',
+  anchor: 'bottom-center',
+  frames: [[
+    '................',
+    '................',
+    '.......kk.......',
+    '......kqqk......',
+    '.....kwwwwk.....',
+    '.....kwkwwk.....',
+    '....koowwwk.....',
+    '.....kkwwwwk....',
+    '......kwwwwwkk..',
+    '.....kwwwxwwwk..',
+    '.....kwwxxxwwk..',
+    '......kwxxxwk...',
+    '.......kkkkk....',
+    '........o.o.....',
+    '.......oo.oo....',
+    '................',
+  ]],
+};
+```

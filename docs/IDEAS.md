@@ -2,10 +2,10 @@
 
 Ideas that came up during a phase but were outside its scope. Add one line per idea: **what**, **why**, and **which phase or version** could own it. Reviewed after phase 09.
 
-- **Winter-only recipes** (hot cocoa, leek soup) and a winter kitchen speed bonus, to make winter cooking week richer. Owner liked the winter-cooking direction; add via `templates/add-content.md` after phase 06, or in phase 09 if pacing needs it.
+- *Partly absorbed by v2 (v2-03/04): Persimmon Pudding and Lemon Meringue Pie are cookable from winter-fresh ingredients (BALANCE §13.8); the winter kitchen speed bonus is still open.* **Winter-only recipes** (hot cocoa, leek soup) and a winter kitchen speed bonus, to make winter cooking week richer. Owner liked the winter-cooking direction; add via `templates/add-content.md` after phase 06, or in phase 09 if pacing needs it.
 - **Rain days** that water every plot, tied to the real calendar. Adds weather (out of scope for v1).
-- **A bigger scene on narrow phones**: at 360 px wide and a 1× pixel ratio the integer-scale rule leaves the scene at 320 × 192 CSS px with 16 px tap targets. A portrait layout (taller scene, or 2× with horizontal panning) would be friendlier. Phase 08 (mobile).
-- **Decor on locked lots**: reeds along the future river, a "For sale" sign on the old dock, so locked zones read as clickable before they are bought. (Phase 03 put two old trees on the greenhouse lot until `farm_3`.) Phase 05 (river/ocean) or 08 (polish).
+- *Absorbed by v2-01 (GDD §12.1 "Phones"): the camera fills the space at ≥ 2× and one finger pans.* **A bigger scene on narrow phones**: at 360 px wide and a 1× pixel ratio the integer-scale rule leaves the scene at 320 × 192 CSS px with 16 px tap targets. A portrait layout (taller scene, or 2× with horizontal panning) would be friendlier. Phase 08 (mobile).
+- *Partly absorbed by v2-01 (GDD §12.1): locked parcels are overgrown with a "For sale" sign, and the old dock shore gets one too; reeds along the future river are still open.* **Decor on locked lots**: reeds along the future river, a "For sale" sign on the old dock, so locked zones read as clickable before they are bought. (Phase 03 put two old trees on the greenhouse lot until `farm_3`.) Phase 05 (river/ocean) or 08 (polish).
 - **A clearer "watered" cue**: wet and dry soil differ only by one shade, which is subtle at 1× on phones. A few droplet pixels or a darker rim on wet plots would read faster. Phase 08 (polish).
 - **Selling or composting unplantable seeds** (out-of-season seeds sit in the bag until their season returns). Phase 03 kept seeds unsellable; a buy-back at a fraction of the price, or a compost bin that gives a small growth boost, could fit phase 04 or 08.
 - **"Harvest all ready" and "Water all" buttons** in addition to shift-click, for touch players who find shift-click unavailable and dragging fiddly. Phase 08 (mobile).
@@ -37,17 +37,25 @@ Ideas that came up during a phase but were outside its scope. Add one line per i
 - **A daily goal streak** (three goals done in a day) for the casual idler. Owner call; phase 09 if idle pacing wants a reason to visit.
 
 
-- **Pinch-to-zoom and two-finger pan for the scene** on phones (today: a 2× button and a pan switch). Phase 09 or later.
+- *Absorbed by v2-01 (GDD §12.1 "Camera and controls").* **Pinch-to-zoom and two-finger pan for the scene** on phones (today: a 2× button and a pan switch). Phase 09 or later.
 - **A real-device audio pass**: listen on phone speakers and headphones, tune `vol` in `SOUNDS` and `loopNotes`, and consider a per-season second melody. Phase 09.
 - **A dog as well as a cat**, chosen by save, with a second pet sprite and a sleeping-pose variation at night. Later polish.
 - **Number format everywhere** (panels, toasts, popups), and a Settings "Compact HUD" for phones. Later polish.
 - **A sticky tab row and collapsible sections** for the Goals and Upgrades bottom sheets on phones. Later polish.
 
 Phase 09 (simulator findings, for v2):
-- **A late-game gold sink**: by day 7 a keen player has earned 3 million gold and every upgrade, expansion and card together costs about 523k, so gold means nothing for the last three weeks of a 30-day run. Farmhouse rooms, decorations, town projects on the Community Board, or a "gift to the market" that raises every price floor. v2 content.
+- *Absorbed by v2 (v2-01 parcels, v2-02 decorations and town projects, v2-03/04 saplings and the ranch; BALANCE §13.4 "Gold still to spend"). The "gift to the market" that raises price floors was not taken: it would be an income bonus.* **A late-game gold sink**: by day 7 a keen player has earned 3 million gold and every upgrade, expansion and card together costs about 523k, so gold means nothing for the last three weeks of a 30-day run. Farmhouse rooms, decorations, town projects on the Community Board, or a "gift to the market" that raises every price floor. v2 content.
 - **Busy Bees that matters late**: once the farmhand is Level 3+, it is never the bottleneck, so `automationSpeed` is worth ~0 gold. Let it also shorten the Shipping Bin interval or speed regrowth of automated plots. v2 balance.
-- **A gold-buff dish for winter** (and a second one for summer): today's winter dishes boost XP, fishing and cooking, so keeping buffs up in winter is about XP, not gold. Could ride the "winter-only recipes" idea above. v2 content.
+- *Absorbed by v2-03/04: Persimmon Pudding (winter, T3 Silver Tongue) and Peach Cobbler (summer, T3 Silver Tongue), BALANCE §13.8.* **A gold-buff dish for winter** (and a second one for summer): today's winter dishes boost XP, fishing and cooking, so keeping buffs up in winter is about XP, not gold. Could ride the "winter-only recipes" idea above. v2 content.
 - **Goal draws that do not depend on how an offline walk is split**: goals are redrawn with the seeded RNG at the end of a step, so the same absence walked in different step sizes can draw different goals (and seed or card rewards). A separate RNG stream for goals, or drawing only at the end of a catch-up, would make an absence fully reproducible. v2 engine.
 - **A "Pull up" hint and confirm**: phase 09 lets the Hoe pull up a regrower that has given a harvest; a tooltip on such plots ("Hoe: pull up") and a one-time confirmation would make the rule discoverable. Later polish.
 - **A human-like fisher in the simulator**: the bots model active fishing as catches per minute; replaying the real reel minigame with a reaction-time model would test the minigame's difficulty curve and Relaxed fishing. Tooling.
 - **Seed restocking for idle farms** (see "Buy seeds from the farmhand's route" above): the simulator confirms it: an automated farm of single-harvest crops stalls overnight without a big seed stock, which is the main thing a casual player must remember before leaving. v2.
+
+v2 phase 00 (design update; ideas kept out of v2 on purpose):
+- **Rotating decorations** (only flipping in v2) and **seasonal decoration packs** sold for one season a year. Later v2 content via `templates/add-content.md`.
+- **A world minimap** in a corner, with the edge pips' targets on it. Could follow v2-01 if the world grows again.
+- **More animal kinds** (ducks, goats, sheep) and **more tree kinds** (cherry blossom that bears nothing, a golden apple): out of scope for v2 (GDD §9); a later content phase.
+- **Grafting and tree quality, animal affection and breeding**: out of scope (GDD §9). Not planned.
+- **Busy Bees that also shortens animal cycles** (see "Busy Bees that matters late" above): v2 keeps animal cycles fixed; a later balance phase could use this seam.
+- **A town-square noticeboard of townsfolk requests** (deliver 10 eggs by Sunday): would need NPCs or a new quest kind; out of v2 scope.
