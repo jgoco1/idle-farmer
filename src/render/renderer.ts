@@ -3,6 +3,7 @@
 // (ART_STYLE.md §3). The renderer only reads state; clicks go out through `onZoneClick`.
 
 import type { Calendar } from '../core/time';
+import type { ExpansionId } from '../data/ids';
 import { PALETTE } from './palette';
 import {
   buildLayout,
@@ -78,6 +79,7 @@ export class Renderer {
   private layout!: SceneLayout;
   private zones: Zone[] = [];
   private grid: Grid = { cols: 0, rows: 0 };
+  private sceneKey = '';
   private hover: { col: number; row: number } | null = null;
   private stroke: { pointerId: number; lastPlot: number } | null = null;
   private fx: Fx[] = [];
@@ -152,17 +154,28 @@ export class Renderer {
     this.fx.push({ sprite, ...plotTile(this.grid, index), start: timeMs });
   }
 
-  /** Rebuilds the static layer when the plot grid changes (expansions, from phase 03). */
-  setGrid(grid: Grid): void {
-    if (grid.cols === this.grid.cols && grid.rows === this.grid.rows) return;
+  /** Rebuilds the static layer when the plot grid or the bought expansions change. */
+  setScene(grid: Grid, expansions: readonly ExpansionId[] = []): void {
+    const key = `${grid.cols}x${grid.rows}|${expansions.join(',')}`;
+    if (key === this.sceneKey) return;
+    this.sceneKey = key;
     this.grid = { cols: grid.cols, rows: grid.rows };
-    this.layout = buildLayout(this.grid);
+    this.layout = buildLayout(this.grid, expansions);
     this.zones = buildZones(this.grid);
     const g = context2d(this.ground);
     g.clearRect(0, 0, SCENE_W, SCENE_H);
     this.layout.ground.forEach((line, row) =>
       line.forEach((sprite, col) => g.drawImage(spriteFrame(sprite), col * TILE, row * TILE)),
     );
+  }
+
+  /** Viewport (client) coordinates of the centre of scene tile (col, row), for DOM effects. */
+  tileClientCenter(col: number, row: number): { x: number; y: number } {
+    const rect = this.canvas.getBoundingClientRect();
+    return {
+      x: rect.left + ((col + 0.5) * TILE * rect.width) / SCENE_W,
+      y: rect.top + ((row + 0.5) * TILE * rect.height) / SCENE_H,
+    };
   }
 
   get currentScale(): number {

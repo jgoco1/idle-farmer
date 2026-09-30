@@ -10,7 +10,7 @@
 import { createInitialState, cloneState, type GameState } from './state';
 import type { LocalClock } from './time';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 export const SAVE_KEY = 'hearthfield-idle/save';
 export const AUTOSAVE_MS = 15_000;
 
@@ -41,6 +41,20 @@ export const migrations: Record<number, Migration> = {
       inventory: { slots, stackSize: 99 },
     };
   },
+  /**
+   * v2 → v3 (phase 03, economy): adds the market (every item at demand 1.0, no specials until the
+   * next 06:00 refresh, empty sparklines), an empty shipping bin with a full hour to its first
+   * pickup, no expansions (phase 02 grids were always 4 × 2), zeroed statistics (so the provisional
+   * farm level starts at 1) and no upgrades.
+   */
+  2: (old) => ({
+    ...old,
+    market: { items: {}, specials: [] },
+    shippingBin: { items: [], msToPickup: 3_600_000 },
+    expansions: [],
+    stats: { lifetimeGold: 0, goldToday: 0, cropsHarvested: 0, itemsShipped: 0, daysPassed: 0 },
+    upgrades: {},
+  }),
 };
 
 export class SaveError extends Error {
@@ -107,9 +121,35 @@ function farmProblem(farm: unknown): string | null {
 function inventoryProblem(inv: unknown): string | null {
   if (!isObj(inv) || !Array.isArray(inv.slots) || !isInt(inv.stackSize)) return 'bad inventory';
   for (const s of inv.slots) {
-    if (s === null) continue;
-    if (!isObj(s) || typeof s.item !== 'string' || !isInt(s.qty) || s.qty <= 0) return 'bad inventory slot';
+    if (s !== null && stackProblem(s)) return 'bad inventory slot';
   }
+  return null;
+}
+
+function stackProblem(s: unknown): boolean {
+  return !isObj(s) || typeof s.item !== 'string' || !isInt(s.qty) || s.qty <= 0;
+}
+
+function economyProblem(s: Record<string, unknown>): string | null {
+  const { market, shippingBin, expansions, stats, upgrades } = s;
+  if (!isObj(market) || !isObj(market.items) || !Array.isArray(market.specials)) return 'bad market';
+  for (const e of Object.values(market.items)) {
+    if (!isObj(e) || !isNum(e.demand) || !isInt(e.lastSoldSimMs) || !Array.isArray(e.history))
+      return 'bad market item';
+    if (!e.history.every(isNum)) return 'bad market item';
+  }
+  for (const sp of market.specials) {
+    if (!isObj(sp) || typeof sp.item !== 'string' || !isNum(sp.bonus)) return 'bad market special';
+  }
+  if (!isObj(shippingBin) || !Array.isArray(shippingBin.items) || !isInt(shippingBin.msToPickup))
+    return 'bad shipping bin';
+  if (shippingBin.msToPickup <= 0 || shippingBin.items.some(stackProblem)) return 'bad shipping bin';
+  if (!Array.isArray(expansions) || !expansions.every((x) => typeof x === 'string')) return 'bad expansions';
+  if (!isObj(stats)) return 'bad stats';
+  for (const k of ['lifetimeGold', 'goldToday', 'cropsHarvested', 'itemsShipped', 'daysPassed']) {
+    if (!isInt(stats[k])) return 'bad stats';
+  }
+  if (!isObj(upgrades) || !Object.values(upgrades).every(isInt)) return 'bad upgrades';
   return null;
 }
 
@@ -132,7 +172,8 @@ export function validateState(s: unknown): string | null {
   if (!isObj(settings) || !isNum(settings.masterVolume)) return 'bad settings';
   if (!isObj(meta) || !isNum(meta.createdAt) || !isNum(meta.lastSavedAt) || !isNum(meta.playTimeMs))
     return 'bad meta';
-  return farmProblem(s.farm) ?? inventoryProblem(s.inventory);
+  if (!Number.isInteger(s.gold) || s.gold < 0) return 'bad gold';
+  return farmProblem(s.farm) ?? inventoryProblem(s.inventory) ?? economyProblem(s);
 }
 
 /** Builds the SaveFile for `state` at real time `now`. The debug time warp is never saved. */

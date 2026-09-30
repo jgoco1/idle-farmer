@@ -14,8 +14,12 @@ import {
   START_STACK_SIZE,
   START_TILLED_COLS,
 } from '../data/balance';
-import type { CropId } from '../data/ids';
+import { BIN_PICKUP_MS } from '../data/balance';
+import { GAME_DATA } from '../data';
+import type { CropId, ExpansionId, ItemId, UpgradeId } from '../data/ids';
 import type { ItemStack } from '../data/types';
+import { createRng } from './rng';
+import { openMarketDay } from '../systems/market';
 
 export type PlotState = 'untilled' | 'tilled' | 'planted' | 'dead';
 
@@ -31,6 +35,37 @@ export interface Plot {
 export interface Inventory {
   slots: (ItemStack | null)[]; // length = slot capacity
   stackSize: number; // 99 base, barn storage raises it (@04)
+}
+
+/** Market state of one item (DATA_SCHEMAS.md §6). Items without an entry are at demand 1.0. */
+export interface MarketItemState {
+  demand: number; // DEMAND_FLOOR .. DEMAND_CEIL
+  lastSoldSimMs: number; // clock.simMs of the last sale, -1 if never sold
+  history: number[]; // effective price multiplier at each of the last 7 daily (06:00) refreshes
+}
+
+export interface MarketSpecial {
+  item: ItemId;
+  bonus: number; // 0.2 .. 0.5
+}
+
+export interface MarketState {
+  items: Partial<Record<ItemId, MarketItemState>>;
+  specials: MarketSpecial[]; // today's specials, re-rolled at each daily refresh
+}
+
+export interface ShippingBin {
+  items: ItemStack[];
+  msToPickup: number; // simulated ms until the next hourly pickup
+}
+
+/** Lifetime and daily statistics (@03; later phases add fish, dishes, …). */
+export interface Stats {
+  lifetimeGold: number; // all gold ever earned (drives the provisional farm level)
+  goldToday: number; // gold earned since the last 06:00 refresh
+  cropsHarvested: number; // units
+  itemsShipped: number; // units sold through the Shipping Bin
+  daysPassed: number; // daily refreshes seen
 }
 
 export interface Settings {
@@ -53,13 +88,21 @@ export interface GameState {
     greenhouse: Plot[]; // @04, empty until built
   };
   inventory: Inventory;
+
+  // ---- economy (@03)
+  market: MarketState;
+  shippingBin: ShippingBin;
+  expansions: ExpansionId[]; // bought, in order
+  stats: Stats;
+  /** Upgrade levels (@03 for the backpack; phase 04 adds the rest). */
+  upgrades: Partial<Record<UpgradeId, number>>;
 }
 
 export const DEFAULT_SETTINGS: Settings = { masterVolume: 0.8 };
 
 /** A brand-new save created at real time `now`. `seed` defaults to one derived from `now`. */
 export function createInitialState(now: number, lc: LocalClock, seed: number = seedFrom(now)): GameState {
-  return {
+  const state: GameState = {
     clock: { simMs: 0, speed: 1 },
     calendar: createCalendarState(now, lc),
     rngState: seed >>> 0,
@@ -68,7 +111,19 @@ export function createInitialState(now: number, lc: LocalClock, seed: number = s
     meta: { createdAt: now, lastSavedAt: now, playTimeMs: 0 },
     farm: createStartingFarm(),
     inventory: createStartingInventory(),
+    market: { items: {}, specials: [] },
+    shippingBin: { items: [], msToPickup: BIN_PICKUP_MS },
+    expansions: [],
+    stats: createStartingStats(),
+    upgrades: {},
   };
+  // A new farm opens with today's specials and the first sparkline point (every save starts in spring).
+  openMarketDay(state, GAME_DATA, createRng(state), 'spring');
+  return state;
+}
+
+export function createStartingStats(): Stats {
+  return { lifetimeGold: 0, goldToday: 0, cropsHarvested: 0, itemsShipped: 0, daysPassed: 0 };
 }
 
 export function emptyPlot(state: PlotState = 'untilled'): Plot {

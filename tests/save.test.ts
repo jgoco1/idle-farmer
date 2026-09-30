@@ -20,7 +20,8 @@ import {
 import { createInitialState } from '../src/core/state';
 import { computeSeasonEpoch } from '../src/core/time';
 import fixtureV1 from './fixtures/save-v1.json';
-import fixture from './fixtures/save-v2.json';
+import fixtureV2 from './fixtures/save-v2.json';
+import fixture from './fixtures/save-v3.json';
 import { at, NY } from './helpers';
 
 const FIXTURE_TEXT = JSON.stringify(fixture);
@@ -36,23 +37,38 @@ function memoryStorage(initial: Record<string, string> = {}): SaveStorage & { da
 }
 
 describe('save file', () => {
-  it('is at version 2 (phase 02) with one migration per older version', () => {
-    expect(SAVE_VERSION).toBe(2);
-    expect(Object.keys(migrations)).toEqual(['1']);
+  it('is at version 3 (phase 03) with one migration per older version', () => {
+    expect(SAVE_VERSION).toBe(3);
+    expect(Object.keys(migrations)).toEqual(['1', '2']);
     expect(SAVE_KEY).toBe('hearthfield-idle/save');
   });
 
-  it('the v2 fixture loads unchanged', () => {
+  it('the v3 fixture loads unchanged', () => {
     const file = parseSave(FIXTURE_TEXT);
     expect(file).toEqual(fixture);
   });
 
   it('the fixture has exactly the shape of a new state (bump SAVE_VERSION if this fails)', () => {
-    const keys = (o: object): string[] =>
-      Object.entries(o)
-        .flatMap(([k, v]) => (v && typeof v === 'object' ? [k, ...keys(v).map((c) => `${k}.${c}`)] : [k]))
-        .sort();
-    expect(keys(fixture.state)).toEqual(keys(createInitialState(0, NY)));
+    // Arrays and id-keyed records (market items, upgrades) are compared by the shape of their entries.
+    const RECORDS = new Set(['market.items', 'upgrades']);
+    const keys = (o: object, path = ''): string[] => {
+      const out = new Set<string>();
+      const children: [string, unknown][] =
+        Array.isArray(o) || RECORDS.has(path)
+          ? Object.values(o).map((v): [string, unknown] => ['*', v])
+          : Object.entries(o);
+      for (const [k, v] of children) {
+        const p = path ? `${path}.${k}` : k;
+        out.add(p);
+        if (v && typeof v === 'object') for (const c of keys(v, p)) out.add(c);
+      }
+      return [...out].sort();
+    };
+    const fresh = createInitialState(0, NY);
+    fresh.upgrades.backpack = 1; // a new save owns no upgrades yet, so give the record an entry
+    fresh.shippingBin.items.push({ item: 'turnip', qty: 1 });
+    fresh.expansions.push('farm_1');
+    expect(keys(fixture.state)).toEqual(keys(fresh));
   });
 
   it('the fixture calendar is consistent with the time rules', () => {
@@ -93,6 +109,13 @@ describe('save file', () => {
     expect(bad((c) => (c.farm.plots[0]!.state = 'planted'))).toBe('bad plot crop');
     expect(bad((c) => (c.inventory.slots[0] = { item: 'turnip', qty: 0 }))).toBe('bad inventory slot');
     expect(bad((c) => delete (c as Partial<typeof c>).inventory)).toBe('bad inventory');
+    expect(bad((c) => (c.gold = 1.5))).toBe('bad gold');
+    expect(bad((c) => (c.market.items.turnip = { demand: 'high' as never, lastSoldSimMs: -1, history: [] }))).toBe(
+      'bad market item',
+    );
+    expect(bad((c) => (c.shippingBin.msToPickup = 0))).toBe('bad shipping bin');
+    expect(bad((c) => (c.stats.lifetimeGold = NaN))).toBe('bad stats');
+    expect(bad((c) => (c.upgrades.backpack = 'x' as never))).toBe('bad upgrades');
   });
 });
 
@@ -140,9 +163,9 @@ describe('migrations', () => {
     expect(validateState(file.state)).toBeNull();
   });
 
-  it('migrates a phase-01 (v1) save into a valid phase-02 save', () => {
+  it('migrates a phase-01 (v1) save into a valid current save', () => {
     const file = parseSave(JSON.stringify(fixtureV1));
-    expect(file.version).toBe(2);
+    expect(file.version).toBe(SAVE_VERSION);
     expect(file.savedAt).toBe(fixtureV1.savedAt);
     const s = file.state;
     // Everything from v1 is kept.
@@ -156,6 +179,7 @@ describe('migrations', () => {
     expect(s.gold).toBe(60);
     expect(s.farm).toEqual(fresh.farm);
     expect(s.inventory).toEqual(fresh.inventory);
+    expect(s.stats).toEqual(fresh.stats);
     expect(s.farm.plots.map((p) => p.state)).toEqual([
       'tilled',
       'tilled',
@@ -166,6 +190,27 @@ describe('migrations', () => {
       'untilled',
       'untilled',
     ]);
+  });
+
+  it('migrates a phase-02 (v2) save into a valid phase-03 save with default market values', () => {
+    const file = parseSave(JSON.stringify(fixtureV2));
+    expect(file.version).toBe(3);
+    const s = file.state;
+    // Everything from v2 is kept.
+    const { state: old } = fixtureV2;
+    expect(s.clock).toEqual(old.clock);
+    expect(s.calendar).toEqual(old.calendar);
+    expect(s.rngState).toBe(old.rngState);
+    expect(s.gold).toBe(old.gold);
+    expect(s.farm).toEqual(old.farm);
+    expect(s.inventory).toEqual(old.inventory);
+    // Every item is at demand 1.0 (no entries), no specials until the next 06:00, an empty bin.
+    expect(s.market).toEqual({ items: {}, specials: [] });
+    expect(s.shippingBin).toEqual({ items: [], msToPickup: 3_600_000 });
+    expect(s.expansions).toEqual([]);
+    expect(s.stats).toEqual({ lifetimeGold: 0, goldToday: 0, cropsHarvested: 0, itemsShipped: 0, daysPassed: 0 });
+    expect(s.upgrades).toEqual({});
+    expect(validateState(s)).toBeNull();
   });
 
   it('keeps gold a v1 save somehow already had', () => {

@@ -1,8 +1,10 @@
 import { START_GRID } from './balance';
 import { CROPS } from './crops';
-import type { CropId, ItemId } from './ids';
+import { EXPANSIONS } from './expansions';
+import type { CropId, ExpansionId, ItemId, UpgradeId } from './ids';
 import { ITEMS } from './items';
-import type { CropDef, ItemDef } from './types';
+import type { CropDef, ExpansionDef, ItemDef, UpgradeDef } from './types';
+import { UPGRADES } from './upgrades';
 
 /**
  * Everything in src/data, gathered once (DATA_SCHEMAS.md §4.10). Systems receive it through
@@ -13,10 +15,15 @@ export interface GameData {
   crops: Readonly<Record<CropId, CropDef>>;
   /** Partial until phases 05/06 add fish, junk and dishes. */
   items: Readonly<Partial<Record<ItemId, ItemDef>>>;
+  expansions: Readonly<Record<ExpansionId, ExpansionDef>>;
+  /** Partial until phases 04–06 add the rest. */
+  upgrades: Readonly<Partial<Record<UpgradeId, UpgradeDef>>>;
 }
 
 export const GAME_DATA: GameData = Object.freeze({
   startGrid: START_GRID,
   crops: CROPS,
   items: ITEMS,
+  expansions: EXPANSIONS,
+  upgrades: UPGRADES,
 });

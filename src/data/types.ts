@@ -59,3 +59,49 @@ export interface CropDef {
   xp: number; // Farming XP per harvested unit (phase 07)
   description: string; // one cozy line for tooltips
 }
+
+/** Upgrade cost curve: cost to go from level n to n+1 (or buy the (n+1)th placeable) = roundNice(base * ratio^n). */
+export interface CostCurve {
+  base: number;
+  ratio: number;
+}
+
+export type UpgradeCategory = 'farm' | 'tools' | 'storage' | 'fishing' | 'kitchen';
+
+/** Each upgrade uses the fields relevant to it; unused fields are omitted. */
+export interface UpgradeEffect {
+  inventorySlots?: number; // backpack (phase 03)
+  // phase 04+: radius, shape, growthBonus, intervalSec, capacity, toolArea, stackSize, …
+}
+
+export interface UpgradeDef {
+  id: UpgradeId;
+  name: string;
+  category: UpgradeCategory;
+  kind: 'leveled' | 'placeable';
+  /** leveled: highest level. placeable: most units the player may own. */
+  max: number;
+  cost: CostCurve;
+  /** Human-readable name/effect per level, index = level (index 0 = not owned / base). */
+  effectText: readonly string[];
+  /** Numeric effect table read by systems, index = level. */
+  effect: readonly UpgradeEffect[];
+  requires: readonly UnlockCondition[];
+}
+
+export interface ExpansionDef {
+  id: ExpansionId;
+  name: string;
+  kind: 'farm' | 'fishing';
+  price: number;
+  /** farm_n requires farm_(n-1); some need a farm level. */
+  requires: readonly UnlockCondition[];
+  /** farm: the plot grid size after buying. */
+  grid?: { cols: number; rows: number };
+  /** fishing: the location it opens (phase 05). */
+  location?: 'river' | 'ocean';
+  /** Short note of what changes in the scene. */
+  sceneChange: string;
+  /** One cozy line for the Upgrades panel. */
+  description: string;
+}

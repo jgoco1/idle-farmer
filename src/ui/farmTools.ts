@@ -168,7 +168,7 @@ export class FarmTools {
     const owned = CROP_IDS.filter((c) => countItem(state.inventory, seedOf(c)) > 0);
     if (owned.length === 0) {
       this.pickerList.append(
-        h('p', { class: 'muted', text: 'No seeds. The Seed Crate in the Shop has some.' }),
+        h('p', { class: 'muted', text: 'No seeds. The Shop has some.' }),
       );
     }
     for (const crop of owned) {

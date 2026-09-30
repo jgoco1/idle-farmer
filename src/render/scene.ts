@@ -2,6 +2,7 @@
 // (GDD §5). Pure (no DOM), so layout and hit-testing are unit-tested.
 
 import type { Plot } from '../core/state';
+import type { ExpansionId } from '../data/ids';
 import { anchoredPosition } from './spriteCache';
 import { spriteDef } from './sprites';
 
@@ -21,7 +22,10 @@ export interface TileRect {
   rows: number;
 }
 
-export type ZoneId = 'plots' | 'farmhouse' | 'pond' | 'market' | 'greenhouse' | 'river' | 'dock';
+export type ZoneId = 'plots' | 'farmhouse' | 'pond' | 'market' | 'bin' | 'greenhouse' | 'river' | 'dock';
+
+/** The Shipping Bin tile (GDD §5). */
+export const BIN_TILE = { col: 18, row: 7 } as const;
 
 export interface Zone {
   id: ZoneId;
@@ -45,6 +49,7 @@ export function buildZones(grid: Grid): Zone[] {
     { id: 'farmhouse', rect: { col: 1, row: 1, cols: 4, rows: 3 }, label: 'Farmhouse' },
     { id: 'pond', rect: { col: 1, row: 7, cols: 4, rows: 4 }, label: 'Pond' },
     { id: 'market', rect: { col: 15, row: 6, cols: 3, rows: 3 }, label: 'Market' },
+    { id: 'bin', rect: { ...BIN_TILE, cols: 1, rows: 1 }, label: 'Shipping Bin' },
     { id: 'greenhouse', rect: { col: 15, row: 1, cols: 4, rows: 4 }, label: 'Empty lot' },
     { id: 'river', rect: { col: 6, row: 10, cols: 9, rows: 2 }, label: 'Riverbank' },
     { id: 'dock', rect: { col: 15, row: 10, cols: 5, rows: 2 }, label: 'Old dock' },
@@ -112,11 +117,52 @@ const PATH_TILES: readonly [number, number][] = [
 /** Base tiles of trees (bottom-centre anchored), kept clear of every zone and the largest fence. */
 const TREES: readonly [number, number][] = [
   [0, 1],
-  [12, 1],
   [19, 1],
   [19, 5],
   [0, 6],
 ];
+
+/**
+ * Scenery that expansions change (BALANCE.md §5). Each entry is shown while `until` has not been
+ * bought, or once `from` has. Tiles are top-left for 1-tile sprites and the base tile for
+ * bottom-centre ones.
+ */
+interface Decor {
+  sprite: string;
+  col: number;
+  row: number;
+  until?: ExpansionId;
+  from?: ExpansionId;
+}
+
+const DECOR: readonly Decor[] = [
+  // farm_1 "Clear the Weeds": weeds and a stump south of the field.
+  { sprite: 'obj_weeds', col: 6, row: 6, until: 'farm_1' },
+  { sprite: 'obj_stump', col: 8, row: 6, until: 'farm_1' },
+  { sprite: 'obj_weeds', col: 10, row: 6, until: 'farm_1' },
+  // farm_2 "Mend the Fence": stepping stones on the paths.
+  ...[
+    [2, 4],
+    [2, 5],
+    [3, 5],
+    [4, 5],
+    [15, 9],
+    [16, 9],
+    [17, 9],
+  ].map(([col, row]): Decor => ({ sprite: 'obj_stones', col: col!, row: row!, from: 'farm_2' })),
+  // farm_3 "Old Orchard Plot": two old trees are cleared (one in the way of the wider fence, one on
+  // the greenhouse lot).
+  { sprite: 'obj_tree', col: 12, row: 1, until: 'farm_3' },
+  { sprite: 'obj_tree', col: 17, row: 4, until: 'farm_3' },
+  // farm_4 "The Back Forty": a scarecrow post by the market path.
+  { sprite: 'obj_scarecrow_post', col: 15, row: 5, from: 'farm_4' },
+];
+
+export function decorFor(expansions: readonly ExpansionId[]): Decor[] {
+  return DECOR.filter(
+    (d) => (!d.until || !expansions.includes(d.until)) && (!d.from || expansions.includes(d.from)),
+  );
+}
 
 function pondTile(col: number, row: number): string | null {
   const r = { col: 1, row: 7, cols: 4, rows: 4 };
@@ -136,7 +182,7 @@ function pondTile(col: number, row: number): string | null {
   return 'tile_water';
 }
 
-export function buildLayout(grid: Grid): SceneLayout {
+export function buildLayout(grid: Grid, expansions: readonly ExpansionId[] = []): SceneLayout {
   const plots = plotRect(grid);
   const fence: TileRect = {
     col: plots.col - 1,
@@ -146,6 +192,8 @@ export function buildLayout(grid: Grid): SceneLayout {
   };
   const paths = new Set(PATH_TILES.map(([c, r]) => `${c},${r}`));
   const zones = buildZones(grid);
+  const decor = decorFor(expansions);
+  const decorTiles = new Set(decor.map((d) => `${d.col},${d.row}`));
 
   const ground: string[][] = [];
   const animated: SceneLayout['animated'] = [];
@@ -168,7 +216,12 @@ export function buildLayout(grid: Grid): SceneLayout {
 
       // Wild flowers on open grass, away from buildings, zones, paths and fences.
       const onFence = inRect(fence, col, row) && !inRect(plots, col, row);
-      if (tile.startsWith('tile_grass') && !onFence && !zoneAt(zones, col, row)) {
+      if (
+        tile.startsWith('tile_grass') &&
+        !onFence &&
+        !zoneAt(zones, col, row) &&
+        !decorTiles.has(`${col},${row}`)
+      ) {
         const f = tileHash(col + 101, row + 57);
         if (f < 0.1) objects.push({ sprite: 'obj_flower_a', x: col * TILE, y: row * TILE });
         else if (f < 0.16) objects.push({ sprite: 'obj_flower_b', x: col * TILE, y: row * TILE });
@@ -189,9 +242,13 @@ export function buildLayout(grid: Grid): SceneLayout {
 
   objects.push({ sprite: 'obj_farmhouse', x: 1 * TILE, y: 1 * TILE });
   objects.push({ sprite: 'obj_market_stall', x: 15 * TILE, y: 6 * TILE });
+  objects.push({ sprite: 'obj_shipping_bin', x: BIN_TILE.col * TILE, y: BIN_TILE.row * TILE });
   for (const [col, row] of TREES) {
     const pos = anchoredPosition(spriteDef('obj_tree'), col, row, TILE);
     objects.push({ sprite: 'obj_tree', ...pos });
+  }
+  for (const d of decor) {
+    objects.push({ sprite: d.sprite, ...anchoredPosition(spriteDef(d.sprite), d.col, d.row, TILE) });
   }
 
   const bottom = (o: PlacedSprite): number => o.y + (spriteDef(o.sprite).frames[0]?.length ?? TILE);

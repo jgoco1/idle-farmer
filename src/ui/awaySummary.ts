@@ -23,7 +23,17 @@ export function awaySummaryLines(report: OfflineReport, readyPlots = 0): string[
       lines.push(`${e.withered} crop${e.withered === 1 ? '' : 's'} withered at the change of season.`);
     }
   }
-  if (report.dayStarts > 0) lines.push('A new morning dawned over the farm.');
+  let binGold = 0;
+  let binItems = 0;
+  for (const e of report.events) {
+    if (e.type !== 'binCollected') continue;
+    binGold += e.gold;
+    binItems += e.items;
+  }
+  if (binItems > 0) {
+    lines.push(`The Shipping Bin was collected: ${binItems} item${binItems === 1 ? '' : 's'} sold for ${binGold}g.`);
+  }
+  if (report.dayStarts > 0) lines.push("A new morning dawned over the farm, with new specials at the market.");
   if (readyPlots > 0) {
     lines.push(`${readyPlots} crop${readyPlots === 1 ? ' is' : 's are'} ready to harvest.`);
   }
