@@ -133,7 +133,7 @@ describe('seed shop', () => {
     expect(spring.map((x) => x.crop)).toEqual(['turnip', 'potato', 'garlic', 'strawberry', 'cauliflower']);
     expect(spring.filter((x) => x.unlocked).map((x) => x.crop)).toEqual(['turnip', 'potato']);
     expect(spring.find((x) => x.crop === 'cauliflower')?.hint).toBe(
-      'Reach Farm Level 4 (7 more farm points).',
+      'Reach Farm Level 4 (8 more farm points).',
     );
     // The stock changes with the season.
     expect(seedStock(s, GAME_DATA, 'summer').map((x) => x.crop)).toEqual([

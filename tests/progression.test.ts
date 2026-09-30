@@ -369,7 +369,7 @@ describe('level perks (BALANCE.md §8)', () => {
     const m = computeModifiers(s, GAME_DATA);
     expect(m.cookSpeedModifier).toBeCloseTo(1.1, 10);
     const buff = dishBuff(GAME_DATA, 'vegetable_soup', false, m.buffDurationBonus);
-    expect(buff.durationMs).toBe(Math.round(12 * MIN * 1.1));
+    expect(buff.durationMs).toBe(Math.round(45 * MIN * 1.1));
   });
 
   it('Cooking level 7: a fourth buff slot; the Cozy Dinner bundle a fifth; never more than 5', () => {
@@ -449,9 +449,9 @@ describe('the Farm Level (BALANCE.md §8–9)', () => {
     setFarmLevel(s, 6);
     expect(farmLevel(s)).toBe(6);
     expect(earnedFarmLevel(s)).toBe(1);
-    for (const skill of SKILL_IDS) setLevel(s, skill, 10); // 27 points: level 9
-    expect(farmLevel(s)).toBe(9);
-    expect(earnedFarmLevel(s)).toBe(9);
+    for (const skill of SKILL_IDS) setLevel(s, skill, 10); // 27 points: level 8
+    expect(farmLevel(s)).toBe(8);
+    expect(earnedFarmLevel(s)).toBe(8);
     setFarmLevel(s, 12); // an old save's level can be past the table, and stays
     expect(farmLevel(s)).toBe(12);
   });
@@ -691,7 +691,7 @@ describe('milestones', () => {
     const s = farm();
     s.progression.goals = [];
     for (const skill of SKILL_IDS) setLevel(s, skill, 4); // 9 points
-    s.progression.milestones.done.push('m01_first_seed'); // 10 points: level 5
+    s.progression.milestones.done.push('m01_first_seed', 'm03_first_sale'); // 11 points: level 5
     expect(farmLevel(s)).toBe(5);
     feed(s, [{ type: 'buffExpired', buff: 'growth' }]); // any event lets progression settle
     expect(s.progression.milestones.done).toContain('m11_farm_level_5');
@@ -702,12 +702,18 @@ describe('milestones', () => {
     const s = farm();
     s.progression.goals = [];
     for (const skill of SKILL_IDS) setLevel(s, skill, 3); // 6 points
-    s.progression.milestones.done.push('m01_first_seed', 'm03_first_sale', 'm05_first_sprinkler'); // 9: level 4
+    s.progression.milestones.done.push(
+      'm01_first_seed',
+      'm03_first_sale',
+      'm04_first_expansion',
+      'm05_first_sprinkler',
+    ); // 10: level 4
     expect(farmLevel(s)).toBe(4);
-    const out = feed(s, [harvested('turnip', 1)]); // m02 -> 10 points -> level 5 -> m11
+    const out = feed(s, [harvested('turnip', 1)]); // m02 -> 11 points -> level 5 -> m11
     expect(s.progression.milestones.done).toEqual([
       'm01_first_seed',
       'm03_first_sale',
+      'm04_first_expansion',
       'm05_first_sprinkler',
       'm02_first_harvest',
       'm11_farm_level_5',
@@ -1374,7 +1380,7 @@ describe('feedback and reporting', () => {
     s.farm.plots[0] = { ...emptyPlot('planted'), crop: 'turnip', growthMs: 200_000, waterMsLeft: 1 };
     s.upgrades.farmhand = 1;
     s.automation.farmhandCooldownMs = 5_000;
-    s.progression.skills.farming.xp = 148; // one harvest from level 2
+    s.progression.skills.farming.xp = 149; // one farmhand harvest (a quarter of 3 XP, at least 1) from level 2
     const report = game.catchUp(CREATED, CREATED + 30 * MIN);
     expect(report.events.some((e) => e.type === 'levelUp')).toBe(true);
     expect(seen).toEqual([true]);

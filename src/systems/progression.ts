@@ -12,6 +12,7 @@ import type { GameEvent } from '../core/events';
 import type { Rng } from '../core/rng';
 import type { GameData } from '../data';
 import {
+  AUTO_HARVEST_XP_FRACTION,
   COOKING_XP_BASE,
   COOKING_XP_EXPONENT,
   FISHING_XP_BY_RARITY,
@@ -538,7 +539,7 @@ function handle(state: GameState, ctx: SimContext, e: GameEvent): void {
   // XP first, so a level-up from this event is in place before its goals and milestones are counted.
   switch (e.type) {
     case 'harvested':
-      grantXp(state, ctx, 'farming', e.qty * data.crops[e.crop].xp);
+      grantXp(state, ctx, 'farming', e.qty * data.crops[e.crop].xp * (e.auto ? AUTO_HARVEST_XP_FRACTION : 1));
       break;
     case 'caught': {
       const base = fishingXp(data, e.catch);

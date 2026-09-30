@@ -55,7 +55,7 @@ export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object
     category: 'farm',
     kind: 'leveled',
     max: 2,
-    cost: { base: 2500, ratio: 4.8 }, // 2500, 12000
+    cost: { base: 6000, ratio: 5 }, // 6000, 30000
     effectText: ['plus shape (4 plots)', 'wider: 3 × 3 (8 plots)', 'widest: 5 × 5 (24 plots)'],
     effect: [
       { shape: 'plus', radius: 1 },
@@ -85,7 +85,7 @@ export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object
     category: 'farm',
     kind: 'leveled',
     max: 5,
-    cost: { base: 800, ratio: 2.2 }, // 800, 1800, 3900, 8500, 19000
+    cost: { base: 1000, ratio: 3 }, // 1000, 3000, 9000, 27000, 81000
     effectText: [
       'no one is hired',
       'harvests 6 plots every 30 s',
@@ -111,7 +111,7 @@ export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object
     category: 'farm',
     kind: 'leveled',
     max: 3,
-    cost: { base: 1200, ratio: 2.5 }, // 1200, 3000, 7500
+    cost: { base: 2000, ratio: 3 }, // 2000, 6000, 18000
     effectText: [
       'not built',
       'replants what the farmhand harvested',
@@ -133,7 +133,7 @@ export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object
     category: 'farm',
     kind: 'leveled',
     max: 2,
-    cost: { base: 1500, ratio: 4 }, // 1500, 6000
+    cost: { base: 5000, ratio: 4 }, // 5000, 20000
     effectText: ['not built', 'harvests go to the Shipping Bin', '+ keeps 10 of each item for cooking'],
     effect: [{}, { flags: ['autoShip'] }, { flags: ['autoShip', 'keepReserve'] }],
     requires: [{ kind: 'upgrade', id: 'farmhand', level: 1 }],

@@ -154,7 +154,7 @@ describe('recipe data (phase 06)', () => {
 
   it('spreads the buffs as BALANCE.md says', () => {
     const per = (b: BuffType) => RECIPE_IDS.filter((r) => RECIPES[r].buff === b).length;
-    expect(BUFF_TYPES.map(per)).toEqual([3, 3, 4, 2, 3, 3, 4]);
+    expect(BUFF_TYPES.map(per)).toEqual([3, 4, 4, 2, 3, 3, 3]); // phase 09: Blueberry Muffin is Silver Tongue
   });
 
   it('has three starter recipes, and a card or another way to find every other one', () => {
@@ -192,9 +192,12 @@ describe('buff strength and duration', () => {
     }
   });
 
-  it('duration is 6 minutes × 2^(tier − 1), and a hearty dish lasts 50% longer', () => {
-    expect([1, 2, 3, 4].map((t) => buffDurationMs(t as RecipeTier, false) / MIN)).toEqual([6, 12, 24, 48]);
-    expect([1, 2, 3, 4].map((t) => buffDurationMs(t as RecipeTier, true) / MIN)).toEqual([9, 18, 36, 72]);
+  it('duration is 15 minutes × 3^(tier − 1), and a hearty dish lasts 50% longer', () => {
+    // Phase 09 (was 6 min × 2^(tier − 1)): a T4 dish eaten before bed lasts most of the night.
+    expect([1, 2, 3, 4].map((t) => buffDurationMs(t as RecipeTier, false) / MIN)).toEqual([15, 45, 135, 405]);
+    expect([1, 2, 3, 4].map((t) => buffDurationMs(t as RecipeTier, true) / MIN)).toEqual([
+      22.5, 67.5, 202.5, 607.5,
+    ]);
     expect(HEARTY_DURATION_BONUS).toBe(0.5);
   });
 
@@ -218,7 +221,7 @@ describe('eating and stacking', () => {
     expect(eatDish(s, ctxAt(s, NOON, events), 'roasted_turnip', undefined, false)).toEqual({ ok: true });
     expect(countItem(s.inventory, 'roasted_turnip')).toBe(1);
     expect(s.buffs.active).toEqual([
-      { type: 'growth', magnitude: 0.1, tier: 1, remainingMs: 6 * MIN, source: 'roasted_turnip' },
+      { type: 'growth', magnitude: 0.1, tier: 1, remainingMs: 15 * MIN, source: 'roasted_turnip' },
     ]);
     expect(s.stats.dishesEaten).toBe(1);
     expect(events.map((e) => e.type)).toEqual(['buffStarted', 'ate']);
@@ -241,7 +244,7 @@ describe('eating and stacking', () => {
     addItem(s.inventory, 'vegetable_soup', 1, true);
     expect(s.inventory.slots.filter((x) => x?.item === 'vegetable_soup')).toHaveLength(2);
     expect(eatDish(s, ctxAt(s), 'vegetable_soup', true, false).ok).toBe(true);
-    expect(s.buffs.active[0]!.remainingMs).toBe(18 * MIN);
+    expect(s.buffs.active[0]!.remainingMs).toBe(67.5 * MIN); // T2: 45 min, +50%
     expect(countItem(s.inventory, 'vegetable_soup', true)).toBe(0);
     expect(countItem(s.inventory, 'vegetable_soup', false)).toBe(1);
   });
@@ -250,7 +253,7 @@ describe('eating and stacking', () => {
     const s = farm();
     addItem(s.inventory, 'roasted_turnip', 1, true);
     expect(eatDish(s, ctxAt(s), 'roasted_turnip', undefined, false).ok).toBe(true);
-    expect(s.buffs.active[0]!.remainingMs).toBe(9 * MIN); // only a hearty one was there
+    expect(s.buffs.active[0]!.remainingMs).toBe(22.5 * MIN); // only a hearty one was there
     addItem(s.inventory, 'baked_potato', 1);
     addItem(s.inventory, 'baked_potato', 1, true);
     eatDish(s, ctxAt(s), 'baked_potato', undefined, false);
@@ -259,26 +262,26 @@ describe('eating and stacking', () => {
 
   it('eating the same type keeps the stronger magnitude and the longer time, never weakening or shortening', () => {
     const s = farm();
-    giveBuff(s, 'growth', 3, 20 * MIN); // +30%, 20 min left
-    addItem(s.inventory, 'roasted_turnip', 1); // T1: +10% for 6 min
+    giveBuff(s, 'growth', 3, 60 * MIN); // +30%, 60 min left
+    addItem(s.inventory, 'roasted_turnip', 1); // T1: +10% for 15 min
     eatDish(s, ctxAt(s), 'roasted_turnip', undefined, false);
     expect(s.buffs.active).toHaveLength(1);
     expect(s.buffs.active[0]!.magnitude).toBeCloseTo(0.3, 10);
-    expect(s.buffs.active[0]!.remainingMs).toBe(20 * MIN);
+    expect(s.buffs.active[0]!.remainingMs).toBe(60 * MIN);
     expect(s.buffs.active[0]!.tier).toBe(3);
 
     // A stronger dish raises the magnitude and refreshes the time to the longer of the two.
-    addItem(s.inventory, 'vegetable_soup', 1); // T2 growth: +20% … weaker than +30%, longer than nothing
+    addItem(s.inventory, 'vegetable_soup', 1); // T2 growth: +20% for 45 min, weaker and shorter
     eatDish(s, ctxAt(s), 'vegetable_soup', undefined, false);
     expect(s.buffs.active[0]!.magnitude).toBeCloseTo(0.3, 10);
-    expect(s.buffs.active[0]!.remainingMs).toBe(20 * MIN);
+    expect(s.buffs.active[0]!.remainingMs).toBe(60 * MIN);
 
     const t = farm();
     giveBuff(t, 'growth', 1, 2 * MIN);
     addItem(t.inventory, 'vegetable_soup', 1);
     eatDish(t, ctxAt(t), 'vegetable_soup', undefined, false);
     expect(t.buffs.active[0]!.magnitude).toBeCloseTo(0.2, 10);
-    expect(t.buffs.active[0]!.remainingMs).toBe(12 * MIN);
+    expect(t.buffs.active[0]!.remainingMs).toBe(45 * MIN);
     expect(t.buffs.active[0]!.source).toBe('vegetable_soup');
   });
 

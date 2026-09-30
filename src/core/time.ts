@@ -79,8 +79,14 @@ export function zoneClock(timeZone: string): LocalClock {
     hour: 'numeric',
     minute: 'numeric',
   });
+  // formatToParts is slow and the same minute is asked for many times in a row (the calendar, the
+  // day and week boundaries), so the last few minutes are remembered. The seconds never change the parts.
+  const cache = new Map<number, LocalParts>();
   return {
     parts(t) {
+      const minute = Math.floor(t / MINUTE_MS);
+      const hit = cache.get(minute);
+      if (hit) return hit;
       const p: Record<string, number> = {};
       for (const part of fmt.formatToParts(t)) {
         if (part.type !== 'literal') p[part.type] = Number(part.value);
@@ -88,7 +94,7 @@ export function zoneClock(timeZone: string): LocalClock {
       const y = p.year ?? 1970;
       const mo = p.month ?? 1;
       const d = p.day ?? 1;
-      return {
+      const out: LocalParts = {
         y,
         mo,
         d,
@@ -96,9 +102,15 @@ export function zoneClock(timeZone: string): LocalClock {
         mi: p.minute ?? 0,
         wd: weekdayOfDay(daysFromCivil(y, mo, d)),
       };
+      if (cache.size >= ZONE_CACHE_MINUTES) cache.delete(cache.keys().next().value!);
+      cache.set(minute, out);
+      return out;
     },
   };
 }
+
+/** How many distinct minutes a zone clock remembers. */
+const ZONE_CACHE_MINUTES = 256;
 
 /** Whole days since 1970-01-01 for a civil date (no time zone involved). */
 export function daysFromCivil(y: number, mo: number, d: number): number {

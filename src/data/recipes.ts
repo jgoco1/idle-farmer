@@ -146,10 +146,10 @@ export const RECIPES: Readonly<Record<RecipeId, RecipeDef>> = Object.freeze({
     ],
     cookSec: 60,
     tier: 2,
-    buff: 'xp',
+    buff: 'sellPrice',
     basePrice: 137,
     discovery: { kind: 'card', price: 450, unlock: [{ kind: 'farmLevel', level: 3 }] },
-    description: 'Purple-flecked and still warm. It makes every chore feel like a lesson.',
+    description: 'Purple-flecked and still warm. Nobody at the market can say no to you with one in hand.',
   },
   glazed_yams: {
     id: 'glazed_yams',

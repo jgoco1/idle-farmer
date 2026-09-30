@@ -212,21 +212,48 @@ function cropName(data: GameData, id: CropId): string {
   return data.crops[id].name.toLowerCase();
 }
 
-/** Hoe: tills untilled soil and clears dead crops. */
+/**
+ * Whether the Hoe may pull up this plot's crop: a regrower that has given at least one harvest and
+ * is not ready now. Without this a regrowing crop would hold its plot until its seasons end (and
+ * the seed planter keeps replanting it), which could lock a field for weeks (phase 09).
+ */
+export function canPullUp(plot: Plot, data: GameData): boolean {
+  if (plot.state !== 'planted' || plot.crop === null) return false;
+  return data.crops[plot.crop].regrowSec !== null && plot.harvests > 0 && !isReady(plot, data);
+}
+
+/**
+ * Hoe: tills untilled soil and clears dead crops. `pullUp` (plots the player aimed at directly, never
+ * an upgraded hoe's wider area) may also clear an old regrower (see `canPullUp`).
+ */
 export function tillPlots(
   state: GameState,
   ctx: SimContext,
   plots: readonly number[],
   auto = false,
+  pullUp: readonly number[] = [],
 ): ActionResult {
   const done: number[] = [];
+  let young: CropId | null = null;
   for (const i of validPlots(state, plots)) {
     const plot = plotAt(state, i)!;
-    if (plot.state !== 'untilled' && plot.state !== 'dead') continue;
+    if (plot.state === 'planted' && pullUp.includes(i)) {
+      if (!canPullUp(plot, ctx.data)) {
+        if (plot.crop && ctx.data.crops[plot.crop].regrowSec !== null) young ??= plot.crop;
+        continue;
+      }
+      state.lastPlantedCrop[lastPlantedIndex(state, i)] = null; // pulled up: the planter should not bring it back
+    } else if (plot.state !== 'untilled' && plot.state !== 'dead') continue;
     Object.assign(plot, emptyPlot('tilled'), { waterMsLeft: plot.waterMsLeft });
     done.push(i);
   }
-  if (done.length === 0) return fail('Nothing to till here.');
+  if (done.length === 0) {
+    return fail(
+      young
+        ? `Let the ${cropName(ctx.data, young)} give a harvest (and pick it) before pulling it up.`
+        : 'Nothing to till here.',
+    );
+  }
   ctx.events.push(auto ? { type: 'tilled', plots: done, auto: true } : { type: 'tilled', plots: done });
   return OK;
 }
@@ -460,7 +487,13 @@ export function useTool(
   }
   switch (t) {
     case 'hoe':
-      return tillPlots(state, ctx, expandToolArea(state, valid, toolArea(state, ctx.data, 'hoe')));
+      return tillPlots(
+        state,
+        ctx,
+        expandToolArea(state, valid, toolArea(state, ctx.data, 'hoe')),
+        false,
+        valid,
+      );
     case 'water':
       return waterPlots(state, ctx, expandToolArea(state, valid, toolArea(state, ctx.data, 'water')));
     case 'hand':
