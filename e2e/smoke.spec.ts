@@ -1,16 +1,9 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+import { camera, clickPlot as clickPlotOf, clickTile, tilePoint } from './helpers';
 
-/** Centre of scene tile (col, row) in canvas CSS pixels (the scene is 20 × 12 tiles). */
-async function tileCenter(canvas: Locator, col: number, row: number): Promise<{ x: number; y: number }> {
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error('canvas has no box');
-  return { x: (box.width * (col + 0.5)) / 20, y: (box.height * (row + 0.5)) / 12 };
-}
-
-/** Plot i of the starting 4 × 2 grid sits at tile (6 + i % 4, 2 + floor(i / 4)). */
-async function clickPlot(canvas: Locator, i: number, modifiers: 'Shift'[] = []): Promise<void> {
-  await canvas.click({ position: await tileCenter(canvas, 6 + (i % 4), 2 + Math.floor(i / 4)), modifiers });
-}
+/** Plot i of the starting 4 × 2 grid sits at world tile (6 + i % 4, 2 + floor(i / 4)). */
+const clickPlot = (page: Page, i: number, modifiers: 'Shift'[] = []): Promise<void> =>
+  clickPlotOf(page, i, { modifiers });
 
 type PlotView = { state: string; crop: string | null; growthMs: number; waterMsLeft: number };
 async function plots(page: Page): Promise<PlotView[]> {
@@ -58,9 +51,7 @@ test('the farm loads, renders and opens Settings', async ({ page }) => {
   await expect(settings).toBeHidden();
 
   // Clicking the farmhouse (tile 2,2) opens the Kitchen.
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error('canvas has no box');
-  await canvas.click({ position: { x: (box.width * 2.5) / 20, y: (box.height * 2.5) / 12 } });
+  await clickTile(page, 2, 2);
   const kitchen = page.getByRole('dialog', { name: 'Kitchen' });
   await expect(kitchen).toBeVisible();
   await expect(kitchen).toContainText('Recipe book');
@@ -68,12 +59,11 @@ test('the farm loads, renders and opens Settings', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('the scene fits a 360 px phone without horizontal scrolling', async ({ page }) => {
+test('the scene fills a 360 px phone without horizontal scrolling', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 });
   await page.goto('./');
   const box = await page.locator('#scene-canvas').boundingBox();
-  expect(box?.width).toBeLessThanOrEqual(360);
-  expect(box?.width).toBeGreaterThanOrEqual(320);
+  expect(box?.width).toBe(360);
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(360);
   await page.screenshot({ path: 'test-results/farm-mobile.png' });
 });
@@ -89,16 +79,16 @@ test('till, plant, water, grow and harvest a turnip', async ({ page }) => {
   await expect(page.getByTestId('seed-count')).toHaveText('6');
 
   // Auto on the untilled plot 2: till, then plant (turnip is the chosen seed), then water.
-  await clickPlot(canvas, 2);
+  await clickPlot(page, 2);
   expect((await plots(page))[2]?.state).toBe('tilled');
-  await clickPlot(canvas, 2);
+  await clickPlot(page, 2);
   expect((await plots(page))[2]).toMatchObject({ state: 'planted', crop: 'turnip' });
   await expect(page.getByTestId('seed-count')).toHaveText('10'); // 6 − 1 planted, + 5 from the first-seed milestone
-  await clickPlot(canvas, 2);
+  await clickPlot(page, 2);
   expect((await plots(page))[2]?.waterMsLeft).toBeGreaterThan(0);
 
   // Shift-click plants the whole field: the four plots that start tilled.
-  await clickPlot(canvas, 0, ['Shift']);
+  await clickPlot(page, 0, ['Shift']);
   expect((await plots(page)).filter((p) => p.state === 'planted')).toHaveLength(5);
   await expect(page.getByTestId('seed-count')).toHaveText('6'); // 10 − 4 planted
 
@@ -112,24 +102,29 @@ test('till, plant, water, grow and harvest a turnip', async ({ page }) => {
   await expect(shop.locator('[data-seed="wheat"]')).toHaveCount(0);
   await page.keyboard.press('Escape');
 
-  // Drag the hoe down plots 3 → 7, then plant the potato with the seed picker.
+  // A drag with the hoe pans the camera and tills nothing (v2); clicks till plots 3 and 7.
   await tools.locator('[data-tool="hoe"]').click();
-  const a = await tileCenter(canvas, 9, 2);
-  const b = await tileCenter(canvas, 9, 3);
-  const box = (await canvas.boundingBox())!;
-  await page.mouse.move(box.x + a.x, box.y + a.y);
+  const before = (await plots(page)).map((p) => p.state);
+  const camBefore = await camera(page);
+  const a = await tilePoint(page, 9, 2);
+  await page.mouse.move(a.x, a.y);
   await page.mouse.down();
-  await page.mouse.move(box.x + b.x, box.y + b.y, { steps: 4 });
+  await page.mouse.move(a.x - 40, a.y + 30, { steps: 6 });
   await page.mouse.up();
+  expect((await plots(page)).map((p) => p.state)).toEqual(before);
+  const camAfter = await camera(page);
+  expect(camAfter.x !== camBefore.x || camAfter.y !== camBefore.y).toBe(true);
+  await clickPlot(page, 3);
+  await clickPlot(page, 7);
   expect((await plots(page)).map((p) => p.state)[3]).toBe('tilled');
   expect((await plots(page)).map((p) => p.state)[7]).toBe('tilled');
   await tools.locator('[data-tool="seeds"]').click();
   await page.locator('.seed-picker [data-seed="potato"]').click();
-  await clickPlot(canvas, 3);
+  await clickPlot(page, 3);
   expect((await plots(page))[3]).toMatchObject({ state: 'planted', crop: 'potato' });
   await tools.locator('[data-tool="water"]').click();
-  await clickPlot(canvas, 3);
-  await clickPlot(canvas, 0);
+  await clickPlot(page, 3);
+  await clickPlot(page, 0);
 
   // Time warp ×60 from the debug overlay until the watered turnip is ready.
   await page.keyboard.press('`');
@@ -144,7 +139,7 @@ test('till, plant, water, grow and harvest a turnip', async ({ page }) => {
 
   // Harvest with the hand and find the turnip in the inventory.
   await tools.locator('[data-tool="hand"]').click();
-  await clickPlot(canvas, 2);
+  await clickPlot(page, 2);
   await expect(page.locator('.toast').filter({ hasText: '+1 Turnip' })).toBeVisible();
   expect((await plots(page))[2]?.state).toBe('tilled');
   await page.getByRole('button', { name: /Inventory/ }).click();
@@ -177,8 +172,7 @@ test('till, plant, water, grow and harvest a turnip', async ({ page }) => {
   await page.keyboard.press('Escape');
 
   // The Shipping Bin in the scene (tile 18,7) opens the Market too.
-  const binAt = await tileCenter(canvas, 18, 7);
-  await canvas.click({ position: binAt });
+  await clickTile(page, 18, 7);
   await expect(market).toBeVisible();
   await page.keyboard.press('Escape');
 
@@ -195,7 +189,7 @@ test('till, plant, water, grow and harvest a turnip', async ({ page }) => {
   await page.keyboard.press('Escape');
   // The new row is at tile row 4 and can be tilled.
   await tools.locator('[data-tool="hoe"]').click();
-  await clickPlot(canvas, 8);
+  await clickPlot(page, 8);
   expect((await plots(page))[8]?.state).toBe('tilled');
   await page.mouse.move(0, 0);
   await page.screenshot({ path: 'test-results/farm-expanded.png' });

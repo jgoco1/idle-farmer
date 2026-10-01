@@ -1,5 +1,5 @@
-// Player preferences that belong to the browser, not the farm: volumes, motion, UI scale and number
-// format. Stored under their own key so they survive a hard reset and never touch SAVE_VERSION.
+// Player preferences that belong to the browser, not the farm: volumes, motion, UI scale, number
+// format and (v2) the camera. Stored under their own key so they survive a hard reset and never touch SAVE_VERSION.
 
 import type { SaveStorage } from './save';
 
@@ -20,7 +20,18 @@ export interface Prefs {
   uiScale: UiScale;
   numberFormat: NumberFormat;
   tutorial: TutorialStatus;
+  /** The world camera: centre in world px and an integer zoom; null = the default view (v2 phase 01). */
+  camera: CameraPref | null;
 }
+
+export interface CameraPref {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+/** The highest zoom kept (device pixels per logical pixel; a 3× phone at its default + 2 fits). */
+export const MAX_CAMERA_ZOOM = 16;
 
 export const DEFAULT_PREFS: Prefs = {
   master: 0.8,
@@ -31,7 +42,17 @@ export const DEFAULT_PREFS: Prefs = {
   uiScale: 1,
   numberFormat: 'full',
   tutorial: 'pending',
+  camera: null,
 };
+
+function sanitizeCamera(raw: unknown): CameraPref | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const { x, y, zoom } = raw as Record<string, unknown>;
+  if (typeof x !== 'number' || !Number.isFinite(x) || typeof y !== 'number' || !Number.isFinite(y))
+    return null;
+  if (typeof zoom !== 'number' || !Number.isInteger(zoom) || zoom < 1 || zoom > MAX_CAMERA_ZOOM) return null;
+  return { x, y, zoom };
+}
 
 const clamp01 = (n: unknown, fallback: number): number =>
   typeof n === 'number' && Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : fallback;
@@ -50,6 +71,7 @@ export function sanitizePrefs(raw: unknown): Prefs {
     numberFormat: r.numberFormat === 'short' || r.numberFormat === 'full' ? r.numberFormat : d.numberFormat,
     tutorial:
       r.tutorial === 'done' || r.tutorial === 'skipped' || r.tutorial === 'pending' ? r.tutorial : d.tutorial,
+    camera: sanitizeCamera(r.camera),
   };
 }
 

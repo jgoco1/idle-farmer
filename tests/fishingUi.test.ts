@@ -11,13 +11,17 @@ const zones = buildZones(START_GRID);
 const zoneOf = (id: string) => zones.find((z) => z.id === id)!;
 
 describe('fishing scenery', () => {
-  it('shows nothing of the river or the dock until they are bought', () => {
+  it('shows nothing of the river or the dock until they are bought (the sea itself is always there since v2)', () => {
     const plain = buildLayout(START_GRID, []);
-    const sprites = new Set([...plain.ground.flat(), ...plain.objects.map((o) => o.sprite)]);
-    for (const id of ['tile_river', 'tile_sea', 'obj_bridge', 'obj_dock', 'obj_dock_post']) {
+    const home = plain.objects.filter((o) => o.x < 320 && o.y < 192).map((o) => o.sprite);
+    const sprites = new Set([...plain.ground.flat(), ...home]);
+    for (const id of ['tile_river', 'obj_bridge', 'obj_dock']) {
       expect(sprites.has(id), id).toBe(false);
     }
+    expect(home).toContain('obj_for_sale'); // the dock's sign on the shore
+    expect(home.filter((s) => s === 'obj_dock_post')).toHaveLength(0);
     expect(plain.ground[11]![8]).not.toBe('tile_river');
+    expect(plain.ground[11]![17]).toBe('tile_sea');
   });
 
   it('River Access lays a river along the bottom edge with a bridge', () => {
@@ -41,7 +45,9 @@ describe('fishing scenery', () => {
     }
     expect(layout.ground[10]![15]).toBe('tile_path');
     expect(layout.objects.filter((o) => o.sprite === 'obj_dock')).toHaveLength(3);
-    expect(layout.objects.filter((o) => o.sprite === 'obj_dock_post')).toHaveLength(2);
+    // Two dock posts, plus the two end posts of the broken Old Bridge on the inlet (row 12).
+    expect(layout.objects.filter((o) => o.sprite === 'obj_dock_post' && o.y < 192)).toHaveLength(2);
+    expect(layout.objects.some((o) => o.sprite === 'obj_for_sale' && o.x === 15 * 16)).toBe(false);
     expect(layout.animated.filter((a) => a.sprite === 'tile_sea').length).toBeGreaterThan(0);
   });
 

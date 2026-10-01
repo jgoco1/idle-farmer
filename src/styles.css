@@ -165,22 +165,63 @@ canvas {
   grid-row: 2;
   position: relative;
   min-height: 0;
-  overflow: auto; /* scrolls only when the scene is zoomed in (phones) */
-  scrollbar-width: none;
-  display: flex;
+  overflow: hidden; /* the canvas fills it; the camera pans the world inside (v2) */
   background: var(--c-grass_dark);
-}
-.scene::-webkit-scrollbar {
-  display: none;
 }
 
 #scene-canvas {
+  position: absolute;
+  inset: 0;
   display: block;
-  flex: none;
-  margin: auto;
-  /* Drag across plots with a finger without scrolling or zooming the page. */
+  /* Pan and pinch the world with fingers without scrolling or zooming the page. */
   touch-action: none;
   user-select: none;
+  cursor: grab;
+}
+
+/* ---------- edge pips: arrows to off-screen things that want you (v2) */
+.edge-pips {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+.edge-pip {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  padding: 0;
+  border: 2px solid var(--c-outline);
+  border-radius: 50%;
+  background: var(--c-ui_parchment);
+  cursor: pointer;
+  pointer-events: auto;
+  animation: pip-pulse 1.6s ease-in-out infinite;
+}
+.edge-pip-arrow {
+  position: absolute;
+  inset: 4px;
+  width: 32px;
+  height: 32px;
+  opacity: 0.55;
+}
+.edge-pip-icon {
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  width: 24px;
+  height: 24px;
+}
+@keyframes pip-pulse {
+  50% {
+    box-shadow: 0 0 0 4px var(--c-gold);
+  }
+}
+.toast-link {
+  pointer-events: auto;
+  cursor: pointer;
+  text-decoration: underline dotted;
 }
 
 .toasts {
@@ -1421,7 +1462,7 @@ summary:focus-visible,
   z-index: 14;
   right: 8px;
   top: calc(var(--hud-h) + 8px);
-  display: none;
+  display: flex;
   flex-direction: column;
   gap: 6px;
 }
@@ -1442,9 +1483,6 @@ summary:focus-visible,
 
 /* ---------- touch: every control is at least 44 px */
 @media (pointer: coarse), (max-width: 600px) {
-  .scene-controls {
-    display: flex;
-  }
   .btn,
   .panel button,
   .modal button,

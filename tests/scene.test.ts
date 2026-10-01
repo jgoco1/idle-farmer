@@ -1,17 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { Plot } from '../src/core/state';
-import { integerScale } from '../src/render/renderer';
 import {
   buildLayout,
   buildZones,
   plotIndexAt,
   plotSprites,
   tileOfPlot,
-  SCENE_COLS,
-  SCENE_H,
-  SCENE_ROWS,
-  SCENE_W,
+  forSaleSignAt,
+  HOME_H,
+  HOME_W,
+  sceneryFor,
   tileAt,
+  WORLD_H,
+  WORLD_W,
   zoneAt,
 } from '../src/render/scene';
 import { SPRITES } from '../src/render/sprites';
@@ -19,12 +20,13 @@ import { tintAt } from '../src/render/tint';
 import { START_GRID } from '../src/data/balance';
 
 describe('scene layout', () => {
-  it('is 20 × 12 tiles of 16 px', () => {
-    expect([SCENE_W, SCENE_H]).toEqual([320, 192]);
+  it('is a 36 × 22 world of 16 px tiles whose home region is the 20 × 12 v1 scene', () => {
+    expect([WORLD_W, WORLD_H]).toEqual([576, 352]);
+    expect([HOME_W, HOME_H]).toEqual([320, 192]);
     const layout = buildLayout(START_GRID);
-    expect(layout.ground).toHaveLength(SCENE_ROWS);
+    expect(layout.ground).toHaveLength(22);
     for (const row of layout.ground) {
-      expect(row).toHaveLength(SCENE_COLS);
+      expect(row).toHaveLength(36);
       for (const id of row) expect(SPRITES[id], id).toBeDefined();
     }
     for (const o of layout.objects) expect(SPRITES[o.sprite], o.sprite).toBeDefined();
@@ -38,10 +40,48 @@ describe('scene layout', () => {
     expect(ground[2]![10]).not.toBe('tile_soil_dry');
   });
 
-  it('animates the pond water', () => {
+  it('animates the pond water and the sea, nothing else in home', () => {
     const { animated } = buildLayout(START_GRID);
-    expect(animated.length).toBeGreaterThan(0);
-    expect(animated.every((a) => a.col >= 1 && a.col <= 4 && a.row >= 7 && a.row <= 10)).toBe(true);
+    const home = animated.filter((a) => a.col < 20 && a.row < 12);
+    expect(home.filter((a) => a.sprite === 'tile_water')).toHaveLength(4); // the pond's middle
+    expect(
+      home
+        .filter((a) => a.sprite === 'tile_sea')
+        .map((a) => `${a.col},${a.row}`)
+        .sort(),
+    ).toEqual(['16,10', '16,11', '17,10', '17,11', '18,10', '18,11', '19,10', '19,11'].sort());
+    expect(animated.some((a) => a.sprite === 'tile_sea' && a.row === 21 && a.col === 35)).toBe(true);
+  });
+
+  it('keeps every v1 tile of the home region as v1 drew it, the two documented changes aside', () => {
+    const { ground } = buildLayout({ cols: 8, rows: 6 }, [
+      'farm_1',
+      'farm_2',
+      'farm_3',
+      'farm_4',
+      'river',
+      'ocean',
+    ]);
+    expect(ground[2]![6]).toBe('tile_soil_dry');
+    expect(ground[7]![13]).toBe('tile_soil_dry');
+    expect(ground[9]![14]).toBe('tile_path');
+    expect(ground[11]![10]).toBe('tile_river');
+    expect(ground[10]![15]).toBe('tile_path'); // the landing
+    expect(ground[11]![17]).toBe('tile_sea');
+    expect(ground[8]![2]).toBe('tile_water');
+  });
+
+  it('overgrows locked parcels with a "For sale" sign, and clears them once bought', () => {
+    const at = (parcels: Parameters<typeof sceneryFor>[1]) =>
+      sceneryFor([], parcels).filter((d) => d.col >= 21 && d.row <= 6);
+    expect(at([]).some((d) => d.sprite === 'obj_for_sale' && d.col === 21 && d.row === 3)).toBe(true);
+    expect(at([]).filter((d) => d.sprite === 'obj_tall_grass').length).toBeGreaterThan(5);
+    expect(at(['orchard'])).toEqual([]);
+    expect(forSaleSignAt([], 21, 3)).toBe('orchard');
+    expect(forSaleSignAt(['orchard'], 21, 3)).toBeNull();
+    expect(forSaleSignAt([], 21, 11)).toBe('yard');
+    expect(forSaleSignAt([], 21, 17)).toBe('meadow');
+    expect(forSaleSignAt([], 5, 5)).toBeNull();
   });
 });
 
@@ -60,6 +100,8 @@ describe('hit-testing', () => {
     expect(zoneAt(zones, 10, 11)?.id).toBe('river');
     expect(zoneAt(zones, 19, 10)?.id).toBe('dock');
     expect(zoneAt(zones, 0, 0)).toBeNull();
+    expect(zoneAt(zones, 4, 16)?.id).toBe('board');
+    expect(zoneAt(zones, 25, 10)).toBeNull(); // the paddock is not a zone
   });
 
   it('gives row-major plot indexes', () => {
@@ -69,20 +111,13 @@ describe('hit-testing', () => {
     expect(plotIndexAt(START_GRID, 5, 2)).toBe(-1);
   });
 
-  it('converts logical pixels to tiles', () => {
+  it('converts world pixels to world tiles', () => {
     expect(tileAt(0, 0)).toEqual({ col: 0, row: 0 });
     expect(tileAt(319.9, 191.9)).toEqual({ col: 19, row: 11 });
-    expect(tileAt(320, 10)).toBeNull();
+    expect(tileAt(320, 10)).toEqual({ col: 20, row: 0 });
+    expect(tileAt(575.9, 351.9)).toEqual({ col: 35, row: 21 });
+    expect(tileAt(576, 10)).toBeNull();
     expect(tileAt(-1, 10)).toBeNull();
-  });
-});
-
-describe('integer scaling', () => {
-  it('picks the largest whole scale that fits, never below 1', () => {
-    expect(integerScale(1280, 700, 1)).toBe(3);
-    expect(integerScale(360, 500, 1)).toBe(1);
-    expect(integerScale(360, 500, 3)).toBe(3);
-    expect(integerScale(200, 100, 1)).toBe(1);
   });
 });
 

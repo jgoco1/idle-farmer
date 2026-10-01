@@ -30,6 +30,7 @@ import type {
   ItemId,
   JunkId,
   MilestoneId,
+  ParcelId,
   RecipeId,
   RecipeTier,
   SkillId,
@@ -149,6 +150,14 @@ export interface GameState {
 
   // ---- progression (@07)
   progression: ProgressionState;
+
+  // ---- world (v2 phase 01, save 8)
+  land: LandState;
+}
+
+/** The v2 world's land (DATA_SCHEMAS.md §9.6). Owned parcels only; the layout is data. */
+export interface LandState {
+  parcels: ParcelId[]; // bought, in order
 }
 
 /** A goal on the board: concrete and counting. Its text is derived from the template and objective. */
@@ -287,6 +296,7 @@ export function createInitialState(now: number, lc: LocalClock, seed: number = s
     kitchen: { known: starterRecipes(), queue: [] },
     buffs: { active: [], baseSlots: BASE_BUFF_SLOTS },
     progression: createStartingProgression(),
+    land: { parcels: [] },
   };
   // A new farm opens with today's specials and the first sparkline point (every save starts in spring).
   openMarketDay(state, GAME_DATA, createRng(state), 'spring');

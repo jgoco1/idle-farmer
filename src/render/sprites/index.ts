@@ -4,6 +4,7 @@
 import * as terrain from './terrain';
 import * as objects from './objects';
 import * as ui from './ui';
+import * as world from './world';
 import { AMBIENT_SPRITES } from './ambient';
 import { AUTOMATION_SPRITES } from './automation';
 import { COOKING_SPRITES } from './cooking';
@@ -18,6 +19,7 @@ export const ALL_SPRITES: readonly SpriteDef[] = [
   ...Object.values(terrain),
   ...Object.values(objects),
   ...Object.values(ui),
+  ...Object.values(world),
   ...CROP_SPRITES,
   ...ITEM_SPRITES,
   ...AUTOMATION_SPRITES,

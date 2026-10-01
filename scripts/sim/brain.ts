@@ -29,6 +29,7 @@ import {
   type CropId,
   type DishId,
   type ExpansionId,
+  type ParcelId,
   type ItemId,
   type RecipeId,
   type UpgradeId,
@@ -59,7 +60,10 @@ import { purchaseBlock, requirementsFor, upgradeCost, upgradeLevel } from '../..
 import { MIN, type SimRun } from './driver';
 
 /** Something the player saves up for: an expansion, or an upgrade up to a level (a count, for placeables). */
-export type Want = { kind: 'expansion'; id: ExpansionId } | { kind: 'upgrade'; id: UpgradeId; level: number };
+export type Want =
+  | { kind: 'expansion'; id: ExpansionId }
+  | { kind: 'upgrade'; id: UpgradeId; level: number }
+  | { kind: 'parcel'; id: ParcelId }; // v2 phase 01: the land parcels, after the v1 list
 
 export interface Style {
   /** Active catches per real minute while playing (0 = never fishes). */
@@ -80,6 +84,7 @@ export interface Style {
 
 const up = (id: UpgradeId, level: number): Want => ({ kind: 'upgrade', id, level });
 const ex = (id: ExpansionId): Want => ({ kind: 'expansion', id });
+const pa = (id: ParcelId): Want => ({ kind: 'parcel', id });
 const sprinklers = (from: number, to: number): Want[] =>
   Array.from({ length: to - from + 1 }, (_, i) => up('sprinkler', from + i));
 
@@ -122,6 +127,12 @@ export const FARM_SHOPPING: readonly Want[] = [
   up('barn_storage', 4),
   up('backpack', 4),
   ...sprinklers(8, 9),
+  // v2 (BALANCE.md §13.11): the land parcels in order, after the v1 wish list. Until v2 phase 03
+  // gives the orchard trees, a parcel is pure spending; bought any earlier it delays the v1 upgrades
+  // and skews the phase 09 buff comparison (see the v2-01 tuning note in BALANCE.md §13.12).
+  pa('orchard'),
+  pa('yard'),
+  pa('meadow'),
 ];
 
 /** The water-first order: rods, the river, traps and the dock early, then the farm list. */
@@ -445,6 +456,11 @@ export class Brain {
 
   /** Price and availability of a want, or null when it is owned or cannot be bought yet. */
   private offer(s: GameState, w: Want): number | null {
+    if (w.kind === 'parcel') {
+      if (s.land.parcels.includes(w.id)) return null;
+      const def = this.data.parcels[w.id];
+      return isUnlocked(s, def.requires, this.data) ? def.price : null;
+    }
     if (w.kind === 'expansion') {
       if (s.expansions.includes(w.id)) return null;
       const def = this.data.expansions[w.id];
@@ -477,7 +493,9 @@ export class Brain {
       const r =
         w.kind === 'expansion'
           ? run.game.dispatch({ type: 'buyExpansion', id: w.id })
-          : run.game.dispatch({ type: 'buyUpgrade', id: w.id });
+          : w.kind === 'parcel'
+            ? run.game.dispatch({ type: 'buyParcel', parcel: w.id })
+            : run.game.dispatch({ type: 'buyUpgrade', id: w.id });
       if (!r.ok) return useful;
       useful = true;
     }

@@ -8,6 +8,7 @@ import type { SimContext, ActionResult } from '../systems/context';
 import { OK, fail } from '../systems/context';
 import { harvestPlots, plantPlots, tillPlots, useTool, waterPlots, type FarmTool } from '../systems/farming';
 import { buyExpansion } from '../systems/expansions';
+import { buyParcel } from '../systems/parcels';
 import { sellItems } from '../systems/market';
 import { shipItems, unshipItems } from '../systems/shippingBin';
 import { buySeeds } from '../systems/shop';
@@ -27,6 +28,7 @@ import type {
   ExpansionId,
   FishLocationId,
   ItemId,
+  ParcelId,
   RecipeId,
   UpgradeId,
 } from '../data/ids';
@@ -47,6 +49,8 @@ export type Action =
   | { type: 'unship'; item: ItemId }
   | { type: 'buyExpansion'; id: ExpansionId }
   | { type: 'buyUpgrade'; id: UpgradeId }
+  /** Upgrades › Land or a "For sale" sign: buy the next land parcel (v2 phase 01). */
+  | { type: 'buyParcel'; parcel: ParcelId }
   /** Puts a bought sprinkler or scarecrow on plot (col, row), or takes a placed one back. */
   | { type: 'place'; kind: PlacedKind; col: number; row: number }
   | { type: 'pickUp'; id: number }
@@ -113,6 +117,8 @@ function handleAction(state: GameState, ctx: SimContext, action: Action): Action
       return buyExpansion(state, ctx, action.id);
     case 'buyUpgrade':
       return buyUpgrade(state, ctx, action.id);
+    case 'buyParcel':
+      return buyParcel(state, ctx, action.parcel);
     case 'place':
       return placeObject(state, ctx, action.kind, action.col, action.row);
     case 'pickUp':

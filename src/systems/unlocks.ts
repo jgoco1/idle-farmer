@@ -47,6 +47,8 @@ function conditionMet(state: GameState, c: UnlockCondition, data?: GameData): bo
       return state.stats.fishCaught >= c.count;
     case 'knownRecipes':
       return knownOfTier(state, data, c.minTier) >= c.count;
+    case 'parcel':
+      return state.land.parcels.includes(c.id);
   }
 }
 
@@ -101,5 +103,7 @@ function hintFor(state: GameState, data: GameData, c: UnlockCondition): string {
       return `Catch ${c.count} fish first.`;
     case 'knownRecipes':
       return `Learn ${c.count} recipe${c.count === 1 ? '' : 's'} first.`;
+    case 'parcel':
+      return `Buy the ${data.parcels[c.id].name} first.`;
   }
 }

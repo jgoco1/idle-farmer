@@ -12,6 +12,7 @@ import type {
   ItemId,
   JunkId,
   MilestoneId,
+  ParcelId,
   Rarity,
   RecipeId,
   RecipeTier,
@@ -38,7 +39,16 @@ export type UnlockCondition =
   | { kind: 'caught'; fish: FishId }
   | { kind: 'lifetimeGold'; amount: number }
   | { kind: 'fishCaught'; count: number } // fish landed in total (phase 07)
-  | { kind: 'knownRecipes'; count: number; minTier: RecipeTier }; // recipes known of at least that tier (phase 07)
+  | { kind: 'knownRecipes'; count: number; minTier: RecipeTier } // recipes known of at least that tier (phase 07)
+  | { kind: 'parcel'; id: ParcelId }; // a land parcel is owned (v2 phase 01)
+
+/** A rectangle of world tiles: top-left (col, row) and size (DATA_SCHEMAS.md §9.3). */
+export interface TileRect {
+  col: number;
+  row: number;
+  cols: number;
+  rows: number;
+}
 
 export type ItemCategory = 'seed' | 'crop' | 'fish' | 'junk' | 'dish';
 
@@ -119,6 +129,20 @@ export interface UpgradeDef {
   levelRequires?: Readonly<Record<number, readonly UnlockCondition[]>>;
   /** Placeables only: where they go (traps are set out at the water automatically). */
   placeOn?: 'plot' | 'water';
+}
+
+/** A land parcel of the v2 world (DATA_SCHEMAS.md §9.4, BALANCE.md §13.1). */
+export interface ParcelDef {
+  id: ParcelId;
+  name: string;
+  /** One cozy line for Upgrades › Land. */
+  description: string;
+  /** World tiles. */
+  rect: TileRect;
+  price: number;
+  requires: readonly UnlockCondition[];
+  /** What it is for, shown on the sign and the Land card. */
+  opens: string;
 }
 
 export interface ExpansionDef {

@@ -81,6 +81,11 @@ import type { Action } from './core/actions';
 import type { ActionResult } from './systems/context';
 import { Toasts } from './ui/toast';
 import { buildSceneControls } from './ui/sceneControls';
+import { EdgePips } from './ui/edgePips';
+import type { PipTarget } from './render/pips';
+import { buyParcelDialog } from './ui/parcelSign';
+import { REGION_NAMES, regionAt } from './data/world';
+import { TRAP_CAPACITY } from './data/balance';
 import { applyMotionPrefs, isReducedMotion } from './ui/motion';
 import { flyCoins } from './ui/coinFly';
 import { TutorialOverlay } from './ui/tutorial';
@@ -217,6 +222,7 @@ panels.register(
     ...view,
     buyExpansion: (id) => guard.run(`expansion:${id}`, () => game.dispatch({ type: 'buyExpansion', id })),
     buyUpgrade: (id) => guard.run(`upgrade:${id}`, () => game.dispatch({ type: 'buyUpgrade', id })),
+    buyParcel: (parcel) => guard.run(`parcel:${parcel}`, () => game.dispatch({ type: 'buyParcel', parcel })),
     place: (kind) => {
       panels.close();
       placement.start(kind);
@@ -297,6 +303,17 @@ panels.onChange((open) => sfx.play(open ? 'panelOpen' : 'panelClose'));
 const quiet = (): boolean => game.replaying;
 bindAudioEvents(game.bus, sfx, quiet);
 
+/**
+ * A toast about something at world tile (col, row): when that tile is out of view it says where
+ * ("→ Hilltop Orchard") and clicking it pans there (GDD §12.1).
+ */
+function toastAt(text: string, tone: 'info' | 'good' | 'warn', col: number, row: number): void {
+  if (renderer.isTileVisible(col, row)) return toasts.show(text, tone);
+  const region = regionAt(col, row);
+  const where = region ? ` → ${REGION_NAMES[region]}` : '';
+  toasts.show(`${text}${where}`, tone, () => renderer.panToTile(col, row));
+}
+
 // ---- juice: particles at the spot an event happened (cosmetic; the renderer owns them)
 const PX = 16; // a tile in logical scene pixels
 const WATER_SPOT: Record<FishLocationId, { col: number; row: number }> = {
@@ -346,7 +363,7 @@ game.bus.on('sold', (e) => {
   flyCoins(renderer.tileClientCenter(16, 7), hud.goldElement, e.gold);
 });
 game.bus.on('binCollected', (e) => {
-  if (quiet()) return;
+  if (quiet() || !renderer.isTileVisible(BIN_TILE.col, BIN_TILE.row)) return;
   flyCoins(renderer.tileClientCenter(BIN_TILE.col, BIN_TILE.row), hud.goldElement, e.gold);
 });
 let petted = 0;
@@ -405,7 +422,7 @@ game.bus.on('recipeLearned', (e) => {
 });
 game.bus.on('cooked', (e) => {
   const name = GAME_DATA.recipes[e.recipe].name;
-  toasts.show(`${name} is ready${e.hearty ? ' and extra hearty' : ''}! It is in your bag.`, 'good');
+  toastAt(`${name} is ready${e.hearty ? ' and extra hearty' : ''}! It is in your bag.`, 'good', 2, 2);
 });
 game.bus.on('buffExpired', (e) => toasts.show(`${GAME_DATA.buffs[e.buff].name} has worn off.`));
 
@@ -459,11 +476,15 @@ game.bus.on('seasonChanged', (e) => {
 });
 // The Shipping Bin pickup: "+N" over the bin in the scene, and a toast.
 game.bus.on('binCollected', (e) => {
-  const at = renderer.tileClientCenter(BIN_TILE.col, BIN_TILE.row);
-  goldPopupAt(e.gold, at.x, at.y);
-  toasts.show(
+  if (renderer.isTileVisible(BIN_TILE.col, BIN_TILE.row)) {
+    const at = renderer.tileClientCenter(BIN_TILE.col, BIN_TILE.row);
+    goldPopupAt(e.gold, at.x, at.y);
+  }
+  toastAt(
     `The Shipping Bin was collected: ${e.items} item${e.items === 1 ? '' : 's'} for ${e.gold}g.`,
     'good',
+    BIN_TILE.col,
+    BIN_TILE.row,
   );
 });
 game.bus.on('purchased', (e) => {
@@ -481,6 +502,8 @@ game.bus.on('purchased', (e) => {
     toasts.show(`${GAME_DATA.upgrades[e.what]!.name} bought. Click a plot to put it down.`, 'good');
     panels.close(); // clear the way to the field
     placement.start(e.what);
+  } else if (e.what in GAME_DATA.parcels) {
+    // parcelBought has the toast.
   } else if (e.what in GAME_DATA.upgrades) {
     toasts.show(`${GAME_DATA.upgrades[e.what as keyof typeof GAME_DATA.upgrades]!.name} upgraded!`, 'good');
   }
@@ -495,14 +518,34 @@ game.bus.on('planted', (e) => {
 });
 // Traps: what a click or the Trap Collector took out of them.
 game.bus.on('trapCollected', (e) => {
-  toasts.show(`Collected ${e.items} item${e.items === 1 ? '' : 's'} from the ${e.location} traps.`, 'good');
+  const at = WATER_SPOT[e.location];
+  toastAt(
+    `Collected ${e.items} item${e.items === 1 ? '' : 's'} from the ${e.location} traps.`,
+    'good',
+    at.col,
+    at.row,
+  );
+});
+// A parcel is bought: the overgrowth goes in a puff of leaves and the camera shows the new land.
+game.bus.on('parcelBought', (e) => {
+  const def = GAME_DATA.parcels[e.parcel];
+  const r = def.rect;
+  if (!quiet()) {
+    for (let i = 0; i < 9; i++) {
+      const x = (r.col + ((i % 3) + 0.5) * (r.cols / 3)) * PX;
+      const y = (r.row + (Math.floor(i / 3) + 0.5) * (r.rows / 3)) * PX;
+      renderer.particles.emit('leaf', x, y, 1.4);
+    }
+    renderer.panToTile(r.col + Math.floor(r.cols / 2), r.row + Math.floor(r.rows / 2));
+  }
+  toasts.showKept(`${def.name} is yours! The brambles are cleared. ${def.opens}, later on.`, 'good');
 });
 // Live panels (Inventory, Shop, Market) follow the state; refreshed at most once per frame.
 let panelsDirty = false;
 game.bus.onAny(() => (panelsDirty = true));
 
-// ---- farming strokes: a press picks the tool (Auto resolves from the first plot) and a drag
-// applies the same tool to every plot it crosses. Shift-click applies it to the whole field.
+// ---- farming clicks: a click picks the tool (Auto resolves from the plot) and applies it; Shift-click
+// applies it to the whole field. A drag pans the camera instead (v2), so it never runs a tool.
 let stroke: { tool: ConcreteTool; seed: CropId | null } | null = null;
 const strokeHarvest = new Map<CropId, number>();
 let strokeFull = false;
@@ -617,9 +660,11 @@ const renderer = new Renderer({
         return openWater('river');
       case 'dock':
         return openWater('ocean');
+      case 'board':
+        return panels.open('goals');
     }
   },
-  onPlotDown({ plot, shiftKey }) {
+  onPlotClick({ plot, shiftKey }) {
     if (placement.kind) return placeAt(plot);
     const seed = tools.seed;
     const tool =
@@ -635,18 +680,45 @@ const renderer = new Renderer({
     stroke = { tool, seed };
     const all = game.state.farm.plots.map((_, i) => i);
     usePlotTool(shiftKey ? [plot, ...all.filter((i) => i !== plot)] : [plot], true);
-  },
-  onPlotEnter({ plot }) {
-    usePlotTool([plot], false);
-  },
-  onStrokeEnd() {
     stroke = null;
     flushStrokeToasts();
   },
+  onSignClick(parcel) {
+    buyParcelDialog(parcel, {
+      state: () => game.state,
+      buy: () => guard.run(`parcel:${parcel}`, () => game.dispatch({ type: 'buyParcel', parcel })),
+      toast: (text) => toasts.show(text),
+      openLand: () => panels.open('upgrades'),
+    });
+  },
+  onCameraRest(cam) {
+    prefs.set('camera', cam);
+  },
 });
 renderer.reducedMotion = isReducedMotion;
+renderer.restoreCamera(prefs.value.camera);
 buildSceneControls(byId('scene'), renderer);
-renderer.setScene(game.state.farm.grid, game.state.expansions);
+renderer.setScene(game.state.farm.grid, game.state.expansions, game.state.land.parcels);
+const pips = new EdgePips(byId('scene'), renderer);
+const pipTargets: PipTarget[] = [];
+/** Off-screen things that want the player (GDD §12.1): ready crops, full traps, a dish left on the stove. */
+function updatePips(): void {
+  const s = game.state;
+  pipTargets.length = 0;
+  for (let i = 0; i < s.farm.plots.length; i++)
+    if (isReady(s.farm.plots[i]!, GAME_DATA))
+      pipTargets.push({ kind: 'crop', ...tileOfPlot(s.farm.grid, i) });
+  for (let i = 0; i < s.farm.greenhouse.length; i++)
+    if (isReady(s.farm.greenhouse[i]!, GAME_DATA))
+      pipTargets.push({ kind: 'crop', ...tileOfPlot(s.farm.grid, 1000 + i) });
+  for (const t of s.fishing.traps) {
+    const n = t.contents.reduce((a, c) => a + c.qty, 0);
+    if (n >= TRAP_CAPACITY) pipTargets.push({ kind: 'trap', ...trapTile(t.location, t.slot) });
+  }
+  if (s.kitchen.queue.some((j) => j.remainingMs <= 0)) pipTargets.push({ kind: 'dish', col: 2, row: 2 });
+  pips.update(pipTargets);
+}
+window.setInterval(updatePips, 250);
 
 // ---- offline catch-up for the time since the last save
 function awayFarm(): AwayFarm {
@@ -771,7 +843,7 @@ const loop = startLoop(game, {
       music.setTheme(theme);
     }
     tutorialOverlay.update();
-    renderer.setScene(game.state.farm.grid, game.state.expansions);
+    renderer.setScene(game.state.farm.grid, game.state.expansions, game.state.land.parcels);
     renderer.render(performance.now(), cal, sceneView());
     if (placement.kind) syncPlacement();
     hud.update(game.state, cal);
@@ -801,3 +873,20 @@ if (import.meta.env.DEV || new URLSearchParams(location.search).has('debug')) {
 
 // Exposed for the e2e smoke test and manual poking in the console.
 (window as unknown as { __game: Game }).__game = game;
+/**
+ * e2e hook for the camera: the client position of a world tile (after panning it into view if it
+ * is not), so specs never depend on where the camera starts.
+ */
+(window as unknown as { __view: unknown }).__view = {
+  tileClient(col: number, row: number): { x: number; y: number; visible: boolean } {
+    const at = renderer.tileClientCenter(col, row);
+    return { ...at, visible: renderer.isTileVisible(col, row) };
+  },
+  showTile(col: number, row: number): void {
+    renderer.panToTile(col, row, true);
+  },
+  camera: () => ({ ...renderer.cam, default: prefs.value.camera === null }),
+  chunksDrawn: () => renderer.chunksDrawn,
+  objectsDrawn: () => renderer.objectsDrawn,
+  home: () => renderer.home(),
+};

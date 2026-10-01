@@ -13,6 +13,7 @@ import type {
   JunkId,
   MilestoneId,
   PanelId,
+  ParcelId,
   RecipeId,
   RecipeTier,
   SeasonId,
@@ -33,7 +34,8 @@ export type GameEvent =
   | { type: 'placed' | 'pickedUp'; kind: PlacedKind; col: number; row: number }
   | { type: 'sold'; item: ItemId; qty: number; gold: number; via: 'market' | 'bin' }
   | { type: 'goldEarned'; amount: number; source: 'sale' | 'quest' | 'other' }
-  | { type: 'purchased'; what: UpgradeId | ExpansionId | SeedId | RecipeId; gold: number }
+  | { type: 'purchased'; what: UpgradeId | ExpansionId | SeedId | RecipeId | ParcelId; gold: number }
+  | { type: 'parcelBought'; parcel: ParcelId }
   | { type: 'inventoryFull'; item: ItemId }
   | { type: 'bite' | 'escaped'; location: FishLocationId }
   | { type: 'trapCollected'; location: FishLocationId; items: number }

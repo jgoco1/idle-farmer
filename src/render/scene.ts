@@ -1,30 +1,31 @@
-// The farm scene as data: a 20 × 12 tile map, the objects placed on it, and the clickable zones
-// (GDD §5). Pure (no DOM), so layout and hit-testing are unit-tested.
+// The farm scene as data: the 36 × 22 tile world (v2), the objects placed on it, and the clickable
+// zones (GDD §5, §12.1). The v1 20 × 12 scene is the world's top-left corner at the same tiles, so
+// every v1 zone, plot and trap keeps its coordinates. Pure (no DOM): layout and hit-testing are
+// unit-tested.
 
 import type { Plot } from '../core/state';
 import { GREENHOUSE_BASE } from '../data/balance';
-import type { ExpansionId, FishLocationId } from '../data/ids';
+import { PARCEL_IDS, type ExpansionId, type FishLocationId, type ParcelId } from '../data/ids';
+import type { TileRect } from '../data/types';
+import { HOME_RECT, WORLD_COLS, WORLD_LAYOUT, WORLD_ROWS } from '../data/world';
 import { anchoredPosition } from './spriteCache';
 import { spriteDef } from './sprites';
 
+export type { TileRect } from '../data/types';
+
 export const TILE = 16;
-export const SCENE_COLS = 20;
-export const SCENE_ROWS = 12;
-export const SCENE_W = SCENE_COLS * TILE; // 320
-export const SCENE_H = SCENE_ROWS * TILE; // 192
+/** The home region (the whole v1 scene) in logical pixels: 320 × 192. */
+export const HOME_W = HOME_RECT.cols * TILE;
+export const HOME_H = HOME_RECT.rows * TILE;
+/** The world in logical pixels: 576 × 352. */
+export const WORLD_W = WORLD_COLS * TILE;
+export const WORLD_H = WORLD_ROWS * TILE;
 
 /** Top-left tile of the plot grid. The grid grows right and down from here (4 × 2 → 8 × 6). */
 export const PLOT_ORIGIN = { col: 6, row: 2 } as const;
 
-export interface TileRect {
-  col: number;
-  row: number;
-  cols: number;
-  rows: number;
-}
-
 export type ZoneId =
-  'plots' | 'pet' | 'farmhouse' | 'pond' | 'market' | 'bin' | 'greenhouse' | 'river' | 'dock';
+  'plots' | 'pet' | 'farmhouse' | 'pond' | 'market' | 'bin' | 'greenhouse' | 'river' | 'dock' | 'board';
 
 /** The water tiles where each location's fish traps float, by slot (BALANCE.md §4: two per location, a third once the Pond Fish bundle is done). */
 export const TRAP_TILES: Readonly<Record<FishLocationId, readonly { col: number; row: number }[]>> = {
@@ -90,6 +91,7 @@ export function buildZones(grid: Grid): Zone[] {
     { id: 'greenhouse', rect: { col: 15, row: 1, cols: 4, rows: 4 }, label: 'Empty lot' },
     { id: 'river', rect: { col: 6, row: 10, cols: 9, rows: 2 }, label: 'Riverbank' },
     { id: 'dock', rect: { col: 15, row: 10, cols: 5, rows: 2 }, label: 'Old dock' },
+    { id: 'board', rect: { ...WORLD_LAYOUT.boardTile, cols: 1, rows: 1 }, label: 'Community Board' },
   ];
 }
 
@@ -101,10 +103,19 @@ export function zoneAt(zones: readonly Zone[], col: number, row: number): Zone |
   return zones.find((z) => inRect(z.rect, col, row)) ?? null;
 }
 
-/** Logical scene pixel → tile, or null outside the scene. */
+/** World pixel → world tile, or null outside the world. */
 export function tileAt(x: number, y: number): { col: number; row: number } | null {
-  if (x < 0 || y < 0 || x >= SCENE_W || y >= SCENE_H) return null;
+  if (x < 0 || y < 0 || x >= WORLD_W || y >= WORLD_H) return null;
   return { col: Math.floor(x / TILE), row: Math.floor(y / TILE) };
+}
+
+/** The locked parcel whose "For sale" sign stands on tile (col, row), or null. */
+export function forSaleSignAt(owned: readonly ParcelId[], col: number, row: number): ParcelId | null {
+  for (const id of PARCEL_IDS) {
+    const t = WORLD_LAYOUT.forSaleSigns[id];
+    if (t.col === col && t.row === row && !owned.includes(id)) return id;
+  }
+  return null;
 }
 
 /**
@@ -173,6 +184,8 @@ export interface PlacedSprite {
   sprite: string;
   x: number; // logical px, top-left
   y: number;
+  w: number; // size in px, for culling
+  h: number;
 }
 
 export interface SceneLayout {
@@ -204,28 +217,33 @@ const PATH_TILES: readonly [number, number][] = [
   [17, 9],
 ];
 
-/** Base tiles of trees (bottom-centre anchored), kept clear of every zone and the largest fence. */
+/**
+ * Base tiles of the forest trees (bottom-centre anchored), kept clear of every zone and the largest
+ * fence. The forest edge runs along the world's edges (GDD §12.1).
+ */
 const TREES: readonly [number, number][] = [
   [0, 1],
-  [19, 1],
-  [19, 5],
   [0, 6],
+  [0, 21],
+  [8, 21],
 ];
 
 /**
- * Scenery that expansions change (BALANCE.md §5). Each entry is shown while `until` has not been
- * bought, or once `from` has. Tiles are top-left for 1-tile sprites and the base tile for
- * bottom-centre ones.
+ * Scenery that purchases change (BALANCE.md §5, §13.1). Each entry is shown while `until` has not
+ * been bought, or once `from` has; `untilParcel` hides it once that parcel is owned. Tiles are
+ * top-left for 1-tile sprites and the base tile for bottom-centre ones. (Player decorations are
+ * v2 phase 02's `decor`; this is the fixed scenery.)
  */
-interface Decor {
+interface Scenery {
   sprite: string;
   col: number;
   row: number;
   until?: ExpansionId;
   from?: ExpansionId;
+  untilParcel?: ParcelId;
 }
 
-const DECOR: readonly Decor[] = [
+const SCENERY: readonly Scenery[] = [
   // farm_1 "Clear the Weeds": weeds and a stump south of the field.
   { sprite: 'obj_weeds', col: 6, row: 6, until: 'farm_1' },
   { sprite: 'obj_stump', col: 8, row: 6, until: 'farm_1' },
@@ -239,7 +257,7 @@ const DECOR: readonly Decor[] = [
     [15, 9],
     [16, 9],
     [17, 9],
-  ].map(([col, row]): Decor => ({ sprite: 'obj_stones', col: col!, row: row!, from: 'farm_2' })),
+  ].map(([col, row]): Scenery => ({ sprite: 'obj_stones', col: col!, row: row!, from: 'farm_2' })),
   // farm_3 "Old Orchard Plot": two old trees are cleared (one in the way of the wider fence, one on
   // the greenhouse lot).
   { sprite: 'obj_tree', col: 12, row: 1, until: 'farm_3' },
@@ -249,13 +267,46 @@ const DECOR: readonly Decor[] = [
   // River Access: a small footbridge over the river.
   { sprite: 'obj_bridge', col: 10, row: 10, from: 'river' },
   { sprite: 'obj_bridge', col: 10, row: 11, from: 'river' },
-  // Old Dock: a plank walkway out to sea on posts.
+  // Old Dock: a plank walkway out to sea on posts; until then a "For sale" sign on the shore.
+  { sprite: 'obj_for_sale', col: 15, row: 10, until: 'ocean' },
   { sprite: 'obj_dock', col: 16, row: 10, from: 'ocean' },
   { sprite: 'obj_dock', col: 17, row: 10, from: 'ocean' },
   { sprite: 'obj_dock', col: 18, row: 10, from: 'ocean' },
   { sprite: 'obj_dock_post', col: 16, row: 11, from: 'ocean' },
   { sprite: 'obj_dock_post', col: 18, row: 11, from: 'ocean' },
+  // The Old Bridge over the inlet: only its end posts stand until the town mends it (v2 phase 02).
+  { sprite: 'obj_dock_post', col: 15, row: 12 },
+  { sprite: 'obj_dock_post', col: 19, row: 12 },
+  // The Community Board in the town square.
+  { sprite: 'obj_board', col: WORLD_LAYOUT.boardTile.col, row: WORLD_LAYOUT.boardTile.row },
+  // The town's building sites: a few old stones where each building stood.
+  ...Object.values(WORLD_LAYOUT.townSites).map((r): Scenery => ({
+    sprite: 'obj_stones',
+    col: r.col + 1,
+    row: r.row + r.rows - 1,
+  })),
+  // Each locked parcel: its "For sale" sign and overgrowth (tall grass, weeds and a stump or two).
+  ...PARCEL_IDS.flatMap((id) => [
+    { sprite: 'obj_for_sale', ...WORLD_LAYOUT.forSaleSigns[id], untilParcel: id },
+    ...overgrowth(id),
+  ]),
 ];
+
+/** Deterministic overgrowth on a locked parcel (cosmetic variety from `tileHash`, never the game RNG). */
+function overgrowth(id: ParcelId): Scenery[] {
+  const rect = WORLD_LAYOUT.regions.find((r) => r.id === id)!.rect;
+  const sign = WORLD_LAYOUT.forSaleSigns[id];
+  const out: Scenery[] = [];
+  for (let row = rect.row; row < rect.row + rect.rows; row++)
+    for (let col = rect.col; col < rect.col + rect.cols; col++) {
+      if (col === sign.col && row === sign.row) continue;
+      if (WORLD_LAYOUT.sand.some((s) => inRect(s, col, row))) continue;
+      const v = tileHash(col + 311, row + 17);
+      const sprite = v < 0.24 ? 'obj_tall_grass' : v < 0.3 ? 'obj_weeds' : v < 0.32 ? 'obj_stump' : null;
+      if (sprite) out.push({ sprite, col, row, untilParcel: id });
+    }
+  return out;
+}
 
 /** Water tiles that animate every frame. */
 const ANIMATED_TILES: readonly string[] = ['tile_water', 'tile_river', 'tile_sea'];
@@ -270,15 +321,22 @@ function riverTile(col: number, row: number): string | null {
   return left ? 'tile_pond_edge_w' : right ? 'tile_pond_edge_e' : 'tile_river';
 }
 
-/** The open sea beside the dock: a sandy landing at the left, then water. */
+/** The sea (always drawn since v2: under the dock, the inlet and the open sea) and the sand beside it. */
 function seaTile(col: number, row: number): string | null {
-  if (col < 15 || col > 19 || row < 10 || row > 11) return null;
-  return col === 15 ? 'tile_path' : 'tile_sea';
+  for (const r of WORLD_LAYOUT.sand) if (inRect(r, col, row)) return r.col === 15 ? 'tile_path' : 'tile_sand';
+  for (const r of WORLD_LAYOUT.sea) if (inRect(r, col, row)) return 'tile_sea';
+  return null;
 }
 
-export function decorFor(expansions: readonly ExpansionId[]): Decor[] {
-  return DECOR.filter(
-    (d) => (!d.until || !expansions.includes(d.until)) && (!d.from || expansions.includes(d.from)),
+const LANE_TILES = new Set(WORLD_LAYOUT.lanes.map((t) => `${t.col},${t.row}`));
+
+/** The scenery shown for these purchases. */
+export function sceneryFor(expansions: readonly ExpansionId[], parcels: readonly ParcelId[] = []): Scenery[] {
+  return SCENERY.filter(
+    (d) =>
+      (!d.until || !expansions.includes(d.until)) &&
+      (!d.from || expansions.includes(d.from)) &&
+      (!d.untilParcel || !parcels.includes(d.untilParcel)),
   );
 }
 
@@ -300,7 +358,22 @@ function pondTile(col: number, row: number): string | null {
   return 'tile_water';
 }
 
-export function buildLayout(grid: Grid, expansions: readonly ExpansionId[] = []): SceneLayout {
+function placed(sprite: string, x: number, y: number): PlacedSprite {
+  const f = spriteDef(sprite).frames[0];
+  return { sprite, x, y, w: f?.[0]?.length ?? TILE, h: f?.length ?? TILE };
+}
+
+function placedAt(sprite: string, col: number, row: number): PlacedSprite {
+  const pos = anchoredPosition(spriteDef(sprite), col, row, TILE);
+  return placed(sprite, pos.x, pos.y);
+}
+
+/** The static layout of the whole world for this farm grid and these purchases. */
+export function buildLayout(
+  grid: Grid,
+  expansions: readonly ExpansionId[] = [],
+  parcels: readonly ParcelId[] = [],
+): SceneLayout {
   const plots = plotRect(grid);
   const fence: TileRect = {
     col: plots.col - 1,
@@ -310,25 +383,28 @@ export function buildLayout(grid: Grid, expansions: readonly ExpansionId[] = [])
   };
   const paths = new Set(PATH_TILES.map(([c, r]) => `${c},${r}`));
   const zones = buildZones(grid);
-  const decor = decorFor(expansions);
-  const decorTiles = new Set(decor.map((d) => `${d.col},${d.row}`));
+  const scenery = sceneryFor(expansions, parcels);
+  const sceneryTiles = new Set(scenery.map((d) => `${d.col},${d.row}`));
+  const sites = [...Object.values(WORLD_LAYOUT.townSites)];
 
   const ground: string[][] = [];
   const animated: SceneLayout['animated'] = [];
   const objects: PlacedSprite[] = [];
 
-  for (let row = 0; row < SCENE_ROWS; row++) {
+  for (let row = 0; row < WORLD_ROWS; row++) {
     const line: string[] = [];
-    for (let col = 0; col < SCENE_COLS; col++) {
+    for (let col = 0; col < WORLD_COLS; col++) {
       const pond = pondTile(col, row);
       const river = expansions.includes('river') ? riverTile(col, row) : null;
-      const sea = expansions.includes('ocean') ? seaTile(col, row) : null;
+      const sea = seaTile(col, row);
+      const key = `${col},${row}`;
       let tile: string;
       if (pond) tile = pond;
       else if (river) tile = river;
       else if (sea) tile = sea;
       else if (inRect(plots, col, row)) tile = 'tile_soil_dry';
-      else if (paths.has(`${col},${row}`)) tile = 'tile_path';
+      else if (paths.has(key) || LANE_TILES.has(key)) tile = 'tile_path';
+      else if (sites.some((r) => inRect(r, col, row))) tile = 'tile_soil_untilled';
       else {
         const v = tileHash(col, row);
         tile = v < 0.5 ? 'tile_grass_a' : v < 0.8 ? 'tile_grass_b' : 'tile_grass_c';
@@ -336,17 +412,12 @@ export function buildLayout(grid: Grid, expansions: readonly ExpansionId[] = [])
       line.push(tile);
       if (ANIMATED_TILES.includes(tile)) animated.push({ col, row, sprite: tile });
 
-      // Wild flowers on open grass, away from buildings, zones, paths and fences.
+      // Wild flowers on open grass, away from buildings, zones, paths, fences and scenery.
       const onFence = inRect(fence, col, row) && !inRect(plots, col, row);
-      if (
-        tile.startsWith('tile_grass') &&
-        !onFence &&
-        !zoneAt(zones, col, row) &&
-        !decorTiles.has(`${col},${row}`)
-      ) {
+      if (tile.startsWith('tile_grass') && !onFence && !zoneAt(zones, col, row) && !sceneryTiles.has(key)) {
         const f = tileHash(col + 101, row + 57);
-        if (f < 0.1) objects.push({ sprite: 'obj_flower_a', x: col * TILE, y: row * TILE });
-        else if (f < 0.16) objects.push({ sprite: 'obj_flower_b', x: col * TILE, y: row * TILE });
+        if (f < 0.1) objects.push(placed('obj_flower_a', col * TILE, row * TILE));
+        else if (f < 0.16) objects.push(placed('obj_flower_b', col * TILE, row * TILE));
       }
     }
     ground.push(line);
@@ -354,27 +425,21 @@ export function buildLayout(grid: Grid, expansions: readonly ExpansionId[] = [])
 
   // Fence around the plot grid: rails along the top and bottom rows, posts down the sides.
   for (let col = fence.col; col < fence.col + fence.cols; col++) {
-    objects.push({ sprite: 'obj_fence_h', x: col * TILE, y: fence.row * TILE });
-    objects.push({ sprite: 'obj_fence_h', x: col * TILE, y: (fence.row + fence.rows - 1) * TILE });
+    objects.push(placed('obj_fence_h', col * TILE, fence.row * TILE));
+    objects.push(placed('obj_fence_h', col * TILE, (fence.row + fence.rows - 1) * TILE));
   }
   for (let row = fence.row + 1; row < fence.row + fence.rows - 1; row++) {
-    objects.push({ sprite: 'obj_fence_v', x: fence.col * TILE, y: row * TILE });
-    objects.push({ sprite: 'obj_fence_v', x: (fence.col + fence.cols - 1) * TILE, y: row * TILE });
+    objects.push(placed('obj_fence_v', fence.col * TILE, row * TILE));
+    objects.push(placed('obj_fence_v', (fence.col + fence.cols - 1) * TILE, row * TILE));
   }
 
-  objects.push({ sprite: 'obj_farmhouse', x: 1 * TILE, y: 1 * TILE });
-  objects.push({ sprite: 'obj_market_stall', x: 15 * TILE, y: 6 * TILE });
-  objects.push({ sprite: 'obj_shipping_bin', x: BIN_TILE.col * TILE, y: BIN_TILE.row * TILE });
-  for (const [col, row] of TREES) {
-    const pos = anchoredPosition(spriteDef('obj_tree'), col, row, TILE);
-    objects.push({ sprite: 'obj_tree', ...pos });
-  }
-  for (const d of decor) {
-    objects.push({ sprite: d.sprite, ...anchoredPosition(spriteDef(d.sprite), d.col, d.row, TILE) });
-  }
+  objects.push(placed('obj_farmhouse', 1 * TILE, 1 * TILE));
+  objects.push(placed('obj_market_stall', 15 * TILE, 6 * TILE));
+  objects.push(placed('obj_shipping_bin', BIN_TILE.col * TILE, BIN_TILE.row * TILE));
+  for (const [col, row] of TREES) objects.push(placedAt('obj_tree', col, row));
+  for (const d of scenery) objects.push(placedAt(d.sprite, d.col, d.row));
 
-  const bottom = (o: PlacedSprite): number => o.y + (spriteDef(o.sprite).frames[0]?.length ?? TILE);
-  objects.sort((a, b) => bottom(a) - bottom(b));
+  objects.sort((a, b) => a.y + a.h - (b.y + b.h));
   return { ground, animated, objects };
 }
 

@@ -26,7 +26,17 @@ import fixtureV3 from './fixtures/save-v3.json';
 import fixtureV4 from './fixtures/save-v4.json';
 import fixtureV5 from './fixtures/save-v5.json';
 import fixtureV6 from './fixtures/save-v6.json';
-import fixture from './fixtures/save-v7.json';
+import fixtureV7 from './fixtures/save-v7.json';
+import {
+  buildZones,
+  LOCATION_ZONE,
+  PLOT_ORIGIN,
+  plotIndexAt,
+  tileOfPlot,
+  trapTile,
+  zoneAt,
+} from '../src/render/scene';
+import fixture from './fixtures/save-v8.json';
 import { farmLevel } from '../src/systems/unlocks';
 import { at, NY } from './helpers';
 
@@ -43,13 +53,13 @@ function memoryStorage(initial: Record<string, string> = {}): SaveStorage & { da
 }
 
 describe('save file', () => {
-  it('is at version 7 (phase 07) with one migration per older version', () => {
-    expect(SAVE_VERSION).toBe(7);
-    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4', '5', '6']);
+  it('is at version 8 (v2 phase 01) with one migration per older version', () => {
+    expect(SAVE_VERSION).toBe(8);
+    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4', '5', '6', '7']);
     expect(SAVE_KEY).toBe('hearthfield-idle/save');
   });
 
-  it('the v7 fixture loads unchanged', () => {
+  it('the v8 fixture loads unchanged', () => {
     const file = parseSave(FIXTURE_TEXT);
     expect(file).toEqual(fixture);
   });
@@ -454,6 +464,47 @@ describe('migrations', () => {
       ),
     ).toBe('bad fishing session');
     expect(bad((c) => (c.settings.relaxedFishing = 'yes' as never))).toBe('bad settings');
+  });
+
+  it('migrates a v7 save into the world (v8): no parcels, nothing moved, every v1 spot hit-tests as before', () => {
+    const file = parseSave(JSON.stringify(fixtureV7));
+    expect(file.version).toBe(SAVE_VERSION);
+    expect(validateState(file.state)).toBeNull();
+    const s = file.state;
+    expect(s.land).toEqual({ parcels: [] });
+    const rest: Record<string, unknown> = JSON.parse(JSON.stringify(s));
+    delete rest.land;
+    expect(rest).toEqual(fixtureV7.state);
+    // The v1 scene is the world's top-left corner at the same tiles: every zone, plot and trap spot
+    // of the old save is found exactly where v1 found it.
+    const grid = s.farm.grid;
+    const zones = buildZones(grid);
+    const V1_ZONES: [number, number, string][] = [
+      [2, 2, 'farmhouse'],
+      [5, 3, 'pet'],
+      [2, 9, 'pond'],
+      [16, 7, 'market'],
+      [18, 7, 'bin'],
+      [17, 3, 'greenhouse'],
+      [10, 11, 'river'],
+      [17, 10, 'dock'],
+    ];
+    for (const [c, r, id] of V1_ZONES) expect(zoneAt(zones, c, r)?.id, `${c},${r}`).toBe(id);
+    for (let i = 0; i < s.farm.plots.length; i++) {
+      const t = tileOfPlot(grid, i);
+      expect(plotIndexAt(grid, t.col, t.row), `plot ${i}`).toBe(i);
+      expect(zoneAt(zones, t.col, t.row)?.id).toBe('plots');
+    }
+    for (const o of s.placed)
+      expect(
+        plotIndexAt(grid, PLOT_ORIGIN.col + o.at.col, PLOT_ORIGIN.row + o.at.row),
+      ).toBeGreaterThanOrEqual(0);
+    for (const t of s.fishing.traps) {
+      const at = trapTile(t.location, t.slot);
+      expect(zoneAt(zones, at.col, at.row)?.id, `${t.location} trap ${t.slot}`).toBe(
+        LOCATION_ZONE[t.location],
+      );
+    }
   });
 
   it('migrates a phase-03 (v3) save: everything is kept, automation starts empty', () => {
