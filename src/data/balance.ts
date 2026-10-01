@@ -212,6 +212,8 @@ export const COOKING_XP_EXPONENT = 1.5;
  */
 export const FARM_LEVEL_POINTS: readonly number[] = [0, 0, 2, 5, 8, 11, 14, 18, 25, 32, 39];
 export const FARM_LEVEL_MAX = FARM_LEVEL_POINTS.length - 1;
+/** The story milestones m01 … m15 are worth a farm point each; the v2 milestones (m16 on) are not (BALANCE.md §13.9). */
+export const FARM_POINT_MILESTONES = 15;
 
 /** The golden scarecrow (Spring Crops bundle): a bigger, stronger scarecrow. */
 export const GOLDEN_SCARECROW = { bundle: 'spring_crops', radius: 3, growthBonus: 0.3 } as const;
@@ -240,3 +242,22 @@ export const GOAL_RARE_FISHING_LEVEL = 6;
 export const GOAL_COOK_COUNT = { t2: 3, higher: 2 } as const;
 export const GOAL_DISTINCT_COUNT = 3;
 export const GOAL_EAT_COUNT = 2;
+
+// ---- decorations, charm and town projects (v2 phase 02, BALANCE.md §13.2–13.3, §13.12)
+
+/** Pieces that may stand on the land at once (farmhouse pieces use no slot); each finished project in `decorSlots` adds more. */
+export const DECOR_BASE_SLOTS = 100;
+export const DECOR_SLOTS_PER_PROJECT = 40;
+/** Each completed town-project stage adds this much charm. */
+export const CHARM_PER_PROJECT_STAGE = 10;
+/** Multiplies every town-project gold figure: the one lever for the gold-still-to-spend check (BALANCE.md §13.4). */
+export const TOWN_PROJECT_SCALE = 0.8;
+/** The Community Hall's reward: one more goal on the board. */
+export const GOAL_SLOTS_HALL_BONUS = 1;
+/** The shares of a stage's gold the donate buttons give (and "all I can"). */
+export const PROJECT_DONATE_SHARES: readonly number[] = [0.1, 0.25];
+/** Decorations are bought in these amounts from the Decor tab. */
+export const DECOR_BUY_AMOUNTS: readonly number[] = [1, 5, 10];
+/** The "Raise your charm" goal asks for `max(GOAL_CHARM_MIN, niceTarget(GOAL_CHARM_SHARE × charm))` more charm. */
+export const GOAL_CHARM_SHARE = 0.1;
+export const GOAL_CHARM_MIN = 3;

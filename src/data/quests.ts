@@ -141,6 +141,55 @@ export const MILESTONES: readonly QuestDef[] = Object.freeze([
     rewards: [{ kind: 'gold', amount: 5000 }],
     requires: [],
   },
+  // ---- v2 (BALANCE.md §13.9): no farm points; the parcel and charm ones are checked from state.
+  {
+    id: 'm16_first_parcel',
+    kind: 'milestone',
+    title: 'Own a piece of new land',
+    flavor: 'A fence line you did not build, and a view you did not have yesterday.',
+    objective: { kind: 'ownParcel', count: 1 },
+    rewards: [
+      { kind: 'decor', id: 'cobble_path', qty: 10 },
+      { kind: 'decor', id: 'flower_bed', qty: 1 },
+    ],
+    requires: [],
+  },
+  {
+    id: 'm17_first_decor',
+    kind: 'milestone',
+    title: 'Place a decoration',
+    flavor: 'It does nothing at all, and the whole farm looks happier.',
+    objective: { kind: 'placeDecor', count: 1 },
+    rewards: [{ kind: 'decor', id: 'garden_lamp', qty: 1 }],
+    requires: [],
+  },
+  {
+    id: 'm18_charm_25',
+    kind: 'milestone',
+    title: 'Reach charm 25',
+    flavor: 'The neighbours slow down when they pass your gate.',
+    objective: { kind: 'reachCharm', amount: 25 },
+    rewards: [{ kind: 'gold', amount: 10_000 }],
+    requires: [],
+  },
+  {
+    id: 'm19_first_project',
+    kind: 'milestone',
+    title: 'Finish a town project stage',
+    flavor: 'The square looks a little less forgotten than it did this morning.',
+    objective: { kind: 'projectStage', count: 1 },
+    rewards: [{ kind: 'gold', amount: 20_000 }],
+    requires: [],
+  },
+  {
+    id: 'm23_charm_100',
+    kind: 'milestone',
+    title: 'Reach charm 100',
+    flavor: 'People travel from the next valley just to sit on your bench.',
+    objective: { kind: 'reachCharm', amount: 100 },
+    rewards: [{ kind: 'decor', id: 'rose_arch', qty: 1 }],
+    requires: [],
+  },
 ] satisfies QuestDef[]);
 
 export const MILESTONE_IDS: readonly MilestoneId[] = MILESTONES.map((m) => m.id as MilestoneId);
@@ -231,6 +280,15 @@ export const GOAL_TEMPLATES: Readonly<Record<GoalTemplateId, QuestDef>> = Object
     objective: { kind: 'eat', count: 0 },
     rewards: [],
     requires: [{ kind: 'knownRecipes', count: 1, minTier: 1 }],
+  },
+  raise_charm: {
+    id: 'raise_charm',
+    kind: 'goal',
+    title: 'Raise your charm by {n}',
+    flavor: 'A lamp here, a fence there. It all adds up.',
+    objective: { kind: 'gainCharm', amount: 0 },
+    rewards: [],
+    requires: [{ kind: 'milestone', id: 'm17_first_decor' }],
   },
 } satisfies Record<GoalTemplateId, QuestDef>);
 

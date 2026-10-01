@@ -65,3 +65,11 @@ v2 phase 01 (world and camera):
 - **Region-aware toasts for more events**: v2-01 adds the "→ Region" suffix and click-to-pan to the bin, trap, cooking and parcel toasts; v2-02–04 should route decoration, tree and animal toasts through `toastAt` in `src/main.ts` too. v2-02–04.
 - **Start the phone view on the field**: on a narrow phone the default view (the home region's centre at the height-fitting zoom) shows the field and market but not the farmhouse. Centring on the field's middle, or remembering the last view per orientation, could read better. Later polish.
 
+
+v2 phase 02 (decorations, charm and town projects):
+- **A longer Shipping Bin pickup window as a town reward**: the phase prompt listed it among example rewards, but GDD §12.2's project table (which wins) does not give one. It would be a quality-of-life reward for the bandstand or lighthouse. Later balance.
+- **A decoration preview on touch screens**: Decorate mode shows its green or red ghost under a mouse pointer only; on a touch screen a tap places at once, and a refused tile says why in a toast. A drag-to-position ghost with a confirm button would be gentler. Later polish.
+- **Rearrange without the slot cap getting in the way**: with 100 slots at first, a player who has bought a whole set cannot place it all until projects finish. "Swap" (pick up one, place another in one click) or a stock-to-slot indicator on each chip could help. Later polish.
+- **Stage items that wait for later phases**: apples, persimmons, eggs, large eggs and milk join the bakery's and the hall's stages in v2-03 and v2-04 (`LATER_STAGE_ITEMS` in `src/data/townProjects.ts`). v2-03 and v2-04.
+- **Placing decorations in the Orchard and the Paddock**: allowed today (outside tree spots); v2-04's coop, barn and silo are placed on free tiles, so a decoration already there blocks them. The building-placement check should say which decoration is in the way, or offer to pick it up. v2-04.
+- **Festival lights and the band across the whole square**: v2-02 hangs one string between two poles and puts four musicians on the bandstand; a fuller square (bunting between all the buildings, dancing townsfolk) would be pure art work. Later polish.

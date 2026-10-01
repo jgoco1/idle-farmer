@@ -3,12 +3,15 @@ import { BUFFS } from './buffs';
 import { BUNDLES, GOAL_TEMPLATES, MILESTONES } from './quests';
 import { SKILL_PERKS } from './skills';
 import { CROPS } from './crops';
+import { DECOR, DECOR_SETS } from './decor';
 import { EXPANSIONS } from './expansions';
 import { FISH, JUNK } from './fish';
 import type {
   BuffType,
   BundleId,
   CropId,
+  DecorId,
+  DecorSetId,
   ExpansionId,
   FishId,
   GoalTemplateId,
@@ -17,6 +20,7 @@ import type {
   ParcelId,
   RecipeId,
   SeasonId,
+  TownProjectId,
   UpgradeId,
 } from './ids';
 import { ITEMS } from './items';
@@ -27,6 +31,8 @@ import type {
   BuffDef,
   BundleDef,
   CropDef,
+  DecorDef,
+  DecorSetDef,
   ExpansionDef,
   FishDef,
   ItemDef,
@@ -36,8 +42,10 @@ import type {
   RecipeDef,
   SeasonDef,
   SkillPerkDef,
+  TownProjectDef,
   UpgradeDef,
 } from './types';
+import { TOWN_PROJECTS } from './townProjects';
 import { UPGRADES } from './upgrades';
 import { WORLD_LAYOUT, type WorldLayout } from './world';
 
@@ -68,6 +76,11 @@ export interface GameData {
   parcels: Readonly<Record<ParcelId, ParcelDef>>;
   /** The world layout: regions, lanes, sea, town sites, tree spots (v2 phase 01). */
   world: WorldLayout;
+  /** The decoration sets and pieces (v2 phase 02). */
+  decorSets: Readonly<Record<DecorSetId, DecorSetDef>>;
+  decor: Readonly<Record<DecorId, DecorDef>>;
+  /** The six town projects of the Community Board (v2 phase 02). */
+  townProjects: Readonly<Record<TownProjectId, TownProjectDef>>;
 }
 
 export const GAME_DATA: GameData = Object.freeze({
@@ -87,4 +100,7 @@ export const GAME_DATA: GameData = Object.freeze({
   bundles: BUNDLES,
   parcels: PARCELS,
   world: WORLD_LAYOUT,
+  decorSets: DECOR_SETS,
+  decor: DECOR,
+  townProjects: TOWN_PROJECTS,
 });

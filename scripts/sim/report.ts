@@ -4,7 +4,7 @@
 import { BOTS, SIM_START_LABEL, STRATEGY_BOTS, type BotId } from './bots';
 import type { GameState } from '../../src/core/state';
 import { DAY, HOUR, MIN, type Metrics, type Moment } from './driver';
-import { catalogueParts } from './catalogue';
+import { catalogueParts, catalogueTotal } from './catalogue';
 import { GAME_DATA } from '../../src/data';
 
 /** What the report needs from a finished run (plain data, so it can come back from a worker thread). */
@@ -133,6 +133,14 @@ export const MOMENTS: readonly [key: string, label: string][] = [
   ['bought_orchard', 'Hilltop Orchard bought'],
   ['bought_yard', 'Old Paddock bought'],
   ['bought_meadow', 'Seaside Meadow bought'],
+  ['first_decor', 'First decoration placed'],
+  ['first_stage', 'First town project stage'],
+  ['first_project', 'First town project complete'],
+  ['charm_25', 'Charm 25'],
+  ['charm_100', 'Charm 100'],
+  ['project_old_bridge', 'Old Bridge mended'],
+  ['project_bakery', 'Bakery rebuilt'],
+  ['project_community_hall', 'Community Hall raised'],
 ];
 
 /** Days of the "Gold still to spend" table (BALANCE.md §13.4). */
@@ -220,12 +228,12 @@ export function markdownReport(result: SimResult): string {
     lines.push(`| ${BOTS[b].name} | ${curveDays.map((d) => fmt(s.goldPerSimHour[d - 1])).join(' | ')} |`);
   }
   lines.push('');
-  // Gold still to spend (BALANCE.md §13.4; v2 phase 01: v1 and the land parcels).
+  // Gold still to spend (BALANCE.md §13.4; v2 phase 02: v1, land, decorations and town projects).
   const parts = catalogueParts(GAME_DATA);
-  const total = parts.v1 + parts.parcels;
+  const total = parts.v1 + parts.parcels + parts.decor + parts.projects;
   const spendDays = SPEND_DAYS.filter((d) => d <= days);
   lines.push(
-    `Gold still to spend (BALANCE.md §13.4): the catalogue so far is v1 ${fmt(parts.v1)} + land ${fmt(parts.parcels)} = **${fmt(total)}**; gold still to spend · share of the catalogue at the end of real day *n*, and the day it reaches 0:`,
+    `Gold still to spend (BALANCE.md §13.4): the catalogue so far is v1 ${fmt(parts.v1)} + land ${fmt(parts.parcels)} + decorations ${fmt(parts.decor)} + town projects ${fmt(parts.projects)} = **${fmt(total)}** (saplings and the ranch join in v2-03 and v2-04); gold still to spend · share of the catalogue at the end of real day *n*, and the day it reaches 0:`,
     '',
     `| Bot | ${spendDays.map((d) => `d${d}`).join(' | ')} | Spent out |`,
     `|---|${spendDays.map(() => '---|').join('')}---|`,
@@ -238,6 +246,18 @@ export function markdownReport(result: SimResult): string {
     const out = spentOutDay(runs[b]!);
     lines.push(`| ${BOTS[b].name} | ${cells.join(' | ')} | ${out === null ? '–' : `d${fmt(out, 1)}`} |`);
   }
+  lines.push('');
+  // Charm by day
+  lines.push(
+    'Charm at the end of real day *n* (median):',
+    '',
+    `| Bot | ${spendDays.map((d) => `d${d}`).join(' | ')} |`,
+    `|---|${spendDays.map(() => '---|').join('')}`,
+  );
+  for (const b of bots)
+    lines.push(
+      `| ${BOTS[b].name} | ${spendDays.map((d) => fmt(median(runs[b]!.map((r) => snapshotAt(r, d * DAY).charm)))).join(' | ')} |`,
+    );
   lines.push('');
   lines.push(...checks(result, sums));
   return lines.join('\n');
@@ -316,6 +336,88 @@ export function tuningChecks(result: SimResult, sums: Map<BotId, BotSummary>): C
       measured: `worst day-over-day ${fmt(worst, 2)}×${Number.isFinite(late) ? `, day 28 / day 14 ${fmt(late, 2)}×` : ''}`,
       ok: worst <= 3 && (!Number.isFinite(late) || late <= 3),
     });
+  }
+  out.push(...spendChecks(result));
+  return out;
+}
+
+/** The target share of the catalogue still to spend, by day (BALANCE.md §13.4): [low, high]. */
+export const SPEND_TARGETS: Readonly<
+  Partial<Record<BotId, Readonly<Record<number, readonly [number, number]>>>>
+> = {
+  active: { 1: [0.99, 1], 3: [0.97, 1], 7: [0.85, 0.95], 14: [0.55, 0.75], 21: [0.3, 0.55], 30: [0.05, 0.3] },
+  farmer: { 1: [0.99, 1], 3: [0.9, 0.97], 7: [0.65, 0.85], 14: [0.3, 0.55], 21: [0.05, 0.3], 30: [0, 0.1] },
+};
+/** The leftover v1 content the wish lists skip, as a share of the catalogue: below this nothing is "still to buy". */
+export const SPEND_FLOOR = 0.02;
+/** ±10 points around the target bands is fine. */
+export const SPEND_TOLERANCE = 0.1;
+
+/** BALANCE.md §13.4's three checks: gold stays meaningful, the curve, and no hoard. */
+export function spendChecks(result: SimResult): Check[] {
+  const out: Check[] = [];
+  const total = catalogueTotal(GAME_DATA);
+  const days = result.days;
+  const bots = (Object.keys(result.runs) as BotId[]).filter(
+    (b) => STRATEGY_BOTS.includes(b) || b === 'active',
+  );
+  for (const b of bots) {
+    const runs = result.runs[b]!;
+    if (days >= 21) {
+      const d21 = toSpendAtDay(runs, 21, total).gold;
+      out.push({
+        what: `${BOTS[b].name}: gold stays meaningful (day 21)`,
+        target: 'gold still to spend > 0',
+        measured: fmt(d21),
+        ok: d21 > 0,
+      });
+    }
+    if (b === 'active' && days >= 30) {
+      const left = toSpendAtDay(runs, 30, total).gold;
+      const inHand = median(runs.map((r) => snapshotAt(r, 30 * DAY).gold));
+      out.push({
+        what: 'Active Player: gold still to spend on day 30',
+        target: '> 0 and more than the gold in hand',
+        measured: `${fmt(left)} to spend vs ${fmt(inHand)} in hand`,
+        ok: left > 0 && left > inHand,
+      });
+    }
+    const targets = SPEND_TARGETS[b];
+    if (targets) {
+      for (const d of SPEND_DAYS.filter((x) => x <= days)) {
+        const band = targets[d];
+        if (!band) continue;
+        const share = toSpendAtDay(runs, d, total).share;
+        out.push({
+          what: `${BOTS[b].name}: share still to spend, day ${d}`,
+          target: `${pct(band[0])}–${pct(band[1])} (±10 points)`,
+          measured: pct(share),
+          ok: share >= band[0] - SPEND_TOLERANCE && share <= band[1] + SPEND_TOLERANCE,
+        });
+      }
+    }
+    if (days >= 8) {
+      // After day 7, while something is left to buy, no day ends holding more than three days' income. A few
+      // v1 upgrades the bots' wish lists skip (about 1% of the catalogue) never get bought, so "something" is
+      // more than SPEND_FLOOR of the catalogue.
+      const worst = runs.map((r) => {
+        let w = 0;
+        for (const snap of r.metrics.snapshots) {
+          if (snap.realMs < 7 * DAY || snap.toSpend <= SPEND_FLOOR * total) continue;
+          const before = snapshotAt(r, snap.realMs - DAY).lifetimeGold;
+          const income = Math.max(1, snap.lifetimeGold - before);
+          w = Math.max(w, snap.gold / income);
+        }
+        return w;
+      });
+      const m = median(worst);
+      out.push({
+        what: `${BOTS[b].name}: no hoard after day 7`,
+        target: 'gold in hand ≤ 3 days’ income while there is still something to buy',
+        measured: `${fmt(m, 2)} days’ income at worst (median over seeds)`,
+        ok: m <= 3,
+      });
+    }
   }
   return out;
 }

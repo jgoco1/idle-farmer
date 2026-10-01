@@ -9,7 +9,9 @@ import type { SeasonId } from '../data/ids';
 import type { AudioEngine } from './engine';
 import { midiToHz, Synth, type Wave } from './synth';
 
-export type ThemeKey = `${SeasonId}-${'day' | 'night'}`;
+/** The four seasons' loops, and the Town Square tune the bandstand project gives (v2 phase 02). */
+export type ThemeId = SeasonId | 'town_square';
+export type ThemeKey = `${ThemeId}-${'day' | 'night'}`;
 
 export interface Theme {
   bpm: number;
@@ -26,7 +28,7 @@ const _ = null;
 const PENTA_MAJOR = [0, 2, 4, 7, 9] as const;
 const PENTA_MINOR = [0, 3, 5, 7, 10] as const;
 
-export const THEMES: Record<SeasonId, Theme> = {
+export const THEMES: Record<ThemeId, Theme> = {
   spring: {
     bpm: 104,
     root: 60,
@@ -71,10 +73,27 @@ export const THEMES: Record<SeasonId, Theme> = {
       [2, _, _, 4, _, _, 5, _, 4, _, _, _, 3, _, _, 1, 2, _, _, _, 1, _, 0, _, 1, _, _, _, _, _, _, _],
     ],
   },
+  // A little brass-band waltz for the square: bright, bouncy and a touch ceremonial.
+  town_square: {
+    bpm: 112,
+    root: 62,
+    scale: PENTA_MAJOR,
+    progression: [0, 3, 4, 0],
+    lead: 'square',
+    melody: [
+      [0, _, 2, _, 4, _, 5, _, 4, _, 2, _, 3, _, 2, _, 1, _, 3, _, 5, _, 6, _, 5, _, 3, _, 4, _, _, _],
+      [4, _, 4, 5, 4, _, 2, _, 0, _, 2, 3, 4, _, _, _, 5, _, 6, 5, 4, _, 3, _, 2, _, 1, _, 0, _, _, _],
+    ],
+  },
 };
 
 export function themeKey(season: SeasonId, night: boolean): ThemeKey {
   return `${season}-${night ? 'night' : 'day'}`;
+}
+
+/** The theme key for the Town Square tune. */
+export function townSquareKey(night: boolean): ThemeKey {
+  return `town_square-${night ? 'night' : 'day'}`;
 }
 
 export interface NoteEvent {
@@ -199,7 +218,7 @@ export class Music {
     if (!this.current || this.current.key !== this.wanted) this.begin(this.wanted, ctx, bus, now);
     const v = this.current;
     if (!v) return;
-    const [season, phase] = v.key.split('-') as [SeasonId, 'day' | 'night'];
+    const [season, phase] = v.key.split('-') as [ThemeId, 'day' | 'night'];
     const night = phase === 'night';
     const theme = THEMES[season];
     const beatS = 60 / (theme.bpm * (night ? NIGHT_TEMPO : 1));
@@ -238,7 +257,7 @@ export class Music {
     gain.gain.setValueAtTime(0, now);
     gain.gain.linearRampToValueAtTime(1, now + (old ? CROSSFADE_S : 1));
     gain.connect(bus);
-    const [season, phase] = key.split('-') as [SeasonId, 'day' | 'night'];
+    const [season, phase] = key.split('-') as [ThemeId, 'day' | 'night'];
     this.current = {
       key,
       gain,

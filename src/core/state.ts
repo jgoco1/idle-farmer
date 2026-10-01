@@ -23,6 +23,7 @@ import type {
   BuffType,
   BundleId,
   CropId,
+  DecorId,
   ExpansionId,
   FishId,
   FishLocationId,
@@ -34,6 +35,7 @@ import type {
   RecipeId,
   RecipeTier,
   SkillId,
+  TownProjectId,
   UpgradeId,
 } from '../data/ids';
 import type { ItemStack, QuestObjective, QuestReward } from '../data/types';
@@ -153,6 +155,37 @@ export interface GameState {
 
   // ---- world (v2 phase 01, save 8)
   land: LandState;
+
+  // ---- decorations and the town (v2 phase 02, save 9)
+  decor: DecorState;
+  town: TownState;
+}
+
+/** A decoration standing on the land (DATA_SCHEMAS.md §9.6). Its auto-tile mask is derived when drawn, never stored. */
+export interface PlacedDecor {
+  id: number; // unique, monotonically increasing (max + 1)
+  decor: DecorId;
+  at: { col: number; row: number }; // world tile of the footprint's top-left
+  flipped?: true;
+}
+
+/** Decorations: what was bought, what stands on the land, and how the farmhouse looks. Stock = owned − placed. */
+export interface DecorState {
+  owned: Partial<Record<DecorId, number>>;
+  placed: PlacedDecor[];
+  /** Applied farmhouse pieces; null / false = the original red walls, tiled roof and no loft. */
+  farmhouse: { paint: DecorId | null; roof: DecorId | null; loft: boolean };
+}
+
+/** Progress of one town project: stages finished, and what has been given toward the current one. */
+export interface TownProjectState {
+  stagesDone: number; // 0 … stages.length
+  gold: number; // gold donated toward the current stage
+  items: ItemStack[]; // items donated toward the current stage
+}
+
+export interface TownState {
+  projects: Partial<Record<TownProjectId, TownProjectState>>; // no entry = not started
 }
 
 /** The v2 world's land (DATA_SCHEMAS.md §9.6). Owned parcels only; the layout is data. */
@@ -297,11 +330,17 @@ export function createInitialState(now: number, lc: LocalClock, seed: number = s
     buffs: { active: [], baseSlots: BASE_BUFF_SLOTS },
     progression: createStartingProgression(),
     land: { parcels: [] },
+    decor: createStartingDecor(),
+    town: { projects: {} },
   };
   // A new farm opens with today's specials and the first sparkline point (every save starts in spring).
   openMarketDay(state, GAME_DATA, createRng(state), 'spring');
   refillGoals(state, GAME_DATA, createRng(state), 'spring');
   return state;
+}
+
+export function createStartingDecor(): DecorState {
+  return { owned: {}, placed: [], farmhouse: { paint: null, roof: null, loft: false } };
 }
 
 export function createStartingStats(): Stats {

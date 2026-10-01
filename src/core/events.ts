@@ -5,6 +5,7 @@ import type {
   BuffType,
   BundleId,
   CropId,
+  DecorId,
   ExpansionId,
   FishId,
   FishLocationId,
@@ -19,6 +20,7 @@ import type {
   SeasonId,
   SeedId,
   SkillId,
+  TownProjectId,
   UpgradeId,
 } from '../data/ids';
 import type { PlacedKind } from './state';
@@ -34,8 +36,17 @@ export type GameEvent =
   | { type: 'placed' | 'pickedUp'; kind: PlacedKind; col: number; row: number }
   | { type: 'sold'; item: ItemId; qty: number; gold: number; via: 'market' | 'bin' }
   | { type: 'goldEarned'; amount: number; source: 'sale' | 'quest' | 'other' }
-  | { type: 'purchased'; what: UpgradeId | ExpansionId | SeedId | RecipeId | ParcelId; gold: number }
+  | {
+      type: 'purchased';
+      what: UpgradeId | ExpansionId | SeedId | RecipeId | ParcelId | DecorId;
+      gold: number;
+    }
   | { type: 'parcelBought'; parcel: ParcelId }
+  | { type: 'decorPlaced' | 'decorMoved' | 'decorPickedUp'; decor: DecorId; id: number }
+  /** Charm changed (pushed by decoration and project actions); `gainCharm` goals sum the rises. */
+  | { type: 'charmChanged'; from: number; to: number }
+  | { type: 'projectDonated'; project: TownProjectId; gold: number; items: number }
+  | { type: 'projectStageDone'; project: TownProjectId; stage: number; complete: boolean }
   | { type: 'inventoryFull'; item: ItemId }
   | { type: 'bite' | 'escaped'; location: FishLocationId }
   | { type: 'trapCollected'; location: FishLocationId; items: number }

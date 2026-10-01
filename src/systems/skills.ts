@@ -4,7 +4,14 @@
 
 import type { GameState } from '../core/state';
 import type { GameData } from '../data';
-import { FARM_LEVEL_MAX, FARM_LEVEL_POINTS, MAX_SKILL_LEVEL, XP_BASE, XP_GROWTH } from '../data/balance';
+import {
+  FARM_LEVEL_MAX,
+  FARM_LEVEL_POINTS,
+  FARM_POINT_MILESTONES,
+  MAX_SKILL_LEVEL,
+  XP_BASE,
+  XP_GROWTH,
+} from '../data/balance';
 import type { SkillId } from '../data/ids';
 import { SKILL_IDS } from '../data/skills';
 
@@ -50,7 +57,10 @@ export function skillProgress(state: GameState, skill: SkillId): { into: number;
 
 /** `Σ(level − 1) + milestonesDone` (BALANCE.md §8). */
 export function farmPoints(state: GameState): number {
-  let points = state.progression.milestones.done.length;
+  // Only the original fifteen milestones are farm points (BALANCE.md §13.9): the v2 ones (m16 and on) pay their own rewards.
+  let points = 0;
+  for (const id of state.progression.milestones.done)
+    if (Number(id.slice(1, 3)) <= FARM_POINT_MILESTONES) points += 1;
   for (const s of SKILL_IDS) points += skillLevel(state, s) - 1;
   return points;
 }

@@ -3,6 +3,7 @@
 
 import { colorOfKey, isPaletteKey, TRANSPARENT } from './palette';
 import { spriteDef, type SpriteDef } from './sprites';
+import { snowdusted } from './sprites/types';
 
 const cache = new Map<string, HTMLCanvasElement[]>();
 
@@ -63,6 +64,21 @@ export function anchoredPosition(
     out.y = row * tile;
   }
   return out;
+}
+
+const snowCache = new Map<string, HTMLCanvasElement[]>();
+
+/** Frame `index` of sprite `id` (clamped), optionally with a winter dusting of snow on its top edge (decorations, v2). */
+export function spriteFrameAt(id: string, index: number, snowy = false): HTMLCanvasElement {
+  const def = spriteDef(id);
+  const i = Math.min(Math.max(0, index), def.frames.length - 1);
+  if (!snowy) return frames(def)[i]!;
+  let list = snowCache.get(id);
+  if (!list) {
+    list = def.frames.map((f) => rasterizeFrame(snowdusted(f)));
+    snowCache.set(id, list);
+  }
+  return list[i]!;
 }
 
 const urlCache = new Map<string, string>();

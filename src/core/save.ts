@@ -9,9 +9,10 @@
 
 import { createInitialState, cloneState, type GameState } from './state';
 import type { LocalClock } from './time';
-import { isParcelId } from '../data/ids';
+import { isDecorId, isParcelId, isTownProjectId } from '../data/ids';
+import { WORLD_COLS, WORLD_ROWS } from '../data/world';
 
-export const SAVE_VERSION = 8;
+export const SAVE_VERSION = 9;
 export const SAVE_KEY = 'hearthfield-idle/save';
 export const AUTOSAVE_MS = 15_000;
 
@@ -161,6 +162,17 @@ export const migrations: Record<number, Migration> = {
    * traps are slots (DATA_SCHEMAS.md §9.3), and the camera lives in prefs, not the save.
    */
   7: (old) => ({ ...old, land: { parcels: [] } }),
+  /**
+   * v8 → v9 (v2 phase 02, decorations and the town): no decorations bought or placed, the original
+   * farmhouse look, and no town project started. The milestones m16 (owning land), m18 and m23 (charm)
+   * and m19 are checked on the first step after loading, so a player who already owns a parcel gets
+   * m16 and its pieces at once.
+   */
+  8: (old) => ({
+    ...old,
+    decor: { owned: {}, placed: [], farmhouse: { paint: null, roof: null, loft: false } },
+    town: { projects: {} },
+  }),
 };
 
 export class SaveError extends Error {
@@ -382,6 +394,43 @@ function landProblem(s: Record<string, unknown>): string | null {
   return null;
 }
 
+function decorProblem(s: Record<string, unknown>): string | null {
+  const { decor } = s;
+  if (!isObj(decor) || !isObj(decor.owned) || !Array.isArray(decor.placed) || !isObj(decor.farmhouse))
+    return 'bad decorations';
+  for (const [id, n] of Object.entries(decor.owned)) {
+    if (!isDecorId(id) || !isInt(n) || n < 0) return 'bad decorations';
+  }
+  const ids = new Set<number>();
+  for (const p of decor.placed) {
+    if (!isObj(p) || !isInt(p.id) || typeof p.decor !== 'string' || !isDecorId(p.decor))
+      return 'bad decoration';
+    const at = p.at;
+    if (!isObj(at) || !isInt(at.col) || !isInt(at.row)) return 'bad decoration';
+    if (at.col < 0 || at.row < 0 || at.col >= WORLD_COLS || at.row >= WORLD_ROWS) return 'bad decoration';
+    if (p.flipped !== undefined && p.flipped !== true) return 'bad decoration';
+    if (ids.has(p.id)) return 'bad decoration';
+    ids.add(p.id);
+  }
+  const f = decor.farmhouse;
+  for (const part of [f.paint, f.roof]) {
+    if (part !== null && !(typeof part === 'string' && isDecorId(part))) return 'bad farmhouse style';
+  }
+  if (typeof f.loft !== 'boolean') return 'bad farmhouse style';
+  return null;
+}
+
+function townProblem(s: Record<string, unknown>): string | null {
+  const { town } = s;
+  if (!isObj(town) || !isObj(town.projects)) return 'bad town';
+  for (const [id, p] of Object.entries(town.projects)) {
+    if (!isTownProjectId(id) || !isObj(p)) return 'bad town project';
+    if (!isInt(p.stagesDone) || p.stagesDone < 0 || !isInt(p.gold) || p.gold < 0) return 'bad town project';
+    if (!Array.isArray(p.items) || p.items.some(stackProblem)) return 'bad town project';
+  }
+  return null;
+}
+
 function cookingProblem(s: Record<string, unknown>): string | null {
   const { kitchen, buffs } = s;
   if (!isObj(kitchen) || !Array.isArray(kitchen.known) || !Array.isArray(kitchen.queue)) return 'bad kitchen';
@@ -432,7 +481,9 @@ export function validateState(s: unknown): string | null {
     fishingProblem(s) ??
     cookingProblem(s) ??
     progressionProblem(s) ??
-    landProblem(s)
+    landProblem(s) ??
+    decorProblem(s) ??
+    townProblem(s)
   );
 }
 

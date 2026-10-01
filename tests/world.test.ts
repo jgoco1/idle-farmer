@@ -7,6 +7,7 @@ import { PrefsStore, sanitizePrefs } from '../src/core/prefs';
 import { makeContext } from '../src/core/sim';
 import { createInitialState, type GameState } from '../src/core/state';
 import { buildCalendar } from '../src/core/time';
+import { TOWN_PROJECT_SCALE } from '../src/data/balance';
 import { GAME_DATA } from '../src/data';
 import { PARCEL_IDS } from '../src/data/ids';
 import { HOME_RECT, regionAt, WORLD_COLS, WORLD_LAYOUT, WORLD_ROWS } from '../src/data/world';
@@ -366,10 +367,12 @@ describe('camera prefs (DATA_SCHEMAS §9.7)', () => {
 });
 
 describe('gold still to spend (BALANCE §13.4, simulator)', () => {
-  it('counts v1 and the land parcels, less what the farm owns', async () => {
+  it('counts v1, the land, decorations (2,773,000) and the town projects, less what the farm owns', async () => {
     const { catalogueParts, catalogueTotal, toSpend } = await import('../scripts/sim/catalogue');
     const parts = catalogueParts(GAME_DATA);
     expect(parts.parcels).toBe(680_000);
+    expect(parts.decor).toBe(2_773_000);
+    expect(parts.projects).toBe(Math.round(8_500_000 * TOWN_PROJECT_SCALE));
     expect(parts.v1).toBeGreaterThan(500_000); // ≈ 523,000
     expect(parts.v1).toBeLessThan(550_000);
     const s = createInitialState(CREATED, NY, 1);
@@ -377,5 +380,13 @@ describe('gold still to spend (BALANCE §13.4, simulator)', () => {
     s.land.parcels.push('orchard');
     s.expansions.push('farm_1');
     expect(toSpend(s, GAME_DATA)).toBe(catalogueTotal(GAME_DATA) - 30_000 - 400);
+    // Bought decorations count (up to the counted copies), and donated gold counts as bought.
+    s.decor.owned.cobble_path = 100; // 40 count
+    s.decor.owned.windmill = 1;
+    s.town.projects.old_bridge = { stagesDone: 1, gold: 5_000, items: [] };
+    const bridge = Math.round(60_000 * TOWN_PROJECT_SCALE) + 5_000;
+    expect(toSpend(s, GAME_DATA)).toBe(
+      catalogueTotal(GAME_DATA) - 30_000 - 400 - 40 * 300 - 450_000 - bridge,
+    );
   });
 });

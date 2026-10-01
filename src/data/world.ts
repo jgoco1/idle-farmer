@@ -113,7 +113,7 @@ export const REGION_NAMES: Readonly<Record<RegionId, string>> = {
   sea: 'Sea',
 };
 
-function inTileRect(r: TileRect, col: number, row: number): boolean {
+export function inTileRect(r: TileRect, col: number, row: number): boolean {
   return col >= r.col && col < r.col + r.cols && row >= r.row && row < r.row + r.rows;
 }
 
@@ -123,4 +123,48 @@ export function regionAt(col: number, row: number, layout: WorldLayout = WORLD_L
   for (const r of layout.regions) if (inTileRect(r.rect, col, row)) return r.id;
   if (layout.sea.some((s) => inTileRect(s, col, row))) return 'sea';
   return 'lanes';
+}
+
+// ---- where decorations may not go (GDD §12.2, v2 phase 02)
+
+/**
+ * Home-region rectangles that decorations may never cover, each with the reason shown to the player.
+ * The field is blocked at its largest size (8 × 6 plots) and with its fence ring, so a later expansion
+ * never meets a decoration. `tests/world.test.ts` checks these against the scene's zones and paths.
+ */
+export const DECOR_BLOCKED: readonly { rect: TileRect; why: string }[] = [
+  { rect: { col: 5, row: 1, cols: 10, rows: 8 }, why: 'The field and its fence need that room.' },
+  { rect: { col: 1, row: 0, cols: 4, rows: 4 }, why: 'The farmhouse stands there.' },
+  { rect: { col: 5, row: 3, cols: 1, rows: 1 }, why: 'The farm cat sleeps there.' },
+  { rect: { col: 1, row: 7, cols: 4, rows: 4 }, why: 'That is the pond.' },
+  { rect: { col: 6, row: 10, cols: 9, rows: 2 }, why: 'That is the river.' },
+  { rect: { col: 15, row: 10, cols: 5, rows: 2 }, why: 'That is the old dock.' },
+  { rect: { col: 15, row: 6, cols: 3, rows: 3 }, why: 'The market stands there.' },
+  { rect: { col: 18, row: 7, cols: 1, rows: 1 }, why: 'The Shipping Bin stands there.' },
+  { rect: { col: 15, row: 1, cols: 4, rows: 4 }, why: 'That lot is kept for the greenhouse.' },
+  { rect: { col: 15, row: 5, cols: 1, rows: 1 }, why: 'The scarecrow post stands there.' },
+  { rect: { col: 2, row: 4, cols: 1, rows: 2 }, why: 'That is a path.' },
+  { rect: { col: 3, row: 5, cols: 12, rows: 1 }, why: 'That is a path.' },
+  { rect: { col: 14, row: 6, cols: 1, rows: 4 }, why: 'That is a path.' },
+  { rect: { col: 15, row: 9, cols: 3, rows: 1 }, why: 'That is a path.' },
+  { rect: { col: 0, row: 1, cols: 1, rows: 1 }, why: 'A tree grows there.' },
+  { rect: { col: 0, row: 6, cols: 1, rows: 1 }, why: 'A tree grows there.' },
+];
+
+const BLOCKED_BY_TILE: ReadonlyMap<number, string> = (() => {
+  const m = new Map<number, string>();
+  const key = (col: number, row: number): number => row * WORLD_COLS + col;
+  for (const { rect, why } of DECOR_BLOCKED)
+    for (let r = rect.row; r < rect.row + rect.rows; r++)
+      for (let c = rect.col; c < rect.col + rect.cols; c++) m.set(key(c, r), why);
+  for (const t of WORLD_LAYOUT.lanes) m.set(key(t.col, t.row), 'Lanes stay clear.');
+  for (const t of WORLD_LAYOUT.treeSpots)
+    for (let r = t.row; r < t.row + 2; r++)
+      for (let c = t.col; c < t.col + 2; c++) m.set(key(c, r), 'That is a tree spot.');
+  return m;
+})();
+
+/** Why a fixed feature of the world (the field, a building, a path, a lane, a tree spot) blocks tile (col, row), or null. */
+export function fixedBlockReason(col: number, row: number): string | null {
+  return BLOCKED_BY_TILE.get(row * WORLD_COLS + col) ?? null;
 }

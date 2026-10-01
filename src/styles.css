@@ -1459,7 +1459,7 @@ summary:focus-visible,
 }
 .scene-controls {
   position: fixed;
-  z-index: 14;
+  z-index: 9; /* under the panels, so a panel's close button is never covered */
   right: 8px;
   top: calc(var(--hud-h) + 8px);
   display: flex;
@@ -1569,5 +1569,113 @@ body.tutorial-on .toasts {
   body.panel-open .toasts {
     bottom: auto;
     top: calc(var(--hud-h) + 8px);
+  }
+}
+
+/* ---------- decorations, charm and the town (v2 phase 02) */
+.decor-tray {
+  position: fixed;
+  z-index: 40;
+  left: 50%;
+  bottom: calc(var(--toolbar-h, 60px) + 8px);
+  transform: translateX(-50%);
+  width: min(720px, calc(100vw - 16px));
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--c-ui_parchment);
+  border: 3px solid var(--c-wood_mid);
+  box-shadow: 0 2px 0 var(--c-outline);
+}
+.decor-tray[hidden] {
+  display: none;
+}
+.decor-tray-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.decor-status {
+  flex: 1 1 200px;
+}
+.decor-tray-pieces {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  min-height: 52px;
+  align-items: center;
+}
+.decor-chip {
+  position: relative;
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  padding: 2px;
+  cursor: pointer;
+  background: var(--c-wood_pale);
+  border: 2px solid var(--c-outline);
+  display: grid;
+  place-items: center;
+}
+.decor-chip img {
+  max-width: 40px;
+  max-height: 40px;
+  object-fit: contain;
+}
+.decor-chip.is-active {
+  background: var(--c-grass_3);
+  border-color: var(--c-leaf_dark);
+}
+.decor-chip-count {
+  position: absolute;
+  right: 1px;
+  bottom: 0;
+  font-size: 12px;
+  background: var(--c-ui_parchment);
+  padding: 0 2px;
+}
+.decor-preview {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+.decor-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.decor-set h4,
+.decor-farmhouse h4 {
+  margin: 10px 0 2px;
+}
+.decor-label {
+  min-width: 72px;
+  color: var(--c-shadow);
+}
+.btn.is-active {
+  background: var(--c-gold);
+  border-color: var(--c-gold_dark);
+}
+.shop-section[hidden] {
+  display: none;
+}
+.charm-head {
+  margin-top: 8px;
+}
+.project.is-locked {
+  opacity: 0.75;
+}
+.project-gold {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+@media (max-width: 600px) {
+  .decor-tray {
+    bottom: calc(var(--toolbar-h, 60px) + 4px);
   }
 }

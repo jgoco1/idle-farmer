@@ -5,11 +5,19 @@
 
 import type { Plot } from '../core/state';
 import { GREENHOUSE_BASE } from '../data/balance';
-import { PARCEL_IDS, type ExpansionId, type FishLocationId, type ParcelId } from '../data/ids';
+import {
+  PARCEL_IDS,
+  TOWN_PROJECT_IDS,
+  type ExpansionId,
+  type FishLocationId,
+  type ParcelId,
+  type TownProjectId,
+} from '../data/ids';
 import type { TileRect } from '../data/types';
 import { HOME_RECT, WORLD_COLS, WORLD_LAYOUT, WORLD_ROWS } from '../data/world';
 import { anchoredPosition } from './spriteCache';
 import { spriteDef } from './sprites';
+import { townSpriteId } from './sprites/town';
 
 export type { TileRect } from '../data/types';
 
@@ -274,17 +282,8 @@ const SCENERY: readonly Scenery[] = [
   { sprite: 'obj_dock', col: 18, row: 10, from: 'ocean' },
   { sprite: 'obj_dock_post', col: 16, row: 11, from: 'ocean' },
   { sprite: 'obj_dock_post', col: 18, row: 11, from: 'ocean' },
-  // The Old Bridge over the inlet: only its end posts stand until the town mends it (v2 phase 02).
-  { sprite: 'obj_dock_post', col: 15, row: 12 },
-  { sprite: 'obj_dock_post', col: 19, row: 12 },
   // The Community Board in the town square.
   { sprite: 'obj_board', col: WORLD_LAYOUT.boardTile.col, row: WORLD_LAYOUT.boardTile.row },
-  // The town's building sites: a few old stones where each building stood.
-  ...Object.values(WORLD_LAYOUT.townSites).map((r): Scenery => ({
-    sprite: 'obj_stones',
-    col: r.col + 1,
-    row: r.row + r.rows - 1,
-  })),
   // Each locked parcel: its "For sale" sign and overgrowth (tall grass, weeds and a stump or two).
   ...PARCEL_IDS.flatMap((id) => [
     { sprite: 'obj_for_sale', ...WORLD_LAYOUT.forSaleSigns[id], untilParcel: id },
@@ -306,6 +305,33 @@ function overgrowth(id: ParcelId): Scenery[] {
       if (sprite) out.push({ sprite, col, row, untilParcel: id });
     }
   return out;
+}
+
+/** What the town and the farmhouse look like (changes when a stage is finished or a style applied). */
+export interface SceneLook {
+  /** Sprite id of the farmhouse (`obj_farmhouse` or a styled one). */
+  farmhouse: string;
+  /** Stages finished per project; missing = 0 (the ruin). */
+  stages: Readonly<Partial<Record<TownProjectId, number>>>;
+}
+
+export const DEFAULT_LOOK: SceneLook = { farmhouse: 'obj_farmhouse', stages: {} };
+
+/** The rectangle of a project's site in world tiles (the bridge's is `WORLD_LAYOUT.bridge`). */
+export function townSiteRect(id: TownProjectId): TileRect {
+  return id === 'old_bridge' ? WORLD_LAYOUT.bridge : WORLD_LAYOUT.townSites[id];
+}
+
+/** The project whose site covers tile (col, row), or null. */
+export function townSiteAt(col: number, row: number): TownProjectId | null {
+  for (const id of TOWN_PROJECT_IDS) if (inRect(townSiteRect(id), col, row)) return id;
+  return null;
+}
+
+/** Top-left of a project's sprite in world px: the site's width, its bottom edge on the site's bottom edge. */
+export function townSpritePos(id: TownProjectId, spriteH: number): { x: number; y: number } {
+  const r = townSiteRect(id);
+  return { x: r.col * TILE, y: (r.row + r.rows) * TILE - spriteH };
 }
 
 /** Water tiles that animate every frame. */
@@ -373,6 +399,7 @@ export function buildLayout(
   grid: Grid,
   expansions: readonly ExpansionId[] = [],
   parcels: readonly ParcelId[] = [],
+  look: SceneLook = DEFAULT_LOOK,
 ): SceneLayout {
   const plots = plotRect(grid);
   const fence: TileRect = {
@@ -433,7 +460,16 @@ export function buildLayout(
     objects.push(placed('obj_fence_v', (fence.col + fence.cols - 1) * TILE, row * TILE));
   }
 
-  objects.push(placed('obj_farmhouse', 1 * TILE, 1 * TILE));
+  // A loft rises one tile above the farmhouse's usual spot; its bottom stays where it was.
+  const house = placed(look.farmhouse, 1 * TILE, 1 * TILE);
+  house.y = 4 * TILE - house.h;
+  objects.push(house);
+  for (const id of TOWN_PROJECT_IDS) {
+    const sprite = townSpriteId(id, look.stages[id] ?? 0);
+    const h = spriteDef(sprite).frames[0]!.length;
+    const pos = townSpritePos(id, h);
+    objects.push(placed(sprite, pos.x, pos.y));
+  }
   objects.push(placed('obj_market_stall', 15 * TILE, 6 * TILE));
   objects.push(placed('obj_shipping_bin', BIN_TILE.col * TILE, BIN_TILE.row * TILE));
   for (const [col, row] of TREES) objects.push(placedAt('obj_tree', col, row));

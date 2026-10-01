@@ -6,6 +6,8 @@ import type {
   BundleId,
   GoalTemplateId,
   CropId,
+  DecorId,
+  DecorSetId,
   ExpansionId,
   FishId,
   FishLocationId,
@@ -18,6 +20,7 @@ import type {
   RecipeTier,
   SeasonId,
   SkillId,
+  TownProjectId,
   UpgradeId,
 } from './ids';
 
@@ -40,7 +43,9 @@ export type UnlockCondition =
   | { kind: 'lifetimeGold'; amount: number }
   | { kind: 'fishCaught'; count: number } // fish landed in total (phase 07)
   | { kind: 'knownRecipes'; count: number; minTier: RecipeTier } // recipes known of at least that tier (phase 07)
-  | { kind: 'parcel'; id: ParcelId }; // a land parcel is owned (v2 phase 01)
+  | { kind: 'parcel'; id: ParcelId } // a land parcel is owned (v2 phase 01)
+  | { kind: 'charm'; amount: number } // derived charm is at least this (v2 phase 02)
+  | { kind: 'townProject'; id: TownProjectId; stage?: number }; // stages done ≥ stage; omitted = complete (v2 phase 02)
 
 /** A rectangle of world tiles: top-left (col, row) and size (DATA_SCHEMAS.md §9.3). */
 export interface TileRect {
@@ -280,13 +285,20 @@ export type QuestObjective =
   | { kind: 'buyUpgrade'; id: UpgradeId; level?: number }
   | { kind: 'buyExpansion'; id: ExpansionId }
   | { kind: 'reachFarmLevel'; level: number }
-  | { kind: 'completeBundle'; count: number };
+  | { kind: 'completeBundle'; count: number }
+  // v2 phase 02 (BALANCE.md §13.9)
+  | { kind: 'ownParcel'; count: number } // checks state (like reachFarmLevel)
+  | { kind: 'placeDecor'; count: number } // counts 'decorPlaced'
+  | { kind: 'reachCharm'; amount: number } // checks derived charm
+  | { kind: 'gainCharm'; amount: number } // sums positive 'charmChanged' deltas
+  | { kind: 'projectStage'; count: number }; // counts 'projectStageDone'
 
 export type QuestReward =
   | { kind: 'gold'; amount: number }
   | { kind: 'items'; items: readonly ItemStack[] }
   | { kind: 'recipe'; id: RecipeId }
-  | { kind: 'xp'; skill: SkillId; amount: number };
+  | { kind: 'xp'; skill: SkillId; amount: number }
+  | { kind: 'decor'; id: DecorId; qty: number }; // goes to the decoration stock (v2 phase 02)
 
 /** A milestone or a goal-board template (a template's objective is a pattern the generator fills in). */
 export interface QuestDef {
@@ -315,4 +327,75 @@ export interface BundleDef {
   reward: BundleReward;
   /** The reward in words, for the Community Board. */
   rewardText: string;
+}
+
+// ---- decorations, charm and town projects (v2 phase 02, DATA_SCHEMAS.md §9.4)
+
+export interface DecorSetDef {
+  id: DecorSetId;
+  name: string;
+  description: string;
+  /** Empty for the Cottage set; the others open with a town project. */
+  unlock: readonly UnlockCondition[];
+}
+
+export type DecorKind =
+  | 'place' // stands on the ground
+  | 'paint'
+  | 'roof'
+  | 'loft'; // restyle the farmhouse; never placed, never use a slot
+
+export interface DecorDef {
+  id: DecorId;
+  set: DecorSetId;
+  name: string;
+  description: string;
+  kind: DecorKind;
+  /** Footprint in tiles; farmhouse pieces have none ({ cols: 0, rows: 0 }). */
+  size: { cols: number; rows: number };
+  price: number;
+  charm: number;
+  /** Copies that count toward charm (paths and fences 20); farmhouse pieces 1. */
+  counted: number;
+  /** The set's own unlock also applies. */
+  unlock: readonly UnlockCondition[];
+  /** Joins with same-id neighbours (a 4-neighbour mask, ART_STYLE.md §6). */
+  autotile?: 'path' | 'fence';
+  /** Has a lit frame and a night halo. */
+  glows?: true;
+  /** May be mirrored when placed. */
+  flips?: true;
+  /** Has per-season sprites (`decor_<id>_<season>`). */
+  seasonal?: true;
+  /** Base sprite id, 'decor_garden_lamp'. */
+  sprite: string;
+}
+
+export interface TownProjectStage {
+  /** Before TOWN_PROJECT_SCALE. */
+  gold: number;
+  items: readonly ItemStack[];
+  /** A note for the renderer: what the town looks like after this stage. */
+  sceneChange: string;
+}
+
+export type TownProjectReward =
+  | { kind: 'decorSet'; set: DecorSetId }
+  | { kind: 'decorSlots'; count: number }
+  | { kind: 'musicTrack'; id: 'town_square' }
+  | { kind: 'goalSlot'; count: number }
+  | { kind: 'cosmetic'; what: 'bakerySmoke' | 'bandSaturday' | 'lighthouseBeam' | 'festivalLights' };
+
+export interface TownProjectDef {
+  id: TownProjectId;
+  name: string;
+  flavor: string;
+  /** Where the building stands (the bridge's is `WORLD_LAYOUT.bridge`). */
+  site: TileRect;
+  /** 3, or 4 for the hall. */
+  stages: readonly TownProjectStage[];
+  /** Given when the last stage completes. */
+  rewards: readonly TownProjectReward[];
+  rewardText: string;
+  requires: readonly UnlockCondition[];
 }

@@ -23,6 +23,7 @@ import {
 import type { GameData } from '../../src/data';
 import type { MilestoneId } from '../../src/data/ids';
 import { farmLevel as farmLevelOf } from '../../src/systems/unlocks';
+import { charmOf } from '../../src/systems/charm';
 import { toSpend } from './catalogue';
 
 export const MIN = 60_000;
@@ -49,6 +50,8 @@ export interface Snapshot {
   milestones: number;
   /** Gold still to spend on the catalogue (BALANCE.md §13.4). */
   toSpend: number;
+  /** Derived charm (v2 phase 02). */
+  charm: number;
 }
 
 export interface Metrics {
@@ -138,6 +141,17 @@ export class SimRun {
     bus.on('bundleCompleted', (e) => this.mark(`bundle_${e.bundle}`));
     bus.on('purchased', (e) => this.mark(`bought_${e.what}`));
     bus.on('placed', (e) => this.mark(`placed_${e.kind}`));
+    bus.on('decorPlaced', () => this.mark('first_decor'));
+    bus.on('projectStageDone', (e) => {
+      this.mark('first_stage');
+      if (e.complete) {
+        this.mark(`project_${e.project}`);
+        this.mark('first_project');
+      }
+    });
+    bus.on('charmChanged', (e) => {
+      for (const n of [25, 100]) if (e.to >= n) this.mark(`charm_${n}`);
+    });
     bus.on('seasonChanged', (e) => this.mark(`season_${e.season}_${this.state.calendar.maxWeekIndex}`));
   }
 
@@ -275,6 +289,7 @@ export class SimRun {
       plots: s.farm.plots.length + s.farm.greenhouse.length,
       milestones: s.progression.milestones.done.length,
       toSpend: toSpend(s, this.data),
+      charm: charmOf(s, this.data),
     });
   }
 }

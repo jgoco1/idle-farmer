@@ -29,12 +29,18 @@ import {
   type CropId,
   type DishId,
   type ExpansionId,
+  type FishLocationId,
   type ParcelId,
   type ItemId,
   type RecipeId,
   type UpgradeId,
 } from '../../src/data/ids';
 import { BUNDLE_IDS } from '../../src/data/quests';
+import { DECOR_IDS, TOWN_PROJECT_IDS, type DecorId, type TownProjectId } from '../../src/data/ids';
+import { decorCopies } from './catalogue';
+import { decorPlacementProblem, decorStatus, decorStock, ownedDecor } from '../../src/systems/decor';
+import { currentStage, projectStatus, type StageStatus } from '../../src/systems/townProjects';
+import { WORLD_COLS, WORLD_ROWS, WORLD_LAYOUT } from '../../src/data/world';
 import { dishBuff, planEat } from '../../src/systems/buffs';
 import { bundleSlots, isBundleDone } from '../../src/systems/bundles';
 import { canCook, ingredientValue, kitchenSlots, recipeCards } from '../../src/systems/cooking';
@@ -175,6 +181,12 @@ const SEED_STOCK_CYCLES = 8;
 const PULL_UP_MIN_GOLD = 20_000;
 /** Gold the player keeps before giving crops away to the Community Board. */
 const DONATE_MIN_GOLD = 200;
+/** Share of the gold above the seed reserve that a session spends on decorations and town projects (BALANCE.md §13.11). */
+export const V2_SPEND_SHARE = 0.6;
+/** Catches per real minute while fishing for the items a town project asks for. */
+const ERRAND_FISH_PER_MIN = 3;
+/** Decoration pieces bought in one go for the bulk pieces (paths and fences). */
+const BULK_CHUNK = 10;
 /** Seed gold kept back per plot when buying upgrades. */
 const SEED_RESERVE_PER_PLOT = 12.5;
 
@@ -211,6 +223,12 @@ export class Brain {
   private sessionLeftMs = Infinity;
   private awayMs = 0;
   private placeRetryAt = 0;
+  private v2Turn = 0;
+  private decorCursor = 0;
+  private spiral: { col: number; row: number }[] | null = null;
+  private errandBudget = 0;
+  /** Crops the Auto-Seller is told to keep (a town project asks for them). */
+  private kept = new Set<ItemId>();
 
   constructor(
     readonly style: Style,
@@ -294,6 +312,8 @@ export class Brain {
     else if (s.stats.dishesEaten === 0) useful = this.eatAny(run) || useful; // the "eat a dish" milestone
     useful = this.sell(run, keep, false) || useful;
     useful = this.shop(run) || useful;
+    this.keepProjectCrops(run);
+    useful = this.errands(run, dt) || useful;
     useful = this.place(run) || useful;
     useful = this.farm(run) || useful;
     return useful;
@@ -305,6 +325,7 @@ export class Brain {
     this.stockSeeds(run);
     if (this.style.cook === 'eat') this.eat(run, true);
     this.sell(run, this.keepList(s), true);
+    this.spendV2(run); // last: what is left after the seeds the planter will need
   }
 
   // ---- pieces
@@ -322,6 +343,7 @@ export class Brain {
           if (!slot.done) add(slot.item, slot.need - slot.have);
       }
     }
+    for (const w of this.projectWants(s)) add(w.item, w.qty);
     if (this.style.cook !== 'none') {
       const slots = kitchenSlots(s, this.data);
       const targets = s.kitchen.known
@@ -441,14 +463,19 @@ export class Brain {
       // Keeping buffs up: two of each dish worth eating stay in the bag (more would crowd out seeds).
       const hold =
         def.category === 'dish'
-          ? this.style.cook === 'eat' &&
-            buffPriority(this.style, s, this.data.recipes[stack.item as DishId].buff) >= 2
-            ? 2
-            : 0
+          ? Math.max(
+              this.style.cook === 'eat' &&
+                buffPriority(this.style, s, this.data.recipes[stack.item as DishId].buff) >= 2
+                ? 2
+                : 0,
+              this.projectWants(s).find((w) => w.item === stack.item)?.qty ?? 0,
+            )
           : (keep.get(stack.item) ?? 0);
       const qty = countItem(s.inventory, stack.item) - hold;
       if (qty <= 0) continue;
-      const r = run.game.dispatch({ type: ship ? 'ship' : 'sell', item: stack.item, qty });
+      const r = ship
+        ? run.game.dispatch({ type: 'ship', item: stack.item, qty })
+        : run.game.dispatch({ type: 'sell', item: stack.item, qty });
       if (r.ok) useful = true;
     }
     return useful;
@@ -499,6 +526,233 @@ export class Brain {
       if (!r.ok) return useful;
       useful = true;
     }
+    return useful;
+  }
+
+  // ---- v2 phase 02: decorations and town projects (BALANCE.md §13.11)
+
+  /** What the open projects' current stages still ask for in items, and the bag does not hold. */
+  private projectWants(s: GameState): { item: ItemId; qty: number }[] {
+    const out: { item: ItemId; qty: number }[] = [];
+    for (const id of TOWN_PROJECT_IDS) {
+      if (projectStatus(s, this.data, id) !== 'open') continue;
+      const stage = currentStage(s, this.data, id);
+      // The player gathers items once the gold for the stage is in (the town waits on them, not on gold).
+      if (!stage || stage.goldHave < stage.goldNeed) continue;
+      for (const it of stage.items) if (!it.done) out.push({ item: it.item, qty: it.need - it.have });
+    }
+    return out.slice(0, 6);
+  }
+
+  /** Switches the Auto-Seller off for the crops a project asks for, and back on when it no longer does. */
+  private keepProjectCrops(run: SimRun): void {
+    const need = new Set(
+      this.projectWants(run.state)
+        .filter((w) => w.item in this.data.crops)
+        .map((w) => w.item),
+    );
+    for (const item of need) {
+      if (this.kept.has(item)) continue;
+      run.game.dispatch({ type: 'setAutoSell', item, on: false });
+      this.kept.add(item);
+    }
+    for (const item of [...this.kept]) {
+      if (need.has(item)) continue;
+      run.game.dispatch({ type: 'setAutoSell', item, on: true });
+      this.kept.delete(item);
+    }
+  }
+
+  /** Free tiles in a spiral out from the farmhouse, then the meadow; the orchard and paddock are kept for trees and animals. */
+  private tiles(): { col: number; row: number }[] {
+    if (this.spiral) return this.spiral;
+    const home: { col: number; row: number; d: number }[] = [];
+    const meadow: { col: number; row: number; d: number }[] = [];
+    const m = WORLD_LAYOUT.regions.find((r) => r.id === 'meadow')!.rect;
+    for (let row = 0; row < WORLD_ROWS; row++)
+      for (let col = 0; col < WORLD_COLS; col++) {
+        if (col < 20 && row < 12) home.push({ col, row, d: Math.hypot(col - 2.5, row - 2) });
+        else if (col >= m.col && col < m.col + m.cols && row >= m.row && row < m.row + m.rows)
+          meadow.push({ col, row, d: Math.hypot(col - m.col, row - m.row) });
+      }
+    const order = (
+      a: { d: number; row: number; col: number },
+      b: { d: number; row: number; col: number },
+    ): number => a.d - b.d || a.row - b.row || a.col - b.col;
+    this.spiral = [...home.sort(order), ...meadow.sort(order)].map(({ col, row }) => ({ col, row }));
+    return this.spiral;
+  }
+
+  /** Puts every piece in the stock on the first free tile of the spiral. */
+  private placeDecor(run: SimRun): boolean {
+    const s = run.state;
+    let useful = false;
+    const tiles = this.tiles();
+    for (const id of DECOR_IDS) {
+      if (this.data.decor[id].kind !== 'place') continue;
+      while (decorStock(s, this.data, id) > 0) {
+        let placed = false;
+        for (let i = this.decorCursor; i < tiles.length; i++) {
+          const t = tiles[i]!;
+          if (decorPlacementProblem(s, this.data, id, t.col, t.row) !== null) continue;
+          if (run.game.dispatch({ type: 'placeDecor', decor: id, col: t.col, row: t.row }).ok) {
+            placed = true;
+            useful = true;
+            this.decorCursor = i;
+            break;
+          }
+        }
+        if (!placed) break; // the land or the slots are full
+      }
+    }
+    return useful;
+  }
+
+  /** The next decoration to buy: the cheapest unowned piece, then counted copies, then bulk paths and fences, then the farmhouse. */
+  private nextDecor(s: GameState): { id: DecorId; qty: number } | null {
+    const open = DECOR_IDS.filter((id) => decorStatus(s, this.data, id).unlocked);
+    const byPrice = (a: DecorId, b: DecorId): number => this.data.decor[a].price - this.data.decor[b].price;
+    const placeable = open.filter((id) => this.data.decor[id].kind === 'place').sort(byPrice);
+    const first = placeable.find((id) => ownedDecor(s, id) === 0 && !this.data.decor[id].autotile);
+    if (first) return { id: first, qty: 1 };
+    const copies = placeable.find(
+      (id) => !this.data.decor[id].autotile && ownedDecor(s, id) < decorCopies(this.data, id),
+    );
+    if (copies) return { id: copies, qty: 1 };
+    const bulk = placeable.find((id) => ownedDecor(s, id) < decorCopies(this.data, id));
+    if (bulk)
+      return { id: bulk, qty: Math.min(BULK_CHUNK, decorCopies(this.data, bulk) - ownedDecor(s, bulk)) };
+    const house = open
+      .filter((id) => this.data.decor[id].kind !== 'place' && ownedDecor(s, id) === 0)
+      .sort(byPrice)[0];
+    return house ? { id: house, qty: 1 } : null;
+  }
+
+  /** Applies the best owned farmhouse pieces (the newest paint, roof and the loft). */
+  private styleHouse(run: SimRun): void {
+    const s = run.state;
+    const owned = (kind: string): DecorId[] =>
+      DECOR_IDS.filter((id) => this.data.decor[id].kind === kind && ownedDecor(s, id) > 0);
+    const paint = owned('paint').at(-1);
+    const roof = owned('roof').at(-1);
+    const loft = ownedDecor(s, 'farmhouse_loft') > 0;
+    const f = s.decor.farmhouse;
+    if ((paint && f.paint !== paint) || (roof && f.roof !== roof) || (loft && !f.loft))
+      run.game.dispatch({ type: 'styleFarmhouse', paint, roof, loft: loft || undefined });
+  }
+
+  /**
+   * Spends up to V2_SPEND_SHARE of the gold above the seed reserve (and above the next parcel's price) once the
+   * v1 wish list is done: alternately on the next open project stage's gold and items, and on decorations.
+   */
+  private spendV2(run: SimRun): boolean {
+    const s = run.state;
+    let hold = 0;
+    for (const want of this.style.shopping) {
+      const price = this.offer(s, want);
+      if (price === null) continue;
+      if (want.kind !== 'parcel') return false; // still saving for the v1 list
+      hold = price;
+      break;
+    }
+    const restock = upgradeLevel(s, 'auto_seller') > 0 ? SEED_STOCK_CYCLES : 1;
+    const reserve = SEED_RESERVE_PER_PLOT * s.farm.plots.length * restock;
+    let budget = Math.floor(Math.max(0, s.gold - reserve - hold) * V2_SPEND_SHARE);
+    let useful = this.placeDecor(run);
+    this.styleHouse(run);
+    // Items the bag holds go to the project at once (they are not gold).
+    for (const id of TOWN_PROJECT_IDS) {
+      if (projectStatus(s, this.data, id) !== 'open') continue;
+      for (const it of currentStage(s, this.data, id)?.items ?? []) {
+        if (!it.done && countItem(s.inventory, it.item, false) > 0)
+          useful =
+            run.game.dispatch({ type: 'donateProject', project: id, item: it.item, qty: it.need - it.have })
+              .ok || useful;
+      }
+    }
+    for (let guard = 0; guard < 8 && budget > 0; guard++) {
+      const turn = this.v2Turn++ % 2;
+      let spent = 0;
+      if (turn === 0) spent = this.donateGold(run, budget);
+      if (spent === 0) spent = this.buyDecor(run, budget);
+      if (spent === 0 && turn !== 0) spent = this.donateGold(run, budget);
+      if (spent === 0) break;
+      budget -= spent;
+      useful = true;
+    }
+    return useful;
+  }
+
+  /** Gives gold to the first open project whose current stage still needs some. Returns what was given. */
+  private donateGold(run: SimRun, budget: number): number {
+    const s = run.state;
+    for (const id of TOWN_PROJECT_IDS) {
+      if (projectStatus(s, this.data, id) !== 'open') continue;
+      const stage: StageStatus | null = currentStage(s, this.data, id);
+      if (!stage || stage.goldHave >= stage.goldNeed) continue;
+      const amount = Math.min(stage.goldNeed - stage.goldHave, budget, s.gold);
+      if (amount <= 0) return 0;
+      const before = s.gold;
+      if (run.game.dispatch({ type: 'donateProject', project: id as TownProjectId, gold: amount }).ok)
+        return before - s.gold;
+      return 0;
+    }
+    return 0;
+  }
+
+  /** Buys the next decoration if the budget covers it (bulk pieces in chunks). Returns the gold spent. */
+  private buyDecor(run: SimRun, budget: number): number {
+    const s = run.state;
+    const next = this.nextDecor(s);
+    if (!next) return 0;
+    const price = this.data.decor[next.id].price;
+    const qty = Math.min(next.qty, Math.floor(budget / price));
+    if (qty <= 0) return 0;
+    if (!run.game.dispatch({ type: 'buyDecor', decor: next.id, qty }).ok) return 0;
+    this.placeDecor(run);
+    this.styleHouse(run);
+    return qty * price;
+  }
+
+  /** Goes fishing, and cooks, for the items a town project asks for that the bag does not hold. */
+  private errands(run: SimRun, dtMs: number): boolean {
+    const s = run.state;
+    const wants = this.projectWants(s);
+    if (wants.length === 0) return false;
+    let useful = false;
+    this.errandBudget += (ERRAND_FISH_PER_MIN * dtMs) / MIN;
+    for (const w of wants) {
+      const def = this.data.items[w.item];
+      if (def?.category === 'dish') {
+        if (
+          s.kitchen.known.includes(w.item as RecipeId) &&
+          s.kitchen.queue.length < kitchenSlots(s, this.data)
+        )
+          useful = run.game.dispatch({ type: 'cook', recipe: w.item as RecipeId }).ok || useful;
+        continue;
+      }
+      const fish = (this.data.fish as Partial<Record<string, { location: FishLocationId }>>)[w.item];
+      const junk = (this.data.junk as Partial<Record<string, { locations: readonly FishLocationId[] }>>)[
+        w.item
+      ];
+      const places = fish ? [fish.location] : (junk?.locations ?? []);
+      const where = unlockedLocations(s).find((l) => places.includes(l));
+      if (!where) continue;
+      while (this.errandBudget >= 1) {
+        this.errandBudget -= 1;
+        const events: GameEvent[] = [];
+        // A deliberate fishing trip goes out at midday (some fish only bite in the day); the season is the real one.
+        const noon = { ...run.game.calendar(), hour: 12, minute: 0, isNight: false };
+        const ctx = makeContext(s, this.data, noon, events);
+        const pick = chooseCatch(s, ctx, where, 'active', 0.6);
+        landCatch(s, ctx, pick.id, pick.sizeCm, where);
+        runProgression(s, ctx);
+        run.game.bus.emitAll(events);
+        run.metrics.fished += 1;
+        useful = true;
+      }
+    }
+    if (this.errandBudget > 3) this.errandBudget = 3;
     return useful;
   }
 
@@ -628,6 +882,11 @@ export class Brain {
             wanted.set(c, (wanted.get(c) ?? 0) + slot.need - slot.have - countItem(s.inventory, c));
           }
         }
+      }
+      for (const w of this.projectWants(s)) {
+        if (!(w.item in data.crops)) continue;
+        const c = w.item as CropId;
+        wanted.set(c, (wanted.get(c) ?? 0) + w.qty);
       }
       const pending: Partial<Record<CropId, number>> = {};
       for (const i of allPlotIndexes(s)) {

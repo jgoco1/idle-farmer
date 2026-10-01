@@ -5,7 +5,7 @@ import { PurchaseGuard } from './ui/purchaseGuard';
 import './styles.css';
 import { AudioEngine, unlockOnFirstGesture, volumesOf } from './audio/engine';
 import { bindAudioEvents } from './audio/events';
-import { Music, themeKey } from './audio/music';
+import { Music, themeKey, townSquareKey } from './audio/music';
 import { Sfx } from './audio/sfx';
 import { Game } from './core/game';
 import { startLoop } from './core/loop';
@@ -26,9 +26,9 @@ import { PrefsStore } from './core/prefs';
 import { createInitialState, type Plot } from './core/state';
 import { systemLocalClock } from './core/time';
 import { GAME_DATA } from './data';
-import type { CropId } from './data/ids';
+import { TOWN_PROJECT_IDS, type CropId } from './data/ids';
 import { applyPaletteCssVars } from './render/palette';
-import { Renderer, type SceneView } from './render/renderer';
+import { Renderer, type DecorGhost, type SceneView } from './render/renderer';
 import {
   BIN_TILE,
   PET_TILE,
@@ -81,6 +81,11 @@ import type { Action } from './core/actions';
 import type { ActionResult } from './systems/context';
 import { Toasts } from './ui/toast';
 import { buildSceneControls } from './ui/sceneControls';
+import { DecorateMode } from './ui/decorate';
+import { farmhouseSpriteId } from './render/sprites/farmhouse';
+import type { SceneLook } from './render/scene';
+import { hasCosmetic, hasMusicTrack } from './systems/townProjects';
+import { townSiteRect } from './render/scene';
 import { EdgePips } from './ui/edgePips';
 import type { PipTarget } from './render/pips';
 import { buyParcelDialog } from './ui/parcelSign';
@@ -167,6 +172,13 @@ const view: GameViewHooks = {
   mods: () => computeModifiers(game.state, GAME_DATA, game.calendar().season),
 };
 const placement = new PlacementMode(() => syncPlacement());
+const startPlacement = placement.start.bind(placement);
+placement.start = (kind) => {
+  decorate.stop();
+  startPlacement(kind);
+};
+/** Set from Settings: the Town Square tune plays now, whatever the rotation says. */
+let townTuneNow = false;
 /** Keeps a double click on a buy button from buying twice (the button is rebuilt for the next level). */
 const guard = new PurchaseGuard(() => performance.now());
 // Registration order is the toolbar order.
@@ -194,6 +206,16 @@ panels.register(
     ...view,
     buySeeds: (crop, qty) => guard.run(`seeds:${crop}`, () => game.dispatch({ type: 'buySeeds', crop, qty })),
     buyRecipe: (recipe) => guard.run(`recipe:${recipe}`, () => game.dispatch({ type: 'buyRecipe', recipe })),
+    decor: {
+      buyDecor: (decor, qty) =>
+        guard.run(`decor:${decor}:${qty}`, () => game.dispatch({ type: 'buyDecor', decor, qty })),
+      styleFarmhouse: (paint, roof, loft) => game.dispatch({ type: 'styleFarmhouse', paint, roof, loft }),
+      startDecorate: (id) => {
+        panels.close();
+        placement.stop();
+        decorate.start(id);
+      },
+    },
   }),
 );
 panels.register(
@@ -230,16 +252,20 @@ panels.register(
     setAutoSell: (item, on) => game.dispatch({ type: 'setAutoSell', item, on }),
   }),
 );
-panels.register(
-  goalsPanel({
-    ...view,
-    dispatch,
-    placeGolden: () => {
-      panels.close();
-      placement.start('golden_scarecrow');
-    },
-  }),
-);
+const goals = goalsPanel({
+  ...view,
+  dispatch,
+  donateProject: (project, gold, item, qty) =>
+    guard.run(`project:${project}:${gold !== undefined ? 'gold' : item}`, () =>
+      game.dispatch({ type: 'donateProject', project, gold, item, qty }),
+    ),
+  placeGolden: () => {
+    panels.close();
+    decorate.stop();
+    placement.start('golden_scarecrow');
+  },
+});
+panels.register(goals.def);
 panels.register(
   settingsPanel({
     prefs,
@@ -262,6 +288,10 @@ panels.register(
         return e instanceof SaveError ? e.message : 'That save could not be imported.';
       }
     },
+    townTuneOwned: () => hasMusicTrack(game.state, GAME_DATA, 'town_square'),
+    playTownTune(on) {
+      townTuneNow = on;
+    },
     hardReset() {
       clearSave(storage);
       game.replaceState(createInitialState(now(), lc));
@@ -277,6 +307,18 @@ panels.register(
 hud.settingsButton.addEventListener('click', () => panels.toggle('settings'));
 const toolbar = buildToolbar(byId('toolbar'), panels);
 const celebration = new Celebration(byId('scene'));
+const decorate: DecorateMode = new DecorateMode({
+  data: GAME_DATA,
+  state: () => game.state,
+  dispatch,
+  toast: (text, tone = 'info') => toasts.show(text, tone),
+  setMode(on) {
+    renderer.decorateMode = on;
+    if (on) placement.stop();
+  },
+  setGhost: (g: DecorGhost | null) => renderer.setDecorGhost(g),
+  onChange: (on) => controls.setDecorating(on),
+});
 const tools = new FarmTools(byId('toolbar'), view);
 
 // ---- layout: panels sit between the real HUD and toolbar heights (they change with UI size and phone width)
@@ -504,6 +546,8 @@ game.bus.on('purchased', (e) => {
     placement.start(e.what);
   } else if (e.what in GAME_DATA.parcels) {
     // parcelBought has the toast.
+  } else if (e.what in GAME_DATA.decor) {
+    // The Decor tab reports what was bought.
   } else if (e.what in GAME_DATA.upgrades) {
     toasts.show(`${GAME_DATA.upgrades[e.what as keyof typeof GAME_DATA.upgrades]!.name} upgraded!`, 'good');
   }
@@ -539,6 +583,38 @@ game.bus.on('parcelBought', (e) => {
     renderer.panToTile(r.col + Math.floor(r.cols / 2), r.row + Math.floor(r.rows / 2));
   }
   toasts.showKept(`${def.name} is yours! The brambles are cleared. ${def.opens}, later on.`, 'good');
+});
+// A town project stage is finished: the town changes, with a flourish, and the camera shows it.
+game.bus.on('projectStageDone', (e) => {
+  const def = GAME_DATA.townProjects[e.project];
+  const site = townSiteRect(e.project);
+  if (!quiet()) {
+    for (let i = 0; i < 12; i++)
+      renderer.particles.emit(
+        'sparkle',
+        (site.col + ((i % 4) + 0.5) * (site.cols / 4)) * PX,
+        (site.row + (Math.floor(i / 4) + 0.5) * (site.rows / 3)) * PX,
+        1,
+      );
+    renderer.panToTile(site.col + Math.floor(site.cols / 2), site.row + Math.floor(site.rows / 2));
+    celebration.burst('big');
+  }
+  const stage = def.stages[e.stage - 1]!;
+  toasts.showKept(
+    e.complete
+      ? `${def.name} is finished! ${def.rewardText}.`
+      : `${def.name}: ${stage.sceneChange}. Charm +10.`,
+    'good',
+  );
+});
+// New decoration pieces open as charm rises past their thresholds.
+game.bus.on('charmChanged', (e) => {
+  if (quiet() || e.to <= e.from) return;
+  const opened = Object.values(GAME_DATA.decor).filter((d) =>
+    d.unlock.some((c) => c.kind === 'charm' && c.amount > e.from && c.amount <= e.to),
+  );
+  if (opened.length > 0)
+    toasts.show(`Charm ${e.to}! New in the Decor shop: ${opened.map((d) => d.name).join(', ')}.`, 'good');
 });
 // Live panels (Inventory, Shop, Market) follow the state; refreshed at most once per frame.
 let panelsDirty = false;
@@ -610,6 +686,29 @@ function syncPlacement(): void {
 }
 
 // ---- scene
+/** What the town and the farmhouse look like, reused every frame (the renderer compares it without allocating). */
+const look: { farmhouse: string; stages: Record<string, number> } = {
+  farmhouse: 'obj_farmhouse',
+  stages: {},
+};
+let lookPaint: string | null = null;
+let lookRoof: string | null = null;
+let lookLoft = false;
+function updateLook(): SceneLook {
+  const s = game.state;
+  const f = s.decor.farmhouse;
+  if (f.paint !== lookPaint || f.roof !== lookRoof || f.loft !== lookLoft) {
+    lookPaint = f.paint;
+    lookRoof = f.roof;
+    lookLoft = f.loft;
+    look.farmhouse = farmhouseSpriteId(f.paint, f.roof, f.loft);
+  }
+  for (let i = 0; i < TOWN_PROJECT_IDS.length; i++) {
+    const id = TOWN_PROJECT_IDS[i]!;
+    look.stages[id] = s.town.projects[id]?.stagesDone ?? 0;
+  }
+  return look as SceneLook;
+}
 const renderer = new Renderer({
   canvas: byId<HTMLCanvasElement>('scene-canvas'),
   container: byId('scene'),
@@ -683,6 +782,14 @@ const renderer = new Renderer({
     stroke = null;
     flushStrokeToasts();
   },
+  onTownClick(project) {
+    goals.showTown();
+    panels.open('goals');
+    toasts.show(`${GAME_DATA.townProjects[project].name}: see the Town tab.`);
+  },
+  onDecorClick(col, row) {
+    decorate.click(col, row);
+  },
   onSignClick(parcel) {
     buyParcelDialog(parcel, {
       state: () => game.state,
@@ -697,8 +804,8 @@ const renderer = new Renderer({
 });
 renderer.reducedMotion = isReducedMotion;
 renderer.restoreCamera(prefs.value.camera);
-buildSceneControls(byId('scene'), renderer);
-renderer.setScene(game.state.farm.grid, game.state.expansions, game.state.land.parcels);
+const controls = buildSceneControls(byId('scene'), renderer, () => decorate.toggle());
+renderer.setScene(game.state.farm.grid, game.state.expansions, game.state.land.parcels, updateLook());
 const pips = new EdgePips(byId('scene'), renderer);
 const pipTargets: PipTarget[] = [];
 /** Off-screen things that want the player (GDD §12.1): ready crops, full traps, a dish left on the stove. */
@@ -798,6 +905,8 @@ const view$: SceneView = {
   farmhand: false,
   traps: [],
   cooking: false,
+  decor: [],
+  cosmetics: { bakerySmoke: false, band: false, lighthouseBeam: false, festival: false },
 };
 const plotsView: PlotSprites[] = [];
 const greenhouseView: PlotSprites[] = [];
@@ -828,6 +937,12 @@ function sceneView(): SceneView {
   view$.traps = trapsView;
   view$.cooking = false;
   for (const j of s.kitchen.queue) if (j.remainingMs > 0) view$.cooking = true;
+  view$.decor = s.decor.placed;
+  const cos = view$.cosmetics;
+  cos.bakerySmoke = hasCosmetic(s, GAME_DATA, 'bakerySmoke');
+  cos.band = hasCosmetic(s, GAME_DATA, 'bandSaturday');
+  cos.lighthouseBeam = hasCosmetic(s, GAME_DATA, 'lighthouseBeam');
+  cos.festival = hasCosmetic(s, GAME_DATA, 'festivalLights');
   return view$;
 }
 
@@ -837,15 +952,25 @@ let lastTheme: ReturnType<typeof themeKey> | null = null;
 const loop = startLoop(game, {
   render() {
     const cal = game.calendar();
-    const theme = themeKey(cal.season, cal.isNight);
+    const town =
+      townTuneNow ||
+      (prefs.value.townTune && hasMusicTrack(game.state, GAME_DATA, 'town_square') && cal.hour % 3 === 2);
+    const theme = town ? townSquareKey(cal.isNight) : themeKey(cal.season, cal.isNight);
     if (theme !== lastTheme) {
       lastTheme = theme;
       music.setTheme(theme);
     }
     tutorialOverlay.update();
-    renderer.setScene(game.state.farm.grid, game.state.expansions, game.state.land.parcels);
+    renderer.setScene(game.state.farm.grid, game.state.expansions, game.state.land.parcels, updateLook());
     renderer.render(performance.now(), cal, sceneView());
     if (placement.kind) syncPlacement();
+    if (decorate.on) {
+      decorate.refresh();
+      const hover = renderer.hoverTile;
+      const why = hover ? decorate.problemAt(hover.col, hover.row) : null;
+      const canvas = byId<HTMLCanvasElement>('scene-canvas');
+      if (canvas.title !== (why ?? '')) canvas.title = why ?? '';
+    }
     hud.update(game.state, cal);
     tools.update();
     if (panelsDirty) {
@@ -889,4 +1014,8 @@ if (import.meta.env.DEV || new URLSearchParams(location.search).has('debug')) {
   chunksDrawn: () => renderer.chunksDrawn,
   objectsDrawn: () => renderer.objectsDrawn,
   home: () => renderer.home(),
+  /** Lamps and lights the last frame lit (night halos). */
+  lightsLit: () => renderer.lightsLit,
+  decorMode: () => decorate.on,
+  sceneSprites: () => renderer.layoutSpriteIds(),
 };

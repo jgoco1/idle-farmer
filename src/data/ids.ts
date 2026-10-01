@@ -103,9 +103,50 @@ export type ExpansionId = 'farm_1' | 'farm_2' | 'farm_3' | 'farm_4' | 'river' | 
 /** Land parcels of the v2 world, bought in this order (v2 phase 01, BALANCE.md §13.1). */
 export type ParcelId = 'orchard' | 'yard' | 'meadow';
 
-/** Town projects (v2 phase 02). Only their building sites exist in v2 phase 01, as world layout. */
+/** Town projects (v2 phase 02, GDD §12.2). Their building sites are world layout (v2 phase 01). */
 export type TownProjectId =
   'old_bridge' | 'fountain' | 'bakery' | 'bandstand' | 'lighthouse' | 'community_hall';
+
+/** The decoration sets (v2 phase 02): Cottage is open at once, the others open with a town project. */
+export type DecorSetId = 'cottage' | 'seaside' | 'harvest_fair';
+
+/** Every decoration piece (GDD §12.2, BALANCE.md §13.2). Farmhouse paint, roof and loft are pieces too. */
+export type DecorId =
+  // Cottage
+  | 'cobble_path'
+  | 'picket_fence'
+  | 'flower_bed'
+  | 'garden_lamp'
+  | 'wooden_bench'
+  | 'birdbath'
+  | 'rose_arch'
+  | 'paint_sage'
+  | 'paint_sky'
+  | 'roof_thatch'
+  | 'roof_slate'
+  | 'farmhouse_loft'
+  // Seaside
+  | 'plank_path'
+  | 'rope_fence'
+  | 'sandcastle'
+  | 'lobster_pots'
+  | 'deck_chair'
+  | 'beach_umbrella'
+  | 'harbour_lamp'
+  | 'rowboat'
+  | 'driftwood_arch'
+  | 'ship_figurehead'
+  // Harvest Fair
+  | 'brick_path'
+  | 'rail_fence'
+  | 'straw_bale'
+  | 'pumpkin_stack'
+  | 'sunflower_patch'
+  | 'lantern_string'
+  | 'apple_cart'
+  | 'stone_well'
+  | 'fair_stall'
+  | 'windmill';
 
 export type BuffType =
   'growth' | 'sellPrice' | 'fishingLuck' | 'fishingSpeed' | 'cookSpeed' | 'automationSpeed' | 'xp';
@@ -131,7 +172,13 @@ export type MilestoneId =
   | 'm12_cook_t3'
   | 'm13_unlock_ocean'
   | 'm14_first_bundle'
-  | 'm15_greenhouse';
+  | 'm15_greenhouse'
+  // v2 (checked from state or counted from events; no farm points, BALANCE.md §13.9)
+  | 'm16_first_parcel'
+  | 'm17_first_decor'
+  | 'm18_charm_25'
+  | 'm19_first_project'
+  | 'm23_charm_100';
 
 export type BundleId =
   'spring_crops' | 'summer_crops' | 'autumn_harvest' | 'pond_fish' | 'river_and_sea' | 'cozy_dinner';
@@ -145,7 +192,8 @@ export type GoalTemplateId =
   | 'catch_rarity'
   | 'cook_tier'
   | 'cook_distinct'
-  | 'eat_dish';
+  | 'eat_dish'
+  | 'raise_charm';
 
 export type PanelId =
   'inventory' | 'shop' | 'market' | 'kitchen' | 'fishing' | 'upgrades' | 'goals' | 'settings';
@@ -215,6 +263,60 @@ export const RECIPE_IDS: readonly RecipeId[] = [
 ];
 
 export const PARCEL_IDS: readonly ParcelId[] = ['orchard', 'yard', 'meadow'];
+
+export const TOWN_PROJECT_IDS: readonly TownProjectId[] = [
+  'old_bridge',
+  'fountain',
+  'bakery',
+  'bandstand',
+  'lighthouse',
+  'community_hall',
+];
+
+export const DECOR_SET_IDS: readonly DecorSetId[] = ['cottage', 'seaside', 'harvest_fair'];
+
+export const DECOR_IDS: readonly DecorId[] = [
+  'cobble_path',
+  'picket_fence',
+  'flower_bed',
+  'garden_lamp',
+  'wooden_bench',
+  'birdbath',
+  'rose_arch',
+  'paint_sage',
+  'paint_sky',
+  'roof_thatch',
+  'roof_slate',
+  'farmhouse_loft',
+  'plank_path',
+  'rope_fence',
+  'sandcastle',
+  'lobster_pots',
+  'deck_chair',
+  'beach_umbrella',
+  'harbour_lamp',
+  'rowboat',
+  'driftwood_arch',
+  'ship_figurehead',
+  'brick_path',
+  'rail_fence',
+  'straw_bale',
+  'pumpkin_stack',
+  'sunflower_patch',
+  'lantern_string',
+  'apple_cart',
+  'stone_well',
+  'fair_stall',
+  'windmill',
+];
+
+export function isDecorId(id: string): id is DecorId {
+  return (DECOR_IDS as readonly string[]).includes(id);
+}
+
+export function isTownProjectId(id: string): id is TownProjectId {
+  return (TOWN_PROJECT_IDS as readonly string[]).includes(id);
+}
 
 export function isParcelId(id: string): id is ParcelId {
   return (PARCEL_IDS as readonly string[]).includes(id);

@@ -20,6 +20,8 @@ export interface Prefs {
   uiScale: UiScale;
   numberFormat: NumberFormat;
   tutorial: TutorialStatus;
+  /** Play the Town Square tune in the music rotation once the bandstand is built (v2 phase 02). */
+  townTune: boolean;
   /** The world camera: centre in world px and an integer zoom; null = the default view (v2 phase 01). */
   camera: CameraPref | null;
 }
@@ -42,6 +44,7 @@ export const DEFAULT_PREFS: Prefs = {
   uiScale: 1,
   numberFormat: 'full',
   tutorial: 'pending',
+  townTune: true,
   camera: null,
 };
 
@@ -71,6 +74,7 @@ export function sanitizePrefs(raw: unknown): Prefs {
     numberFormat: r.numberFormat === 'short' || r.numberFormat === 'full' ? r.numberFormat : d.numberFormat,
     tutorial:
       r.tutorial === 'done' || r.tutorial === 'skipped' || r.tutorial === 'pending' ? r.tutorial : d.tutorial,
+    townTune: typeof r.townTune === 'boolean' ? r.townTune : d.townTune,
     camera: sanitizeCamera(r.camera),
   };
 }
