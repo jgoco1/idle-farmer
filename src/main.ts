@@ -81,6 +81,9 @@ import type { Action } from './core/actions';
 import type { ActionResult } from './systems/context';
 import { Toasts } from './ui/toast';
 import { buildSceneControls } from './ui/sceneControls';
+import { PlantMode } from './ui/plantMode';
+import { daysToMature, ripeTrees, treeAtTile, treeStage } from './systems/orchard';
+import { WORLD_LAYOUT } from './data/world';
 import { DecorateMode } from './ui/decorate';
 import { farmhouseSpriteId } from './render/sprites/farmhouse';
 import type { SceneLook } from './render/scene';
@@ -175,6 +178,7 @@ const placement = new PlacementMode(() => syncPlacement());
 const startPlacement = placement.start.bind(placement);
 placement.start = (kind) => {
   decorate.stop();
+  plant.stop();
   startPlacement(kind);
 };
 /** Set from Settings: the Town Square tune plays now, whatever the rotation says. */
@@ -206,6 +210,20 @@ panels.register(
     ...view,
     buySeeds: (crop, qty) => guard.run(`seeds:${crop}`, () => game.dispatch({ type: 'buySeeds', crop, qty })),
     buyRecipe: (recipe) => guard.run(`recipe:${recipe}`, () => game.dispatch({ type: 'buyRecipe', recipe })),
+    trees: {
+      buySapling: (fruit, qty) =>
+        guard.run(`sapling:${fruit}`, () => game.dispatch({ type: 'buySapling', fruit, qty })),
+      startPlanting: (fruit) => {
+        panels.close();
+        plant.start(fruit);
+      },
+      pickTree: (id) => game.dispatch({ type: 'pickTree', id }),
+      startMove: (id) => {
+        panels.close();
+        plant.startMove(id);
+      },
+      removeTree: (id) => game.dispatch({ type: 'removeTree', id }),
+    },
     decor: {
       buyDecor: (decor, qty) =>
         guard.run(`decor:${decor}:${qty}`, () => game.dispatch({ type: 'buyDecor', decor, qty })),
@@ -319,6 +337,30 @@ const decorate: DecorateMode = new DecorateMode({
   setGhost: (g: DecorGhost | null) => renderer.setDecorGhost(g),
   onChange: (on) => controls.setDecorating(on),
 });
+// Planting and moving a tree share Decorate mode's click routing and ghost (the renderer sends the clicks here).
+const plant: PlantMode = new PlantMode({
+  data: GAME_DATA,
+  state: () => game.state,
+  dispatch,
+  toast: (text, tone = 'info') => toasts.show(text, tone),
+  setMode(on) {
+    renderer.decorateMode = on;
+  },
+  setGhost: (g: DecorGhost | null) => renderer.setDecorGhost(g),
+  showOrchard() {
+    const r = GAME_DATA.parcels.orchard.rect;
+    renderer.panToTile(r.col + Math.floor(r.cols / 2), r.row + Math.floor(r.rows / 2));
+  },
+  onStart() {
+    decorate.stop();
+    placement.stop();
+  },
+});
+const startDecorating = decorate.start.bind(decorate);
+decorate.start = (select) => {
+  plant.stop();
+  startDecorating(select);
+};
 const tools = new FarmTools(byId('toolbar'), view);
 
 // ---- layout: panels sit between the real HUD and toolbar heights (they change with UI size and phone width)
@@ -570,6 +612,43 @@ game.bus.on('trapCollected', (e) => {
     at.row,
   );
 });
+// The orchard (v2 phase 03): fruit picked, trees planted, trees turning mature, fruit ripening overnight.
+function spotTile(treeId: number): { col: number; row: number } {
+  const t = game.state.orchard.trees.find((x) => x.id === treeId);
+  const s = WORLD_LAYOUT.treeSpots[t?.spot ?? 0]!;
+  return { col: s.col, row: s.row };
+}
+game.bus.on('fruitPicked', (e) => {
+  if (quiet()) return;
+  const at = spotTile(e.tree);
+  if (e.auto) {
+    renderer.farmhand.enqueue({ col: at.col, row: at.row + 2, sprite: `item_${e.fruit}` });
+    return;
+  }
+  renderer.addTileFx(at.col, at.row - 1, `item_${e.fruit}`, performance.now());
+  toasts.show(`+${e.qty} ${GAME_DATA.items[e.fruit]!.name}${e.shipped > 0 ? ' (shipped)' : ''}`, 'good');
+});
+game.bus.on('treePlanted', (e) => {
+  if (quiet()) return;
+  const t = GAME_DATA.trees[e.tree];
+  toasts.show(
+    `A ${t.name.toLowerCase()} tree is planted. It will be mature in ${t.matureDays} days, even while you are away.`,
+    'good',
+  );
+});
+game.bus.on('treeMatured', (e) => {
+  if (catchingUp()) return;
+  const at = spotTile(e.id);
+  toastAt(`Your ${GAME_DATA.trees[e.tree].name.toLowerCase()} tree is mature!`, 'good', at.col, at.row);
+  if (!quiet()) renderer.particles.emit('sparkle', (at.col + 1) * PX, (at.row + 1) * PX, 1);
+});
+let lastFruitToast = -1e9;
+game.bus.on('fruitGrown', (e) => {
+  if (catchingUp() || performance.now() - lastFruitToast < 5000) return;
+  lastFruitToast = performance.now();
+  const at = spotTile(e.tree);
+  toastAt('Fruit is ripe in the orchard.', 'good', at.col, at.row);
+});
 // A parcel is bought: the overgrowth goes in a puff of leaves and the camera shows the new land.
 game.bus.on('parcelBought', (e) => {
   const def = GAME_DATA.parcels[e.parcel];
@@ -788,7 +867,12 @@ const renderer = new Renderer({
     toasts.show(`${GAME_DATA.townProjects[project].name}: see the Town tab.`);
   },
   onDecorClick(col, row) {
-    decorate.click(col, row);
+    if (plant.on) plant.click(col, row);
+    else decorate.click(col, row);
+  },
+  onTreeClick(id) {
+    const r = game.dispatch({ type: 'pickTree', id });
+    if (!r.ok) toasts.show(r.reason, 'warn');
   },
   onSignClick(parcel) {
     buyParcelDialog(parcel, {
@@ -823,6 +907,10 @@ function updatePips(): void {
     if (n >= TRAP_CAPACITY) pipTargets.push({ kind: 'trap', ...trapTile(t.location, t.slot) });
   }
   if (s.kitchen.queue.some((j) => j.remainingMs <= 0)) pipTargets.push({ kind: 'dish', col: 2, row: 2 });
+  for (const t of ripeTrees(s)) {
+    const spot = WORLD_LAYOUT.treeSpots[t.spot]!;
+    pipTargets.push({ kind: 'tree', col: spot.col, row: spot.row });
+  }
   pips.update(pipTargets);
 }
 window.setInterval(updatePips, 250);
@@ -906,6 +994,7 @@ const view$: SceneView = {
   traps: [],
   cooking: false,
   decor: [],
+  trees: [],
   cosmetics: { bakerySmoke: false, band: false, lighthouseBeam: false, festival: false },
 };
 const plotsView: PlotSprites[] = [];
@@ -918,11 +1007,22 @@ const wetAt = (i: number): boolean => {
   return plot.waterMsLeft > 0 || coverage?.sprinkled[i] === 1;
 };
 const alwaysWet = (): boolean => true;
+// A plot's sprite only changes when the simulation ticks (10 a second) or something happened (any event, or a
+// different state after an import), so the per-plot sprite list is rebuilt then, not on all 60 frames a second.
+let plotsDirty = true;
+let plotsTick = -1;
+let plotsState: object | null = null;
+game.bus.onAny(() => (plotsDirty = true));
 function sceneView(): SceneView {
   const s = game.state;
   coverage = coverageOf(s, GAME_DATA);
-  view$.plots = plotSpritesInto(plotsView, s.farm.plots, stageOf, wetAt);
-  view$.greenhouse = plotSpritesInto(greenhouseView, s.farm.greenhouse, stageOf, alwaysWet);
+  if (plotsDirty || game.tickCount !== plotsTick || s !== plotsState) {
+    plotsDirty = false;
+    plotsTick = game.tickCount;
+    plotsState = s;
+    view$.plots = plotSpritesInto(plotsView, s.farm.plots, stageOf, wetAt);
+    view$.greenhouse = plotSpritesInto(greenhouseView, s.farm.greenhouse, stageOf, alwaysWet);
+  }
   view$.placed = s.placed;
   view$.farmhand = (s.upgrades.farmhand ?? 0) > 0;
   trapsView.length = s.fishing.traps.length;
@@ -938,12 +1038,58 @@ function sceneView(): SceneView {
   view$.cooking = false;
   for (const j of s.kitchen.queue) if (j.remainingMs > 0) view$.cooking = true;
   view$.decor = s.decor.placed;
+  view$.trees = s.orchard.trees;
   const cos = view$.cosmetics;
   cos.bakerySmoke = hasCosmetic(s, GAME_DATA, 'bakerySmoke');
   cos.band = hasCosmetic(s, GAME_DATA, 'bandSaturday');
   cos.lighthouseBeam = hasCosmetic(s, GAME_DATA, 'lighthouseBeam');
   cos.festival = hasCosmetic(s, GAME_DATA, 'festivalLights');
   return view$;
+}
+
+// ---- a tree's tooltip: stage, days until mature, the seasons it bears in and fruit hanging / cap. A small
+// parchment label above the tree (a native `title` does not show on touch screens). Rebuilt only when the pointer
+// moves to another tile or the tree changes (no string work in a steady frame).
+const treeTip = h('div', { class: 'tree-tip', role: 'tooltip', hidden: true, 'data-testid': 'tree-tip' });
+byId('scene').append(treeTip);
+let tipCol = -1;
+let tipRow = -1;
+let tipSig = -1;
+function updateTreeTooltip(dayIndex: number): void {
+  const hover = renderer.hoverTile;
+  const tree = hover ? treeAtTile(game.state, hover.col, hover.row) : undefined;
+  const sig = tree ? tree.id * 1_000_000 + tree.fruit * 1000 + (dayIndex % 1000) : -1;
+  if ((hover?.col ?? -1) === tipCol && (hover?.row ?? -1) === tipRow && sig === tipSig) return;
+  tipCol = hover?.col ?? -1;
+  tipRow = hover?.row ?? -1;
+  tipSig = sig;
+  if (!tree) {
+    treeTip.hidden = true;
+    return;
+  }
+  const def = GAME_DATA.trees[tree.tree];
+  const stage = treeStage(GAME_DATA, tree, dayIndex);
+  const left = daysToMature(GAME_DATA, tree, dayIndex);
+  const state =
+    stage === 'mature'
+      ? 'Mature'
+      : `${stage === 'sapling' ? 'Sapling' : 'Young'}, ${left} day${left === 1 ? '' : 's'} until mature`;
+  treeTip.replaceChildren(
+    h('strong', { text: `${def.name} tree · ${state}` }),
+    h('span', { text: `Bears in ${def.seasons.join(' and ')}` }),
+    h('span', { text: `Fruit ${tree.fruit} / ${def.fruitCap}${tree.fruit > 0 ? ' · click to pick' : ''}` }),
+  );
+  const spot = WORLD_LAYOUT.treeSpots[tree.spot]!;
+  const box = byId('scene').getBoundingClientRect();
+  // above the canopy, or below the trunk when there is no room above (the top of the screen)
+  const above = renderer.tileClientCenter(spot.col + 1, spot.row - 1);
+  const below = renderer.tileClientCenter(spot.col + 1, spot.row + 2);
+  const roomAbove = above.y - box.top > 110;
+  const at = roomAbove ? above : below;
+  treeTip.classList.toggle('is-below', !roomAbove);
+  treeTip.style.left = `${Math.round(at.x - box.left)}px`;
+  treeTip.style.top = `${Math.round(at.y - box.top)}px`;
+  treeTip.hidden = false;
 }
 
 // ---- loop and autosave
@@ -970,6 +1116,11 @@ const loop = startLoop(game, {
       const why = hover ? decorate.problemAt(hover.col, hover.row) : null;
       const canvas = byId<HTMLCanvasElement>('scene-canvas');
       if (canvas.title !== (why ?? '')) canvas.title = why ?? '';
+    }
+    if (!decorate.on && !plant.on) updateTreeTooltip(cal.dayIndex);
+    else if (!treeTip.hidden) {
+      treeTip.hidden = true;
+      tipCol = -2; // show it again when the pointer next lands on a tree
     }
     hud.update(game.state, cal);
     tools.update();

@@ -36,6 +36,7 @@ import type {
   RecipeTier,
   SkillId,
   TownProjectId,
+  TreeId,
   UpgradeId,
 } from '../data/ids';
 import type { ItemStack, QuestObjective, QuestReward } from '../data/types';
@@ -101,6 +102,7 @@ export interface Stats {
   dishesCooked: number; // @06
   dishesEaten: number; // @06
   bestDishTier: number; // @06: the highest tier cooked so far, 0 = none
+  fruitPicked: number; // v2-03: fruit picked from the orchard
 }
 
 export interface Settings {
@@ -159,6 +161,23 @@ export interface GameState {
   // ---- decorations and the town (v2 phase 02, save 9)
   decor: DecorState;
   town: TownState;
+
+  // ---- the orchard (v2 phase 03, save 10)
+  orchard: OrchardState;
+}
+
+/** A planted fruit tree (DATA_SCHEMAS.md §9.6). Its age, stage and ripeness are derived (BALANCE.md §13.5). */
+export interface TreeState {
+  id: number; // unique, monotonically increasing (max + 1)
+  tree: TreeId;
+  spot: number; // index into WORLD_LAYOUT.treeSpots
+  plantedDay: number; // calendar.dayIndex on the day it was planted
+  fruit: number; // hanging now, 0 … fruitCap
+  lastFruitDay: number; // the last day index whose fruit has been added (starts at plantedDay)
+}
+
+export interface OrchardState {
+  trees: TreeState[];
 }
 
 /** A decoration standing on the land (DATA_SCHEMAS.md §9.6). Its auto-tile mask is derived when drawn, never stored. */
@@ -332,6 +351,7 @@ export function createInitialState(now: number, lc: LocalClock, seed: number = s
     land: { parcels: [] },
     decor: createStartingDecor(),
     town: { projects: {} },
+    orchard: { trees: [] },
   };
   // A new farm opens with today's specials and the first sparkline point (every save starts in spring).
   openMarketDay(state, GAME_DATA, createRng(state), 'spring');
@@ -354,6 +374,7 @@ export function createStartingStats(): Stats {
     dishesCooked: 0,
     dishesEaten: 0,
     bestDishTier: 0,
+    fruitPicked: 0,
   };
 }
 

@@ -36,12 +36,23 @@ import {
   trapTile,
   zoneAt,
 } from '../src/render/scene';
-import fixture from './fixtures/save-v9.json';
+import fixture from './fixtures/save-v10.json';
+import fixtureV9 from './fixtures/save-v9.json';
 import fixtureV8 from './fixtures/save-v8.json';
 import { farmLevel } from '../src/systems/unlocks';
 import { at, NY } from './helpers';
 
 const FIXTURE_TEXT = JSON.stringify(fixture);
+
+/** Removes what the v9 → v10 migration added, so older migrations can be compared with their fixtures. */
+function withoutV10(rest: Record<string, unknown>): Record<string, unknown> {
+  delete rest.orchard;
+  delete (rest.stats as Record<string, unknown>).fruitPicked;
+  const cal = rest.calendar as Record<string, unknown>;
+  delete cal.dayZeroKey;
+  delete cal.maxDayIndex;
+  return rest;
+}
 
 function memoryStorage(initial: Record<string, string> = {}): SaveStorage & { data: Map<string, string> } {
   const data = new Map(Object.entries(initial));
@@ -54,13 +65,13 @@ function memoryStorage(initial: Record<string, string> = {}): SaveStorage & { da
 }
 
 describe('save file', () => {
-  it('is at version 9 (v2 phase 02) with one migration per older version', () => {
-    expect(SAVE_VERSION).toBe(9);
-    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8']);
+  it('is at version 10 (v2 phase 03) with one migration per older version', () => {
+    expect(SAVE_VERSION).toBe(10);
+    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
     expect(SAVE_KEY).toBe('hearthfield-idle/save');
   });
 
-  it('the v9 fixture loads unchanged', () => {
+  it('the v10 fixture loads unchanged', () => {
     const file = parseSave(FIXTURE_TEXT);
     expect(file).toEqual(fixture);
   });
@@ -128,6 +139,15 @@ describe('save file', () => {
     );
     fresh.decor.farmhouse.paint = 'paint_sage';
     fresh.town.projects.old_bridge = { stagesDone: 1, gold: 100, items: [] };
+    // The orchard: a tree with fruit hanging.
+    fresh.orchard.trees.push({
+      id: 1,
+      tree: 'cherry_tree',
+      spot: 0,
+      plantedDay: 0,
+      fruit: 10,
+      lastFruitDay: 4,
+    });
     fresh.fishing.traps.push({
       id: 1,
       location: 'pond',
@@ -259,7 +279,11 @@ describe('migrations', () => {
     const s = file.state;
     // Everything from v1 is kept.
     expect(s.clock).toEqual(fixtureV1.state.clock);
-    expect(s.calendar).toEqual(fixtureV1.state.calendar);
+    expect(s.calendar).toEqual({
+      ...fixtureV1.state.calendar,
+      dayZeroKey: fixtureV1.state.calendar.lastDayKey,
+      maxDayIndex: 0,
+    });
     expect(s.rngState).toBe(fixtureV1.state.rngState);
     expect(s.settings).toEqual({ ...fixtureV1.state.settings, relaxedFishing: false });
     expect(s.meta).toEqual(fixtureV1.state.meta);
@@ -288,7 +312,7 @@ describe('migrations', () => {
     // Everything from v2 is kept.
     const { state: old } = fixtureV2;
     expect(s.clock).toEqual(old.clock);
-    expect(s.calendar).toEqual(old.calendar);
+    expect(s.calendar).toEqual({ ...old.calendar, dayZeroKey: old.calendar.lastDayKey, maxDayIndex: 0 });
     expect(s.rngState).toBe(old.rngState);
     expect(s.gold).toBe(old.gold);
     expect(s.farm).toEqual(old.farm);
@@ -298,6 +322,7 @@ describe('migrations', () => {
     expect(s.shippingBin).toEqual({ items: [], msToPickup: 3_600_000 });
     expect(s.expansions).toEqual([]);
     expect(s.stats).toEqual({
+      fruitPicked: 0,
       lifetimeGold: 0,
       goldToday: 0,
       cropsHarvested: 0,
@@ -325,6 +350,7 @@ describe('migrations', () => {
     expect(s.lastPlantedCrop).toEqual(old.lastPlantedCrop);
     expect(s.stats).toEqual({
       ...old.stats,
+      fruitPicked: 0,
       fishCaught: 0,
       dishesCooked: 0,
       dishesEaten: 0,
@@ -347,7 +373,13 @@ describe('migrations', () => {
     expect(s.inventory).toEqual(old.inventory);
     expect(s.fishing).toEqual(old.fishing);
     expect(s.upgrades).toEqual(old.upgrades);
-    expect(s.stats).toEqual({ ...old.stats, dishesCooked: 0, dishesEaten: 0, bestDishTier: 0 });
+    expect(s.stats).toEqual({
+      ...old.stats,
+      fruitPicked: 0,
+      dishesCooked: 0,
+      dishesEaten: 0,
+      bestDishTier: 0,
+    });
     // The starter recipes, then the ones the phase-07 backfill hands out for milestones the save already shows.
     expect(s.kitchen.queue).toEqual([]);
     expect(s.kitchen.known.slice(0, 3)).toEqual(createInitialState(0, NY).kitchen.known); // stays in step with the data
@@ -363,7 +395,7 @@ describe('migrations', () => {
     const { state: old } = fixtureV6;
     expect(s.gold).toBe(old.gold); // no milestone gold is paid a second time
     expect(s.farm).toEqual(old.farm);
-    expect(s.stats).toEqual(old.stats);
+    expect(s.stats).toEqual({ ...old.stats, fruitPicked: 0 });
     expect(s.upgrades).toEqual(old.upgrades);
     // Deeds the save already shows: planted, harvested, sold, expanded, sprinkler, fish, dish, ate, farmhand, river.
     expect(s.progression.milestones.done).toEqual([
@@ -493,7 +525,7 @@ describe('migrations', () => {
     delete rest.land;
     delete rest.decor; // v9 and v10 additions; their migrations have their own tests
     delete rest.town;
-    expect(rest).toEqual(fixtureV7.state);
+    expect(withoutV10(rest)).toEqual(fixtureV7.state);
     // The v1 scene is the world's top-left corner at the same tiles: every zone, plot and trap spot
     // of the old save is found exactly where v1 found it.
     const grid = s.farm.grid;
@@ -526,6 +558,38 @@ describe('migrations', () => {
     }
   });
 
+  it('migrates a v9 save (v10): no trees, the day index starts counting, nothing is lost', () => {
+    const file = parseSave(JSON.stringify(fixtureV9));
+    expect(file.version).toBe(SAVE_VERSION);
+    expect(validateState(file.state)).toBeNull();
+    const s = file.state;
+    expect(s.orchard).toEqual({ trees: [] });
+    expect(s.stats.fruitPicked).toBe(0);
+    expect(s.calendar.dayZeroKey).toBe(fixtureV9.state.calendar.lastDayKey);
+    expect(s.calendar.maxDayIndex).toBe(0);
+    const rest: Record<string, unknown> = JSON.parse(JSON.stringify(s));
+    delete rest.orchard;
+    const stats = rest.stats as Record<string, unknown>;
+    delete stats.fruitPicked;
+    const cal = rest.calendar as Record<string, unknown>;
+    delete cal.dayZeroKey;
+    delete cal.maxDayIndex;
+    expect(rest).toEqual(fixtureV9.state);
+  });
+
+  it('refuses damaged orchards', () => {
+    const bad = (mutate: (c: typeof fixture.state) => void): string | null => {
+      const c = structuredClone(fixture.state);
+      mutate(c);
+      return validateState(c);
+    };
+    expect(bad((c) => (c.orchard.trees[1]!.spot = 0))).toBe('bad tree'); // two trees on one spot
+    expect(bad((c) => (c.orchard.trees[0]!.spot = 99))).toBe('bad tree');
+    expect(bad((c) => (c.orchard.trees[0]!.tree = 'kiwi_tree'))).toBe('bad tree');
+    expect(bad((c) => (c.orchard.trees[0]!.lastFruitDay = -1))).toBe('bad tree');
+    expect(bad((c) => (c.orchard.trees[0]!.fruit = -2))).toBe('bad tree');
+  });
+
   it('migrates a v8 save (v9): nothing is lost, no decorations or projects yet', () => {
     const file = parseSave(JSON.stringify(fixtureV8));
     expect(file.version).toBe(SAVE_VERSION);
@@ -536,7 +600,7 @@ describe('migrations', () => {
     const rest: Record<string, unknown> = JSON.parse(JSON.stringify(s));
     delete rest.decor;
     delete rest.town;
-    expect(rest).toEqual(fixtureV8.state);
+    expect(withoutV10(rest)).toEqual(fixtureV8.state);
   });
 
   it('migrates a phase-03 (v3) save: everything is kept, automation starts empty', () => {
@@ -552,6 +616,7 @@ describe('migrations', () => {
     expect(s.expansions).toEqual(old.expansions);
     expect(s.stats).toEqual({
       ...old.stats,
+      fruitPicked: 0,
       fishCaught: 0,
       dishesCooked: 0,
       dishesEaten: 0,

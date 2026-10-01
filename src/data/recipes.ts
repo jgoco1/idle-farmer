@@ -1,4 +1,4 @@
-// The 22 recipes (docs/BALANCE.md §7): 6 × T1, 7 × T2, 5 × T3, 4 × T4. `tier` is declared here for
+// The 26 recipes (docs/BALANCE.md §7, §13.8): 7 × T1, 9 × T2, 6 × T3, 4 × T4 (v2 phase 03 added the four fruit ones). `tier` is declared here for
 // readability and checked against `recipeTier()` by a test, as is `basePrice`. Dishes are items
 // whose id is the recipe id (see items.ts).
 
@@ -75,6 +75,17 @@ export const RECIPES: Readonly<Record<RecipeId, RecipeDef>> = Object.freeze({
     basePrice: 94,
     discovery: { kind: 'card', price: 120, unlock: [{ kind: 'farmLevel', level: 1 }] },
     description: 'Hearty bread for busy workers. Everyone on the farm hustles a little.',
+  },
+  baked_apple: {
+    id: 'baked_apple',
+    name: 'Baked Apple',
+    ingredients: [{ item: 'apple', qty: 1 }],
+    cookSec: 30,
+    tier: 1,
+    buff: 'xp',
+    basePrice: 225,
+    discovery: { kind: 'milestone', id: 'm20_first_fruit' },
+    description: 'Soft, cinnamon-warm and good for thinking. An apple a day, as they say.',
   },
   // ---- T2
   vegetable_soup: {
@@ -180,7 +191,46 @@ export const RECIPES: Readonly<Record<RecipeId, RecipeDef>> = Object.freeze({
     discovery: { kind: 'milestone', id: 'm10_unlock_river' },
     description: 'Pan-fried river trout. The river looks kindly on those who eat it.',
   },
+  cherry_jam: {
+    id: 'cherry_jam',
+    name: 'Cherry Jam',
+    ingredients: [{ item: 'cherry', qty: 3 }],
+    cookSec: 60,
+    tier: 2,
+    buff: 'sellPrice',
+    basePrice: 630,
+    discovery: { kind: 'card', price: 3_000, unlock: [{ kind: 'parcel', id: 'orchard' }] },
+    description: 'Ruby sweet and sticky. Buyers pay more for a jar with a gingham lid.',
+  },
+  pear_crumble: {
+    id: 'pear_crumble',
+    name: 'Pear Crumble',
+    ingredients: [
+      { item: 'pear', qty: 1 },
+      { item: 'wheat', qty: 2 },
+    ],
+    cookSec: 45,
+    tier: 2,
+    buff: 'growth',
+    basePrice: 462,
+    discovery: { kind: 'card', price: 4_000, unlock: [{ kind: 'parcel', id: 'orchard' }] },
+    description: 'A warm, earthy autumn pudding. The seedlings lean in for the smell.',
+  },
   // ---- T3
+  peach_cobbler: {
+    id: 'peach_cobbler',
+    name: 'Peach Cobbler',
+    ingredients: [
+      { item: 'peach', qty: 2 },
+      { item: 'wheat', qty: 2 },
+    ],
+    cookSec: 60,
+    tier: 3,
+    buff: 'sellPrice',
+    basePrice: 912,
+    discovery: { kind: 'card', price: 8_000, unlock: [{ kind: 'parcel', id: 'orchard' }] },
+    description: "Summer's golden crust over soft, blushing peaches. Everyone at market wants a bite.",
+  },
   seafood_stew: {
     id: 'seafood_stew',
     name: 'Seafood Stew',

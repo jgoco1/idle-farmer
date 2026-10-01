@@ -121,10 +121,14 @@ export function isReady(plot: Plot, data: GameData): boolean {
 export function plotStage(plot: Plot, data: GameData): number {
   if (plot.state !== 'planted' || plot.crop === null) return -1;
   const crop = data.crops[plot.crop];
-  const p = plot.growthMs / needMs(plot, crop);
-  if (p >= 1) return 4;
-  if (plot.harvests > 0 && crop.regrowToStage !== null) return p < 0.5 ? crop.regrowToStage : 3;
-  return Math.min(3, Math.floor(p * 4));
+  // Integer maths only (compare growth × 4 with multiples of the need): the renderer asks per plot per
+  // frame, and a division or a Math.floor would hand back a boxed double every time.
+  const need = needMs(plot, crop);
+  const growth = plot.growthMs;
+  if (growth >= need) return 4;
+  const g4 = growth * 4;
+  if (plot.harvests > 0 && crop.regrowToStage !== null) return g4 < need * 2 ? crop.regrowToStage : 3;
+  return g4 >= need * 3 ? 3 : g4 >= need * 2 ? 2 : g4 >= need ? 1 : 0;
 }
 
 /** Growth rate multiplier for a plot: water × (growthModifier + scarecrow bonus). */

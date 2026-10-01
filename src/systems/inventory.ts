@@ -16,7 +16,8 @@ function sameKind(s: ItemStack, item: ItemId, hearty: boolean): boolean {
 /** How many of `item` could be added right now (existing stacks first, then empty slots). */
 export function spaceFor(inv: Inventory, item: ItemId, hearty = false): number {
   let space = 0;
-  for (const s of inv.slots) {
+  for (let i = 0; i < inv.slots.length; i++) {
+    const s = inv.slots[i]!;
     if (s === null) space += inv.stackSize;
     else if (sameKind(s, item, hearty)) space += Math.max(0, inv.stackSize - s.qty);
   }
@@ -55,7 +56,8 @@ export function addItem(inv: Inventory, item: ItemId, qty: number, hearty = fals
 /** Total quantity of `item` across all stacks (hearty and plain alike unless `hearty` is given). */
 export function countItem(inv: Inventory, item: ItemId, hearty?: boolean): number {
   let n = 0;
-  for (const s of inv.slots) {
+  for (let i = 0; i < inv.slots.length; i++) {
+    const s = inv.slots[i];
     if (s && s.item === item && (hearty === undefined || Boolean(s.hearty) === hearty)) n += s.qty;
   }
   return n;

@@ -25,6 +25,8 @@ export function bindAudioEvents(bus: EventBus, sfx: Sfx, quiet: () => boolean): 
     if (!e.viaTrap) sfx.play('catch');
   });
   on('trapCollected', () => sfx.play('harvest'));
+  on('fruitPicked', (e) => e.auto || sfx.play('harvest'));
+  on('treePlanted', () => sfx.play('plant'));
   on('cooked', () => sfx.play('dishReady'));
   on('ate', () => sfx.play('eat'));
   on('buffStarted', () => sfx.play('buff'));

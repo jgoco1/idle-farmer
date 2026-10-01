@@ -89,11 +89,11 @@ function giveBuff(s: GameState, type: BuffType, tier: RecipeTier, remainingMs: n
 }
 
 describe('recipe data (phase 06)', () => {
-  it('has the 22 recipes of BALANCE.md: 6 T1, 7 T2, 5 T3 and 4 T4', () => {
-    expect(RECIPE_IDS).toHaveLength(22);
+  it('has the 26 recipes of BALANCE.md (§7, §13.8): 7 T1, 9 T2, 6 T3 and 4 T4', () => {
+    expect(RECIPE_IDS).toHaveLength(26);
     expect(Object.keys(RECIPES).sort()).toEqual([...RECIPE_IDS].sort());
     const count = (t: RecipeTier) => RECIPE_IDS.filter((r) => RECIPES[r].tier === t).length;
-    expect([count(1), count(2), count(3), count(4)]).toEqual([6, 7, 5, 4]);
+    expect([count(1), count(2), count(3), count(4)]).toEqual([7, 9, 6, 4]);
   });
 
   it('every declared tier matches the tier its inputs work out to (so data and formula cannot drift)', () => {
@@ -125,11 +125,11 @@ describe('recipe data (phase 06)', () => {
     expect(TIER_SELL_MULT).toEqual({ 1: 1.25, 2: 1.4, 3: 1.6, 4: 2 });
   });
 
-  it('uses only crops, fish and seaweed as ingredients, and never a dish', () => {
+  it('uses only crops, fruit, fish and seaweed as ingredients, and never a dish', () => {
     for (const id of RECIPE_IDS) {
       for (const i of RECIPES[id].ingredients) {
         const cat = GAME_DATA.items[i.item]?.category;
-        expect(['crop', 'fish', 'junk'], `${id}: ${i.item}`).toContain(cat);
+        expect(['crop', 'fruit', 'fish', 'junk'], `${id}: ${i.item}`).toContain(cat);
         expect(i.qty).toBeGreaterThan(0);
       }
     }
@@ -138,6 +138,9 @@ describe('recipe data (phase 06)', () => {
   it('every T3 and T4 can be cooked from one season of fresh ingredients, and each season has its own T4', () => {
     const fresh = (item: string, season: SeasonId): boolean => {
       if (item in CROPS) return CROPS[item as keyof typeof CROPS].seasons.includes(season);
+      if (item in GAME_DATA.trees) return false;
+      const fruitTree = GAME_DATA.trees[`${item}_tree` as keyof typeof GAME_DATA.trees];
+      if (fruitTree) return fruitTree.seasons.includes(season);
       if (item in FISH) return FISH[item as keyof typeof FISH].seasons.includes(season);
       return item === 'seaweed'; // junk from the pond and the sea, all year
     };
@@ -154,15 +157,15 @@ describe('recipe data (phase 06)', () => {
 
   it('spreads the buffs as BALANCE.md says', () => {
     const per = (b: BuffType) => RECIPE_IDS.filter((r) => RECIPES[r].buff === b).length;
-    expect(BUFF_TYPES.map(per)).toEqual([3, 4, 4, 2, 3, 3, 3]); // phase 09: Blueberry Muffin is Silver Tongue
+    expect(BUFF_TYPES.map(per)).toEqual([4, 6, 4, 2, 3, 3, 4]); // phase 09: Blueberry Muffin is Silver Tongue; v2-03 adds Baked Apple, Cherry Jam, Pear Crumble and Peach Cobbler
   });
 
   it('has three starter recipes, and a card or another way to find every other one', () => {
     const kinds = RECIPE_IDS.map((r) => RECIPES[r].discovery.kind);
     expect(kinds.filter((k) => k === 'starter')).toHaveLength(3);
     expect(kinds.filter((k) => k === 'experiment')).toHaveLength(4);
-    expect(kinds.filter((k) => k === 'milestone')).toHaveLength(5);
-    expect(kinds.filter((k) => k === 'card')).toHaveLength(10);
+    expect(kinds.filter((k) => k === 'milestone')).toHaveLength(6);
+    expect(kinds.filter((k) => k === 'card')).toHaveLength(13);
     expect(createInitialState(0, NY).kitchen.known).toEqual([
       'roasted_turnip',
       'baked_potato',
@@ -807,7 +810,7 @@ describe('recipe discovery', () => {
   it('sells recipe cards, showing what locks each one', () => {
     const s = farm();
     const cards = recipeCards(s, GAME_DATA);
-    expect(cards).toHaveLength(10);
+    expect(cards).toHaveLength(13);
     expect(cards.map((c) => c.price)).toEqual([...cards.map((c) => c.price)].sort((a, b) => a - b));
     expect(cards[0]).toMatchObject({ id: 'wheat_flatbread', price: 120, unlocked: true });
     expect(cards.find((c) => c.id === 'berry_bowl')).toMatchObject({ unlocked: false });
@@ -935,7 +938,7 @@ describe('cooking art', () => {
   it('gives every dish and every buff type its own icon, plus the hearty badge and the chimney steam', () => {
     const dishes = RECIPE_IDS.map((id) => SPRITES[`item_${id}`]);
     for (const d of dishes) expect(d).toBeDefined();
-    expect(new Set(dishes.map((d) => d!.frames[0]!.join(''))).size).toBe(22);
+    expect(new Set(dishes.map((d) => d!.frames[0]!.join(''))).size).toBe(26);
     const buffs = BUFF_TYPES.map((t) => SPRITES[GAME_DATA.buffs[t].icon]);
     for (const b of buffs) expect(b).toBeDefined();
     expect(new Set(buffs.map((b) => b!.frames[0]!.join(''))).size).toBe(7);

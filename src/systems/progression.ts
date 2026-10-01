@@ -56,7 +56,7 @@ import type { SimContext } from './context';
 import { inSeason } from './farming';
 import { addItem, countItem } from './inventory';
 import { unlockedLocations, isLocationUnlocked } from './locations';
-import { RECIPE_IDS } from '../data/ids';
+import { FRUIT_IDS, RECIPE_IDS, treeOfFruit } from '../data/ids';
 import { addToBin } from './shippingBin';
 import { farmLevel, isUnlocked } from './unlocks';
 import { levelForXp, skillLevel } from './skills';
@@ -64,6 +64,7 @@ import { learn } from './cooking';
 import { charmOf } from './charm';
 import { grantDecor, hasDecorToPlace } from './decor';
 import { goalSlots } from './townProjects';
+import { fruitXp, ownsMatureTree, treeAge } from './orchard';
 
 // ---- XP
 
@@ -193,6 +194,8 @@ function advance(state: GameState, data: GameData, o: QuestObjective, e: GameEve
       return e.type === 'charmChanged' && e.to > e.from ? e.to - e.from : 0;
     case 'projectStage':
       return e.type === 'projectStageDone' ? 1 : 0;
+    case 'pickFruit':
+      return e.type === 'fruitPicked' && (!o.fruit || o.fruit === e.fruit) ? e.qty : 0;
     case 'reachFarmLevel':
     case 'ownParcel':
     case 'reachCharm':
@@ -220,6 +223,7 @@ const EVENT_FOR: Readonly<Record<QuestObjective['kind'], GameEvent['type'] | nul
   reachCharm: null,
   gainCharm: 'charmChanged',
   projectStage: 'projectStageDone',
+  pickFruit: 'fruitPicked',
 };
 
 /** What a goal's progress is measured against. */
@@ -258,6 +262,10 @@ export function goalText(data: GameData, g: Pick<ActiveGoal, 'template' | 'objec
   const rarity = o.kind === 'catch' && o.rarity ? o.rarity : 'common';
   const values: Record<string, string> = {
     n: String(goalTarget(o)),
+    fruit:
+      o.kind === 'pickFruit' && o.fruit
+        ? (data.trees[treeOfFruit(o.fruit)].plural ?? pluralName(data.trees[treeOfFruit(o.fruit)].name))
+        : 'fruit',
     crop:
       o.kind === 'harvest' && o.crop
         ? (data.crops[o.crop].plural ?? pluralName(data.crops[o.crop].name))
@@ -428,6 +436,23 @@ function variantsOf(state: GameState, data: GameData, season: SeasonId, id: Goal
       return cookableRecipes(state, data, season).length >= 1
         ? [{ key: id, objective: { kind: 'eat', count: GOAL_EAT_COUNT } }]
         : [];
+    case 'pick_fruit': {
+      // One goal per fruit the player has a mature tree of and that bears this season: about a day's worth.
+      const day = state.calendar.maxDayIndex;
+      const out: Variant[] = [];
+      for (const f of FRUIT_IDS) {
+        const def = data.trees[treeOfFruit(f)];
+        if (!def.seasons.includes(season) || !ownsMatureTree(state, data, f, day)) continue;
+        const trees = state.orchard.trees.filter(
+          (t) => t.tree === def.id && treeAge(t, day) >= def.matureDays,
+        ).length;
+        out.push({
+          key: `${id}:${f}`,
+          objective: { kind: 'pickFruit', fruit: f, count: niceTarget(trees * def.fruitPerDay) },
+        });
+      }
+      return out;
+    }
     case 'raise_charm': {
       if (!hasDecorToPlace(state, data)) return [];
       const amount = Math.max(GOAL_CHARM_MIN, niceTarget(GOAL_CHARM_SHARE * charmOf(state, data)));
@@ -447,6 +472,8 @@ function keyOf(g: ActiveGoal): string {
       return `${g.template}:${o.kind === 'catch' ? o.rarity : ''}`;
     case 'cook_tier':
       return `${g.template}:${o.kind === 'cook' ? o.tier : ''}`;
+    case 'pick_fruit':
+      return `${g.template}:${o.kind === 'pickFruit' ? o.fruit : ''}`;
     default:
       return g.template;
   }
@@ -589,6 +616,9 @@ function handle(state: GameState, ctx: SimContext, e: GameEvent): void {
   switch (e.type) {
     case 'harvested':
       grantXp(state, ctx, 'farming', e.qty * data.crops[e.crop].xp * (e.auto ? AUTO_HARVEST_XP_FRACTION : 1));
+      break;
+    case 'fruitPicked':
+      grantXp(state, ctx, 'farming', fruitXp(data, e.fruit, e.qty, e.auto));
       break;
     case 'caught': {
       const base = fishingXp(data, e.catch);

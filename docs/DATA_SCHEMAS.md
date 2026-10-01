@@ -993,6 +993,7 @@ export interface TreeDef {
   fruitPrice: number;                      // market base price of one fruit
   xp: number;                              // Farming XP per fruit picked
   shape: 'round' | 'tall' | 'spread';      // canopy family for sprites (ART_STYLE.md §6)
+  plural?: string;                         // 'Cherries', 'Peaches' (as built; the others add an s)
 }
 
 // src/data/animals.ts  @v2-04 (product and feed items generated in items.ts)
@@ -1061,7 +1062,9 @@ dayIndex = max(state.calendar.maxDayIndex, civilDay(calendar.dayKey) − civilDa
 // civilDay: whole days since 1970-01-01 of a 'YYYY-MM-DD' key (daysFromCivil), DST-safe
 
 /** The season of real day d (by the §1 week rule applied to that day's date). Pure; used for fruit on missed days. */
-export function seasonOfDay(cal: CalendarState, d: number): SeasonId;
+export function seasonOfDay(cal: Pick<Calendar, 'dayZero' | 'epochWeek'>, d: number): SeasonId;
+// Calendar also carries `dayZero` (the civil day number of day 0) and `epochWeek` (the Sunday week of the season epoch),
+// so a system can ask for any day's season from `ctx.calendar` alone (@v2-03: as built; not CalendarState).
 ```
 
 Moving the clock back or flying west holds `dayIndex` at `maxDayIndex`; a DST change never skips or repeats a day (days are keyed by date, not by 24 h). The core updates `maxDayIndex` with `maxWeekIndex`. The v10 migration sets `dayZeroKey` to the save's `calendar.lastDayKey` and `maxDayIndex` to 0: day zero only has to be consistent, because every tree's age is a difference of two day indexes.

@@ -182,6 +182,15 @@ export const MILESTONES: readonly QuestDef[] = Object.freeze([
     requires: [],
   },
   {
+    id: 'm20_first_fruit',
+    kind: 'milestone',
+    title: 'Harvest your first fruit',
+    flavor: 'Sun-warm and still on the stem. Some things are worth waiting days for.',
+    objective: { kind: 'pickFruit', count: 1 },
+    rewards: [{ kind: 'recipe', id: 'baked_apple' }],
+    requires: [],
+  },
+  {
     id: 'm23_charm_100',
     kind: 'milestone',
     title: 'Reach charm 100',
@@ -290,6 +299,15 @@ export const GOAL_TEMPLATES: Readonly<Record<GoalTemplateId, QuestDef>> = Object
     rewards: [],
     requires: [{ kind: 'milestone', id: 'm17_first_decor' }],
   },
+  pick_fruit: {
+    id: 'pick_fruit',
+    title: 'Pick {n} {fruit}',
+    kind: 'goal',
+    flavor: 'The orchard has been busy while you were away.',
+    objective: { kind: 'pickFruit', count: 0 },
+    rewards: [],
+    requires: [{ kind: 'milestone', id: 'm20_first_fruit' }],
+  },
 } satisfies Record<GoalTemplateId, QuestDef>);
 
 export const BUNDLES: Readonly<Record<BundleId, BundleDef>> = Object.freeze({
@@ -371,6 +389,20 @@ export const BUNDLES: Readonly<Record<BundleId, BundleDef>> = Object.freeze({
     reward: { kind: 'buffSlot' },
     rewardText: '+1 buff slot',
   },
+  orchard_basket: {
+    id: 'orchard_basket',
+    name: 'Orchard Basket',
+    flavor: 'A little of everything the orchard gives, for the neighbours who asked nicely.',
+    slots: [
+      { item: 'cherry', qty: 10 },
+      { item: 'peach', qty: 10 },
+      { item: 'apple', qty: 10 },
+      { item: 'pear', qty: 10 },
+      { item: 'lemon', qty: 5 },
+    ],
+    reward: { kind: 'treeSpots', count: 2 },
+    rewardText: '2 more tree spots in the orchard',
+  },
 } satisfies Record<BundleId, BundleDef>);
 
 export const BUNDLE_IDS: readonly BundleId[] = [
@@ -380,4 +412,5 @@ export const BUNDLE_IDS: readonly BundleId[] = [
   'pond_fish',
   'river_and_sea',
   'cozy_dinner',
+  'orchard_basket',
 ];

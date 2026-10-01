@@ -4,7 +4,15 @@ import type { GameData } from '../data';
 import type { GameEvent } from './events';
 import { createRng } from './rng';
 import type { GameState } from './state';
-import { buildCalendar, seasonOfWeek, weekIndexAt, dayKeyAt, type Calendar, type LocalClock } from './time';
+import {
+  buildCalendar,
+  dayIndexOfKey,
+  seasonOfWeek,
+  weekIndexAt,
+  dayKeyAt,
+  type Calendar,
+  type LocalClock,
+} from './time';
 import { computeModifiers } from '../systems/modifiers';
 import type { SimContext } from '../systems/context';
 import { msToNextSimEvent, onDayStarted, onSeasonChanged, tickSystems } from '../systems';
@@ -74,6 +82,7 @@ export function processCalendar(
   }
   if (dayKey > cal.lastDayKey) {
     cal.lastDayKey = dayKey;
+    cal.maxDayIndex = Math.max(cal.maxDayIndex, dayIndexOfKey(dayKey, cal.dayZeroKey)); // trees never age backwards
     const ctx = makeContext(state, data, buildCalendar(t, cal, lc), events);
     onDayStarted(state, ctx);
     events.push({ type: 'dayStarted', dayKey });

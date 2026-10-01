@@ -4,7 +4,7 @@
 //
 // Gold figures are before `TOWN_PROJECT_SCALE` (src/data/balance.ts), the lever for the
 // gold-still-to-spend check. Stage items follow the doc's table except those that do not exist until
-// later phases: eggs and large eggs, milk (animals, v2-04) and apples and persimmons (trees, v2-03).
+// later phases: eggs and large eggs and milk (animals, v2-04).
 // Those requirements are listed in `LATER_STAGE_ITEMS` and join the stages when their items do.
 
 import type { TownProjectId } from './ids';
@@ -59,7 +59,11 @@ export const TOWN_PROJECTS: Readonly<Record<TownProjectId, TownProjectDef>> = Ob
         sceneChange: 'the rubble is cleared and a frame goes up',
       },
       { gold: 300_000, items: [], sceneChange: 'walls and a roof' },
-      { gold: 400_000, items: [], sceneChange: 'a bakery with a smoking chimney each morning' },
+      {
+        gold: 400_000,
+        items: items(['apple', 30]),
+        sceneChange: 'a bakery with a smoking chimney each morning',
+      },
     ],
     rewards: [
       { kind: 'decorSet', set: 'harvest_fair' },
@@ -114,7 +118,7 @@ export const TOWN_PROJECTS: Readonly<Record<TownProjectId, TownProjectDef>> = Ob
     site: site('community_hall'),
     stages: [
       { gold: 600_000, items: [], sceneChange: 'foundations' },
-      { gold: 800_000, items: [], sceneChange: 'walls' },
+      { gold: 800_000, items: items(['persimmon', 20]), sceneChange: 'walls' },
       { gold: 1_000_000, items: [], sceneChange: 'a roof' },
       {
         gold: 1_200_000,
@@ -139,7 +143,7 @@ export const TOWN_PROJECTS: Readonly<Record<TownProjectId, TownProjectDef>> = Ob
 
 /**
  * Stage items from BALANCE.md §13.3 that wait for later phases, because their items do not exist yet.
- * v2 phase 03 adds the apples and persimmons, phase 04 the eggs, milk and large eggs: append each to
+ * v2 phase 04 adds the eggs, milk and large eggs: append each to
  * its stage in `TOWN_PROJECTS` (stage numbers are 1-based) and delete the line here.
  */
 export const LATER_STAGE_ITEMS: readonly {
@@ -150,8 +154,6 @@ export const LATER_STAGE_ITEMS: readonly {
   phase: string;
 }[] = [
   { project: 'bakery', stage: 2, item: 'egg', qty: 30, phase: 'v2-04' },
-  { project: 'bakery', stage: 3, item: 'apple', qty: 30, phase: 'v2-03' },
   { project: 'community_hall', stage: 1, item: 'milk', qty: 30, phase: 'v2-04' },
-  { project: 'community_hall', stage: 2, item: 'persimmon', qty: 20, phase: 'v2-03' },
   { project: 'community_hall', stage: 3, item: 'large_egg', qty: 10, phase: 'v2-04' },
 ];

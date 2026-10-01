@@ -8,6 +8,7 @@ import type {
   DecorId,
   ExpansionId,
   FishId,
+  FruitId,
   FishLocationId,
   GoalTemplateId,
   ItemId,
@@ -18,9 +19,11 @@ import type {
   RecipeId,
   RecipeTier,
   SeasonId,
+  SaplingId,
   SeedId,
   SkillId,
   TownProjectId,
+  TreeId,
   UpgradeId,
 } from '../data/ids';
 import type { PlacedKind } from './state';
@@ -38,7 +41,7 @@ export type GameEvent =
   | { type: 'goldEarned'; amount: number; source: 'sale' | 'quest' | 'other' }
   | {
       type: 'purchased';
-      what: UpgradeId | ExpansionId | SeedId | RecipeId | ParcelId | DecorId;
+      what: UpgradeId | ExpansionId | SeedId | RecipeId | ParcelId | DecorId | SaplingId;
       gold: number;
     }
   | { type: 'parcelBought'; parcel: ParcelId }
@@ -47,6 +50,14 @@ export type GameEvent =
   | { type: 'charmChanged'; from: number; to: number }
   | { type: 'projectDonated'; project: TownProjectId; gold: number; items: number }
   | { type: 'projectStageDone'; project: TownProjectId; stage: number; complete: boolean }
+  /** Orchard (v2 phase 03). `id` is the tree's id in `state.orchard.trees`. */
+  | { type: 'treePlanted' | 'treeRemoved' | 'treeMoved'; tree: TreeId; id: number }
+  /** At the 06:00 refresh that a tree turns mature (for the away summary and a toast). */
+  | { type: 'treeMatured'; tree: TreeId; id: number }
+  /** Fruit grew on the trees at a refresh: `qty` is what was added to `tree`, after the cap. */
+  | { type: 'fruitGrown'; fruit: FruitId; qty: number; tree: number }
+  /** `shipped`: how many of the `qty` went straight to the Shipping Bin (Auto-Seller). */
+  | { type: 'fruitPicked'; fruit: FruitId; qty: number; tree: number; auto: boolean; shipped: number }
   | { type: 'inventoryFull'; item: ItemId }
   | { type: 'bite' | 'escaped'; location: FishLocationId }
   | { type: 'trapCollected'; location: FishLocationId; items: number }

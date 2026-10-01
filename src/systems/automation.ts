@@ -32,6 +32,7 @@ import {
   plotAt,
 } from './farming';
 import { canAdd, countItem } from './inventory';
+import { hasTreeWork, pickTreesFor } from './orchard';
 import { coverageOf, occupiedPlots } from './placement';
 import { effectOf, hasFlag } from './upgrades';
 
@@ -128,7 +129,9 @@ export function planPlanter(
   }
   if (fill || till) {
     const used = state.placed.length > 0 ? occupiedPlots(state) : null;
-    for (const index of allPlotIndexes(state)) {
+    const indexes = allPlotIndexes(state);
+    for (let n = 0; n < indexes.length; n++) {
+      const index = indexes[n]!;
       if (jobs.length >= capacity) break;
       if (taken.has(index) || used?.has(index)) continue;
       const plot = plotAt(state, index)!;
@@ -161,11 +164,15 @@ function runPlanter(state: GameState, ctx: SimContext, jobs: readonly PlantJob[]
 
 // ---- the farmhand
 
-/** One visit: harvest up to `capacity` ready plots (field first, then greenhouse), then the planter. */
+/**
+ * One visit: pick the ripe trees (each uses one unit of capacity: there are few, and fruit only
+ * appears once a day), then harvest ready plots with what is left (field first, then greenhouse), then the planter.
+ */
 function visit(state: GameState, ctx: SimContext, stats: FarmhandStats): void {
+  const picked = state.orchard.trees.length > 0 ? pickTreesFor(state, ctx, stats.capacity) : 0;
   const harvested: number[] = [];
   for (const index of allPlotIndexes(state)) {
-    if (harvested.length >= stats.capacity) break;
+    if (harvested.length + picked >= stats.capacity) break;
     const plot = plotAt(state, index)!;
     if (plot.state !== 'planted' || !isReady(plot, ctx.data)) continue;
     if (harvestOne(state, ctx, index, true) === 'harvested') harvested.push(index);
@@ -193,10 +200,12 @@ export function tickAutomation(state: GameState, ctx: SimContext, dtMs: number):
   visit(state, ctx, stats);
 }
 
-/** Whether a visit right now would harvest something (a ready plot whose yield has somewhere to go). */
+/** Whether a visit right now would harvest something (a ready plot or a tree with fruit whose yield has somewhere to go). */
 function hasHarvestWork(state: GameState, ctx: SimContext): boolean {
-  for (const index of allPlotIndexes(state)) {
-    const plot = plotAt(state, index)!;
+  if (state.orchard.trees.length > 0 && hasTreeWork(state, ctx.data)) return true;
+  const indexes = allPlotIndexes(state);
+  for (let n = 0; n < indexes.length; n++) {
+    const plot = plotAt(state, indexes[n]!)!;
     if (plot.state !== 'planted' || plot.crop === null || !isReady(plot, ctx.data)) continue;
     const crop = ctx.data.crops[plot.crop];
     if (shipsAutomatically(state, ctx.data, crop.id)) return true;
@@ -218,7 +227,9 @@ export function msToNextAutomation(state: GameState, ctx: SimContext): number {
 
   const cov = coverageOf(state, ctx.data);
   let soonest = Infinity;
-  for (const index of allPlotIndexes(state)) {
+  const indexes = allPlotIndexes(state);
+  for (let n = 0; n < indexes.length; n++) {
+    const index = indexes[n]!;
     const plot = plotAt(state, index)!;
     if (plot.state !== 'planted' || plot.crop === null || isReady(plot, ctx.data)) continue;
     soonest = Math.min(soonest, msUntilReady(plot, ctx.data.crops[plot.crop], ctx.mods, envFor(cov, index)));

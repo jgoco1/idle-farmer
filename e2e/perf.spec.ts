@@ -11,13 +11,23 @@
 
 import { expect, test } from '@playwright/test';
 
+type Result = {
+  frames: number;
+  fps: number;
+  p95FrameMs: number;
+  worstFrameMs: number;
+  scriptMsPerFrame: number;
+  taskMsPerFrame: number;
+  bytesPerFrame: number;
+  heapUsedMB: number;
+};
 type Win = { __game: { state: Record<string, unknown>; dispatch(a: unknown): { ok: boolean } } };
 
 for (const scenario of ['farm', 'world'] as const)
   test(`a fully automated farm renders well inside a 60 fps frame, without per-frame garbage (${scenario})`, async ({
     page,
   }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(120_000);
     await page.goto('./');
     await expect(page.locator('#scene-canvas')).toBeVisible();
 
@@ -88,8 +98,23 @@ for (const scenario of ['farm', 'world'] as const)
     });
     if (scenario === 'world') {
       await page.evaluate(() => {
-        const s = (window as unknown as Win).__game.state as { land: { parcels: string[] } };
+        const s = (window as unknown as Win).__game.state as {
+          land: { parcels: string[] };
+          orchard: { trees: unknown[] };
+          calendar: { maxDayIndex: number };
+        };
         s.land.parcels = ['orchard', 'yard', 'meadow'];
+        // The orchard in full: eight trees of every stage and kind, some laden (v2 phase 03).
+        const kinds = ['cherry', 'apricot', 'peach', 'apple', 'pear', 'persimmon', 'lemon', 'apple'];
+        const ages = [1, 2, 3, 40, 40, 40, 40, 40];
+        s.orchard.trees = kinds.map((k, i) => ({
+          id: i + 1,
+          tree: `${k}_tree`,
+          spot: i,
+          plantedDay: -ages[i]!,
+          fruit: i < 3 ? 0 : 8 + i * 3,
+          lastFruitDay: 0,
+        }));
       });
     }
     // Let the farmhand start walking and the scene settle.
@@ -115,59 +140,80 @@ for (const scenario of ['farm', 'world'] as const)
       requestAnimationFrame(tick);
     });
     await frames();
-    const before = await metrics();
-    await cdp.send('HeapProfiler.startSampling', {
-      samplingInterval: 512,
-      includeObjectsCollectedByMajorGC: true,
-      includeObjectsCollectedByMinorGC: true,
-    });
-    if (scenario === 'world') {
-      // The whole world at 1×, then a pan right, down and back left at the default zoom.
-      for (let i = 0; i < 8; i++) await page.keyboard.press('-');
-      await page.waitForTimeout(1000);
-      await page.keyboard.press('h');
-      await page.waitForTimeout(300);
-      for (const key of ['ArrowRight', 'ArrowDown', 'ArrowLeft']) {
-        await page.keyboard.down(key);
-        await page.waitForTimeout(900);
-        await page.keyboard.up(key);
-      }
-    } else await page.waitForTimeout(4000);
-    const { profile } = await cdp.send('HeapProfiler.stopSampling');
-    const after = await metrics();
-    const times = await page.evaluate(() => (window as unknown as { __frames: number[] }).__frames);
 
-    const n = times.length;
-    const gaps = times.slice(1).map((t, i) => t - times[i]!);
-    const sorted = [...gaps].sort((a, b) => a - b);
-    const p95 = sorted[Math.floor(sorted.length * 0.95)] ?? 0;
-    const scriptMsPerFrame = ((after.ScriptDuration! - before.ScriptDuration!) * 1000) / n;
-    const taskMsPerFrame = ((after.TaskDuration! - before.TaskDuration!) * 1000) / n;
-    const allocated = profile.samples.reduce((sum, x) => sum + x.size, 0);
-    const bytesPerFrame = allocated / n;
-    const result = {
-      frames: n,
-      fps: (n - 1) / ((times[n - 1]! - times[0]!) / 1000),
-      p95FrameMs: p95,
-      worstFrameMs: sorted[sorted.length - 1] ?? 0,
-      scriptMsPerFrame,
-      taskMsPerFrame,
-      bytesPerFrame,
-      heapUsedMB: after.JSHeapUsedSize! / 1e6,
+    /** One measurement: a few seconds of real frames (and, in the world scenario, the camera sweep). */
+    const measureOnce = async (keepProfile: boolean): Promise<Result> => {
+      await page.evaluate(() => ((window as unknown as { __frames: number[] }).__frames.length = 0));
+      await frames();
+      const before = await metrics();
+      await cdp.send('HeapProfiler.startSampling', {
+        samplingInterval: 512,
+        includeObjectsCollectedByMajorGC: true,
+        includeObjectsCollectedByMinorGC: true,
+      });
+      if (scenario === 'world') {
+        // The whole world at 1×, then a pan right, down and back left at the default zoom.
+        for (let i = 0; i < 8; i++) await page.keyboard.press('-');
+        await page.waitForTimeout(1000);
+        await page.keyboard.press('h');
+        await page.waitForTimeout(300);
+        for (const key of ['ArrowRight', 'ArrowDown', 'ArrowLeft']) {
+          await page.keyboard.down(key);
+          await page.waitForTimeout(900);
+          await page.keyboard.up(key);
+        }
+      } else await page.waitForTimeout(4000);
+      const { profile } = await cdp.send('HeapProfiler.stopSampling');
+      const after = await metrics();
+      const times = await page.evaluate(() => (window as unknown as { __frames: number[] }).__frames);
+      const n = times.length;
+      const gaps = times.slice(1).map((t, i) => t - times[i]!);
+      const sorted = [...gaps].sort((a, b) => a - b);
+      const allocated = profile.samples.reduce((sum, x) => sum + x.size, 0);
+      if (keepProfile && process.env.PERF_PROFILE)
+        await import('node:fs').then((fs) =>
+          fs.writeFileSync('test-results/heap.json', JSON.stringify(profile)),
+        );
+      return {
+        frames: n,
+        fps: (n - 1) / ((times[n - 1]! - times[0]!) / 1000),
+        p95FrameMs: sorted[Math.floor(sorted.length * 0.95)] ?? 0,
+        worstFrameMs: sorted[sorted.length - 1] ?? 0,
+        scriptMsPerFrame: ((after.ScriptDuration! - before.ScriptDuration!) * 1000) / n,
+        taskMsPerFrame: ((after.TaskDuration! - before.TaskDuration!) * 1000) / n,
+        bytesPerFrame: allocated / n,
+        heapUsedMB: after.JSHeapUsedSize! / 1e6,
+      };
     };
-    console.info(`render perf (${scenario}): ${JSON.stringify(result)}`);
-    if (process.env.PERF_PROFILE)
-      await import('node:fs').then((fs) =>
-        fs.writeFileSync('test-results/heap.json', JSON.stringify(profile)),
-      );
+
+    // Warm up first (the JIT and the sprite caches settle), then take three measurements and judge the median of
+    // each number, so one noisy second on a loaded machine does not decide the test. The budgets are not loosened.
+    await measureOnce(false);
+    const runs: Result[] = [];
+    for (let i = 0; i < 3; i++) runs.push(await measureOnce(i === 2));
+    const med = (pick: (r: Result) => number): number => [...runs.map(pick)].sort((a, b) => a - b)[1]!;
+    const result: Result = {
+      frames: med((r) => r.frames),
+      fps: med((r) => r.fps),
+      p95FrameMs: med((r) => r.p95FrameMs),
+      worstFrameMs: med((r) => r.worstFrameMs),
+      scriptMsPerFrame: med((r) => r.scriptMsPerFrame),
+      taskMsPerFrame: med((r) => r.taskMsPerFrame),
+      bytesPerFrame: med((r) => r.bytesPerFrame),
+      heapUsedMB: med((r) => r.heapUsedMB),
+    };
+    const { scriptMsPerFrame, bytesPerFrame } = result;
+    console.info(
+      `render perf (${scenario}): median of 3 ${JSON.stringify(result)}; bytes per frame ${runs.map((r) => Math.round(r.bytesPerFrame)).join(' / ')}`,
+    );
     await import('node:fs').then((fs) =>
-      fs.writeFileSync(`test-results/perf-${scenario}.json`, JSON.stringify(result, null, 2)),
+      fs.writeFileSync(`test-results/perf-${scenario}.json`, JSON.stringify({ ...result, runs }, null, 2)),
     );
     await page.screenshot({ path: `test-results/perf-${scenario}.png` });
 
     expect(result.fps).toBeGreaterThan(50);
     expect(scriptMsPerFrame).toBeLessThan(8); // half a 16.7 ms frame, in software rendering
-    expect(bytesPerFrame).toBeLessThan(12_000); // was ~34 KB before phase 09's allocation pass
+    expect(bytesPerFrame).toBeLessThan(11_000); // was ~34 KB before phase 09's allocation pass; 12 KB until v2-03, which found the rest
     expect(result.worstFrameMs).toBeLessThan(50); // no visible garbage-collection hitch
   });
 
@@ -217,24 +263,37 @@ test('loading after 8 hours away with that farm catches up in well under 100 ms'
     s.placed = spots.map(([col, row], i) => ({ id: i + 1, kind: 'sprinkler', at: { col, row } }));
     const savedAt = Date.now() - 8 * 3_600_000;
     s.meta.lastSavedAt = savedAt;
-    return JSON.stringify({ version: 7, savedAt, state: s });
+    return JSON.stringify({ version: 10, savedAt, state: s });
   });
   await page.close();
-  // A fresh page finds the save in place before the game starts (so the load is cold, as for a player).
-  const fresh = await context.newPage();
-  await fresh.addInitScript((save) => localStorage.setItem('hearthfield-idle/save', save), raw);
-  await fresh.goto('./');
-  await expect(fresh.locator('#scene-canvas')).toBeVisible();
-  const ms = await fresh.evaluate(
-    () => performance.getEntriesByName('hearthfield:catch-up')[0]?.duration ?? -1,
+  // A fresh page finds the save in place before the game starts (so the load is cold, as for a player). The
+  // catch-up is measured three times and the median judged, so a busy machine does not decide the test.
+  const times: number[] = [];
+  let harvested = 0;
+  for (let i = 0; i < 3; i++) {
+    const fresh = await context.newPage();
+    await fresh.addInitScript((save) => localStorage.setItem('hearthfield-idle/save', save), raw);
+    await fresh.goto('./');
+    await expect(fresh.locator('#scene-canvas')).toBeVisible();
+    times.push(
+      await fresh.evaluate(() => performance.getEntriesByName('hearthfield:catch-up')[0]?.duration ?? -1),
+    );
+    harvested = await fresh.evaluate(
+      () =>
+        ((window as unknown as Win).__game.state as { stats: { cropsHarvested: number } }).stats
+          .cropsHarvested,
+    );
+    await fresh.close();
+  }
+  const ms = [...times].sort((a, b) => a - b)[1]!;
+  console.info(
+    `8 h catch-up on load: median ${ms.toFixed(1)} ms of ${times.map((t) => t.toFixed(1)).join(' / ')}, ${harvested} crops`,
   );
-  const harvested = await fresh.evaluate(
-    () =>
-      ((window as unknown as Win).__game.state as { stats: { cropsHarvested: number } }).stats.cropsHarvested,
-  );
-  console.info(`8 h catch-up on load: ${ms.toFixed(1)} ms, ${harvested} crops`);
   await import('node:fs').then((fs) =>
-    fs.writeFileSync('test-results/perf-offline.json', JSON.stringify({ catchUpMs: ms, harvested }, null, 2)),
+    fs.writeFileSync(
+      'test-results/perf-offline.json',
+      JSON.stringify({ catchUpMs: ms, runs: times, harvested }, null, 2),
+    ),
   );
   expect(harvested).toBeGreaterThan(1000);
   expect(ms).toBeGreaterThan(0);

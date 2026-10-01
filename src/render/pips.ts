@@ -1,11 +1,11 @@
 // Off-screen awareness (GDD §12.1): small arrows on the edge of the scene that point at things that
 // want the player but are out of view: ready crops, full traps, a finished dish (and, from later v2
-// phases, ripe trees and animal stores). Pure: the UI turns the result into buttons.
+// phases, ripe trees (v2-03) and animal stores). Pure: the UI turns the result into buttons.
 
 import type { Rect } from './camera';
 import { TILE } from './scene';
 
-export type PipKind = 'crop' | 'trap' | 'dish';
+export type PipKind = 'crop' | 'trap' | 'dish' | 'tree';
 
 export interface PipTarget {
   kind: PipKind;

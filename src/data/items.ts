@@ -3,16 +3,21 @@
 // item (phase 05) and a dish per recipe (phase 06).
 
 import { CROPS } from './crops';
+import { TREES } from './trees';
 import { FISH, JUNK } from './fish';
 import { RECIPES } from './recipes';
 import {
   CROP_IDS,
   FISH_IDS,
+  FRUIT_IDS,
+  saplingOf,
+  treeOfFruit,
   JUNK_IDS,
   RECIPE_IDS,
   seedOf,
   type CropId,
   type FishId,
+  type FruitId,
   type ItemId,
   type JunkId,
   type RecipeId,
@@ -90,6 +95,35 @@ function dishItem(id: RecipeId): ItemDef {
   };
 }
 
+function fruitItem(id: FruitId): ItemDef {
+  const t = TREES[treeOfFruit(id)];
+  return {
+    id,
+    name: t.name,
+    description: `Picked from the ${t.name.toLowerCase()} tree.`,
+    category: 'fruit',
+    basePrice: t.fruitPrice,
+    sellable: true,
+    edible: false,
+    sprite: `item_${id}`,
+  };
+}
+
+function saplingItem(id: FruitId): ItemDef {
+  const t = TREES[treeOfFruit(id)];
+  const seasons = t.seasons.map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(' and ');
+  return {
+    id: saplingOf(id),
+    name: `${t.name} Sapling`,
+    description: `Plant on a tree spot in the orchard. Bears in ${seasons}, ${t.matureDays} days after planting.`,
+    category: 'sapling',
+    basePrice: t.saplingPrice,
+    sellable: false,
+    edible: false,
+    sprite: `item_sapling_${id}`,
+  };
+}
+
 /** Every item in the game. */
 export type FarmItemId = ItemId;
 
@@ -97,6 +131,10 @@ const ENTRIES: [FarmItemId, ItemDef][] = [
   ...CROP_IDS.flatMap((id): [FarmItemId, ItemDef][] => [
     [id, cropItem(id)],
     [seedOf(id), seedItem(id)],
+  ]),
+  ...FRUIT_IDS.flatMap((id): [FarmItemId, ItemDef][] => [
+    [id, fruitItem(id)],
+    [saplingOf(id), saplingItem(id)],
   ]),
   ...FISH_IDS.map((id): [FarmItemId, ItemDef] => [id, fishItem(id)]),
   ...JUNK_IDS.map((id): [FarmItemId, ItemDef] => [id, junkItem(id)]),

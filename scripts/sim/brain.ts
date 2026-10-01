@@ -23,8 +23,11 @@ import {
 } from '../../src/data/balance';
 import {
   CROP_IDS,
+  FRUIT_IDS,
   RECIPE_IDS,
   seedOf,
+  treeOfFruit,
+  type FruitId,
   type BuffType,
   type CropId,
   type DishId,
@@ -39,9 +42,16 @@ import { BUNDLE_IDS } from '../../src/data/quests';
 import { DECOR_IDS, TOWN_PROJECT_IDS, type DecorId, type TownProjectId } from '../../src/data/ids';
 import { decorCopies } from './catalogue';
 import { decorPlacementProblem, decorStatus, decorStock, ownedDecor } from '../../src/systems/decor';
-import { currentStage, projectStatus, type StageStatus } from '../../src/systems/townProjects';
+import {
+  currentStage,
+  projectStagesDone,
+  projectStatus,
+  type StageStatus,
+} from '../../src/systems/townProjects';
 import { WORLD_COLS, WORLD_ROWS, WORLD_LAYOUT } from '../../src/data/world';
 import { dishBuff, planEat } from '../../src/systems/buffs';
+import { freeSpots, ripeTrees, saplingsInBag } from '../../src/systems/orchard';
+import { seasonOfDay } from '../../src/core/time';
 import { bundleSlots, isBundleDone } from '../../src/systems/bundles';
 import { canCook, ingredientValue, kitchenSlots, recipeCards } from '../../src/systems/cooking';
 import { allPlotIndexes, canPullUp, isGreenhouseIndex, isReady, plotAt } from '../../src/systems/farming';
@@ -133,9 +143,9 @@ export const FARM_SHOPPING: readonly Want[] = [
   up('barn_storage', 4),
   up('backpack', 4),
   ...sprinklers(8, 9),
-  // v2 (BALANCE.md §13.11): the land parcels in order, after the v1 wish list. Until v2 phase 03
-  // gives the orchard trees, a parcel is pure spending; bought any earlier it delays the v1 upgrades
-  // and skews the phase 09 buff comparison (see the v2-01 tuning note in BALANCE.md §13.12).
+  // v2 (BALANCE.md §13.11): the land parcels in order, after the v1 wish list. Moving the orchard earlier
+  // (after `farm_4`, or after the first scarecrow) puts it inside §13.10's day 2–4 but swings the phase 09
+  // buff check and the Farmer's spending (BALANCE.md §13.12, v2-03 notes), so it stays here.
   pa('orchard'),
   pa('yard'),
   pa('meadow'),
@@ -314,6 +324,7 @@ export class Brain {
     useful = this.shop(run) || useful;
     this.keepProjectCrops(run);
     useful = this.errands(run, dt) || useful;
+    useful = this.orchard(run) || useful;
     useful = this.place(run) || useful;
     useful = this.farm(run) || useful;
     return useful;
@@ -344,6 +355,7 @@ export class Brain {
       }
     }
     for (const w of this.projectWants(s)) add(w.item, w.qty);
+    for (const [item, qty] of this.fruitStock(s)) add(item, qty);
     if (this.style.cook !== 'none') {
       const slots = kitchenSlots(s, this.data);
       const targets = s.kitchen.known
@@ -380,6 +392,7 @@ export class Brain {
           if (!slot.done) reserved.set(slot.item, (reserved.get(slot.item) ?? 0) + slot.need - slot.have);
       }
     }
+    for (const [item, qty] of this.fruitStock(s)) reserved.set(item, (reserved.get(item) ?? 0) + qty); // for the town's later stages
     const spare = (item: ItemId): number => countItem(s.inventory, item, false) - (reserved.get(item) ?? 0);
     while (s.kitchen.queue.length < kitchenSlots(s, this.data)) {
       let best: RecipeId | null = null;
@@ -529,6 +542,51 @@ export class Brain {
     return useful;
   }
 
+  // ---- v2 phase 03: the orchard (BALANCE.md §13.11)
+
+  /**
+   * Picks ripe trees, then plants while there is a free spot and the gold (above the seed reserve) allows: first a
+   * tree that bears in the season it will mature in (one of each kind, cheapest first: the quickest payback),
+   * then the two-season trees until the spots are full.
+   */
+  private orchard(run: SimRun): boolean {
+    const s = run.state;
+    if (!s.land.parcels.includes('orchard')) return false;
+    const game = run.game;
+    let useful = false;
+    for (const t of ripeTrees(s)) useful = game.dispatch({ type: 'pickTree', id: t.id }).ok || useful;
+    const restock = upgradeLevel(s, 'auto_seller') > 0 ? SEED_STOCK_CYCLES : 1;
+    const reserve = SEED_RESERVE_PER_PLOT * s.farm.plots.length * restock;
+    for (let guard = 0; guard < 10; guard++) {
+      const spots = freeSpots(s, this.data);
+      if (spots.length === 0) break;
+      const cal = game.calendar();
+      const planted = (f: FruitId): number => s.orchard.trees.filter((t) => t.tree === treeOfFruit(f)).length;
+      const price = (f: FruitId): number => this.data.trees[treeOfFruit(f)].saplingPrice;
+      const bearsOnArrival = (f: FruitId): boolean => {
+        const def = this.data.trees[treeOfFruit(f)];
+        return def.seasons.includes(seasonOfDay(cal, cal.dayIndex + def.matureDays));
+      };
+      const byPrice = (a: FruitId, b: FruitId): number => price(a) - price(b);
+      const fresh = FRUIT_IDS.filter((f) => planted(f) === 0 && bearsOnArrival(f)).sort(byPrice);
+      const twice = FRUIT_IDS.filter(
+        (f) => this.data.trees[treeOfFruit(f)].seasons.length > 1 && planted(f) < 2,
+      )
+        .filter(bearsOnArrival)
+        .sort(byPrice);
+      const held = FRUIT_IDS.find((f) => saplingsInBag(s, f) > 0);
+      const pick = held ?? fresh[0] ?? twice[0]; // a spot waits for a tree that suits its season rather than a third peach
+      if (!pick) break;
+      if (saplingsInBag(s, pick) === 0) {
+        if (s.gold < price(pick) + reserve) break;
+        if (!game.dispatch({ type: 'buySapling', fruit: pick, qty: 1 }).ok) break;
+      }
+      if (!game.dispatch({ type: 'plantTree', fruit: pick, spot: spots[0]! }).ok) break;
+      useful = true;
+    }
+    return useful;
+  }
+
   // ---- v2 phase 02: decorations and town projects (BALANCE.md §13.11)
 
   /** What the open projects' current stages still ask for in items, and the bag does not hold. */
@@ -544,13 +602,30 @@ export class Brain {
     return out.slice(0, 6);
   }
 
+  /**
+   * Fruit that the unfinished projects will ask for in later stages (the bakery's apples, the hall's persimmons).
+   * Fruit only grows in its seasons, so a player keeps what the trees give rather than selling it and waiting a year.
+   */
+  private fruitStock(s: GameState): Map<ItemId, number> {
+    const out = new Map<ItemId, number>();
+    for (const id of TOWN_PROJECT_IDS) {
+      const def = this.data.townProjects[id];
+      for (let i = projectStagesDone(s, this.data, id); i < def.stages.length; i++)
+        for (const it of def.stages[i]!.items)
+          if (this.data.items[it.item]?.category === 'fruit')
+            out.set(it.item, Math.max(out.get(it.item) ?? 0, it.qty));
+    }
+    return out;
+  }
+
   /** Switches the Auto-Seller off for the crops a project asks for, and back on when it no longer does. */
   private keepProjectCrops(run: SimRun): void {
-    const need = new Set(
-      this.projectWants(run.state)
+    const need = new Set<ItemId>([
+      ...this.projectWants(run.state)
         .filter((w) => w.item in this.data.crops)
         .map((w) => w.item),
-    );
+      ...this.fruitStock(run.state).keys(),
+    ]);
     for (const item of need) {
       if (this.kept.has(item)) continue;
       run.game.dispatch({ type: 'setAutoSell', item, on: false });

@@ -28,6 +28,8 @@ import { eatWithConfirm } from './eat';
 import type { Action } from '../core/actions';
 import { buffDurationMs, buffMagnitude } from '../systems/buffs';
 import { formatDuration } from '../core/time';
+import { buildTreeShop, type TreeShopHooks } from './treeShop';
+import { ownsParcel } from '../systems/parcels';
 import { buildDecorShop, type DecorShopHooks } from './decorShop';
 
 export interface SettingsHooks {
@@ -402,6 +404,8 @@ export interface ShopHooks extends GameViewHooks {
   buyRecipe(recipe: RecipeId): ActionResult;
   /** The Decor tab (v2 phase 02). */
   decor: Omit<DecorShopHooks, 'data' | 'state'>;
+  /** The Trees tab (v2 phase 03). */
+  trees: Omit<TreeShopHooks, 'data' | 'state' | 'calendar'>;
 }
 
 /**
@@ -438,11 +442,23 @@ export function shopPanel(hooks: ShopHooks): PanelDef {
         { class: 'shop-section', 'data-section': 'decor', hidden: true },
         decorShop.el,
       );
-      let tab: 'seeds' | 'decor' = 'seeds';
+      const treeShop = buildTreeShop({
+        ...hooks.trees,
+        data: hooks.data,
+        state: hooks.state,
+        calendar: hooks.calendar,
+      });
+      const treesSection = h(
+        'div',
+        { class: 'shop-section', 'data-section': 'trees', hidden: true },
+        treeShop.el,
+      );
+      let tab: 'seeds' | 'decor' | 'trees' = 'seeds';
       const tabButtons = new Map<string, HTMLButtonElement>();
       const tabs = h('div', { class: 'tabs', role: 'tablist' });
       for (const [id, label] of [
         ['seeds', 'Seeds & recipes'],
+        ['trees', 'Trees'],
         ['decor', 'Decor'],
       ] as const) {
         const b = h('button', {
@@ -463,12 +479,18 @@ export function shopPanel(hooks: ShopHooks): PanelDef {
       const showTab = (): void => {
         seedsSection.hidden = tab !== 'seeds';
         decorSection.hidden = tab !== 'decor';
+        treesSection.hidden = tab !== 'trees';
+        const owned = ownsParcel(hooks.state(), 'orchard');
+        const treesTab = tabButtons.get('trees');
+        if (treesTab) treesTab.hidden = !owned; // the orchard opens the Trees tab
+        if (!owned && tab === 'trees') tab = 'seeds';
+        seedsSection.hidden = tab !== 'seeds';
         for (const [id, b] of tabButtons) {
           b.setAttribute('aria-selected', String(id === tab));
           b.classList.toggle('is-active', id === tab);
         }
       };
-      body.append(tabs, seedsSection, decorSection);
+      body.append(tabs, seedsSection, treesSection, decorSection);
       showTab();
 
       const renderCards = (state: GameState): void => {
@@ -518,8 +540,13 @@ export function shopPanel(hooks: ShopHooks): PanelDef {
       };
 
       const render = (): void => {
+        showTab();
         if (tab === 'decor') {
           decorShop.render();
+          return;
+        }
+        if (tab === 'trees') {
+          treeShop.render();
           return;
         }
         // The list is rebuilt, so remember which buy button had focus and restore it after.

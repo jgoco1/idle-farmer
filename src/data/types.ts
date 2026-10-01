@@ -7,6 +7,7 @@ import type {
   GoalTemplateId,
   CropId,
   DecorId,
+  FruitId,
   DecorSetId,
   ExpansionId,
   FishId,
@@ -21,6 +22,7 @@ import type {
   SeasonId,
   SkillId,
   TownProjectId,
+  TreeId,
   UpgradeId,
 } from './ids';
 
@@ -55,7 +57,7 @@ export interface TileRect {
   rows: number;
 }
 
-export type ItemCategory = 'seed' | 'crop' | 'fish' | 'junk' | 'dish';
+export type ItemCategory = 'seed' | 'crop' | 'fish' | 'junk' | 'dish' | 'fruit' | 'sapling';
 
 export interface ItemDef {
   id: ItemId;
@@ -291,7 +293,9 @@ export type QuestObjective =
   | { kind: 'placeDecor'; count: number } // counts 'decorPlaced'
   | { kind: 'reachCharm'; amount: number } // checks derived charm
   | { kind: 'gainCharm'; amount: number } // sums positive 'charmChanged' deltas
-  | { kind: 'projectStage'; count: number }; // counts 'projectStageDone'
+  | { kind: 'projectStage'; count: number } // counts 'projectStageDone'
+  // v2 phase 03
+  | { kind: 'pickFruit'; fruit?: FruitId; count: number }; // counts 'fruitPicked'
 
 export type QuestReward =
   | { kind: 'gold'; amount: number }
@@ -317,7 +321,8 @@ export type BundleReward =
   | { kind: 'inventorySlots'; count: number }
   | { kind: 'trapPerLocation'; count: number }
   | { kind: 'fishingLuck'; bonus: number }
-  | { kind: 'goldenScarecrow' };
+  | { kind: 'goldenScarecrow' }
+  | { kind: 'treeSpots'; count: number }; // the Orchard Basket (v2 phase 03)
 
 export interface BundleDef {
   id: BundleId;
@@ -398,4 +403,22 @@ export interface TownProjectDef {
   rewards: readonly TownProjectReward[];
   rewardText: string;
   requires: readonly UnlockCondition[];
+}
+
+/** A fruit tree (docs/BALANCE.md §13.5, DATA_SCHEMAS.md §9.4). Its fruit and sapling items are generated in items.ts. */
+export interface TreeDef {
+  id: TreeId;
+  fruit: FruitId;
+  name: string; // 'Cherry'
+  /** The plural for text when "name + s" is wrong. */
+  plural?: string;
+  description: string;
+  seasons: readonly SeasonId[]; // when it bears
+  saplingPrice: number;
+  matureDays: number; // real calendar days from planting
+  fruitPerDay: number; // added at each bearing day's 06:00 refresh
+  fruitCap: number; // = FRUIT_CAP_DAYS × fruitPerDay (a test checks it)
+  fruitPrice: number; // market base price of one fruit
+  xp: number; // Farming XP per fruit picked
+  shape: 'round' | 'tall' | 'spread'; // canopy family for sprites (ART_STYLE.md §6.3)
 }

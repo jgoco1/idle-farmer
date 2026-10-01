@@ -2,13 +2,16 @@
 // to a natural count, at list price, and how much of it a farm already owns. Counts v1 (every upgrade
 // level, placeable, expansion and recipe card), the land parcels (v2-01), and (v2-02) the decorations
 // (the counted copies of each piece, 40 path and 30 fence tiles a set, the farmhouse pieces) and the town
-// projects' gold. Later v2 phases add saplings and the ranch.
+// projects' gold, and (v2-03) the saplings. Later v2 phases add the ranch.
 
 import type { GameState } from '../../src/core/state';
 import type { GameData } from '../../src/data';
 import {
   DECOR_IDS,
+  FRUIT_IDS,
   PARCEL_IDS,
+  saplingOf,
+  treeOfFruit,
   RECIPE_IDS,
   TOWN_PROJECT_IDS,
   type ExpansionId,
@@ -16,6 +19,7 @@ import {
 } from '../../src/data/ids';
 import { projectStagesDone, stageGold } from '../../src/systems/townProjects';
 import { ownedDecor } from '../../src/systems/decor';
+import { countItem } from '../../src/systems/inventory';
 import { upgradeCost, upgradeLevel } from '../../src/systems/upgrades';
 
 function upgradeSpend(data: GameData, id: UpgradeId, levels: number): number {
@@ -33,10 +37,20 @@ export function decorCopies(data: GameData, id: (typeof DECOR_IDS)[number]): num
   return d.autotile === 'path' ? 40 : d.autotile === 'fence' ? 30 : d.counted;
 }
 
+/** Saplings the catalogue counts: one of each tree, and a second of the two-season trees that fill the spots (apricot, apple, persimmon). */
+export function treeCopies(data: GameData, fruit: (typeof FRUIT_IDS)[number]): number {
+  return fruit === 'apricot' || fruit === 'apple' || fruit === 'persimmon'
+    ? 2
+    : data.trees[treeOfFruit(fruit)]
+      ? 1
+      : 0;
+}
+
 /** The parts of the catalogue, at list price. */
 export function catalogueParts(data: GameData): {
   v1: number;
   parcels: number;
+  saplings: number;
   decor: number;
   projects: number;
 } {
@@ -49,18 +63,22 @@ export function catalogueParts(data: GameData): {
     if (d.kind === 'card') v1 += d.price;
   }
   const parcels = PARCEL_IDS.reduce((sum, id) => sum + data.parcels[id].price, 0);
+  const saplings = FRUIT_IDS.reduce(
+    (sum, f) => sum + treeCopies(data, f) * data.trees[treeOfFruit(f)].saplingPrice,
+    0,
+  );
   const decor = DECOR_IDS.reduce((sum, id) => sum + decorCopies(data, id) * data.decor[id].price, 0);
   const projects = TOWN_PROJECT_IDS.reduce(
     (sum, id) =>
       sum + data.townProjects[id].stages.reduce((n, _s, i) => n + stageGold(data.townProjects[id], i), 0),
     0,
   );
-  return { v1, parcels, decor, projects };
+  return { v1, parcels, saplings, decor, projects };
 }
 
 export function catalogueTotal(data: GameData): number {
   const p = catalogueParts(data);
-  return p.v1 + p.parcels + p.decor + p.projects;
+  return p.v1 + p.parcels + p.saplings + p.decor + p.projects;
 }
 
 /** The list price of everything in the catalogue this farm already owns (a known recipe card counts). */
@@ -74,6 +92,12 @@ export function catalogueOwned(s: GameState, data: GameData): number {
     if (d?.kind === 'card') sum += d.price;
   }
   for (const id of s.land.parcels) sum += data.parcels[id].price;
+  for (const f of FRUIT_IDS) {
+    // planted trees and saplings in the bag count as bought (a removed tree is not counted again)
+    const have =
+      s.orchard.trees.filter((t) => t.tree === treeOfFruit(f)).length + countItem(s.inventory, saplingOf(f));
+    sum += Math.min(have, treeCopies(data, f)) * data.trees[treeOfFruit(f)].saplingPrice;
+  }
   for (const id of DECOR_IDS)
     sum += Math.min(ownedDecor(s, id), decorCopies(data, id)) * data.decor[id].price;
   for (const id of TOWN_PROJECT_IDS) {

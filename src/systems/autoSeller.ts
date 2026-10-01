@@ -11,11 +11,11 @@ import { addItem, countItem, spaceFor } from './inventory';
 import { addToBin } from './shippingBin';
 import { hasFlag } from './upgrades';
 
-/** The per-item toggle: on unless the player turned it off; only crops are on by default. */
+/** The per-item toggle: on unless the player turned it off; crops and fruit are on by default. */
 export function autoSellOn(state: GameState, data: GameData, item: ItemId): boolean {
   const def = data.items[item];
   if (!def?.sellable) return false;
-  return state.autoSell[item] ?? def.category === 'crop';
+  return state.autoSell[item] ?? (def.category === 'crop' || def.category === 'fruit');
 }
 
 /** Whether harvested `item` is shipped automatically right now. */

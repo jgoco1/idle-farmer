@@ -27,7 +27,16 @@ import {
   SPECIAL_BONUS_STEPS,
   SPECIALS_EXTRA_MAX,
 } from '../data/balance';
-import { CROP_IDS, FISH_IDS, RECIPE_IDS, type ItemId, type SeasonId } from '../data/ids';
+import {
+  CROP_IDS,
+  FISH_IDS,
+  FRUIT_IDS,
+  RECIPE_IDS,
+  type FruitId,
+  type ItemId,
+  type SeasonId,
+} from '../data/ids';
+import { hasTreeOf, ownsMatureTree } from './orchard';
 import { isLocationUnlocked } from './locations';
 import type { ItemDef } from '../data/types';
 import { fail, OK, type ActionResult, type SimContext } from './context';
@@ -254,9 +263,11 @@ export function specialCandidates(state: GameState, data: GameData, season: Seas
     const def = data.fish[f];
     return def.seasons.includes(season) && isLocationUnlocked(state, def.location);
   });
+  // Fruit from the day the player owns a mature tree of it (v2 phase 03).
+  const fruit = FRUIT_IDS.filter((f) => ownsMatureTree(state, data, f, state.calendar.maxDayIndex));
   // Dishes the player knows how to cook (any season: winter only makes them dearer).
   const dishes = RECIPE_IDS.filter((r) => state.kitchen.known.includes(r));
-  return [...crops, ...fish, ...dishes];
+  return [...crops, ...fish, ...fruit, ...dishes];
 }
 
 /** Draws today's specials: 1–3 items without replacement, each +20% to +50%. */
@@ -275,12 +286,13 @@ export function rollSpecials(state: GameState, data: GameData, rng: Rng, season:
 
 /**
  * Adds today's point to every sellable item's sparkline (keeping the last 7). Dishes join once
- * their recipe is known, which also keeps the per-tick demand loop short.
+ * their recipe is known and fruit once a tree of it is planted, which also keeps the per-tick demand loop short.
  */
 export function recordHistory(state: GameState, data: GameData): void {
   for (const def of Object.values(data.items)) {
     if (!def?.sellable) continue;
     if (def.category === 'dish' && !state.kitchen.known.includes(def.id as never)) continue;
+    if (def.category === 'fruit' && !hasTreeOf(state, def.id as FruitId)) continue;
     const e = entry(state, def.id);
     e.history.push(Math.round(effectiveMultiplier(state, def.id) * 1000) / 1000);
     if (e.history.length > MARKET_HISTORY_DAYS) e.history.splice(0, e.history.length - MARKET_HISTORY_DAYS);

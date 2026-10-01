@@ -154,16 +154,24 @@ describe('pacing on a real-world schedule (BALANCE.md §11, phase 09)', { timeou
   });
 });
 
+// The full check (8 seeds, 30 days, Greedy Farmer and Active Player: about 60 s) is opt-in, like PACING_REPORT:
+//   SPEND_REPORT=1 npx vitest run tests/simulate.test.ts -t "gold sink"
+// The default suite runs a cheap version: one seed of the Greedy Farmer for 21 days (the curve up to day 21).
+const SPEND_FULL = process.env.SPEND_REPORT === '1';
+
 describe('the gold sink (BALANCE.md §13.4, v2 phase 02)', { timeout: 300_000 }, () => {
-  it('a keen player still has something to buy for 30 days, and the curve of what is left is in its bands', () => {
+  it('a keen player still has something to buy, and the curve of what is left is in its bands', () => {
+    const seeds = SPEND_FULL ? [1, 2, 3, 4, 5, 6, 7, 8] : [1];
+    const bots = SPEND_FULL ? (['farmer', 'active'] as const) : (['farmer'] as const);
+    const days = SPEND_FULL ? 30 : 21;
     const runs: Partial<Record<BotId, RunResult[]>> = {};
-    for (const bot of ['farmer', 'active'] as const)
-      runs[bot] = [1, 2, 3, 4].map((seed) => {
-        const r = runBot(bot, { seed, days: 30 });
+    for (const bot of bots)
+      runs[bot] = seeds.map((seed) => {
+        const r = runBot(bot, { seed, days });
         return { metrics: r.metrics, state: r.state };
       });
-    const checks = spendChecks({ seeds: [1, 2, 3, 4], days: 30, runs, elapsedMs: 0 });
-    expect(checks.length).toBeGreaterThan(10);
+    const checks = spendChecks({ seeds, days, runs, elapsedMs: 0 });
+    expect(checks.length).toBeGreaterThan(SPEND_FULL ? 10 : 4);
     // Checks 1 and 2 of §13.4: gold stays meaningful, and the share still to spend stays inside its bands.
     for (const c of checks.filter((x) => !x.what.includes('hoard')))
       expect(c.ok, `${c.what}: ${c.measured}`).toBe(true);

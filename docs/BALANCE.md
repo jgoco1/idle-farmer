@@ -1061,6 +1061,8 @@ Every season has trees: spring 3 (cherry, apricot, lemon), summer 3 (apricot, pe
 
 **What an orchard is worth.** A full orchard (10 trees) in a season with three bearing kinds earns about 10–20k gold a day at base price: about 10% of the Active Player's daily gold on day 7 and 1–3% of a keen player's by day 14. It is a side income and a stream of recipe ingredients, never the main farm. Each sapling repays in about 4 bearing days of its first season; two-season trees cost twice as much and bear twice as long. Fruit follows the ordinary market rules (demand, specials from the day the player owns a mature tree of that fruit, the sparkline).
 
+**Measured (v2-03).** The simulator's orchard earns about **6,000–8,000 gold a day from sold fruit, 1% of the gold earned** on days 7–14 and 14–30 (every bot, 8 seeds). That is far below the 10% this paragraph expected: the estimate was made against day-7 incomes of about 100k a day, but the bots earn 0.5–1M a day by then (BALANCE §13.12, v2-03 notes). The tree table is the owner's and is unchanged; fruit is a small, steady side income and an ingredient stream, as intended, only smaller. §13.10's 5–15% lower bound is not met and is not enforced by a check.
+
 **Farmhand.** Each tree with fruit uses one of the farmhand's per-visit capacity and is picked whole. Fruit appears only at 06:00, so on an ordinary day the first visit after the refresh picks everything.
 
 ### 13.6 Animals and buildings (v2-04)
@@ -1208,7 +1210,7 @@ Read as §11 does: "day n" is the n-th real day of the simulator's schedule (the
 | First town project complete | day 7–12 | day 5–9 | usually `old_bridge` |
 | All town projects complete | after day 30 | day 21–30 | §13.4 |
 | Charm 100 | day 10–18 | day 8–14 | |
-| Orchard income (full orchard, in season) | 5–15% of gold per day at day 7–14 | ≤ 5% at day 14 | side income |
+| Orchard income (full orchard, in season) | 5–15% of gold per day at day 7–14 (measured **1%**, §13.12 v2-03) | ≤ 5% at day 14 (measured 1%) | side income |
 | Animal income (full ranch) | ≤ 15% of gold per simulated hour | ≤ 15% | side income |
 | Longest wait with nothing to do, first 30 min | ≤ 2 min | ≤ 2 min | v2 adds nothing to the first session |
 
@@ -1253,3 +1255,13 @@ Constants that are formula parameters go in `src/data/balance.ts`: `DECOR_BASE_S
 - **Charm** (median, day 7 · 14 · 21 · 30): Greedy Farmer 29 · 241 · 392 · 412; Active Player 16 · 85 · 218 · 342 (the maximum is 522).
 - **Stage items from later phases** (apples, persimmons, eggs, large eggs, milk) are not in the stages yet, so the bakery and the hall are cheaper in effort than §13.3 says; they join in v2-03 and v2-04 (`LATER_STAGE_ITEMS` in `src/data/townProjects.ts`).
 
+
+**v2 phase 03 notes** (`npm run simulate -- --seeds 1,2,3,4,5,6,7,8`, 30 days, medians).
+- **No number changed** (tree table, `FRUIT_CAP_DAYS = 4`, the four new recipes and the three recipe cards are as printed). New constants in `src/data/balance.ts`: `FRUIT_CAP_DAYS`, `FARMHAND_FRUIT_XP_SHARE = 0.25`, `BASE_TREE_SPOTS = 8`. `TOWN_PROJECT_SCALE` stays 0.8: the §13.4 curve holds with the saplings in the catalogue.
+- **Catalogue** (`scripts/sim/catalogue.ts`): v1 538,030 (the three new recipe cards, 15,000, are in this part) + land 680,000 + **saplings 137,300** + decorations 2,773,000 + town projects 6,800,000 = **10,928,330**. A sapling counts as bought when it is planted or in the bag.
+- **The brain** (`scripts/sim/brain.ts`) plants and picks: after each look it picks every ripe tree, then plants while a spot is free and the gold above the seed reserve pays for it: first one of each kind that bears in the season it will mature in (cheapest first), then second apricots, apples and persimmons; a spot waits for a tree that suits its season rather than getting a third peach. It holds back the fruit later town stages need (the bakery's apples, the hall's persimmons: `fruitStock`), keeps the Auto-Seller off for them and does not cook them; without that, the bakery stalled for a season and every bot hoarded gold (the no-hoard check failed at 7–11 days' income).
+- **Pacing against §13.10** (real day, Greedy Farmer · Active Player): Orchard bought 3.0 · 5.0; first sapling 3.0 · 5.0; first mature tree and first fruit **6.5 · 9.0** (target 5–8 · 5–9); the Active Player's late Orchard (target 2–4) is the v2-01 note again: moving `pa('orchard')` after `farm_4` or the first scarecrow puts it on day 2–3 and first fruit on day 5.5–7.5, but swings the buff check and the Farmer's spending (after `farm_4`: buffs +10%, the Farmer has 28% of the catalogue left on day 30 and hoards 7.3 days' income; after the first scarecrow: buffs +31%, a 4.5-day hoard). It stays at the end of the v1 list.
+- **First fruit by tree**, planted on the schedule's first evening (Wed 25 Feb; `scripts/sim/trees.ts`): cherry 3 days (spring), apricot 4 (summer), peach 4 (summer), apple 5 (summer), pear **11** (autumn), persimmon **11** (autumn), lemon **18** (winter). A tree that matures out of season waits for its season.
+- **Orchard income:** 6–8k gold a day, 1% of gold, every bot (see §13.5 "Measured"); the Active Player 3k a day on days 7–14 (its trees mature on day 9).
+- **Phase 09 checks and §13.4 checks:** all pass except one: **buffs kept up +27%** at day 7 on 8 seeds (day 3 +22%, day 14 +11%; target +10–25%). The unit test's four seeds pair at +17%. The Chef's new fruit dishes (Peach Cobbler is a summer Silver Tongue T3) lift it a little; the paired medians swing ±10 points between seed sets, and no lever was moved for 2 points. Strategy spread 1.18× (d3), 1.24× (d7), 1.09× (d30); Casual Idler 160% of the Active Player on day 3; early waits ≤ 2.0 min; no runaway growth; gold still to spend (share of catalogue): Greedy Farmer 100%, 98%, 90%, 54%, 15%, 2% (days 1, 3, 7, 14, 21, 30), Active Player 100%, 99%, 96%, 85%, 63%, 36%; no hoard (worst 1.8 and 2.6 days' income for the Farmer and the Active Player).
+- **`SPEND_REPORT=1`** runs the full gold-sink check (8 seeds, 30 days, Greedy Farmer and Active Player, about 60 s: `SPEND_REPORT=1 npx vitest run tests/simulate.test.ts -t "gold sink"`); it passes. The default suite runs one seed of the Farmer for 21 days.
