@@ -14,11 +14,13 @@ import type {
   GoalTemplateId,
   ItemId,
   JunkId,
+  ParcelId,
   RecipeId,
   SeasonId,
   UpgradeId,
 } from './ids';
 import { ITEMS } from './items';
+import { PARCELS } from './parcels';
 import { RECIPES } from './recipes';
 import { SEASONS } from './seasons';
 import type {
@@ -29,6 +31,7 @@ import type {
   FishDef,
   ItemDef,
   JunkDef,
+  ParcelDef,
   QuestDef,
   RecipeDef,
   SeasonDef,
@@ -36,6 +39,7 @@ import type {
   UpgradeDef,
 } from './types';
 import { UPGRADES } from './upgrades';
+import { WORLD_LAYOUT, type WorldLayout } from './world';
 
 /**
  * Everything in src/data, gathered once (DATA_SCHEMAS.md §4.10). Systems receive it through
@@ -60,6 +64,10 @@ export interface GameData {
   milestones: readonly QuestDef[];
   goalTemplates: Readonly<Record<GoalTemplateId, QuestDef>>;
   bundles: Readonly<Record<BundleId, BundleDef>>;
+  /** Land parcels of the v2 world (v2 phase 01). */
+  parcels: Readonly<Record<ParcelId, ParcelDef>>;
+  /** The world layout: regions, lanes, sea, town sites, tree spots (v2 phase 01). */
+  world: WorldLayout;
 }
 
 export const GAME_DATA: GameData = Object.freeze({
@@ -77,4 +85,6 @@ export const GAME_DATA: GameData = Object.freeze({
   milestones: MILESTONES,
   goalTemplates: GOAL_TEMPLATES,
   bundles: BUNDLES,
+  parcels: PARCELS,
+  world: WORLD_LAYOUT,
 });

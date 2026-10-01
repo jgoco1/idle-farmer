@@ -9,8 +9,9 @@
 
 import { createInitialState, cloneState, type GameState } from './state';
 import type { LocalClock } from './time';
+import { isParcelId } from '../data/ids';
 
-export const SAVE_VERSION = 7;
+export const SAVE_VERSION = 8;
 export const SAVE_KEY = 'hearthfield-idle/save';
 export const AUTOSAVE_MS = 15_000;
 
@@ -154,6 +155,12 @@ export const migrations: Record<number, Migration> = {
       },
     };
   },
+  /**
+   * v7 → v8 (v2 phase 01, the world): no land parcels owned. Nothing else moves: the v1 scene is the
+   * world's top-left corner at the same tiles, plots and placed objects are in plot coordinates and
+   * traps are slots (DATA_SCHEMAS.md §9.3), and the camera lives in prefs, not the save.
+   */
+  7: (old) => ({ ...old, land: { parcels: [] } }),
 };
 
 export class SaveError extends Error {
@@ -367,6 +374,14 @@ function fishingProblem(s: Record<string, unknown>): string | null {
   return sessionProblem(f.session);
 }
 
+function landProblem(s: Record<string, unknown>): string | null {
+  const { land } = s;
+  if (!isObj(land) || !Array.isArray(land.parcels)) return 'bad land';
+  if (!land.parcels.every((p) => typeof p === 'string' && isParcelId(p))) return 'bad land';
+  if (new Set(land.parcels).size !== land.parcels.length) return 'bad land';
+  return null;
+}
+
 function cookingProblem(s: Record<string, unknown>): string | null {
   const { kitchen, buffs } = s;
   if (!isObj(kitchen) || !Array.isArray(kitchen.known) || !Array.isArray(kitchen.queue)) return 'bad kitchen';
@@ -416,7 +431,8 @@ export function validateState(s: unknown): string | null {
     automationProblem(s) ??
     fishingProblem(s) ??
     cookingProblem(s) ??
-    progressionProblem(s)
+    progressionProblem(s) ??
+    landProblem(s)
   );
 }
 
