@@ -83,6 +83,10 @@ import { Toasts } from './ui/toast';
 import { buildSceneControls } from './ui/sceneControls';
 import { PlantMode } from './ui/plantMode';
 import { daysToMature, ripeTrees, treeAtTile, treeStage } from './systems/orchard';
+import { ranchPanel } from './ui/ranchPanel';
+import { BuildMode } from './ui/buildMode';
+import { buildingById, ranchOpen, storeCount, storeIsFull, troughIsEmpty, troughSize } from './systems/ranch';
+import { BUILDINGS } from './data/animals';
 import { WORLD_LAYOUT } from './data/world';
 import { DecorateMode } from './ui/decorate';
 import { farmhouseSpriteId } from './render/sprites/farmhouse';
@@ -179,6 +183,7 @@ const startPlacement = placement.start.bind(placement);
 placement.start = (kind) => {
   decorate.stop();
   plant.stop();
+  build.stop();
   startPlacement(kind);
 };
 /** Set from Settings: the Town Square tune plays now, whatever the rotation says. */
@@ -257,6 +262,20 @@ const fishing = fishingPanel({
   },
 });
 panels.register(fishing.def);
+panels.register(
+  ranchPanel({
+    ...view,
+    dispatch,
+    startBuild: (kind) => {
+      panels.close();
+      build.start(kind);
+    },
+    startMove: (id) => {
+      panels.close();
+      build.startMove(id);
+    },
+  }),
+);
 panels.register(
   upgradesPanel({
     ...view,
@@ -356,10 +375,41 @@ const plant: PlantMode = new PlantMode({
     placement.stop();
   },
 });
+// Building (and moving) the coop, barn and silo shares the same routing and ghost (v2 phase 04).
+const build: BuildMode = new BuildMode({
+  data: GAME_DATA,
+  state: () => game.state,
+  dispatch,
+  toast: (text, tone = 'info') => toasts.show(text, tone),
+  setMode(on) {
+    renderer.decorateMode = on;
+  },
+  setGhost: (g: DecorGhost | null) => renderer.setDecorGhost(g),
+  showYard() {
+    const r = GAME_DATA.parcels.yard.rect;
+    renderer.panToTile(r.col + Math.floor(r.cols / 2), r.row + Math.floor(r.rows / 2));
+  },
+  onStart() {
+    decorate.stop();
+    plant.stop();
+    placement.stop();
+  },
+});
 const startDecorating = decorate.start.bind(decorate);
 decorate.start = (select) => {
   plant.stop();
+  build.stop();
   startDecorating(select);
+};
+const startPlanting = plant.start.bind(plant);
+plant.start = (fruit) => {
+  build.stop();
+  startPlanting(fruit);
+};
+const startMoving = plant.startMove.bind(plant);
+plant.startMove = (id) => {
+  build.stop();
+  startMoving(id);
 };
 const tools = new FarmTools(byId('toolbar'), view);
 
@@ -458,6 +508,83 @@ function petTheCat(): void {
     window.setTimeout(() => renderer.particles.emit('heart', at.x + (i - 1) * 4, at.y - i * 3), i * 160);
   if (petted++ % 6 === 0) toasts.show('The farm cat purrs in its sleep.', 'good');
 }
+
+// ---- the ranch (v2 phase 04): petting, and the toasts, sounds and little effects for what the animals do
+let pettedAnimals = 0;
+const headPt = { x: 0, y: 0 };
+/** Click a hen or a cow: hearts and a cluck or a moo. Cosmetic only: nothing changes in the game, and skipping it costs nothing. */
+function petAnimal(id: number): void {
+  const a = game.state.ranch.animals.find((x) => x.id === id);
+  if (!a || !renderer.ranch.headOf(id, headPt)) return;
+  sfx.play(a.kind === 'cow' ? 'moo' : 'cluck');
+  const at = { x: headPt.x, y: headPt.y };
+  for (let i = 0; i < 3; i++)
+    window.setTimeout(() => renderer.particles.emit('heart', at.x + (i - 1) * 4, at.y - i * 3), i * 160);
+  if (pettedAnimals++ % 5 === 0)
+    toasts.show(a.kind === 'cow' ? `${a.name} gives a happy, low moo.` : `${a.name} clucks happily.`, 'good');
+}
+const yardPoint = (): { col: number; row: number } => {
+  const r = GAME_DATA.parcels.yard.rect;
+  return { col: r.col + Math.floor(r.cols / 2), row: r.row + Math.floor(r.rows / 2) };
+};
+const buildingTile = (id: number): { col: number; row: number } => {
+  const b = buildingById(game.state, id);
+  return b ? { col: b.at.col, row: b.at.row } : yardPoint();
+};
+game.bus.on('buildingBuilt', (e) => {
+  if (quiet()) return;
+  const at = buildingTile(e.id);
+  const def = GAME_DATA.buildings[e.building];
+  toasts.show(
+    `The ${def.name.toLowerCase()} is up!${def.houses ? ' Buy an animal and fill the trough in the Ranch panel.' : ''}`,
+    'good',
+  );
+  const w = def.footprint;
+  for (let i = 0; i < 6; i++)
+    renderer.particles.emit(
+      'leaf',
+      (at.col + ((i % 3) + 0.5) * (w.cols / 3)) * PX,
+      (at.row + w.rows - 0.3) * PX,
+      1,
+    );
+  panels.open('ranch');
+});
+game.bus.on('buildingUpgraded', (e) => {
+  if (quiet()) return;
+  const at = buildingTile(e.id);
+  toasts.show(
+    `The ${GAME_DATA.buildings[e.building].name.toLowerCase()} is bigger now (level ${e.level}).`,
+    'good',
+  );
+  renderer.particles.emit('sparkle', (at.col + 1.5) * PX, (at.row + 1) * PX, 1);
+});
+game.bus.on('animalBought', (e) => {
+  if (quiet()) return;
+  const a = game.state.ranch.animals.find((x) => x.id === e.id);
+  if (a) toasts.show(`${a.name} the ${GAME_DATA.animals[e.animal].name.toLowerCase()} has moved in.`, 'good');
+});
+// A production cycle fired: the building's animals walk to the trough and eat (cosmetic).
+game.bus.on('produced', (e) => {
+  if (!quiet()) renderer.ranch.eatAt(e.building);
+});
+game.bus.on('collected', (e) => {
+  if (quiet() || e.auto) return;
+  const at = buildingTile(e.building);
+  renderer.addTileFx(at.col + 1, at.row, `item_${e.product}`, performance.now());
+  toasts.show(`+${e.qty} ${GAME_DATA.items[e.product]!.name}${e.shipped > 0 ? ' (shipped)' : ''}`, 'good');
+});
+let lastHungryToast = -1e9;
+game.bus.on('troughEmpty', (e) => {
+  if (catchingUp() || performance.now() - lastHungryToast < 30_000) return;
+  lastHungryToast = performance.now();
+  const at = buildingTile(e.building);
+  toastAt(
+    e.animal === 'cow' ? 'The cows would love some hay.' : 'The hens would love some feed.',
+    'info',
+    at.col,
+    at.row,
+  );
+});
 
 // ---- first-time tutorial: plots → seeds → water → harvest → sell → shop, then the milestones take over
 const tutorial = new TutorialFlow();
@@ -867,8 +994,17 @@ const renderer = new Renderer({
     toasts.show(`${GAME_DATA.townProjects[project].name}: see the Town tab.`);
   },
   onDecorClick(col, row) {
-    if (plant.on) plant.click(col, row);
+    if (build.on) build.click(col, row);
+    else if (plant.on) plant.click(col, row);
     else decorate.click(col, row);
+  },
+  onAnimalClick: petAnimal,
+  onBuildingClick(id) {
+    const b = buildingById(game.state, id);
+    if (b && BUILDINGS[b.kind].houses && storeCount(b) > 0) {
+      const r = game.dispatch({ type: 'collectBuilding', building: id });
+      if (!r.ok) toasts.show(r.reason, 'warn');
+    } else panels.open('ranch');
   },
   onTreeClick(id) {
     const r = game.dispatch({ type: 'pickTree', id });
@@ -910,6 +1046,11 @@ function updatePips(): void {
   for (const t of ripeTrees(s)) {
     const spot = WORLD_LAYOUT.treeSpots[t.spot]!;
     pipTargets.push({ kind: 'tree', col: spot.col, row: spot.row });
+  }
+  for (const b of s.ranch.buildings) {
+    if (!GAME_DATA.buildings[b.kind].houses) continue;
+    if (storeIsFull(GAME_DATA, b)) pipTargets.push({ kind: 'store', col: b.at.col, row: b.at.row });
+    if (troughIsEmpty(s, b)) pipTargets.push({ kind: 'trough', col: b.at.col, row: b.at.row });
   }
   pips.update(pipTargets);
 }
@@ -995,11 +1136,13 @@ const view$: SceneView = {
   cooking: false,
   decor: [],
   trees: [],
+  ranch: { buildings: [], animals: [], troughLevel: [] },
   cosmetics: { bakerySmoke: false, band: false, lighthouseBeam: false, festival: false },
 };
 const plotsView: PlotSprites[] = [];
 const greenhouseView: PlotSprites[] = [];
 const trapsView: { col: number; row: number; full: boolean }[] = [];
+const troughLevels: number[] = [];
 let coverage: Coverage | null = null;
 const stageOf = (p: Plot): number => plotStage(p, GAME_DATA);
 const wetAt = (i: number): boolean => {
@@ -1022,7 +1165,17 @@ function sceneView(): SceneView {
     plotsState = s;
     view$.plots = plotSpritesInto(plotsView, s.farm.plots, stageOf, wetAt);
     view$.greenhouse = plotSpritesInto(greenhouseView, s.farm.greenhouse, stageOf, alwaysWet);
+    // How full each trough looks (0 empty, 1 some, 2 full): needs the bundle bonus, so it is worked out here, not per frame.
+    troughLevels.length = s.ranch.buildings.length;
+    for (let i = 0; i < s.ranch.buildings.length; i++) {
+      const b = s.ranch.buildings[i]!;
+      const size = troughSize(s, GAME_DATA, b);
+      troughLevels[i] = b.trough <= 0 || size <= 0 ? 0 : b.trough * 2 > size ? 2 : 1;
+    }
   }
+  view$.ranch.buildings = s.ranch.buildings;
+  view$.ranch.animals = s.ranch.animals;
+  view$.ranch.troughLevel = troughLevels;
   view$.placed = s.placed;
   view$.farmhand = (s.upgrades.farmhand ?? 0) > 0;
   trapsView.length = s.fishing.traps.length;
@@ -1124,6 +1277,7 @@ const loop = startLoop(game, {
     }
     hud.update(game.state, cal);
     tools.update();
+    toolbar.setVisible('ranch', ranchOpen(game.state));
     if (panelsDirty) {
       panelsDirty = false;
       panels.refreshOpen();
@@ -1169,4 +1323,8 @@ if (import.meta.env.DEV || new URLSearchParams(location.search).has('debug')) {
   lightsLit: () => renderer.lightsLit,
   decorMode: () => decorate.on,
   sceneSprites: () => renderer.layoutSpriteIds(),
+  /** Where an animal's feet are in world px (e2e: click an animal). */
+  animalAt: (id: number) => renderer.ranch.positionOf(id),
+  /** Building mode (e2e). */
+  buildMode: () => build.on,
 };

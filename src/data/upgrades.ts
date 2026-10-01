@@ -264,6 +264,19 @@ export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object
     effect: [{}, { flags: ['autoCollect'] }],
     requires: [{ kind: 'upgrade', id: 'fish_trap', level: 2 }],
   },
+  ranch_collector: {
+    id: 'ranch_collector',
+    name: 'Collecting Basket',
+    description:
+      'A wicker basket on a little cart that empties every egg and milk store into your bag each time the Shipping Bin is collected.',
+    category: 'ranch',
+    kind: 'leveled',
+    max: 1,
+    cost: { base: 50_000, ratio: 1 },
+    effectText: ['not built', 'empties the stores at every bin pickup'],
+    effect: [{}, { flags: ['autoCollect'] }],
+    requires: [{ kind: 'building', id: 'coop', level: 1 }],
+  },
   kitchen: {
     id: 'kitchen',
     name: 'Kitchen',

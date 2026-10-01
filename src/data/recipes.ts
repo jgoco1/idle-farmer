@@ -1,4 +1,4 @@
-// The 26 recipes (docs/BALANCE.md §7, §13.8): 7 × T1, 9 × T2, 6 × T3, 4 × T4 (v2 phase 03 added the four fruit ones). `tier` is declared here for
+// The 32 recipes (docs/BALANCE.md §7, §13.8): 8 × T1, 11 × T2, 9 × T3, 4 × T4 (v2 phase 03 added the four fruit ones, v2 phase 04 six with eggs and milk). `tier` is declared here for
 // readability and checked against `recipeTier()` by a test, as is `basePrice`. Dishes are items
 // whose id is the recipe id (see items.ts).
 
@@ -86,6 +86,17 @@ export const RECIPES: Readonly<Record<RecipeId, RecipeDef>> = Object.freeze({
     basePrice: 225,
     discovery: { kind: 'milestone', id: 'm20_first_fruit' },
     description: 'Soft, cinnamon-warm and good for thinking. An apple a day, as they say.',
+  },
+  fried_egg: {
+    id: 'fried_egg',
+    name: 'Fried Egg',
+    ingredients: [{ item: 'egg', qty: 2 }],
+    cookSec: 30,
+    tier: 1,
+    buff: 'cookSpeed',
+    basePrice: 225,
+    discovery: { kind: 'milestone', id: 'm21_first_egg' },
+    description: 'Sunny side up, edges crisp. Your hands feel quicker at the stove.',
   },
   // ---- T2
   vegetable_soup: {
@@ -216,6 +227,31 @@ export const RECIPES: Readonly<Record<RecipeId, RecipeDef>> = Object.freeze({
     discovery: { kind: 'card', price: 4_000, unlock: [{ kind: 'parcel', id: 'orchard' }] },
     description: 'A warm, earthy autumn pudding. The seedlings lean in for the smell.',
   },
+  soft_cheese: {
+    id: 'soft_cheese',
+    name: 'Soft Cheese',
+    ingredients: [{ item: 'milk', qty: 2 }],
+    cookSec: 60,
+    tier: 2,
+    buff: 'automationSpeed',
+    basePrice: 672,
+    discovery: { kind: 'milestone', id: 'm22_first_milk' },
+    description: "A creamy wedge for the farmhand's lunch. Everything gets done a little faster.",
+  },
+  garden_omelette: {
+    id: 'garden_omelette',
+    name: 'Garden Omelette',
+    ingredients: [
+      { item: 'egg', qty: 2 },
+      { item: 'kale', qty: 1 },
+    ],
+    cookSec: 45,
+    tier: 2,
+    buff: 'fishingSpeed',
+    basePrice: 374,
+    discovery: { kind: 'experiment' },
+    description: 'Eggs and greens in a hurry. The fish will not keep you waiting either.',
+  },
   // ---- T3
   peach_cobbler: {
     id: 'peach_cobbler',
@@ -230,6 +266,50 @@ export const RECIPES: Readonly<Record<RecipeId, RecipeDef>> = Object.freeze({
     basePrice: 912,
     discovery: { kind: 'card', price: 8_000, unlock: [{ kind: 'parcel', id: 'orchard' }] },
     description: "Summer's golden crust over soft, blushing peaches. Everyone at market wants a bite.",
+  },
+  apricot_custard: {
+    id: 'apricot_custard',
+    name: 'Apricot Custard',
+    ingredients: [
+      { item: 'apricot', qty: 2 },
+      { item: 'egg', qty: 2 },
+      { item: 'milk', qty: 1 },
+    ],
+    cookSec: 90,
+    tier: 3,
+    buff: 'xp',
+    basePrice: 1344,
+    discovery: { kind: 'experiment' },
+    description: 'Rich, slow and careful. Paying attention is its own reward.',
+  },
+  lemon_meringue_pie: {
+    id: 'lemon_meringue_pie',
+    name: 'Lemon Meringue Pie',
+    ingredients: [
+      { item: 'lemon', qty: 1 },
+      { item: 'egg', qty: 3 },
+    ],
+    cookSec: 90,
+    tier: 3,
+    buff: 'cookSpeed',
+    basePrice: 944,
+    discovery: { kind: 'card', price: 12_000, unlock: [{ kind: 'building', id: 'coop', level: 1 }] },
+    description: "A baker's showpiece, tall and golden. It trains the cook's hands.",
+  },
+  persimmon_pudding: {
+    id: 'persimmon_pudding',
+    name: 'Persimmon Pudding',
+    ingredients: [
+      { item: 'persimmon', qty: 1 },
+      { item: 'milk', qty: 1 },
+      { item: 'egg', qty: 1 },
+    ],
+    cookSec: 90,
+    tier: 3,
+    buff: 'sellPrice',
+    basePrice: 1104,
+    discovery: { kind: 'card', price: 15_000, unlock: [{ kind: 'building', id: 'barn', level: 1 }] },
+    description: "A winter warmer, spiced and silky. Buyers can't say no to a spoonful.",
   },
   seafood_stew: {
     id: 'seafood_stew',

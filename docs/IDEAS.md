@@ -81,3 +81,10 @@ v2 phase 03 (the orchard):
 - **Sway for mature canopies** (ART_STYLE §6.2 lists a 2-frame sway as optional): not drawn. Later polish.
 - **Fruit waiting on a bare winter tree** stays drawn on the branches until picked (nothing is lost, GDD §12.1); falling leaves and a "ripe" glint would tell the player it is waiting. Later polish.
 - **Move a tree by dragging it**: Move in the Trees tab enters a spot-picking mode; dragging a tree between spots in the scene would be quicker, but a drag is a pan (GDD §12.1). Later polish.
+
+v2 phase 04 (animals):
+- **Tell the player which hen is which**: a hover label with an animal's name, trough and next product (like the tree tooltip); on a phone a long press. Names exist and can be changed in the Ranch panel, but nothing in the scene shows them. Later polish.
+- **Plant a little wheat and corn for the animals**: the bots buy feed when a trough is nearly dry and make it from the wheat and corn they happen to keep; a "keep N spare" hint in the Auto-Seller for wheat and corn would make the loop smoother for players.
+- **The farmhand also collecting eggs** (GDD §9 decision 10 chose not to); a later balance phase could use it for a second automation tier.
+- **A sleeping "z" over the animals at night** and a rooster at dawn (audio): cosmetic, render-only.
+- **Bag pressure from feed and products:** hay, corn feed, eggs and milk take bag slots (the bots keep stage items too); a "Feed store" tab in the silo or an overflow into the bin could ease it if players feel it.

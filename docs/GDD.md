@@ -528,7 +528,7 @@ Animals live in the **Old Paddock**. They are fed from what you grow and give eg
 - The **Auto-Seller** has toggles for egg, large egg and milk, **off by default** so the kitchen gets them.
 - The **farmhand does no animal chores**; its route covers plots and trees. Animals are automated by the silo and the Collecting Basket.
 
-**Petting** a hen or cow (click it) shows hearts and plays a cluck or a moo, like the cat. It gives **nothing** and skipping it costs nothing; there is no daily petting count.
+**Petting** a hen or cow (click it) shows hearts and plays a cluck or a moo, like the cat. It gives **nothing** and skipping it costs nothing; there is no daily petting count. (As built: it uses the cat's heart particles; clicking a building with products in its store collects them, otherwise it opens the Ranch panel.)
 
 **Life in the yard (render only).** Hens and cows wander inside the yard near their building, peck and graze, and eat at the trough when a cycle fires. All of this uses the **render-side cosmetic RNG** and never touches game state or `rngState`. At night they sleep inside or beside their building. Sounds (cluck, moo, collect) go through `src/audio/events.ts` and stay silent during offline replay.
 

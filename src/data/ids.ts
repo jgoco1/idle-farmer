@@ -53,6 +53,7 @@ export type RecipeId =
   | 'seaweed_salad'
   | 'wheat_flatbread'
   | 'baked_apple'
+  | 'fried_egg'
   // T2
   | 'vegetable_soup'
   | 'fish_tacos'
@@ -63,6 +64,8 @@ export type RecipeId =
   | 'garlic_trout'
   | 'cherry_jam'
   | 'pear_crumble'
+  | 'soft_cheese'
+  | 'garden_omelette'
   // T3
   | 'seafood_stew'
   | 'pumpkin_soup'
@@ -70,6 +73,9 @@ export type RecipeId =
   | 'catfish_gumbo'
   | 'scholars_stew'
   | 'peach_cobbler'
+  | 'apricot_custard'
+  | 'lemon_meringue_pie'
+  | 'persimmon_pudding'
   // T4
   | 'garden_banquet'
   | 'royal_sturgeon'
@@ -85,7 +91,16 @@ export type FruitId = 'cherry' | 'apricot' | 'peach' | 'apple' | 'pear' | 'persi
 export type TreeId = `${FruitId}_tree`;
 export type SaplingId = `sapling_${FruitId}`;
 
-export type ItemId = CropId | SeedId | FishId | JunkId | DishId | FruitId | SaplingId;
+/** The animals of the ranch (v2 phase 04, BALANCE.md §13.6). Hens live in the coop, cows in the barn. */
+export type AnimalId = 'chicken' | 'cow';
+/** What the animals give. A large egg is its own item, not a quality tier. */
+export type AnimalProductId = 'egg' | 'large_egg' | 'milk';
+/** What the animals eat: made from wheat and corn, or bought at the Ranch. */
+export type FeedId = 'hay' | 'corn_feed';
+export type BuildingId = 'coop' | 'barn' | 'silo';
+
+export type ItemId =
+  CropId | SeedId | FishId | JunkId | DishId | FruitId | SaplingId | AnimalProductId | FeedId;
 
 export type UpgradeId =
   // farm automation and tools (phase 04)
@@ -106,7 +121,9 @@ export type UpgradeId =
   | 'fishing_rod'
   | 'trap_collector'
   // cooking (phase 06)
-  | 'kitchen';
+  | 'kitchen'
+  // the ranch (v2 phase 04)
+  | 'ranch_collector';
 
 export type ExpansionId = 'farm_1' | 'farm_2' | 'farm_3' | 'farm_4' | 'river' | 'ocean';
 
@@ -190,7 +207,10 @@ export type MilestoneId =
   | 'm19_first_project'
   | 'm23_charm_100'
   // v2-03
-  | 'm20_first_fruit';
+  | 'm20_first_fruit'
+  // v2-04
+  | 'm21_first_egg'
+  | 'm22_first_milk';
 
 export type BundleId =
   | 'spring_crops'
@@ -199,7 +219,8 @@ export type BundleId =
   | 'pond_fish'
   | 'river_and_sea'
   | 'cozy_dinner'
-  | 'orchard_basket';
+  | 'orchard_basket'
+  | 'barnyard';
 
 export type GoalTemplateId =
   | 'harvest_crop'
@@ -212,10 +233,11 @@ export type GoalTemplateId =
   | 'cook_distinct'
   | 'eat_dish'
   | 'raise_charm'
-  | 'pick_fruit';
+  | 'pick_fruit'
+  | 'collect_produce';
 
 export type PanelId =
-  'inventory' | 'shop' | 'market' | 'kitchen' | 'fishing' | 'upgrades' | 'goals' | 'settings';
+  'inventory' | 'shop' | 'market' | 'kitchen' | 'fishing' | 'upgrades' | 'goals' | 'settings' | 'ranch';
 
 export const CROP_IDS: readonly CropId[] = [
   'turnip',
@@ -264,6 +286,7 @@ export const RECIPE_IDS: readonly RecipeId[] = [
   'seaweed_salad',
   'wheat_flatbread',
   'baked_apple',
+  'fried_egg',
   'vegetable_soup',
   'fish_tacos',
   'tomato_pasta',
@@ -272,13 +295,18 @@ export const RECIPE_IDS: readonly RecipeId[] = [
   'glazed_yams',
   'garlic_trout',
   'cherry_jam',
+  'soft_cheese',
   'pear_crumble',
+  'garden_omelette',
   'seafood_stew',
   'pumpkin_soup',
   'cranberry_pie',
   'catfish_gumbo',
   'scholars_stew',
   'peach_cobbler',
+  'apricot_custard',
+  'lemon_meringue_pie',
+  'persimmon_pudding',
   'garden_banquet',
   'royal_sturgeon',
   'harvest_feast',
@@ -361,6 +389,27 @@ export function fruitOfSapling(s: SaplingId): FruitId {
 
 export function isFruitId(id: string): id is FruitId {
   return (FRUIT_IDS as readonly string[]).includes(id);
+}
+
+export const ANIMAL_IDS: readonly AnimalId[] = ['chicken', 'cow'];
+export const ANIMAL_PRODUCT_IDS: readonly AnimalProductId[] = ['egg', 'large_egg', 'milk'];
+export const FEED_IDS: readonly FeedId[] = ['hay', 'corn_feed'];
+export const BUILDING_IDS: readonly BuildingId[] = ['coop', 'barn', 'silo'];
+
+export function isAnimalProductId(id: string): id is AnimalProductId {
+  return (ANIMAL_PRODUCT_IDS as readonly string[]).includes(id);
+}
+
+export function isFeedId(id: string): id is FeedId {
+  return (FEED_IDS as readonly string[]).includes(id);
+}
+
+export function isAnimalId(id: string): id is AnimalId {
+  return (ANIMAL_IDS as readonly string[]).includes(id);
+}
+
+export function isBuildingId(id: string): id is BuildingId {
+  return (BUILDING_IDS as readonly string[]).includes(id);
 }
 
 export function isSaplingId(id: string): id is SaplingId {

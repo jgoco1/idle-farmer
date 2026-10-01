@@ -102,6 +102,7 @@ for (const scenario of ['farm', 'world'] as const)
           land: { parcels: string[] };
           orchard: { trees: unknown[] };
           calendar: { maxDayIndex: number };
+          ranch: { buildings: unknown[]; animals: unknown[] };
         };
         s.land.parcels = ['orchard', 'yard', 'meadow'];
         // The orchard in full: eight trees of every stage and kind, some laden (v2 phase 03).
@@ -115,6 +116,26 @@ for (const scenario of ['farm', 'world'] as const)
           fruit: i < 3 ? 0 : 8 + i * 3,
           lastFruitDay: 0,
         }));
+        // The ranch in full (v2 phase 04): a level 3 coop and barn, a level 2 silo, 12 hens and 6 cows wandering.
+        s.ranch.buildings = [
+          { id: 1, kind: 'coop', level: 3, at: { col: 22, row: 9 }, trough: 150, store: [], cycleMs: 0 },
+          { id: 2, kind: 'barn', level: 3, at: { col: 27, row: 9 }, trough: 60, store: [], cycleMs: 0 },
+          { id: 3, kind: 'silo', level: 2, at: { col: 33, row: 9 }, trough: 0, store: [], cycleMs: 0 },
+        ];
+        s.ranch.animals = [
+          ...Array.from({ length: 12 }, (_, i) => ({
+            id: i + 1,
+            kind: 'chicken',
+            name: `Hen ${i}`,
+            building: 1,
+          })),
+          ...Array.from({ length: 6 }, (_, i) => ({
+            id: i + 13,
+            kind: 'cow',
+            name: `Cow ${i}`,
+            building: 2,
+          })),
+        ];
       });
     }
     // Let the farmhand start walking and the scene settle.

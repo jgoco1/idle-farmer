@@ -12,12 +12,16 @@ const ICON: Record<PipKind, string> = {
   trap: 'obj_fish_trap_full',
   dish: 'item_vegetable_soup',
   tree: 'item_apple',
+  store: 'item_egg',
+  trough: 'obj_trough_empty',
 };
 const LABEL: Record<PipKind, string> = {
   crop: 'Ready crops',
   trap: 'A full fish trap',
   dish: 'A dish waiting on the stove',
   tree: 'Ripe fruit in the orchard',
+  store: 'A full egg or milk store',
+  trough: 'The animals would love some feed',
 };
 const ROTATE = { right: 0, bottom: 90, left: 180, top: 270 } as const;
 

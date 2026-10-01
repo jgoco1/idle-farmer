@@ -46,6 +46,44 @@ function inBowl(top: readonly string[]): string[] {
 // ---- dishes
 
 const DISH_ART: Record<RecipeId, readonly string[]> = {
+  fried_egg: onPlate([
+    '',
+    '....wwwwwww',
+    '..wwwwwwwwwww',
+    '.wwwwwuuuwwwwww',
+    '.wwwwuUUUuwwwwx',
+    '..xwwwuuuwwwwx',
+    '...xxxwwwxxx',
+  ]),
+  soft_cheese: onPlate([
+    '',
+    '.......uUUUU',
+    '....uUUUUUUUUU',
+    '..uUUUYUUUUUUUU',
+    '.uUUUUUUUUYUUUU',
+    '.uuuuuuuuuuuuuu',
+    '',
+  ]),
+  garden_omelette: onPlate([
+    '',
+    '...uUUUUUUUUu',
+    '.uUUGUUUUUGUUUu',
+    '.uUUUUoUUUUUUUo',
+    '.uuUUUUUUUUUGUo',
+    '..ouuuuuuuuuoo',
+    '',
+  ]),
+  apricot_custard: inBowl(['....UUUUUUUU', '..UUUuUUoOUUUU', '.UUUUUUoOoUUUUU']),
+  lemon_meringue_pie: onPlate([
+    '',
+    '.....w.w.ww',
+    '...wwwwwwwwwww',
+    '..wxwwxwwwxwwww',
+    '..UUUUUUUUUUUUU',
+    '..uuUUuuUUuuuuu',
+    '..PPPPPPPPPPPPP',
+  ]),
+  persimmon_pudding: inBowl(['....OOOOOOOO', '..OoOOOOOOoOOO', '.ooOOmmOOOooOoO']),
   roasted_turnip: onPlate([
     '...G.....G',
     '..GGG...GGG',

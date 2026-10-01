@@ -2,6 +2,7 @@
 // the 6 Community Board bundles. Progression listens to events (src/systems/progression.ts); nothing
 // here is wired into the other systems.
 
+import { BARNYARD_TROUGH_BONUS } from './balance';
 import type { BundleId, GoalTemplateId, MilestoneId } from './ids';
 import type { BundleDef, QuestDef } from './types';
 
@@ -191,6 +192,24 @@ export const MILESTONES: readonly QuestDef[] = Object.freeze([
     requires: [],
   },
   {
+    id: 'm21_first_egg',
+    kind: 'milestone',
+    title: 'Collect your first egg',
+    flavor: 'Still warm, and a little bit smug about it.',
+    objective: { kind: 'collectProduct', product: 'egg', count: 1 },
+    rewards: [{ kind: 'recipe', id: 'fried_egg' }],
+    requires: [],
+  },
+  {
+    id: 'm22_first_milk',
+    kind: 'milestone',
+    title: 'Collect your first milk',
+    flavor: 'A cool pail, a content cow, and a quiet morning.',
+    objective: { kind: 'collectProduct', product: 'milk', count: 1 },
+    rewards: [{ kind: 'recipe', id: 'soft_cheese' }],
+    requires: [],
+  },
+  {
     id: 'm23_charm_100',
     kind: 'milestone',
     title: 'Reach charm 100',
@@ -308,6 +327,15 @@ export const GOAL_TEMPLATES: Readonly<Record<GoalTemplateId, QuestDef>> = Object
     rewards: [],
     requires: [{ kind: 'milestone', id: 'm20_first_fruit' }],
   },
+  collect_produce: {
+    id: 'collect_produce',
+    title: 'Collect {n} {product}',
+    kind: 'goal',
+    flavor: 'The ranch never sleeps in. Neither do you, apparently.',
+    objective: { kind: 'collectProduct', count: 0 },
+    rewards: [],
+    requires: [],
+  },
 } satisfies Record<GoalTemplateId, QuestDef>);
 
 export const BUNDLES: Readonly<Record<BundleId, BundleDef>> = Object.freeze({
@@ -403,6 +431,19 @@ export const BUNDLES: Readonly<Record<BundleId, BundleDef>> = Object.freeze({
     reward: { kind: 'treeSpots', count: 2 },
     rewardText: '2 more tree spots in the orchard',
   },
+  barnyard: {
+    id: 'barnyard',
+    name: 'Barnyard',
+    flavor: 'Everything the ranch gives, set out for the neighbours to admire.',
+    slots: [
+      { item: 'egg', qty: 20 },
+      { item: 'large_egg', qty: 3 },
+      { item: 'milk', qty: 10 },
+      { item: 'hay', qty: 20 },
+    ],
+    reward: { kind: 'troughBonus', bonus: BARNYARD_TROUGH_BONUS },
+    rewardText: 'Every trough holds 50% more feed',
+  },
 } satisfies Record<BundleId, BundleDef>);
 
 export const BUNDLE_IDS: readonly BundleId[] = [
@@ -413,4 +454,5 @@ export const BUNDLE_IDS: readonly BundleId[] = [
   'river_and_sea',
   'cozy_dinner',
   'orchard_basket',
+  'barnyard',
 ];

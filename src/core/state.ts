@@ -20,7 +20,9 @@ import { GAME_DATA } from '../data';
 import { RECIPE_IDS } from '../data/ids';
 import { SKILL_IDS } from '../data/skills';
 import type {
+  AnimalId,
   BuffType,
+  BuildingId,
   BundleId,
   CropId,
   DecorId,
@@ -103,6 +105,7 @@ export interface Stats {
   dishesEaten: number; // @06
   bestDishTier: number; // @06: the highest tier cooked so far, 0 = none
   fruitPicked: number; // v2-03: fruit picked from the orchard
+  productsCollected: number; // v2-04: eggs and milk taken out of the ranch's stores
 }
 
 export interface Settings {
@@ -164,6 +167,33 @@ export interface GameState {
 
   // ---- the orchard (v2 phase 03, save 10)
   orchard: OrchardState;
+
+  // ---- the ranch (v2 phase 04, save 11)
+  ranch: RanchState;
+}
+
+/** A coop, barn or silo in the Old Paddock (DATA_SCHEMAS.md §9.6). Capacity, trough size and store size are derived. */
+export interface BuildingState {
+  id: number; // unique, monotonically increasing (max + 1)
+  kind: BuildingId;
+  level: number; // 1 … levels.length
+  at: { col: number; row: number }; // world tile of the footprint's top-left, inside the yard
+  trough: number; // feed portions (always 0 for the silo)
+  store: ItemStack[]; // products waiting to be collected (empty for the silo)
+  cycleMs: number; // simulated ms into the current production cycle (0 while no animal lives there)
+}
+
+/** A hen or a cow. Its name is state (chosen from a list, renamable), never random. */
+export interface AnimalState {
+  id: number;
+  kind: AnimalId;
+  name: string;
+  building: number; // BuildingState.id
+}
+
+export interface RanchState {
+  buildings: BuildingState[];
+  animals: AnimalState[];
 }
 
 /** A planted fruit tree (DATA_SCHEMAS.md §9.6). Its age, stage and ripeness are derived (BALANCE.md §13.5). */
@@ -352,6 +382,7 @@ export function createInitialState(now: number, lc: LocalClock, seed: number = s
     decor: createStartingDecor(),
     town: { projects: {} },
     orchard: { trees: [] },
+    ranch: { buildings: [], animals: [] },
   };
   // A new farm opens with today's specials and the first sparkline point (every save starts in spring).
   openMarketDay(state, GAME_DATA, createRng(state), 'spring');
@@ -375,6 +406,7 @@ export function createStartingStats(): Stats {
     dishesEaten: 0,
     bestDishTier: 0,
     fruitPicked: 0,
+    productsCollected: 0,
   };
 }
 

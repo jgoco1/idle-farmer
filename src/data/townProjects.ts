@@ -3,9 +3,8 @@
 // are quality of life or cosmetic only: there is no income, multiplier or gold reward.
 //
 // Gold figures are before `TOWN_PROJECT_SCALE` (src/data/balance.ts), the lever for the
-// gold-still-to-spend check. Stage items follow the doc's table except those that do not exist until
-// later phases: eggs and large eggs and milk (animals, v2-04).
-// Those requirements are listed in `LATER_STAGE_ITEMS` and join the stages when their items do.
+// gold-still-to-spend check. Stage items follow the doc's table (v2 phase 04 added the eggs, milk and
+// large eggs once the animals gave them).
 
 import type { TownProjectId } from './ids';
 import type { ItemStack, TownProjectDef } from './types';
@@ -58,7 +57,7 @@ export const TOWN_PROJECTS: Readonly<Record<TownProjectId, TownProjectDef>> = Ob
         items: items(['wheat', 100]),
         sceneChange: 'the rubble is cleared and a frame goes up',
       },
-      { gold: 300_000, items: [], sceneChange: 'walls and a roof' },
+      { gold: 300_000, items: items(['egg', 30]), sceneChange: 'walls and a roof' },
       {
         gold: 400_000,
         items: items(['apple', 30]),
@@ -117,9 +116,9 @@ export const TOWN_PROJECTS: Readonly<Record<TownProjectId, TownProjectDef>> = Ob
     flavor: 'Everyone has a seat saved. All that is missing is the hall.',
     site: site('community_hall'),
     stages: [
-      { gold: 600_000, items: [], sceneChange: 'foundations' },
+      { gold: 600_000, items: items(['milk', 30]), sceneChange: 'foundations' },
       { gold: 800_000, items: items(['persimmon', 20]), sceneChange: 'walls' },
-      { gold: 1_000_000, items: [], sceneChange: 'a roof' },
+      { gold: 1_000_000, items: items(['large_egg', 10]), sceneChange: 'a roof' },
       {
         gold: 1_200_000,
         items: items(['harvest_feast', 1]),
@@ -140,20 +139,3 @@ export const TOWN_PROJECTS: Readonly<Record<TownProjectId, TownProjectDef>> = Ob
     ],
   },
 });
-
-/**
- * Stage items from BALANCE.md §13.3 that wait for later phases, because their items do not exist yet.
- * v2 phase 04 adds the eggs, milk and large eggs: append each to
- * its stage in `TOWN_PROJECTS` (stage numbers are 1-based) and delete the line here.
- */
-export const LATER_STAGE_ITEMS: readonly {
-  project: TownProjectId;
-  stage: number;
-  item: string;
-  qty: number;
-  phase: string;
-}[] = [
-  { project: 'bakery', stage: 2, item: 'egg', qty: 30, phase: 'v2-04' },
-  { project: 'community_hall', stage: 1, item: 'milk', qty: 30, phase: 'v2-04' },
-  { project: 'community_hall', stage: 3, item: 'large_egg', qty: 10, phase: 'v2-04' },
-];

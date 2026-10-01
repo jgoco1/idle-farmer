@@ -70,6 +70,7 @@ import {
   type Rect,
   type Viewport,
 } from './camera';
+import { RanchLife, type RanchView } from './ranchLife';
 import { anchoredPosition, spriteFrame, spriteFrameAt, spriteFrameOffset } from './spriteCache';
 import { spriteDef } from './sprites';
 import { tintAt } from './tint';
@@ -115,6 +116,10 @@ export interface RendererOptions {
   onSignClick(parcel: ParcelId): void;
   /** A click on a fruit tree (v2 phase 03). */
   onTreeClick?(id: number): void;
+  /** A click on a hen or a cow, with the world point under the pointer (v2 phase 04: petting). */
+  onAnimalClick?(id: number): void;
+  /** A click on a coop, barn, silo or trough (v2 phase 04). */
+  onBuildingClick?(id: number): void;
   /** A click on a town project's site (v2 phase 02). */
   onTownClick?(project: TownProjectId): void;
   /** While Decorate mode is on, every click on the world arrives here instead (v2 phase 02). */
@@ -140,6 +145,8 @@ export interface SceneView {
   decor: readonly PlacedDecor[];
   /** The orchard's trees (v2 phase 03); their stage comes from the calendar's day index. */
   trees: readonly TreeState[];
+  /** The coop, barn and silo and the animals in the Old Paddock (v2 phase 04). */
+  ranch: RanchView;
   /** The cosmetic rewards of finished town projects. */
   cosmetics: { bakerySmoke: boolean; band: boolean; lighthouseBeam: boolean; festival: boolean };
 }
@@ -188,6 +195,8 @@ function rowsKey(placed: readonly PlacedObject[]): number {
   return k;
 }
 const FX_RISE_PX = 10;
+/** The halo of a lit coop or barn window (one object, never rebuilt per frame). */
+const WINDOW_GLOW: GlowPoint = { dx: 0, dy: 0, large: false };
 
 function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   const ctx = canvas.getContext('2d');
@@ -286,6 +295,9 @@ export class Renderer {
   reducedMotion: () => boolean = () => false;
   readonly particles = new ParticleSystem(() => this.reducedMotion());
   readonly ambient = new Ambient(() => this.reducedMotion());
+  /** The Old Paddock's buildings, troughs and wandering animals (render only; v2 phase 04). */
+  readonly ranch = new RanchLife(() => this.reducedMotion());
+  private readonly ranchPt = { x: 0, y: 0 };
   private shakeUntil = 0;
   private steamClock = 0;
   private lastTime = 0;
@@ -613,8 +625,15 @@ export class Renderer {
       return;
     }
     if (t) {
+      // Animals first (petting), then trees, then buildings (the hit-testing order of DATA_SCHEMAS.md §9.3).
+      const s = this.toScreen(clientX, clientY);
+      const w = screenToWorld(this.cam, this.view, s.x, s.y, this.ptScratch);
+      const animal = this.ranch.animalAt(w.x, w.y);
+      if (animal >= 0 && this.opts.onAnimalClick) return this.opts.onAnimalClick(animal);
       const tree = treeAtTileIn(this.treeList, t.col, t.row);
       if (tree && this.opts.onTreeClick) return this.opts.onTreeClick(tree.id);
+      const building = this.ranch.buildingAt(t.col, t.row);
+      if (building >= 0 && this.opts.onBuildingClick) return this.opts.onBuildingClick(building);
       const plot = plotIndexAt(this.grid, t.col, t.row, this.greenhousePlots);
       if (plot >= 0) return this.opts.onPlotClick({ plot, shiftKey });
       const zone = zoneAt(this.zones, t.col, t.row);
@@ -851,6 +870,8 @@ export class Renderer {
     aclock.season = calendar.season;
     this.ambient.setBounds(vis.x, vis.y, vis.w, vis.h);
     this.ambient.update(dtMs, aclock);
+    this.ranch.sync(view.ranch);
+    this.ranch.update(dtMs, calendar.isNight);
     this.particles.update(dtMs);
     if (view.cooking && !this.reducedMotion()) {
       this.steamClock += dtMs;
@@ -915,9 +936,13 @@ export class Renderer {
     const lit = isLitTime(calendar.hour, calendar.minute);
     let drawn = 0;
     let di = 0;
+    let ri = 0;
+    const ranchN = this.ranch.prepare();
     for (let i = 0; i < objects.length; i++) {
       const o = objects[i]!;
       const bottom = o.y + o.h;
+      while (ri < ranchN && this.ranch.bottomAt(ri) < bottom * 2)
+        this.ranch.draw(f, ri++, timeMs, vis, winter, lit);
       while (di < decor.length && decor[di]!.bottom < bottom)
         this.drawDecor(decor[di++]!, season, winter, lit, vis, timeMs);
       while (ti < SPOT_ORDER.length && (WORLD_LAYOUT.treeSpots[SPOT_ORDER[ti]!]!.row + 2) * TILE < bottom)
@@ -929,6 +954,7 @@ export class Renderer {
     while (di < decor.length) this.drawDecor(decor[di++]!, season, winter, lit, vis, timeMs);
     while (ti < SPOT_ORDER.length)
       this.drawTree(this.spotTree[SPOT_ORDER[ti++]!], season, calendar.dayIndex, vis);
+    while (ri < ranchN) this.ranch.draw(f, ri++, timeMs, vis, winter, lit);
     this.objectsDrawn = drawn;
     this.drawTownLife(view, calendar, timeMs, vis, dtMs);
     if (view.cooking)
@@ -1079,6 +1105,16 @@ export class Renderer {
         if (!d.glows || !overlaps(vis, d.x - 16, d.y - 16, d.w + 32, d.h + 32)) continue;
         for (let k = 0; k < d.glowPoints.length; k++) this.halo(d.x, d.y, d.glowPoints[k]!);
       }
+    }
+    if (litTime) {
+      // Lit windows of the coop and barn: a smaller, fainter halo than a lamp's.
+      f.globalAlpha = strength * 0.5 * flicker;
+      for (let i = 0; i < this.ranch.buildingCount; i++) {
+        if (!this.ranch.windowOf(i, this.ranchPt)) continue;
+        if (!overlaps(vis, this.ranchPt.x - 16, this.ranchPt.y - 16, 32, 32)) continue;
+        this.halo(this.ranchPt.x, this.ranchPt.y, WINDOW_GLOW);
+      }
+      f.globalAlpha = strength * 0.8 * flicker;
     }
     for (let i = 0; i < TOWN_PROJECT_IDS.length; i++) {
       const id = TOWN_PROJECT_IDS[i]!;

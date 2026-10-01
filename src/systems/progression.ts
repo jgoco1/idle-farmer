@@ -65,6 +65,7 @@ import { charmOf } from './charm';
 import { grantDecor, hasDecorToPlace } from './decor';
 import { goalSlots } from './townProjects';
 import { fruitXp, ownsMatureTree, treeAge } from './orchard';
+import { animalsOfKind, productXp } from './ranch';
 
 // ---- XP
 
@@ -196,6 +197,12 @@ function advance(state: GameState, data: GameData, o: QuestObjective, e: GameEve
       return e.type === 'projectStageDone' ? 1 : 0;
     case 'pickFruit':
       return e.type === 'fruitPicked' && (!o.fruit || o.fruit === e.fruit) ? e.qty : 0;
+    case 'collectProduct':
+      // "Eggs" means an egg or a large egg.
+      return e.type === 'collected' &&
+        (!o.product || o.product === e.product || (o.product === 'egg' && e.product === 'large_egg'))
+        ? e.qty
+        : 0;
     case 'reachFarmLevel':
     case 'ownParcel':
     case 'reachCharm':
@@ -224,6 +231,7 @@ const EVENT_FOR: Readonly<Record<QuestObjective['kind'], GameEvent['type'] | nul
   gainCharm: 'charmChanged',
   projectStage: 'projectStageDone',
   pickFruit: 'fruitPicked',
+  collectProduct: 'collected',
 };
 
 /** What a goal's progress is measured against. */
@@ -266,6 +274,7 @@ export function goalText(data: GameData, g: Pick<ActiveGoal, 'template' | 'objec
       o.kind === 'pickFruit' && o.fruit
         ? (data.trees[treeOfFruit(o.fruit)].plural ?? pluralName(data.trees[treeOfFruit(o.fruit)].name))
         : 'fruit',
+    product: o.kind === 'collectProduct' && o.product === 'milk' ? 'milk' : 'eggs',
     crop:
       o.kind === 'harvest' && o.crop
         ? (data.crops[o.crop].plural ?? pluralName(data.crops[o.crop].name))
@@ -330,6 +339,9 @@ export function recipeObtainable(state: GameState, data: GameData, season: Seaso
       return isUnlocked(state, crop.unlock) && (inSeason(crop, season) || state.farm.greenhouse.length > 0);
     const fish = data.fish[item as FishId];
     if (fish) return isLocationUnlocked(state, fish.location) && fish.seasons.includes(season);
+    // Eggs and milk are obtainable once the animal that gives them lives on the ranch.
+    if (item === 'egg' || item === 'large_egg') return animalsOfKind(state, 'chicken') > 0;
+    if (item === 'milk') return animalsOfKind(state, 'cow') > 0;
     const junk = data.junk[item as JunkId];
     return junk ? junk.locations.some((l) => isLocationUnlocked(state, l)) : false;
   };
@@ -453,6 +465,23 @@ function variantsOf(state: GameState, data: GameData, season: SeasonId, id: Goal
       }
       return out;
     }
+    case 'collect_produce': {
+      // About an hour of the animals' production (hens lay 2 an hour each, cows give 1.5).
+      const out: Variant[] = [];
+      const hens = animalsOfKind(state, 'chicken');
+      const cows = animalsOfKind(state, 'cow');
+      if (hens > 0)
+        out.push({
+          key: `${id}:egg`,
+          objective: { kind: 'collectProduct', product: 'egg', count: niceTarget(hens * 2) },
+        });
+      if (cows > 0)
+        out.push({
+          key: `${id}:milk`,
+          objective: { kind: 'collectProduct', product: 'milk', count: niceTarget(cows * 1.5) },
+        });
+      return out;
+    }
     case 'raise_charm': {
       if (!hasDecorToPlace(state, data)) return [];
       const amount = Math.max(GOAL_CHARM_MIN, niceTarget(GOAL_CHARM_SHARE * charmOf(state, data)));
@@ -474,6 +503,8 @@ function keyOf(g: ActiveGoal): string {
       return `${g.template}:${o.kind === 'cook' ? o.tier : ''}`;
     case 'pick_fruit':
       return `${g.template}:${o.kind === 'pickFruit' ? o.fruit : ''}`;
+    case 'collect_produce':
+      return `${g.template}:${o.kind === 'collectProduct' ? o.product : ''}`;
     default:
       return g.template;
   }
@@ -619,6 +650,9 @@ function handle(state: GameState, ctx: SimContext, e: GameEvent): void {
       break;
     case 'fruitPicked':
       grantXp(state, ctx, 'farming', fruitXp(data, e.fruit, e.qty, e.auto));
+      break;
+    case 'collected':
+      grantXp(state, ctx, 'farming', productXp(data, e.product, e.qty, e.auto));
       break;
     case 'caught': {
       const base = fishingXp(data, e.catch);

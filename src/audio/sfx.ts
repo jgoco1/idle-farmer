@@ -27,7 +27,10 @@ export type SfxName =
   | 'panelOpen'
   | 'panelClose'
   | 'click'
-  | 'pet';
+  | 'pet'
+  | 'cluck'
+  | 'moo'
+  | 'collect';
 
 export interface PlayOptions {
   /** Coin: the amount of gold, which sets the pitch. Others: a 0..1 intensity. */
@@ -142,6 +145,22 @@ export const SOUNDS: Record<SfxName, SoundFn> = {
     s.tone(620, 0.12, t, { wave: 'sine', slideTo: 900, vol: 0.16 });
     s.tone(900, 0.2, t + 0.1, { wave: 'sine', slideTo: 560, vol: 0.14 });
   },
+  // A hen: two quick, rounded clucks and a little trailing one.
+  cluck(s, t) {
+    s.tone(620, 0.06, t, { wave: 'triangle', slideTo: 430, vol: 0.2 });
+    s.tone(700, 0.06, t + 0.09, { wave: 'triangle', slideTo: 470, vol: 0.18 });
+    s.tone(540, 0.09, t + 0.2, { wave: 'triangle', slideTo: 380, vol: 0.12 });
+  },
+  // A cow: a long low note that swells and sags, with a soft overtone.
+  moo(s, t) {
+    s.tone(150, 0.55, t, { wave: 'triangle', slideTo: 108, vol: 0.28, attack: 0.12 });
+    s.tone(225, 0.5, t + 0.02, { wave: 'sine', slideTo: 162, vol: 0.1, attack: 0.12 });
+  },
+  // Taking the eggs or milk: a soft wooden knock and a bright little lift.
+  collect(s, t) {
+    s.tone(240, 0.07, t, { wave: 'sine', slideTo: 150, vol: 0.3 });
+    arp(s, t + 0.05, [76, 83], 0.07, { wave: 'triangle', vol: 0.16, len: 0.12 });
+  },
 };
 
 /** Minimum gap between two plays of the same sound, so a drag over eight plots is not a buzz. */
@@ -153,6 +172,9 @@ export const MIN_GAP_S: Partial<Record<SfxName, number>> = {
   coin: 0.05,
   reel: 0.08,
   click: 0.03,
+  cluck: 0.15,
+  moo: 0.4,
+  collect: 0.1,
 };
 
 export class Sfx {

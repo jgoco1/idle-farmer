@@ -27,6 +27,11 @@ export function bindAudioEvents(bus: EventBus, sfx: Sfx, quiet: () => boolean): 
   on('trapCollected', () => sfx.play('harvest'));
   on('fruitPicked', (e) => e.auto || sfx.play('harvest'));
   on('treePlanted', () => sfx.play('plant'));
+  // The ranch: a cluck or a moo when a batch is ready, and a collect sound when the player takes it (the Collecting
+  // Basket is quiet, like the farmhand).
+  on('produced', (e) => sfx.play(e.product === 'milk' ? 'moo' : 'cluck'));
+  on('collected', (e) => e.auto || sfx.play('collect'));
+  on('animalBought', (e) => sfx.play(e.animal === 'cow' ? 'moo' : 'cluck'));
   on('cooked', () => sfx.play('dishReady'));
   on('ate', () => sfx.play('eat'));
   on('buffStarted', () => sfx.play('buff'));

@@ -2,8 +2,12 @@
 // UI, renderer and (later) audio subscribe. Systems never import the UI or this bus.
 
 import type {
+  AnimalId,
+  AnimalProductId,
   BuffType,
+  BuildingId,
   BundleId,
+  FeedId,
   CropId,
   DecorId,
   ExpansionId,
@@ -41,7 +45,17 @@ export type GameEvent =
   | { type: 'goldEarned'; amount: number; source: 'sale' | 'quest' | 'other' }
   | {
       type: 'purchased';
-      what: UpgradeId | ExpansionId | SeedId | RecipeId | ParcelId | DecorId | SaplingId;
+      what:
+        | UpgradeId
+        | ExpansionId
+        | SeedId
+        | RecipeId
+        | ParcelId
+        | DecorId
+        | SaplingId
+        | BuildingId
+        | AnimalId
+        | FeedId;
       gold: number;
     }
   | { type: 'parcelBought'; parcel: ParcelId }
@@ -58,6 +72,27 @@ export type GameEvent =
   | { type: 'fruitGrown'; fruit: FruitId; qty: number; tree: number }
   /** `shipped`: how many of the `qty` went straight to the Shipping Bin (Auto-Seller). */
   | { type: 'fruitPicked'; fruit: FruitId; qty: number; tree: number; auto: boolean; shipped: number }
+  /** The ranch (v2 phase 04). `id` is the building's id in `state.ranch.buildings`. */
+  | {
+      type: 'buildingBuilt' | 'buildingUpgraded' | 'buildingMoved';
+      building: BuildingId;
+      level: number;
+      id: number;
+    }
+  | { type: 'animalBought'; animal: AnimalId; id: number }
+  /** Products that reached a store this step (batched per building and product, for the away summary and the cluck). */
+  | { type: 'produced'; product: AnimalProductId; qty: number; building: number }
+  /** Products left a store for the bag or the bin; `shipped` went straight to the Shipping Bin. */
+  | {
+      type: 'collected';
+      product: AnimalProductId;
+      qty: number;
+      auto: boolean;
+      building: number;
+      shipped: number;
+    }
+  /** A trough ran dry (once per emptying): the away summary says the animals would love some feed. */
+  | { type: 'troughEmpty'; building: number; animal: AnimalId }
   | { type: 'inventoryFull'; item: ItemId }
   | { type: 'bite' | 'escaped'; location: FishLocationId }
   | { type: 'trapCollected'; location: FishLocationId; items: number }

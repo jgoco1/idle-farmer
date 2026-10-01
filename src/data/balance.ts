@@ -251,7 +251,7 @@ export const DECOR_SLOTS_PER_PROJECT = 40;
 /** Each completed town-project stage adds this much charm. */
 export const CHARM_PER_PROJECT_STAGE = 10;
 /** Multiplies every town-project gold figure: the one lever for the gold-still-to-spend check (BALANCE.md §13.4). */
-export const TOWN_PROJECT_SCALE = 0.8;
+export const TOWN_PROJECT_SCALE = 0.7;
 /** The Community Hall's reward: one more goal on the board. */
 export const GOAL_SLOTS_HALL_BONUS = 1;
 /** The shares of a stage's gold the donate buttons give (and "all I can"). */
@@ -270,3 +270,21 @@ export const FRUIT_CAP_DAYS = 4;
 export const FARMHAND_FRUIT_XP_SHARE = 0.25;
 /** Tree spots open with the parcel; the rest come with the Orchard Basket bundle. */
 export const BASE_TREE_SPOTS = 8;
+
+// ---- animals (v2 phase 04, BALANCE.md §13.6–13.7, §13.12)
+
+/** A hen's chance of a large egg instead of an egg. */
+export const LARGE_EGG_CHANCE = 0.1;
+/** Portions of feed per unit of crop made at the Ranch. */
+export const FEED_PER_WHEAT = 2;
+export const FEED_PER_CORN = 3;
+/** The Ranch's shelf price for one unit of feed. */
+export const FEED_BUY_PRICE = { hay: 40, corn_feed: 40 } as const;
+/** The silo (level 2) keeps this many wheat and corn back for cooking when it makes feed. */
+export const SILO_RESERVE = 10;
+/** The Barnyard bundle: every trough holds this much more. */
+export const BARNYARD_TROUGH_BONUS = 0.5;
+/** Animal XP the Collecting Basket pays: this share of a hand-collected product's. */
+export const AUTO_COLLECT_XP_SHARE = 0.25;
+/** Buttons in the Ranch panel: feed made or bought in these amounts (units of crop, or of feed bought). */
+export const FEED_AMOUNTS: readonly number[] = [1, 10];

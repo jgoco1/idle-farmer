@@ -372,6 +372,8 @@ describe('gold still to spend (BALANCE §13.4, simulator)', () => {
     const parts = catalogueParts(GAME_DATA);
     expect(parts.parcels).toBe(680_000);
     expect(parts.decor).toBe(2_773_000);
+    // v2-04: every building level (955,000), 12 hens and 6 cows (108,000), the Collecting Basket (50,000) and the two building cards (27,000).
+    expect(parts.ranch).toBe(1_140_000);
     expect(parts.projects).toBe(Math.round(8_500_000 * TOWN_PROJECT_SCALE));
     expect(parts.v1).toBeGreaterThan(500_000); // ≈ 523,000
     expect(parts.v1).toBeLessThan(550_000);

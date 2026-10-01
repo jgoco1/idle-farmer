@@ -5,6 +5,7 @@
 // real offline walk, exactly as `src/main.ts` does on load). Nothing here changes the rules: the
 // systems, the calendar, the offline cap and the save code are the ones that ship.
 
+import { troughIsEmpty } from '../../src/systems/ranch';
 import { Game } from '../../src/core/game';
 import type { GameEvent } from '../../src/core/events';
 import { makeContext, processCalendar, step } from '../../src/core/sim';
@@ -54,6 +55,10 @@ export interface Snapshot {
   charm: number;
   /** Gold from selling fruit so far (v2 phase 03). */
   orchardGold: number;
+  /** Gold from selling eggs and milk so far (v2 phase 04). */
+  animalGold: number;
+  /** Simulated ms so far with an empty trough while animals lived there (v2 phase 04). */
+  hungryMs: number;
 }
 
 export interface Metrics {
@@ -83,6 +88,9 @@ export interface Metrics {
   offlineGold: number;
   /** Gold from selling fruit (v2 phase 03). */
   orchardGold: number;
+  /** Gold from selling eggs and milk, and the simulated ms (while playing) an animal's trough was empty (v2 phase 04). */
+  animalGold: number;
+  hungryMs: number;
 }
 
 /** A wait longer than this with nothing useful to do counts as dead time (GDD §2: "nobody waits more than ~2 minutes"). */
@@ -111,6 +119,8 @@ export class SimRun {
     offlineSimMs: 0,
     offlineGold: 0,
     orchardGold: 0,
+    animalGold: 0,
+    hungryMs: 0,
   };
   private lastUsefulPlayMs = 0;
   /** The next daily or weekly calendar boundary (calendar time), cached between looks. */
@@ -136,6 +146,7 @@ export class SimRun {
       const cat = data.items[e.item]?.category;
       if (cat === 'dish') this.metrics.dishGold += e.gold;
       else if (cat === 'fruit') this.metrics.orchardGold += e.gold;
+      else if (cat === 'animal') this.metrics.animalGold += e.gold;
     });
     bus.on('harvested', () => this.mark('first_harvest'));
     bus.on('cooked', (e) => {
@@ -153,6 +164,8 @@ export class SimRun {
     bus.on('treePlanted', () => this.mark('first_tree'));
     bus.on('treeMatured', () => this.mark('first_mature_tree'));
     bus.on('fruitPicked', () => this.mark('first_fruit'));
+    bus.on('produced', (e) => this.mark(e.product === 'milk' ? 'first_milk' : 'first_egg'));
+    bus.on('collected', (e) => this.mark(e.product === 'milk' ? 'collected_milk' : 'collected_egg'));
     bus.on('projectStageDone', (e) => {
       this.mark('first_stage');
       if (e.complete) {
@@ -227,6 +240,8 @@ export class SimRun {
       processCalendar(this.state, this.data, lc, cal, events);
       const ctx = makeContext(this.state, this.data, buildCalendar(cal, this.state.calendar, lc), events);
       this.countBuffs(b - a);
+      if (this.state.ranch.buildings.some((x) => troughIsEmpty(this.state, x)))
+        this.metrics.hungryMs += b - a;
       step(this.state, ctx, b - a);
       this.metrics.simMs += b - a;
       this.state.meta.playTimeMs += b - a;
@@ -302,6 +317,8 @@ export class SimRun {
       toSpend: toSpend(s, this.data),
       charm: charmOf(s, this.data),
       orchardGold: this.metrics.orchardGold,
+      animalGold: this.metrics.animalGold,
+      hungryMs: this.metrics.hungryMs,
     });
   }
 }

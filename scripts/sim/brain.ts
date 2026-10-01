@@ -15,6 +15,7 @@ import type { GameEvent } from '../../src/core/events';
 import { makeContext } from '../../src/core/sim';
 import type { GameState, PlacedKind } from '../../src/core/state';
 import type { GameData } from '../../src/data';
+import type { CropDef } from '../../src/data/types';
 import {
   GREENHOUSE_BASE,
   MARKET_CHANNEL,
@@ -51,6 +52,9 @@ import {
 import { WORLD_COLS, WORLD_ROWS, WORLD_LAYOUT } from '../../src/data/world';
 import { dishBuff, planEat } from '../../src/systems/buffs';
 import { freeSpots, ripeTrees, saplingsInBag } from '../../src/systems/orchard';
+import { animalCount, buildingOfKind, feedOf, storeCount, troughSize } from '../../src/systems/ranch';
+import { SILO_RESERVE } from '../../src/data/balance';
+import type { AnimalId, BuildingId } from '../../src/data/ids';
 import { seasonOfDay } from '../../src/core/time';
 import { bundleSlots, isBundleDone } from '../../src/systems/bundles';
 import { canCook, ingredientValue, kitchenSlots, recipeCards } from '../../src/systems/cooking';
@@ -197,6 +201,39 @@ export const V2_SPEND_SHARE = 0.6;
 const ERRAND_FISH_PER_MIN = 3;
 /** Decoration pieces bought in one go for the bulk pieces (paths and fences). */
 const BULK_CHUNK = 10;
+/** Where the bots put the buildings in the Old Paddock (the coop's trough sits right of its footprint). */
+const RANCH_SPOTS: Readonly<Record<BuildingId, { col: number; row: number }>> = {
+  coop: { col: 22, row: 9 },
+  barn: { col: 27, row: 9 },
+  silo: { col: 33, row: 9 },
+};
+
+/** What the ranch buys, in order (BALANCE.md §13.11): coop → hens → silo → barn → cows → Collecting Basket → levels. */
+type RanchStep =
+  | { kind: 'build'; id: BuildingId }
+  | { kind: 'animals'; animal: AnimalId; count: number }
+  | { kind: 'upgrade'; id: BuildingId; level: number }
+  | { kind: 'basket' };
+const RANCH_PLAN: readonly RanchStep[] = [
+  { kind: 'build', id: 'coop' },
+  { kind: 'animals', animal: 'chicken', count: 4 },
+  { kind: 'build', id: 'silo' },
+  { kind: 'build', id: 'barn' },
+  { kind: 'animals', animal: 'cow', count: 2 },
+  { kind: 'basket' },
+  { kind: 'upgrade', id: 'coop', level: 2 },
+  { kind: 'animals', animal: 'chicken', count: 8 },
+  { kind: 'upgrade', id: 'barn', level: 2 },
+  { kind: 'animals', animal: 'cow', count: 4 },
+  { kind: 'upgrade', id: 'silo', level: 2 },
+  { kind: 'upgrade', id: 'coop', level: 3 },
+  { kind: 'animals', animal: 'chicken', count: 12 },
+  { kind: 'upgrade', id: 'barn', level: 3 },
+  { kind: 'animals', animal: 'cow', count: 6 },
+];
+/** Wheat and corn the player keeps in the bag for feed (and cooking) instead of selling. */
+const FEED_CROP_KEEP = SILO_RESERVE + 10;
+
 /** Seed gold kept back per plot when buying upgrades. */
 const SEED_RESERVE_PER_PLOT = 12.5;
 
@@ -325,6 +362,7 @@ export class Brain {
     this.keepProjectCrops(run);
     useful = this.errands(run, dt) || useful;
     useful = this.orchard(run) || useful;
+    useful = this.ranch(run) || useful;
     useful = this.place(run) || useful;
     useful = this.farm(run) || useful;
     return useful;
@@ -355,7 +393,11 @@ export class Brain {
       }
     }
     for (const w of this.projectWants(s)) add(w.item, w.qty);
+    for (const w of this.cropErrands(s)) add(w.item, w.qty);
     for (const [item, qty] of this.fruitStock(s)) add(item, qty);
+    // Wheat and corn for the animals' feed (and the silo's reserve) stay in the bag.
+    if (s.ranch.animals.some((a) => a.kind === 'cow')) add('wheat', FEED_CROP_KEEP);
+    if (s.ranch.animals.some((a) => a.kind === 'chicken')) add('corn', FEED_CROP_KEEP);
     if (this.style.cook !== 'none') {
       const slots = kitchenSlots(s, this.data);
       const targets = s.kitchen.known
@@ -587,6 +629,100 @@ export class Brain {
     return useful;
   }
 
+  // ---- v2 phase 04: the ranch (BALANCE.md §13.11)
+
+  /** The price of the next ranch purchase and what buys it, or null when the plan is done or the next step is not open. */
+  private nextRanchStep(
+    s: GameState,
+  ): { price: number; buy: () => { type: string } & Record<string, unknown> } | null {
+    for (const step of RANCH_PLAN) {
+      if (step.kind === 'build') {
+        if (buildingOfKind(s, step.id)) continue;
+        const lvl = this.data.buildings[step.id].levels[0]!;
+        if (!isUnlocked(s, lvl.requires, this.data)) return null;
+        const at = RANCH_SPOTS[step.id];
+        return { price: lvl.price, buy: () => ({ type: 'buildBuilding', building: step.id, ...at }) };
+      }
+      if (step.kind === 'upgrade') {
+        const b = buildingOfKind(s, step.id);
+        if (!b) return null;
+        if (b.level >= step.level) continue;
+        return {
+          price: this.data.buildings[step.id].levels[b.level]!.price,
+          buy: () => ({ type: 'upgradeBuilding', id: b.id }),
+        };
+      }
+      if (step.kind === 'basket') {
+        if (upgradeLevel(s, 'ranch_collector') > 0) continue;
+        const def = this.data.upgrades.ranch_collector!;
+        if (!isUnlocked(s, requirementsFor(def, 0), this.data)) return null;
+        return { price: upgradeCost(def, 0), buy: () => ({ type: 'buyUpgrade', id: 'ranch_collector' }) };
+      }
+      const home = buildingOfKind(s, this.data.animals[step.animal].building);
+      if (!home) return null;
+      if (animalCount(s, home.id) >= step.count) continue;
+      return {
+        price: this.data.animals[step.animal].price,
+        buy: () => ({ type: 'buyAnimal', animal: step.animal, building: home.id }),
+      };
+    }
+    return null;
+  }
+
+  /** Makes feed from spare wheat or corn, buys it only when a trough is nearly dry, and fills the trough. */
+  private feed(run: SimRun, buildingId: number, reserve: number): boolean {
+    const s = run.state;
+    const b = s.ranch.buildings.find((x) => x.id === buildingId)!;
+    const feed = feedOf(this.data, b);
+    if (!feed) return false;
+    const size = troughSize(s, this.data, b);
+    const need = size - b.trough;
+    if (need <= 0) return false;
+    const def = this.data.feeds[feed];
+    let have = countItem(s.inventory, feed);
+    if (have < need) {
+      const spare = countItem(s.inventory, def.from) - FEED_CROP_KEEP;
+      const units = Math.min(spare, Math.ceil((need - have) / def.perUnit));
+      if (units > 0) run.game.dispatch({ type: 'makeFeed', feed, qty: units });
+      have = countItem(s.inventory, feed);
+    }
+    if (have < need && b.trough * 4 < size) {
+      const buy = Math.min(need - have, Math.floor(Math.max(0, s.gold - reserve) / (def.buyPrice * 4)));
+      if (buy > 0) run.game.dispatch({ type: 'buyFeed', feed, qty: buy });
+    }
+    return run.game.dispatch({ type: 'fillTrough', building: buildingId }).ok;
+  }
+
+  /** Collects, feeds and, with gold above the seed reserve, buys the next step of the ranch plan. */
+  private ranch(run: SimRun): boolean {
+    const s = run.state;
+    if (!s.land.parcels.includes('yard')) return false;
+    let useful = false;
+    const restock = upgradeLevel(s, 'auto_seller') > 0 ? SEED_STOCK_CYCLES : 1;
+    const reserve = SEED_RESERVE_PER_PLOT * s.farm.plots.length * restock;
+    for (const b of s.ranch.buildings) {
+      if (!this.data.buildings[b.kind].houses) continue;
+      if (storeCount(b) > 0 && run.game.dispatch({ type: 'collectBuilding', building: b.id }).ok)
+        useful = true;
+      if (animalCount(s, b.id) > 0 && this.feed(run, b.id, reserve)) useful = true;
+    }
+    return useful;
+  }
+
+  /**
+   * Buys the next step of the ranch plan if the gold above `keep` pays for it. Returns the gold spent. It is one of the
+   * three things `spendV2` takes turns at (the ranch, a project's gold, decorations), so the animals do not starve the
+   * town of gold, nor the town the animals.
+   */
+  private ranchOne(run: SimRun, keep: number): number {
+    const s = run.state;
+    if (!s.land.parcels.includes('yard')) return 0;
+    const next = this.nextRanchStep(s);
+    if (!next || s.gold < next.price + keep) return 0;
+    const before = s.gold;
+    return run.game.dispatch(next.buy() as never).ok ? before - s.gold : 0;
+  }
+
   // ---- v2 phase 02: decorations and town projects (BALANCE.md §13.11)
 
   /** What the open projects' current stages still ask for in items, and the bag does not hold. */
@@ -603,6 +739,28 @@ export class Brain {
   }
 
   /**
+   * A few of a seasonal crop that an open project's current stage asks for (the bandstand's ten pumpkins). A player
+   * plants and keeps these before the stage's gold is in, because the crop only grows in its season and the stage
+   * would otherwise wait a year for it.
+   */
+  private cropErrands(s: GameState): { item: ItemId; qty: number }[] {
+    const out: { item: ItemId; qty: number }[] = [];
+    for (const id of TOWN_PROJECT_IDS) {
+      const def = this.data.townProjects[id];
+      for (let i = projectStagesDone(s, this.data, id); i < def.stages.length; i++) {
+        for (const it of def.stages[i]!.items) {
+          const crop = this.data.crops[it.item as CropId] as CropDef | undefined;
+          if (!crop || it.qty > 20 || crop.seasons.some((x) => x === 'spring' || x === 'winter')) continue;
+          if (!out.some((w) => w.item === it.item)) out.push({ item: it.item, qty: it.qty });
+        }
+      }
+    }
+    return out
+      .filter((w) => countItem(s.inventory, w.item) < w.qty)
+      .map((w) => ({ ...w, qty: w.qty - countItem(s.inventory, w.item) }));
+  }
+
+  /**
    * Fruit that the unfinished projects will ask for in later stages (the bakery's apples, the hall's persimmons).
    * Fruit only grows in its seasons, so a player keeps what the trees give rather than selling it and waiting a year.
    */
@@ -612,7 +770,7 @@ export class Brain {
       const def = this.data.townProjects[id];
       for (let i = projectStagesDone(s, this.data, id); i < def.stages.length; i++)
         for (const it of def.stages[i]!.items)
-          if (this.data.items[it.item]?.category === 'fruit')
+          if (['fruit', 'animal'].includes(this.data.items[it.item]?.category ?? ''))
             out.set(it.item, Math.max(out.get(it.item) ?? 0, it.qty));
     }
     return out;
@@ -621,7 +779,7 @@ export class Brain {
   /** Switches the Auto-Seller off for the crops a project asks for, and back on when it no longer does. */
   private keepProjectCrops(run: SimRun): void {
     const need = new Set<ItemId>([
-      ...this.projectWants(run.state)
+      ...[...this.projectWants(run.state), ...this.cropErrands(run.state)]
         .filter((w) => w.item in this.data.crops)
         .map((w) => w.item),
       ...this.fruitStock(run.state).keys(),
@@ -746,11 +904,12 @@ export class Brain {
       }
     }
     for (let guard = 0; guard < 8 && budget > 0; guard++) {
-      const turn = this.v2Turn++ % 2;
+      const turn = this.v2Turn++ % 3;
       let spent = 0;
-      if (turn === 0) spent = this.donateGold(run, budget);
+      if (turn === 0) spent = this.ranchOne(run, reserve + hold);
+      if (spent === 0 && turn !== 2) spent = this.donateGold(run, budget);
       if (spent === 0) spent = this.buyDecor(run, budget);
-      if (spent === 0 && turn !== 0) spent = this.donateGold(run, budget);
+      if (spent === 0 && turn === 2) spent = this.donateGold(run, budget);
       if (spent === 0) break;
       budget -= spent;
       useful = true;
@@ -958,7 +1117,7 @@ export class Brain {
           }
         }
       }
-      for (const w of this.projectWants(s)) {
+      for (const w of [...this.projectWants(s), ...this.cropErrands(s)]) {
         if (!(w.item in data.crops)) continue;
         const c = w.item as CropId;
         wanted.set(c, (wanted.get(c) ?? 0) + w.qty);
