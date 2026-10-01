@@ -33,6 +33,9 @@ Add **fruit trees** in the orchard: long-term investments you plant once, watch 
    - Maturing is a slow event, so the away summary mentions trees that became mature and fruit that grew while you were away.
    - Show off-screen pips for trees with ripe fruit.
 8. **Simulator.** Teach the brain to plant trees when the docs' pacing wants it and to harvest them. Add report rows for the first mature tree and orchard income per day, and rerun all checks.
+9. **Test health (carried over from the v2-02 review).**
+   - **Performance headroom.** After v2-02, the world-pan allocation measured about 11.3–12.9 KB per frame against the 12 KB budget in `e2e/perf.spec.ts`, and the 8 h catch-up measured 66–123 ms against its 100 ms budget, depending on machine load. Both `main` and v2-02 failed this way in a slower container. Bring the world pan back under about **11 KB per frame** with trees drawn, by finding the remaining per-frame allocations: number boxing in the camera, ambient and particle maths, and any `for…of` or template strings. Then make the perf assertions less sensitive to load, for example by taking the best or median of three measurements, warming up first, and running perf specs with one worker. **Do not raise the budgets.**
+   - **Unit-test time.** `tests/simulate.test.ts` "a keen player still has something to buy for 30 days" takes about 60 s on its own and quadrupled `npm test`. Keep a cheap version in the default suite, such as 2 seeds or a shorter curve check, and move the full 8-seed, 30-day check behind an opt-in flag the way `PACING_REPORT` was used (for example `SPEND_REPORT=1`). The full check must still be run for this PR and its numbers recorded in `docs/BALANCE.md`. Aim for `npm test` under about 40 s in this container.
 
 ## Save
 `SAVE_VERSION` 10: trees with their planted day index and position, hanging fruit, and the calendar day-index state. Add a migration and a test, and `tests/fixtures/save-v10.json`.
