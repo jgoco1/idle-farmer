@@ -603,6 +603,7 @@ export class Renderer {
 
   /** The camera eases toward its target on the render clock (at once under reduced motion). */
   private stepCamera(dtMs: number, nowMs: number): void {
+    if (this.resting && this.keysHeld.size === 0) return; // nothing moves: no work, no garbage
     this.keyPan(dtMs, nowMs);
     const arrived = easeToward(this.cam, this.target, dtMs, this.reducedMotion());
     if (arrived && !this.resting && !this.press.active && this.pointers.size === 0 && this.keysHeld.size === 0) {

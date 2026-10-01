@@ -156,12 +156,14 @@ export const CHUNK_ROWS = Math.ceil(WORLD_H / CHUNK_PX);
  * (reused every frame). The renderer draws only these.
  */
 export function visibleChunks(rect: Rect, out: number[] = []): number[] {
-  out.length = 0;
   const c0 = Math.max(0, Math.floor(rect.x / CHUNK_PX));
   const r0 = Math.max(0, Math.floor(rect.y / CHUNK_PX));
   const c1 = Math.min(CHUNK_COLS - 1, Math.floor((rect.x + rect.w - 1e-6) / CHUNK_PX));
   const r1 = Math.min(CHUNK_ROWS - 1, Math.floor((rect.y + rect.h - 1e-6) / CHUNK_PX));
-  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) out.push(r * CHUNK_COLS + c);
+  // Written by index and trimmed after, so the array's storage is reused (no garbage per frame).
+  let n = 0;
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) out[n++] = r * CHUNK_COLS + c;
+  out.length = n;
   return out;
 }
 

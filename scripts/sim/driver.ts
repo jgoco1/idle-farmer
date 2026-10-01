@@ -23,6 +23,7 @@ import {
 import type { GameData } from '../../src/data';
 import type { MilestoneId } from '../../src/data/ids';
 import { farmLevel as farmLevelOf } from '../../src/systems/unlocks';
+import { toSpend } from './catalogue';
 
 export const MIN = 60_000;
 export const HOUR = 60 * MIN;
@@ -46,6 +47,8 @@ export interface Snapshot {
   recipesKnown: number;
   plots: number;
   milestones: number;
+  /** Gold still to spend on the catalogue (BALANCE.md §13.4). */
+  toSpend: number;
 }
 
 export interface Metrics {
@@ -271,6 +274,7 @@ export class SimRun {
       recipesKnown: s.kitchen.known.length,
       plots: s.farm.plots.length + s.farm.greenhouse.length,
       milestones: s.progression.milestones.done.length,
+      toSpend: toSpend(s, this.data),
     });
   }
 }

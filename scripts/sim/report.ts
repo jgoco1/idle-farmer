@@ -4,6 +4,8 @@
 import { BOTS, SIM_START_LABEL, STRATEGY_BOTS, type BotId } from './bots';
 import type { GameState } from '../../src/core/state';
 import { DAY, HOUR, MIN, type Metrics, type Moment } from './driver';
+import { catalogueParts } from './catalogue';
+import { GAME_DATA } from '../../src/data';
 
 /** What the report needs from a finished run (plain data, so it can come back from a worker thread). */
 export interface RunResult {
@@ -128,7 +130,31 @@ export const MOMENTS: readonly [key: string, label: string][] = [
   ['farm_level_5', 'Farm Level 5'],
   ['farm_level_7', 'Farm Level 7'],
   ['farm_level_10', 'Farm Level 10'],
+  ['bought_orchard', 'Hilltop Orchard bought'],
+  ['bought_yard', 'Old Paddock bought'],
+  ['bought_meadow', 'Seaside Meadow bought'],
 ];
+
+/** Days of the "Gold still to spend" table (BALANCE.md §13.4). */
+export const SPEND_DAYS = [1, 3, 7, 14, 21, 30] as const;
+
+/** Median gold still to spend at the end of real day `day`, and as a share of the catalogue. */
+export function toSpendAtDay(
+  runs: readonly RunResult[],
+  day: number,
+  total: number,
+): { gold: number; share: number } {
+  const gold = median(runs.map((r) => snapshotAt(r, day * DAY).toSpend));
+  return { gold, share: gold / total };
+}
+
+/** Median real day on which a bot had bought the whole catalogue, or null if most runs never did. */
+export function spentOutDay(runs: readonly RunResult[]): number | null {
+  const days = runs
+    .map((r) => r.metrics.snapshots.find((s) => s.toSpend === 0)?.realMs)
+    .filter((x): x is number => x !== undefined);
+  return days.length * 2 > runs.length ? median(days) / DAY : null;
+}
 
 function momentCell(runs: readonly RunResult[], key: string): string {
   const play = momentMedian(runs, key, 'playMs', MIN);
@@ -192,6 +218,25 @@ export function markdownReport(result: SimResult): string {
   for (const b of bots) {
     const s = sums.get(b)!;
     lines.push(`| ${BOTS[b].name} | ${curveDays.map((d) => fmt(s.goldPerSimHour[d - 1])).join(' | ')} |`);
+  }
+  lines.push('');
+  // Gold still to spend (BALANCE.md §13.4; v2 phase 01: v1 and the land parcels).
+  const parts = catalogueParts(GAME_DATA);
+  const total = parts.v1 + parts.parcels;
+  const spendDays = SPEND_DAYS.filter((d) => d <= days);
+  lines.push(
+    `Gold still to spend (BALANCE.md §13.4): the catalogue so far is v1 ${fmt(parts.v1)} + land ${fmt(parts.parcels)} = **${fmt(total)}**; gold still to spend · share of the catalogue at the end of real day *n*, and the day it reaches 0:`,
+    '',
+    `| Bot | ${spendDays.map((d) => `d${d}`).join(' | ')} | Spent out |`,
+    `|---|${spendDays.map(() => '---|').join('')}---|`,
+  );
+  for (const b of bots) {
+    const cells = spendDays.map((d) => {
+      const t = toSpendAtDay(runs[b]!, d, total);
+      return `${fmt(t.gold)} · ${pct(t.share)}`;
+    });
+    const out = spentOutDay(runs[b]!);
+    lines.push(`| ${BOTS[b].name} | ${cells.join(' | ')} | ${out === null ? '–' : `d${fmt(out, 1)}`} |`);
   }
   lines.push('');
   lines.push(...checks(result, sums));
@@ -304,6 +349,7 @@ export function csvFiles(result: SimResult): Record<string, string> {
       'recipes_known',
       'plots',
       'milestones',
+      'to_spend',
     ],
   ];
   const moments: (string | number)[][] = [
@@ -344,6 +390,7 @@ export function csvFiles(result: SimResult): Record<string, string> {
           s.recipesKnown,
           s.plots,
           s.milestones,
+          s.toSpend,
         ]);
       }
       for (const [k, m] of Object.entries(run.metrics.moments)) {

@@ -64,6 +64,10 @@ export class Ambient {
   private by = 0;
   private bw = 320;
   private bh = 192;
+  private lastX = Number.NaN;
+  private lastY = Number.NaN;
+  private lastW = Number.NaN;
+  private lastH = Number.NaN;
   private readonly butterflies: Mover[];
   private readonly fireflies: Mover[];
   private readonly fallers: Faller[];
@@ -104,6 +108,11 @@ export class Ambient {
 
   /** The visible part of the world in world px (clamped to the world). Called before `update`. */
   setBounds(x: number, y: number, w: number, h: number): void {
+    if (x === this.lastX && y === this.lastY && w === this.lastW && h === this.lastH) return;
+    this.lastX = x;
+    this.lastY = y;
+    this.lastW = w;
+    this.lastH = h;
     const x0 = Math.max(0, x);
     const y0 = Math.max(0, y);
     this.bx = x0;

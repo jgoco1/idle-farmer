@@ -364,3 +364,18 @@ describe('camera prefs (DATA_SCHEMAS §9.7)', () => {
     expect(JSON.stringify(createInitialState(CREATED, NY, 1))).not.toMatch(/camera|zoom/);
   });
 });
+
+describe('gold still to spend (BALANCE §13.4, simulator)', () => {
+  it('counts v1 and the land parcels, less what the farm owns', async () => {
+    const { catalogueParts, catalogueTotal, toSpend } = await import('../scripts/sim/catalogue');
+    const parts = catalogueParts(GAME_DATA);
+    expect(parts.parcels).toBe(680_000);
+    expect(parts.v1).toBeGreaterThan(500_000); // ≈ 523,000
+    expect(parts.v1).toBeLessThan(550_000);
+    const s = createInitialState(CREATED, NY, 1);
+    expect(toSpend(s, GAME_DATA)).toBe(catalogueTotal(GAME_DATA) - 0);
+    s.land.parcels.push('orchard');
+    s.expansions.push('farm_1');
+    expect(toSpend(s, GAME_DATA)).toBe(catalogueTotal(GAME_DATA) - 30_000 - 400);
+  });
+});
