@@ -36,7 +36,8 @@ import {
   trapTile,
   zoneAt,
 } from '../src/render/scene';
-import fixture from './fixtures/save-v8.json';
+import fixture from './fixtures/save-v9.json';
+import fixtureV8 from './fixtures/save-v8.json';
 import { farmLevel } from '../src/systems/unlocks';
 import { at, NY } from './helpers';
 
@@ -53,20 +54,27 @@ function memoryStorage(initial: Record<string, string> = {}): SaveStorage & { da
 }
 
 describe('save file', () => {
-  it('is at version 8 (v2 phase 01) with one migration per older version', () => {
-    expect(SAVE_VERSION).toBe(8);
-    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4', '5', '6', '7']);
+  it('is at version 9 (v2 phase 02) with one migration per older version', () => {
+    expect(SAVE_VERSION).toBe(9);
+    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8']);
     expect(SAVE_KEY).toBe('hearthfield-idle/save');
   });
 
-  it('the v8 fixture loads unchanged', () => {
+  it('the v9 fixture loads unchanged', () => {
     const file = parseSave(FIXTURE_TEXT);
     expect(file).toEqual(fixture);
   });
 
   it('the fixture has exactly the shape of a new state (bump SAVE_VERSION if this fails)', () => {
     // Arrays and id-keyed records (market items, upgrades) are compared by the shape of their entries.
-    const RECORDS = new Set(['market.items', 'upgrades', 'fishing.collection', 'progression.bundles']);
+    const RECORDS = new Set([
+      'market.items',
+      'upgrades',
+      'fishing.collection',
+      'progression.bundles',
+      'decor.owned',
+      'town.projects',
+    ]);
     const keys = (o: object, path = ''): string[] => {
       const out = new Set<string>();
       const children: [string, unknown][] =
@@ -84,6 +92,7 @@ describe('save file', () => {
     fresh.upgrades.backpack = 1; // a new save owns no upgrades yet, so give the record an entry
     fresh.shippingBin.items.push({ item: 'turnip', qty: 1 });
     fresh.expansions.push('farm_1');
+    fresh.land.parcels.push('orchard');
     fresh.placed.push({ id: 1, kind: 'sprinkler', at: { col: 0, row: 0 } });
     // Progression: one goal of each shape, a partly filled bundle, a milestone and a finished bundle.
     fresh.progression.goals = [
@@ -111,6 +120,14 @@ describe('save file', () => {
     fresh.progression.completedBundles.push('spring_crops');
     fresh.progression.milestones.done.push('m01_first_seed');
     fresh.autoSell.turnip = false;
+    // Decorations and the town: stock, a placed (and a flipped) piece, a farmhouse style, a project under way.
+    fresh.decor.owned.cobble_path = 2;
+    fresh.decor.placed.push(
+      { id: 1, decor: 'cobble_path', at: { col: 6, row: 9 } },
+      { id: 2, decor: 'wooden_bench', at: { col: 10, row: 9 }, flipped: true },
+    );
+    fresh.decor.farmhouse.paint = 'paint_sage';
+    fresh.town.projects.old_bridge = { stagesDone: 1, gold: 100, items: [] };
     fresh.fishing.traps.push({
       id: 1,
       location: 'pond',
@@ -474,6 +491,8 @@ describe('migrations', () => {
     expect(s.land).toEqual({ parcels: [] });
     const rest: Record<string, unknown> = JSON.parse(JSON.stringify(s));
     delete rest.land;
+    delete rest.decor; // v9 and v10 additions; their migrations have their own tests
+    delete rest.town;
     expect(rest).toEqual(fixtureV7.state);
     // The v1 scene is the world's top-left corner at the same tiles: every zone, plot and trap spot
     // of the old save is found exactly where v1 found it.
@@ -505,6 +524,19 @@ describe('migrations', () => {
         LOCATION_ZONE[t.location],
       );
     }
+  });
+
+  it('migrates a v8 save (v9): nothing is lost, no decorations or projects yet', () => {
+    const file = parseSave(JSON.stringify(fixtureV8));
+    expect(file.version).toBe(SAVE_VERSION);
+    expect(validateState(file.state)).toBeNull();
+    const s = file.state;
+    expect(s.decor).toEqual({ owned: {}, placed: [], farmhouse: { paint: null, roof: null, loft: false } });
+    expect(s.town).toEqual({ projects: {} });
+    const rest: Record<string, unknown> = JSON.parse(JSON.stringify(s));
+    delete rest.decor;
+    delete rest.town;
+    expect(rest).toEqual(fixtureV8.state);
   });
 
   it('migrates a phase-03 (v3) save: everything is kept, automation starts empty', () => {

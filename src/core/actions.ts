@@ -20,16 +20,20 @@ import { collectTrap } from '../systems/traps';
 import { buyRecipe, cancelCooking, experiment, startCooking } from '../systems/cooking';
 import { eatDish } from '../systems/buffs';
 import { donate } from '../systems/bundles';
+import { buyDecor, moveDecor, pickUpDecor, placeDecor, styleFarmhouse } from '../systems/decor';
+import { donateProject } from '../systems/townProjects';
 import { runProgression } from '../systems/progression';
 import type {
   BundleId,
   CropId,
+  DecorId,
   DishId,
   ExpansionId,
   FishLocationId,
   ItemId,
   ParcelId,
   RecipeId,
+  TownProjectId,
   UpgradeId,
 } from '../data/ids';
 import type { GameState, PlacedKind } from './state';
@@ -74,6 +78,16 @@ export type Action =
   | { type: 'eat'; dish: DishId; hearty?: boolean; replace?: boolean }
   /** Community Board: give up to `qty` of an item from the bag to a bundle. */
   | { type: 'donate'; bundle: BundleId; item: ItemId; qty: number }
+  /** Shop › Decor: buy pieces for the decoration stock (v2 phase 02). Farmhouse pieces are owned once. */
+  | { type: 'buyDecor'; decor: DecorId; qty: number }
+  /** Decorate mode: stand a piece from the stock on the land, move a placed one, or take it back to the stock. */
+  | { type: 'placeDecor'; decor: DecorId; col: number; row: number; flipped?: boolean }
+  | { type: 'moveDecor'; id: number; col: number; row: number; flipped?: boolean }
+  | { type: 'pickUpDecor'; id: number }
+  /** Applies owned farmhouse pieces (null = the original look; omitted = unchanged). Free and reversible. */
+  | { type: 'styleFarmhouse'; paint?: DecorId | null; roof?: DecorId | null; loft?: boolean }
+  /** Community Board › Town: give gold and/or items toward a project's current stage. */
+  | { type: 'donateProject'; project: TownProjectId; gold?: number; item?: ItemId; qty?: number }
   | { type: 'debugSetTimeWarp'; on: boolean };
 
 export const TIME_WARP_SPEED = 60;
@@ -148,6 +162,18 @@ function handleAction(state: GameState, ctx: SimContext, action: Action): Action
       return eatDish(state, ctx, action.dish, action.hearty, action.replace ?? false);
     case 'donate':
       return donate(state, ctx, action.bundle, action.item, action.qty);
+    case 'buyDecor':
+      return buyDecor(state, ctx, action.decor, action.qty);
+    case 'placeDecor':
+      return placeDecor(state, ctx, action.decor, action.col, action.row, action.flipped);
+    case 'moveDecor':
+      return moveDecor(state, ctx, action.id, action.col, action.row, action.flipped);
+    case 'pickUpDecor':
+      return pickUpDecor(state, ctx, action.id);
+    case 'styleFarmhouse':
+      return styleFarmhouse(state, ctx, action.paint, action.roof, action.loft);
+    case 'donateProject':
+      return donateProject(state, ctx, action.project, action.gold, action.item, action.qty);
     case 'debugSetTimeWarp':
       state.clock.speed = action.on ? TIME_WARP_SPEED : 1;
       return OK;

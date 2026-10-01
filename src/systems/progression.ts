@@ -19,6 +19,8 @@ import {
   FISHING_XP_DIFFICULTY_DIV,
   GOAL_CARD_CHANCE,
   GOAL_CATCH_COUNT,
+  GOAL_CHARM_MIN,
+  GOAL_CHARM_SHARE,
   GOAL_COOK_COUNT,
   GOAL_CYCLE_OVERHEAD_MIN,
   GOAL_DISTINCT_COUNT,
@@ -28,7 +30,6 @@ import {
   GOAL_GOLD_SHARE,
   GOAL_RARE_FISHING_LEVEL,
   GOAL_SEED_REWARD,
-  GOAL_SLOTS,
   GOAL_TARGET_MAX,
   GOAL_TARGET_MIN,
   GOAL_TARGET_MINUTES,
@@ -60,6 +61,9 @@ import { addToBin } from './shippingBin';
 import { farmLevel, isUnlocked } from './unlocks';
 import { levelForXp, skillLevel } from './skills';
 import { learn } from './cooking';
+import { charmOf } from './charm';
+import { grantDecor, hasDecorToPlace } from './decor';
+import { goalSlots } from './townProjects';
 
 // ---- XP
 
@@ -108,6 +112,8 @@ export function rewardText(data: GameData, r: QuestReward): string {
       return `the ${data.recipes[r.id].name} recipe`;
     case 'xp':
       return `${r.amount} ${SKILL_NAMES[r.skill]} XP`;
+    case 'decor':
+      return `${r.qty} × ${data.decor[r.id].name}`;
   }
 }
 
@@ -135,6 +141,9 @@ function grantRewards(
         break;
       case 'xp':
         grantXp(state, ctx, r.skill, r.amount);
+        break;
+      case 'decor':
+        grantDecor(state, r.id, r.qty);
         break;
     }
   }
@@ -178,7 +187,15 @@ function advance(state: GameState, data: GameData, o: QuestObjective, e: GameEve
       return e.type === 'purchased' && e.what === o.id ? 1 : 0;
     case 'completeBundle':
       return e.type === 'bundleCompleted' ? 1 : 0;
+    case 'placeDecor':
+      return e.type === 'decorPlaced' ? 1 : 0;
+    case 'gainCharm':
+      return e.type === 'charmChanged' && e.to > e.from ? e.to - e.from : 0;
+    case 'projectStage':
+      return e.type === 'projectStageDone' ? 1 : 0;
     case 'reachFarmLevel':
+    case 'ownParcel':
+    case 'reachCharm':
       return 0;
   }
 }
@@ -198,12 +215,19 @@ const EVENT_FOR: Readonly<Record<QuestObjective['kind'], GameEvent['type'] | nul
   buyExpansion: 'purchased',
   completeBundle: 'bundleCompleted',
   reachFarmLevel: null,
+  ownParcel: null,
+  placeDecor: 'decorPlaced',
+  reachCharm: null,
+  gainCharm: 'charmChanged',
+  projectStage: 'projectStageDone',
 };
 
 /** What a goal's progress is measured against. */
 export function goalTarget(o: QuestObjective): number {
   switch (o.kind) {
     case 'earnGold':
+    case 'gainCharm':
+    case 'reachCharm':
       return o.amount;
     case 'buyUpgrade':
     case 'buyExpansion':
@@ -404,6 +428,11 @@ function variantsOf(state: GameState, data: GameData, season: SeasonId, id: Goal
       return cookableRecipes(state, data, season).length >= 1
         ? [{ key: id, objective: { kind: 'eat', count: GOAL_EAT_COUNT } }]
         : [];
+    case 'raise_charm': {
+      if (!hasDecorToPlace(state, data)) return [];
+      const amount = Math.max(GOAL_CHARM_MIN, niceTarget(GOAL_CHARM_SHARE * charmOf(state, data)));
+      return [{ key: id, objective: { kind: 'gainCharm', amount } }];
+    }
   }
 }
 
@@ -458,11 +487,11 @@ function goalRewards(state: GameState, data: GameData, season: SeasonId, rng: Rn
   return [{ kind: 'gold', amount: gold }];
 }
 
-/** Draws goals until the board has GOAL_SLOTS (or nothing new applies). Uses the seeded RNG only when it adds one. */
+/** Draws goals until the board is full (three, four with the Community Hall) or nothing new applies. Uses the seeded RNG only when it adds one. */
 export function refillGoals(state: GameState, data: GameData, rng: Rng, season: SeasonId): number {
   const goals = state.progression.goals;
   let added = 0;
-  while (goals.length < GOAL_SLOTS) {
+  while (goals.length < goalSlots(state, data)) {
     const active = new Set(goals.map(keyOf));
     const onBoard = new Set(goals.map((g) => g.template));
     const ids = Object.keys(data.goalTemplates) as GoalTemplateId[];
@@ -611,21 +640,36 @@ function handle(state: GameState, ctx: SimContext, e: GameEvent): void {
   }
 }
 
-/** Milestones checked against state (`reachFarmLevel`), and the Farm Level announcement. Returns whether anything changed. */
+/** Whether a state-checked objective (the Farm Level, owning land, charm) is met right now; every other kind is counted from events. */
+function stateMet(state: GameState, data: GameData, o: QuestObjective): boolean {
+  switch (o.kind) {
+    case 'reachFarmLevel':
+      return farmLevel(state) >= o.level;
+    case 'ownParcel':
+      return state.land.parcels.length >= o.count;
+    case 'reachCharm':
+      return charmOf(state, data) >= o.amount;
+    default:
+      return false;
+  }
+}
+
+/** States that have been through one full settle, so a loaded save gets its state-checked milestones on the first step. */
+const settledOnce = new WeakSet<GameState>();
+
+/** Milestones checked against state (`reachFarmLevel`, `ownParcel`, `reachCharm`), and the Farm Level announcement. */
 function settle(state: GameState, ctx: SimContext, levelBefore: number): number {
   let level = levelBefore;
   for (let guard = 0; guard < 8; guard++) {
     let changed = false;
     for (const m of ctx.data.milestones) {
-      const o = m.objective;
       if (
-        o.kind === 'reachFarmLevel' &&
-        !state.progression.milestones.done.includes(m.id as never) &&
-        farmLevel(state) >= o.level
-      ) {
-        completeMilestone(state, ctx, m);
-        changed = true;
-      }
+        state.progression.milestones.done.includes(m.id as never) ||
+        !stateMet(state, ctx.data, m.objective)
+      )
+        continue;
+      completeMilestone(state, ctx, m);
+      changed = true;
     }
     if (!changed) break;
   }
@@ -647,7 +691,13 @@ export function runProgression(state: GameState, ctx: SimContext): void {
   const events = ctx.events;
   let i = cursors.get(events) ?? 0;
   if (i > events.length) i = 0;
-  if (i === events.length && state.progression.goals.length >= GOAL_SLOTS) return;
+  if (
+    i === events.length &&
+    state.progression.goals.length >= goalSlots(state, ctx.data) &&
+    settledOnce.has(state)
+  )
+    return;
+  settledOnce.add(state);
   let level = farmLevel(state);
   // Handling an event can push more (a reward levels a skill up, a milestone raises the Farm Level),
   // so read until the log stops growing. Every pass ends by settling the state-checked milestones.
@@ -660,5 +710,7 @@ export function runProgression(state: GameState, ctx: SimContext): void {
     if (i >= events.length) break;
   }
   cursors.set(events, events.length);
-  if (state.progression.goals.length < GOAL_SLOTS) refillGoals(state, ctx.data, ctx.rng, ctx.calendar.season);
+  if (state.progression.goals.length < goalSlots(state, ctx.data)) {
+    refillGoals(state, ctx.data, ctx.rng, ctx.calendar.season);
+  }
 }

@@ -602,7 +602,7 @@ describe('the unlock gating matrix (BALANCE.md §9)', () => {
 });
 
 describe('milestones', () => {
-  it('are the 15 of BALANCE.md, in order, each with a warm line and a reward', () => {
+  it('are the 15 of BALANCE.md followed by the v2-02 ones, in order, each with a warm line and a reward', () => {
     expect(MILESTONES.map((m) => m.id)).toEqual([
       'm01_first_seed',
       'm02_first_harvest',
@@ -619,6 +619,11 @@ describe('milestones', () => {
       'm13_unlock_ocean',
       'm14_first_bundle',
       'm15_greenhouse',
+      'm16_first_parcel',
+      'm17_first_decor',
+      'm18_charm_25',
+      'm19_first_project',
+      'm23_charm_100',
     ]);
     for (const m of MILESTONES) {
       expect(m.flavor.length, m.id).toBeGreaterThan(20);
@@ -773,8 +778,8 @@ describe('milestones', () => {
 const START_TEMPLATES = ['harvest_crop', 'harvest_any', 'catch_fish', 'cook_distinct', 'eat_dish'];
 
 describe('the goal board', () => {
-  it('has 9 templates, each with a warm line', () => {
-    expect(Object.keys(GOAL_TEMPLATES)).toHaveLength(9);
+  it('has 10 templates, each with a warm line', () => {
+    expect(Object.keys(GOAL_TEMPLATES)).toHaveLength(10);
     for (const t of Object.values(GOAL_TEMPLATES)) expect(t.flavor.length, t.id).toBeGreaterThan(10);
   });
 

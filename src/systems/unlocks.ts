@@ -7,6 +7,7 @@ import { FARM_LEVEL_GOLD_UNIT } from '../data/balance';
 import type { GameData } from '../data';
 import { SKILL_NAMES } from '../data/skills';
 import type { UnlockCondition } from '../data/types';
+import { charmOf } from './charm';
 import { earnedFarmLevel, farmPoints, pointsForFarmLevel, skillLevel } from './skills';
 
 /** BALANCE.md §9: 1 + floor(log2(1 + lifetimeGold / 300)). Used to backfill `farmLevelFloor` for old saves. */
@@ -49,10 +50,17 @@ function conditionMet(state: GameState, c: UnlockCondition, data?: GameData): bo
       return knownOfTier(state, data, c.minTier) >= c.count;
     case 'parcel':
       return state.land.parcels.includes(c.id);
+    case 'charm':
+      return data !== undefined && charmOf(state, data) >= c.amount;
+    case 'townProject':
+      return (
+        data !== undefined &&
+        (state.town.projects[c.id]?.stagesDone ?? 0) >= (c.stage ?? data.townProjects[c.id].stages.length)
+      );
   }
 }
 
-/** Whether every condition holds. `data` is only needed for `knownRecipes` (goal templates pass it). */
+/** Whether every condition holds. `data` is needed for `knownRecipes`, `charm` and `townProject` (without it those are false or count every recipe). */
 export function isUnlocked(
   state: GameState,
   conditions: readonly UnlockCondition[],
@@ -105,5 +113,13 @@ function hintFor(state: GameState, data: GameData, c: UnlockCondition): string {
       return `Learn ${c.count} recipe${c.count === 1 ? '' : 's'} first.`;
     case 'parcel':
       return `Buy the ${data.parcels[c.id].name} first.`;
+    case 'charm':
+      return `Reach charm ${c.amount}.`;
+    case 'townProject': {
+      const p = data.townProjects[c.id];
+      return c.stage === undefined || c.stage >= p.stages.length
+        ? `Finish “${p.name}” on the Community Board.`
+        : `Finish stage ${c.stage} of “${p.name}”.`;
+    }
   }
 }

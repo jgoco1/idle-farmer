@@ -448,7 +448,9 @@ export class Brain {
           : (keep.get(stack.item) ?? 0);
       const qty = countItem(s.inventory, stack.item) - hold;
       if (qty <= 0) continue;
-      const r = run.game.dispatch({ type: ship ? 'ship' : 'sell', item: stack.item, qty });
+      const r = ship
+        ? run.game.dispatch({ type: 'ship', item: stack.item, qty })
+        : run.game.dispatch({ type: 'sell', item: stack.item, qty });
       if (r.ok) useful = true;
     }
     return useful;
