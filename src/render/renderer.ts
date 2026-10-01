@@ -262,7 +262,9 @@ export class Renderer {
     this.canvas.addEventListener('wheel', (e) => this.wheel(e), { passive: false });
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     document.addEventListener('keydown', (e) => this.keyDown(e));
-    document.addEventListener('keyup', (e) => this.keysHeld.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key));
+    document.addEventListener('keyup', (e) =>
+      this.keysHeld.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key),
+    );
     window.addEventListener('blur', () => this.keysHeld.clear());
     this.farmhand.onWork = (job) => {
       if (job.sprite) this.fx.push({ sprite: job.sprite, col: job.col, row: job.row, start: this.lastTime });
@@ -606,7 +608,13 @@ export class Renderer {
     if (this.resting && this.keysHeld.size === 0) return; // nothing moves: no work, no garbage
     this.keyPan(dtMs, nowMs);
     const arrived = easeToward(this.cam, this.target, dtMs, this.reducedMotion());
-    if (arrived && !this.resting && !this.press.active && this.pointers.size === 0 && this.keysHeld.size === 0) {
+    if (
+      arrived &&
+      !this.resting &&
+      !this.press.active &&
+      this.pointers.size === 0 &&
+      this.keysHeld.size === 0
+    ) {
       this.resting = true;
       this.opts.onCameraRest?.(this.atDefault ? null : { x: this.cam.x, y: this.cam.y, zoom: this.cam.zoom });
     }

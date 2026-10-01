@@ -22,7 +22,10 @@ async function onScreen(page: Page, col: number, row: number): Promise<{ x: numb
       const box = document.getElementById('scene')!.getBoundingClientRect();
       const margin = 24;
       const inside =
-        at.x > box.left + margin && at.x < box.right - 60 && at.y > box.top + margin && at.y < box.bottom - margin;
+        at.x > box.left + margin &&
+        at.x < box.right - 60 &&
+        at.y > box.top + margin &&
+        at.y < box.bottom - margin;
       return inside ? { x: at.x, y: at.y } : null;
     },
     [col, row],

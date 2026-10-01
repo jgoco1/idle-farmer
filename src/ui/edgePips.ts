@@ -35,8 +35,20 @@ export class EdgePips {
       const b = h(
         'button',
         { type: 'button', class: 'edge-pip', hidden: true, 'data-pip': kind },
-        h('img', { class: 'pixel edge-pip-arrow', alt: '', width: 32, height: 32, src: spriteDataUrl('ui_pip_arrow') }),
-        h('img', { class: 'pixel edge-pip-icon', alt: '', width: 24, height: 24, src: spriteDataUrl(icons[kind] ?? ICON[kind]) }),
+        h('img', {
+          class: 'pixel edge-pip-arrow',
+          alt: '',
+          width: 32,
+          height: 32,
+          src: spriteDataUrl('ui_pip_arrow'),
+        }),
+        h('img', {
+          class: 'pixel edge-pip-icon',
+          alt: '',
+          width: 24,
+          height: 24,
+          src: spriteDataUrl(icons[kind] ?? ICON[kind]),
+        }),
       );
       b.addEventListener('click', () => {
         const at = b.dataset.at?.split(',').map(Number);
@@ -51,7 +63,9 @@ export class EdgePips {
   update(targets: readonly PipTarget[]): void {
     const pips = edgePips(targets, this.renderer.viewRect);
     const box = this.host.getBoundingClientRect();
-    const key = pips.map((p) => `${p.kind}${p.col},${p.row}${p.side}${Math.round(p.x)},${Math.round(p.y)}`).join('|');
+    const key = pips
+      .map((p) => `${p.kind}${p.col},${p.row}${p.side}${Math.round(p.x)},${Math.round(p.y)}`)
+      .join('|');
     if (key === this.key) return;
     this.key = key;
     for (const b of this.buttons.values()) b.hidden = true;

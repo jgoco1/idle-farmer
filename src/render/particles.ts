@@ -193,7 +193,10 @@ export class ParticleSystem {
     for (let i = 0; i < this.pool.length; i++) {
       const p = this.pool[i]!;
       if (!p.alive) continue;
-      if (view && (p.x < view.x - 8 || p.y < view.y - 8 || p.x > view.x + view.w + 8 || p.y > view.y + view.h + 8))
+      if (
+        view &&
+        (p.x < view.x - 8 || p.y < view.y - 8 || p.x > view.x + view.w + 8 || p.y > view.y + view.h + 8)
+      )
         continue;
       const t = p.age / p.life;
       f.globalAlpha = p.kind === 'steam' ? 0.6 * (1 - t) : 1 - t * t;

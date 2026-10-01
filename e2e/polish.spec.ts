@@ -9,7 +9,6 @@ type Win = {
   };
 };
 
-
 /** The loading splash fades out after the first frame; screenshots wait for it to be gone. */
 const splashGone = (page: Page): Promise<void> => expect(page.locator('#splash')).toHaveCount(0);
 

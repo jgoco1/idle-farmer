@@ -49,6 +49,9 @@ export function buyParcelDialog(parcel: ParcelId, hooks: ParcelSignHooks): void 
             },
           },
         ]
-      : [{ label: 'Not now' }, { label: 'See Land in Upgrades', primary: true, onClick: () => hooks.openLand() }],
+      : [
+          { label: 'Not now' },
+          { label: 'See Land in Upgrades', primary: true, onClick: () => hooks.openLand() },
+        ],
   });
 }

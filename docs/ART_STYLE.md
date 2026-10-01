@@ -305,6 +305,7 @@ Everything else is drawn from the v1 palette: farmhouse paints use existing pair
 | Farmhouse layers | 64 × 48 (walls), 64 × 48 (roof), 64 × 64 (roof with loft) | the v1 4 × 3 | top-left at (1, 1); the loft rises one tile into row 0 | `obj_farmhouse_walls_red` / `_sage` / `_sky`, `obj_farmhouse_roof_tile` / `_thatch` / `_slate`, each roof also as `…_loft` | 1 (the v1 chimney steam still plays on top) |
 | Town project sites | the site's size × 16, plus one tile of height | see GDD §12.1 | bottom-center | `obj_<project>_<stage>`, stage 0 = ruin | 1 (fountain water 2 × 400 ms; lighthouse beam is drawn as a glow, not a frame) |
 | Parcel overgrowth, sign | 16 × 16 | 1 × 1 | bottom-center | `obj_tall_grass`, `obj_weeds` (v1), `obj_stump` (v1), `obj_for_sale` | 1 |
+| Community Board, beach (v2-01) | 16 × 16 | 1 × 1 | bottom-center / tile | `obj_board` (a notice board under a little roof), `tile_sand` (the path's grain in paler `y`/`x`) | 1 |
 | Items | 16 × 16 | – | – | `item_<fruit>`, `item_sapling_<fruit>`, `item_egg`, `item_large_egg`, `item_milk`, `item_hay`, `item_corn_feed`, `item_<recipe>` | 1 |
 | Edge pip | 16 × 16 | – | – | `ui_pip_arrow` (rotated in 4 steps) plus the target's item icon | 1 |
 

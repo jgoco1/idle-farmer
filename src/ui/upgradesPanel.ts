@@ -2,7 +2,14 @@
 // seed planter, auto-seller, greenhouse), the tools and storage. Each card shows the level, what the
 // next level does, its cost and what still locks it; buying flashes the card and says what changed.
 
-import { CROP_IDS, PARCEL_IDS, type ExpansionId, type ItemId, type ParcelId, type UpgradeId } from '../data/ids';
+import {
+  CROP_IDS,
+  PARCEL_IDS,
+  type ExpansionId,
+  type ItemId,
+  type ParcelId,
+  type UpgradeId,
+} from '../data/ids';
 import type { PlacedKind } from '../core/state';
 import type { UpgradeCategory } from '../data/types';
 import { FARM_EXPANSIONS, FISHING_EXPANSIONS } from '../data/expansions';

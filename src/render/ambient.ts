@@ -123,7 +123,10 @@ export class Ambient {
 
   private outside(x: number, y: number, margin: number): boolean {
     return (
-      x < this.bx - margin || y < this.by - margin || x > this.bx + this.bw + margin || y > this.by + this.bh + margin
+      x < this.bx - margin ||
+      y < this.by - margin ||
+      x > this.bx + this.bw + margin ||
+      y > this.by + this.bh + margin
     );
   }
 

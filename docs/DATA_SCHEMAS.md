@@ -821,7 +821,7 @@ export type PanelId = /* the 8 v1 ids */ | 'ranch';                             
 
 Helpers alongside the v1 ones: `treeOfFruit(f: FruitId): TreeId`, `fruitOfTree(t: TreeId): FruitId`, `saplingOf(f: FruitId): SaplingId`, `fruitOfSapling(s: SaplingId): FruitId`, and the guards `isFruitId`, `isSaplingId`, `isAnimalProductId`, `isFeedId`. The fruit item id is the fruit's own id (like a crop), so `'apple'` is both the `FruitId` and the `ItemId`.
 
-**Name clash to fix in v2-01:** `src/render/scene.ts` already has a `Decor` interface, a `DECOR` table and `decorFor()` for the scenery that expansions change. Rename them `Scenery`, `SCENERY` and `sceneryFor()` before v2-02 adds player decorations, so "decor" means only the new placeable pieces.
+**Name clash, fixed in v2-01:** `src/render/scene.ts` already has a `Decor` interface, a `DECOR` table and `decorFor()` for the scenery that expansions change. Rename them `Scenery`, `SCENERY` and `sceneryFor()` before v2-02 adds player decorations, so "decor" means only the new placeable pieces.
 
 ### 9.2 Shared building blocks, extended
 
@@ -896,13 +896,16 @@ export interface WorldLayout {
   regions: readonly { id: RegionId; rect: TileRect }[];         // home, the three parcels, town
   lanes: readonly { col: number; row: number }[];               // scenery path tiles outside home
   sea: readonly TileRect[];                                     // always-drawn sea (the dock water is one of them)
+  sand: readonly TileRect[];                                    // the dock's landing (15, 10) 1 × 2 and the meadow's beach (21, 19) 15 × 1 (v2-01)
   bridge: TileRect;                                             // the Old Bridge over the inlet (15, 12) 5 × 1
-  townSites: Readonly<Record<TownProjectId, TileRect>>;         // where each project's building stands
+  townSites: Readonly<Record<Exclude<TownProjectId, 'old_bridge'>, TileRect>>;   // where each project's building stands (the bridge's is `bridge`)
   boardTile: { col: number; row: number };                      // the Community Board sign (4, 16)
   treeSpots: readonly { col: number; row: number }[];           // 10 top-left tiles of 2 × 2 spots; the last 2 need the bundle
   forSaleSigns: Readonly<Record<ParcelId, { col: number; row: number }>>;
 }
 ```
+
+As built in v2-01: `TileRect` lives in `src/data/types.ts` (re-exported by `src/render/scene.ts`), `WORLD_LAYOUT`, `REGION_NAMES` and `regionAt(col, row)` in `src/data/world.ts`, and the Community Board is a v1-style zone (`'board'`, in `buildZones`).
 
 Hit-testing order in the world: edge pips and scene controls (DOM, above the canvas) → placement preview (placement or Decorate mode) → animals (petting) → trees → buildings → decorations → v1 zones (`buildZones`) → town sites and the board → "For sale" signs → nothing.
 
@@ -1153,7 +1156,9 @@ export interface Prefs {
   /* … v1 fields … */
   camera: { x: number; y: number; zoom: number } | null;   // centre in world px and integer zoom; null = the default view
 }
-// sanitizePrefs: x and y finite numbers, zoom an integer 1..8, else null. Out-of-world values are clamped when used.
+// sanitizePrefs: x and y finite numbers, zoom an integer 1..16 (MAX_CAMERA_ZOOM), else null. Out-of-world values are clamped when used.
+// The zoom is in device pixels per logical pixel (as v1's integer scale was), so it is crisp at any device pixel ratio;
+// a 3× phone's default zoom is about 8, which is why the limit is 16 and not 8 (v2 phase 01).
 ```
 
 ### 9.8 Actions and events

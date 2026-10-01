@@ -706,7 +706,8 @@ function updatePips(): void {
   const s = game.state;
   pipTargets.length = 0;
   for (let i = 0; i < s.farm.plots.length; i++)
-    if (isReady(s.farm.plots[i]!, GAME_DATA)) pipTargets.push({ kind: 'crop', ...tileOfPlot(s.farm.grid, i) });
+    if (isReady(s.farm.plots[i]!, GAME_DATA))
+      pipTargets.push({ kind: 'crop', ...tileOfPlot(s.farm.grid, i) });
   for (let i = 0; i < s.farm.greenhouse.length; i++)
     if (isReady(s.farm.greenhouse[i]!, GAME_DATA))
       pipTargets.push({ kind: 'crop', ...tileOfPlot(s.farm.grid, 1000 + i) });

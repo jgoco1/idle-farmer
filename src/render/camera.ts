@@ -215,7 +215,8 @@ export class PressGesture {
   /** Returns true once the press has become a pan. */
   move(x: number, y: number): boolean {
     if (!this.active) return false;
-    if (!this.panning && Math.hypot(x - this.startX, y - this.startY) > DRAG_THRESHOLD_PX) this.panning = true;
+    if (!this.panning && Math.hypot(x - this.startX, y - this.startY) > DRAG_THRESHOLD_PX)
+      this.panning = true;
     return this.panning;
   }
 

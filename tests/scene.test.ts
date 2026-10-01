@@ -44,14 +44,24 @@ describe('scene layout', () => {
     const { animated } = buildLayout(START_GRID);
     const home = animated.filter((a) => a.col < 20 && a.row < 12);
     expect(home.filter((a) => a.sprite === 'tile_water')).toHaveLength(4); // the pond's middle
-    expect(home.filter((a) => a.sprite === 'tile_sea').map((a) => `${a.col},${a.row}`).sort()).toEqual(
-      ['16,10', '16,11', '17,10', '17,11', '18,10', '18,11', '19,10', '19,11'].sort(),
-    );
+    expect(
+      home
+        .filter((a) => a.sprite === 'tile_sea')
+        .map((a) => `${a.col},${a.row}`)
+        .sort(),
+    ).toEqual(['16,10', '16,11', '17,10', '17,11', '18,10', '18,11', '19,10', '19,11'].sort());
     expect(animated.some((a) => a.sprite === 'tile_sea' && a.row === 21 && a.col === 35)).toBe(true);
   });
 
   it('keeps every v1 tile of the home region as v1 drew it, the two documented changes aside', () => {
-    const { ground } = buildLayout({ cols: 8, rows: 6 }, ['farm_1', 'farm_2', 'farm_3', 'farm_4', 'river', 'ocean']);
+    const { ground } = buildLayout({ cols: 8, rows: 6 }, [
+      'farm_1',
+      'farm_2',
+      'farm_3',
+      'farm_4',
+      'river',
+      'ocean',
+    ]);
     expect(ground[2]![6]).toBe('tile_soil_dry');
     expect(ground[7]![13]).toBe('tile_soil_dry');
     expect(ground[9]![14]).toBe('tile_path');

@@ -104,7 +104,8 @@ export type ExpansionId = 'farm_1' | 'farm_2' | 'farm_3' | 'farm_4' | 'river' | 
 export type ParcelId = 'orchard' | 'yard' | 'meadow';
 
 /** Town projects (v2 phase 02). Only their building sites exist in v2 phase 01, as world layout. */
-export type TownProjectId = 'old_bridge' | 'fountain' | 'bakery' | 'bandstand' | 'lighthouse' | 'community_hall';
+export type TownProjectId =
+  'old_bridge' | 'fountain' | 'bakery' | 'bandstand' | 'lighthouse' | 'community_hall';
 
 export type BuffType =
   'growth' | 'sellPrice' | 'fishingLuck' | 'fishingSpeed' | 'cookSpeed' | 'automationSpeed' | 'xp';

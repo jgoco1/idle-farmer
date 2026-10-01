@@ -108,6 +108,8 @@ One screen. The scene is a 320 × 192 logical-pixel canvas (20 × 12 tiles) scal
 | Greenhouse | (15,1)–(18,4) | locked lot → hint; built → greenhouse plots |
 | River | row 10–11, cols 6–14 | locked → hint + price; unlocked → **Fishing** (river) |
 | Dock | (15,10)–(19,11) | locked → hint + price; unlocked → **Fishing** (ocean) |
+| Community Board (v2) | (4,16), in the town square | opens **Goals** (its Community Board tab) |
+| "For sale" signs (v2) | (21,3), (21,11), (21,17) | locked parcel → price and what it needs; buyable → a confirm to buy it |
 
 **HUD:** gold (animated count-up from phase 03), season, weekday and local time with a sun/moon icon, active buff icons with a remaining-time ring (phase 06), a notification bell for recent toasts, settings. **Toolbar:** panel buttons and the farming tool selector (phase 02).
 
@@ -116,7 +118,7 @@ One screen. The scene is a 320 × 192 logical-pixel canvas (20 × 12 tiles) scal
 Each section lists: player actions · idle behaviour · unlocks · the phase that builds it.
 
 ### 6.1 Farming (phase 02; automation hooks in 04)
-- **Actions:** select a tool (Auto, Hoe, Seeds, Watering Can, Hand) and click or drag across plots. Hoe tills or clears a dead crop, and can pull up an old regrowing crop (one that has already given a harvest) so a plot is never stuck with it for the rest of its seasons; Seeds plants the chosen seed; Can waters; Hand harvests. Shift-click or drag applies to many plots. Upgraded tools hit an area (BALANCE.md §4).
+- **Actions:** select a tool (Auto, Hoe, Seeds, Watering Can, Hand) and click plots. (Until v2 a drag also painted the tool across plots; from v2 phase 01 a drag pans the camera and never runs a tool, §12.1.) Hoe tills or clears a dead crop, and can pull up an old regrowing crop (one that has already given a harvest) so a plot is never stuck with it for the rest of its seasons; Seeds plants the chosen seed; Can waters; Hand harvests. Shift-click applies to every plot of the field. Upgraded tools hit an area (BALANCE.md §4).
 - **Plot states:** untilled → tilled → planted (stage 0–4) → ready → harvested (back to tilled, or back to stage 2 for regrowers). Plus `dead` after a season change.
 - **Watering:** a watered plot grows at full speed; a dry one at half speed. One watering lasts 2 hours of simulated time; sprinkler-covered plots are always watered. This is gentle on purpose: the farm still progresses offline without sprinklers, but sprinklers double it.
 - **Seasons:** seeds can only be planted in season. A crop still in the ground when its seasons end (at the weekly season change) withers into a clearable dead crop. The UI warns when a crop won't finish in time. Multi-season crops (garlic, wheat, tomato, corn, kale) carry over.

@@ -48,7 +48,8 @@ export const DEFAULT_PREFS: Prefs = {
 function sanitizeCamera(raw: unknown): CameraPref | null {
   if (!raw || typeof raw !== 'object') return null;
   const { x, y, zoom } = raw as Record<string, unknown>;
-  if (typeof x !== 'number' || !Number.isFinite(x) || typeof y !== 'number' || !Number.isFinite(y)) return null;
+  if (typeof x !== 'number' || !Number.isFinite(x) || typeof y !== 'number' || !Number.isFinite(y))
+    return null;
   if (typeof zoom !== 'number' || !Number.isInteger(zoom) || zoom < 1 || zoom > MAX_CAMERA_ZOOM) return null;
   return { x, y, zoom };
 }

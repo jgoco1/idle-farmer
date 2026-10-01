@@ -4,8 +4,8 @@ Ideas that came up during a phase but were outside its scope. Add one line per i
 
 - *Partly absorbed by v2 (v2-03/04): Persimmon Pudding and Lemon Meringue Pie are cookable from winter-fresh ingredients (BALANCE §13.8); the winter kitchen speed bonus is still open.* **Winter-only recipes** (hot cocoa, leek soup) and a winter kitchen speed bonus, to make winter cooking week richer. Owner liked the winter-cooking direction; add via `templates/add-content.md` after phase 06, or in phase 09 if pacing needs it.
 - **Rain days** that water every plot, tied to the real calendar. Adds weather (out of scope for v1).
-- *Absorbed by v2-01 (GDD §12.1 "Phones"): the camera fills the space at ≥ 2× and one finger pans.* **A bigger scene on narrow phones**: at 360 px wide and a 1× pixel ratio the integer-scale rule leaves the scene at 320 × 192 CSS px with 16 px tap targets. A portrait layout (taller scene, or 2× with horizontal panning) would be friendlier. Phase 08 (mobile).
-- *Partly absorbed by v2-01 (GDD §12.1): locked parcels are overgrown with a "For sale" sign, and the old dock shore gets one too; reeds along the future river are still open.* **Decor on locked lots**: reeds along the future river, a "For sale" sign on the old dock, so locked zones read as clickable before they are bought. (Phase 03 put two old trees on the greenhouse lot until `farm_3`.) Phase 05 (river/ocean) or 08 (polish).
+- *Done in v2-01 (GDD §12.1 "Phones"): the scene fills the space between the HUD and the toolbar at ≥ 2× and one finger pans.* **A bigger scene on narrow phones**: at 360 px wide and a 1× pixel ratio the integer-scale rule leaves the scene at 320 × 192 CSS px with 16 px tap targets. A portrait layout (taller scene, or 2× with horizontal panning) would be friendlier. Phase 08 (mobile).
+- *Partly done in v2-01: locked parcels are overgrown with a "For sale" sign, and the old dock's shore has one until it is bought; reeds along the future river are still open.* **Decor on locked lots**: reeds along the future river, a "For sale" sign on the old dock, so locked zones read as clickable before they are bought. (Phase 03 put two old trees on the greenhouse lot until `farm_3`.) Phase 05 (river/ocean) or 08 (polish).
 - **A clearer "watered" cue**: wet and dry soil differ only by one shade, which is subtle at 1× on phones. A few droplet pixels or a darker rim on wet plots would read faster. Phase 08 (polish).
 - **Selling or composting unplantable seeds** (out-of-season seeds sit in the bag until their season returns). Phase 03 kept seeds unsellable; a buy-back at a fraction of the price, or a compost bin that gives a small growth boost, could fit phase 04 or 08.
 - **"Harvest all ready" and "Water all" buttons** in addition to shift-click, for touch players who find shift-click unavailable and dragging fiddly. Phase 08 (mobile).
@@ -37,7 +37,7 @@ Ideas that came up during a phase but were outside its scope. Add one line per i
 - **A daily goal streak** (three goals done in a day) for the casual idler. Owner call; phase 09 if idle pacing wants a reason to visit.
 
 
-- *Absorbed by v2-01 (GDD §12.1 "Camera and controls").* **Pinch-to-zoom and two-finger pan for the scene** on phones (today: a 2× button and a pan switch). Phase 09 or later.
+- *Done in v2-01 (GDD §12.1 "Camera and controls").* **Pinch-to-zoom and two-finger pan for the scene** on phones (today: a 2× button and a pan switch). Phase 09 or later.
 - **A real-device audio pass**: listen on phone speakers and headphones, tune `vol` in `SOUNDS` and `loopNotes`, and consider a per-season second melody. Phase 09.
 - **A dog as well as a cat**, chosen by save, with a second pet sprite and a sleeping-pose variation at night. Later polish.
 - **Number format everywhere** (panels, toasts, popups), and a Settings "Compact HUD" for phones. Later polish.
@@ -59,3 +59,9 @@ v2 phase 00 (design update; ideas kept out of v2 on purpose):
 - **Grafting and tree quality, animal affection and breeding**: out of scope (GDD §9). Not planned.
 - **Busy Bees that also shortens animal cycles** (see "Busy Bees that matters late" above): v2 keeps animal cycles fixed; a later balance phase could use this seam.
 - **A town-square noticeboard of townsfolk requests** (deliver 10 eggs by Sunday): would need NPCs or a new quest kind; out of v2 scope.
+
+v2 phase 01 (world and camera):
+- **Drag-painting a tool across plots with a modifier** (for example Alt-drag): v2 made every drag a pan, so on desktop a tool now goes plot by plot or Shift-click for the whole field. A held modifier could bring painting back without breaking the "a drag never runs a tool" rule for touch. Later polish.
+- **Region-aware toasts for more events**: v2-01 adds the "→ Region" suffix and click-to-pan to the bin, trap, cooking and parcel toasts; v2-02–04 should route decoration, tree and animal toasts through `toastAt` in `src/main.ts` too. v2-02–04.
+- **Start the phone view on the field**: on a narrow phone the default view (the home region's centre at the height-fitting zoom) shows the field and market but not the farmhouse. Centring on the field's middle, or remembering the last view per orientation, could read better. Later polish.
+

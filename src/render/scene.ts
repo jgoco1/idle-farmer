@@ -280,9 +280,11 @@ const SCENERY: readonly Scenery[] = [
   // The Community Board in the town square.
   { sprite: 'obj_board', col: WORLD_LAYOUT.boardTile.col, row: WORLD_LAYOUT.boardTile.row },
   // The town's building sites: a few old stones where each building stood.
-  ...Object.values(WORLD_LAYOUT.townSites).map(
-    (r): Scenery => ({ sprite: 'obj_stones', col: r.col + 1, row: r.row + r.rows - 1 }),
-  ),
+  ...Object.values(WORLD_LAYOUT.townSites).map((r): Scenery => ({
+    sprite: 'obj_stones',
+    col: r.col + 1,
+    row: r.row + r.rows - 1,
+  })),
   // Each locked parcel: its "For sale" sign and overgrowth (tall grass, weeds and a stump or two).
   ...PARCEL_IDS.flatMap((id) => [
     { sprite: 'obj_for_sale', ...WORLD_LAYOUT.forSaleSigns[id], untilParcel: id },
