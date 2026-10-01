@@ -1,4 +1,5 @@
 import { START_GRID } from './balance';
+import { ANIMALS, BUILDINGS, FEEDS } from './animals';
 import { BUFFS } from './buffs';
 import { BUNDLES, GOAL_TEMPLATES, MILESTONES } from './quests';
 import { SKILL_PERKS } from './skills';
@@ -7,7 +8,10 @@ import { DECOR, DECOR_SETS } from './decor';
 import { EXPANSIONS } from './expansions';
 import { FISH, JUNK } from './fish';
 import type {
+  AnimalId,
   BuffType,
+  BuildingId,
+  FeedId,
   BundleId,
   CropId,
   DecorId,
@@ -29,7 +33,10 @@ import { PARCELS } from './parcels';
 import { RECIPES } from './recipes';
 import { SEASONS } from './seasons';
 import type {
+  AnimalDef,
   BuffDef,
+  BuildingDef,
+  FeedDef,
   BundleDef,
   CropDef,
   DecorDef,
@@ -86,6 +93,10 @@ export interface GameData {
   townProjects: Readonly<Record<TownProjectId, TownProjectDef>>;
   /** The seven fruit trees (v2 phase 03). */
   trees: Readonly<Record<TreeId, TreeDef>>;
+  /** The hens and cows, the coop, barn and silo, and the feeds (v2 phase 04). */
+  animals: Readonly<Record<AnimalId, AnimalDef>>;
+  buildings: Readonly<Record<BuildingId, BuildingDef>>;
+  feeds: Readonly<Record<FeedId, FeedDef>>;
 }
 
 export const GAME_DATA: GameData = Object.freeze({
@@ -109,4 +120,7 @@ export const GAME_DATA: GameData = Object.freeze({
   decor: DECOR,
   townProjects: TOWN_PROJECTS,
   trees: TREES,
+  animals: ANIMALS,
+  buildings: BUILDINGS,
+  feeds: FEEDS,
 });

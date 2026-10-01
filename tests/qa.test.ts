@@ -41,6 +41,7 @@ import fixtureV7 from './fixtures/save-v7.json';
 import fixtureV8 from './fixtures/save-v8.json';
 import fixtureV9 from './fixtures/save-v9.json';
 import fixtureV10 from './fixtures/save-v10.json';
+import fixtureV11 from './fixtures/save-v11.json';
 import { at, DAY, HOUR, NY } from './helpers';
 
 const MIN = 60_000;
@@ -99,6 +100,28 @@ function everything(t: number): GameState {
     { type: 'growth', magnitude: 0.2, tier: 2, remainingMs: 20 * MIN, source: 'vegetable_soup' },
     { type: 'sellPrice', magnitude: 0.1, tier: 2, remainingMs: 3 * HOUR, source: 'blueberry_muffin' },
   ];
+  // A full ranch (v2 phase 04): 12 hens and 6 cows fed by the silo, and the Collecting Basket.
+  s.land.parcels.push('yard');
+  s.ranch.buildings = [
+    { id: 1, kind: 'coop', level: 3, at: { col: 22, row: 9 }, trough: 192, store: [], cycleMs: 0 },
+    { id: 2, kind: 'barn', level: 3, at: { col: 27, row: 9 }, trough: 72, store: [], cycleMs: 0 },
+    { id: 3, kind: 'silo', level: 2, at: { col: 33, row: 9 }, trough: 0, store: [], cycleMs: 0 },
+  ];
+  s.ranch.animals = [
+    ...Array.from({ length: 12 }, (_, i) => ({
+      id: i + 1,
+      kind: 'chicken' as const,
+      name: `Hen ${i}`,
+      building: 1,
+    })),
+    ...Array.from({ length: 6 }, (_, i) => ({
+      id: i + 13,
+      kind: 'cow' as const,
+      name: `Cow ${i}`,
+      building: 2,
+    })),
+  ];
+  s.upgrades.ranch_collector = 1;
   s.progression.goals = [];
   return s;
 }
@@ -341,6 +364,7 @@ describe('old and broken saves', () => {
     fixtureV8,
     fixtureV9,
     fixtureV10,
+    fixtureV11,
   ];
 
   it('there is a fixture for every save version, and each migrates, validates and plays on', () => {

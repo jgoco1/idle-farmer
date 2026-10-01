@@ -1701,3 +1701,40 @@ body.tutorial-on .toasts {
     bottom: calc(var(--toolbar-h, 60px) + 4px);
   }
 }
+
+/* ---------- ranch (v2 phase 04) */
+.ranch-card,
+.ranch .crate-row {
+  grid-template-columns: 48px 1fr;
+}
+.ranch-icon {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  object-position: center bottom;
+}
+.ranch-animals {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.ranch-animal {
+  display: inline-flex;
+}
+.ranch-name {
+  width: 7.5em;
+  font: inherit;
+  font-size: 13px;
+  padding: 2px 6px;
+  color: var(--c-outline);
+  background: var(--c-white_warm);
+  border: 2px solid var(--c-ui_parchment_dark);
+}
+.ranch-status {
+  color: var(--c-wood_dark);
+}
+.ranch h3 {
+  margin: 10px 0 4px;
+}

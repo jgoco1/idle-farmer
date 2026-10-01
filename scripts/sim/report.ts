@@ -136,6 +136,23 @@ export function orchardShare(
   };
 }
 
+/** Gold from eggs and milk as a share of the gold earned between real days `from` and `to` (BALANCE.md §13.10), median over seeds. */
+export function animalShare(
+  runs: readonly RunResult[],
+  from: number,
+  to: number,
+): { share: number; perDay: number } {
+  const per = runs.map((r) => {
+    const a = snapshotAt(r, from * DAY);
+    const b = snapshotAt(r, to * DAY);
+    return { gold: b.animalGold - a.animalGold, total: Math.max(1, b.lifetimeGold - a.lifetimeGold) };
+  });
+  return {
+    share: median(per.map((p) => p.gold / p.total)),
+    perDay: median(per.map((p) => p.gold)) / Math.max(1, to - from),
+  };
+}
+
 /** The milestones and moments shown in the time table, with a label. */
 export const MOMENTS: readonly [key: string, label: string][] = [
   ['first_harvest', 'First harvest'],
@@ -159,6 +176,10 @@ export const MOMENTS: readonly [key: string, label: string][] = [
   ['first_sapling', 'First sapling bought'],
   ['first_mature_tree', 'First mature tree'],
   ['first_fruit', 'First fruit picked'],
+  ['bought_coop', 'Coop built'],
+  ['first_egg', 'First egg laid'],
+  ['bought_barn', 'Barn built'],
+  ['first_milk', 'First milk'],
   ['first_decor', 'First decoration placed'],
   ['first_stage', 'First town project stage'],
   ['first_project', 'First town project complete'],
@@ -256,10 +277,10 @@ export function markdownReport(result: SimResult): string {
   lines.push('');
   // Gold still to spend (BALANCE.md §13.4; v2 phase 02: v1, land, decorations and town projects).
   const parts = catalogueParts(GAME_DATA);
-  const total = parts.v1 + parts.parcels + parts.saplings + parts.decor + parts.projects;
+  const total = parts.v1 + parts.parcels + parts.saplings + parts.ranch + parts.decor + parts.projects;
   const spendDays = SPEND_DAYS.filter((d) => d <= days);
   lines.push(
-    `Gold still to spend (BALANCE.md §13.4): the catalogue so far is v1 ${fmt(parts.v1)} + land ${fmt(parts.parcels)} + saplings ${fmt(parts.saplings)} + decorations ${fmt(parts.decor)} + town projects ${fmt(parts.projects)} = **${fmt(total)}** (the ranch joins in v2-04); gold still to spend · share of the catalogue at the end of real day *n*, and the day it reaches 0:`,
+    `Gold still to spend (BALANCE.md §13.4): the catalogue so far is v1 ${fmt(parts.v1)} + land ${fmt(parts.parcels)} + saplings ${fmt(parts.saplings)} + ranch ${fmt(parts.ranch)} + decorations ${fmt(parts.decor)} + town projects ${fmt(parts.projects)} = **${fmt(total)}**; gold still to spend · share of the catalogue at the end of real day *n*, and the day it reaches 0:`,
     '',
     `| Bot | ${spendDays.map((d) => `d${d}`).join(' | ')} | Spent out |`,
     `|---|${spendDays.map(() => '---|').join('')}---|`,
@@ -297,6 +318,24 @@ export function markdownReport(result: SimResult): string {
       const w2 = orchardShare(runs[b]!, 14, days);
       lines.push(
         `| ${BOTS[b].name} | ${fmt(w1.perDay)} · ${pct(w1.share)} | ${days > 14 ? `${fmt(w2.perDay)} · ${pct(w2.share)}` : '–'} |`,
+      );
+    }
+    lines.push('');
+  }
+  // The ranch (v2 phase 04)
+  if (days >= 14) {
+    lines.push(
+      'Animal income (gold from selling eggs and milk; BALANCE.md §13.10), as gold per day and a share of the gold earned in the window, and hours an animal waited with an empty trough (medians):',
+      '',
+      '| Bot | days 7–14 | days 14–' + String(days) + ' | hungry hours |',
+      '|---|---|---|---|',
+    );
+    for (const b of bots) {
+      const w1 = animalShare(runs[b]!, 7, 14);
+      const w2 = animalShare(runs[b]!, 14, days);
+      const hungry = median(runs[b]!.map((r) => r.metrics.hungryMs / HOUR));
+      lines.push(
+        `| ${BOTS[b].name} | ${fmt(w1.perDay)} · ${pct(w1.share)} | ${days > 14 ? `${fmt(w2.perDay)} · ${pct(w2.share)}` : '–'} | ${fmt(hungry, 1)} |`,
       );
     }
     lines.push('');
@@ -400,6 +439,18 @@ export function tuningChecks(result: SimResult, sums: Map<BotId, BotSummary>): C
         target: b === 'active' ? '≤ 15% of gold (side income)' : '≤ 5% of gold at day 14',
         measured: `${pct(w.share)} (${fmt(w.perDay)} gold a day)`,
         ok: w.share <= (b === 'active' ? 0.15 : 0.05),
+      });
+    }
+  }
+  if (days >= 14) {
+    for (const b of ['farmer', 'active'] as const) {
+      if (!result.runs[b]) continue;
+      const w = animalShare(result.runs[b]!, 14, days);
+      out.push({
+        what: `${BOTS[b].name}: animal income (days 14–${days})`,
+        target: '≤ 15% of gold (side income)',
+        measured: `${pct(w.share)} (${fmt(w.perDay)} gold a day)`,
+        ok: w.share <= 0.15,
       });
     }
   }

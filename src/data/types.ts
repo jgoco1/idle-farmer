@@ -2,8 +2,12 @@
 // current phases use live here; later phases add theirs (FishDef, RecipeDef, …).
 
 import type {
+  AnimalId,
+  AnimalProductId,
   BuffType,
+  BuildingId,
   BundleId,
+  FeedId,
   GoalTemplateId,
   CropId,
   DecorId,
@@ -47,7 +51,8 @@ export type UnlockCondition =
   | { kind: 'knownRecipes'; count: number; minTier: RecipeTier } // recipes known of at least that tier (phase 07)
   | { kind: 'parcel'; id: ParcelId } // a land parcel is owned (v2 phase 01)
   | { kind: 'charm'; amount: number } // derived charm is at least this (v2 phase 02)
-  | { kind: 'townProject'; id: TownProjectId; stage?: number }; // stages done ≥ stage; omitted = complete (v2 phase 02)
+  | { kind: 'townProject'; id: TownProjectId; stage?: number } // stages done ≥ stage; omitted = complete (v2 phase 02)
+  | { kind: 'building'; id: BuildingId; level: number }; // a ranch building of at least this level (v2 phase 04)
 
 /** A rectangle of world tiles: top-left (col, row) and size (DATA_SCHEMAS.md §9.3). */
 export interface TileRect {
@@ -57,7 +62,16 @@ export interface TileRect {
   rows: number;
 }
 
-export type ItemCategory = 'seed' | 'crop' | 'fish' | 'junk' | 'dish' | 'fruit' | 'sapling';
+export type ItemCategory =
+  | 'seed'
+  | 'crop'
+  | 'fish'
+  | 'junk'
+  | 'dish'
+  | 'fruit'
+  | 'sapling'
+  | 'animal' // egg, large egg, milk (sellable)
+  | 'feed'; // hay, corn feed (not sellable, like seeds)
 
 export interface ItemDef {
   id: ItemId;
@@ -94,7 +108,7 @@ export interface CostCurve {
   ratio: number;
 }
 
-export type UpgradeCategory = 'farm' | 'tools' | 'storage' | 'fishing' | 'kitchen';
+export type UpgradeCategory = 'farm' | 'tools' | 'storage' | 'fishing' | 'kitchen' | 'ranch';
 
 /** What the farmhand-family upgrades switch on (BALANCE.md §4). Cumulative across levels. */
 export type AutomationFlag =
@@ -295,7 +309,9 @@ export type QuestObjective =
   | { kind: 'gainCharm'; amount: number } // sums positive 'charmChanged' deltas
   | { kind: 'projectStage'; count: number } // counts 'projectStageDone'
   // v2 phase 03
-  | { kind: 'pickFruit'; fruit?: FruitId; count: number }; // counts 'fruitPicked'
+  | { kind: 'pickFruit'; fruit?: FruitId; count: number } // counts 'fruitPicked'
+  // v2 phase 04
+  | { kind: 'collectProduct'; product?: AnimalProductId; count: number }; // counts 'collected'
 
 export type QuestReward =
   | { kind: 'gold'; amount: number }
@@ -322,7 +338,8 @@ export type BundleReward =
   | { kind: 'trapPerLocation'; count: number }
   | { kind: 'fishingLuck'; bonus: number }
   | { kind: 'goldenScarecrow' }
-  | { kind: 'treeSpots'; count: number }; // the Orchard Basket (v2 phase 03)
+  | { kind: 'treeSpots'; count: number } // the Orchard Basket (v2 phase 03)
+  | { kind: 'troughBonus'; bonus: number }; // the Barnyard: every trough holds this much more (v2 phase 04)
 
 export interface BundleDef {
   id: BundleId;
@@ -421,4 +438,52 @@ export interface TreeDef {
   fruitPrice: number; // market base price of one fruit
   xp: number; // Farming XP per fruit picked
   shape: 'round' | 'tall' | 'spread'; // canopy family for sprites (ART_STYLE.md §6.3)
+}
+
+// ---- animals and buildings (v2 phase 04, docs/BALANCE.md §13.6–13.7, DATA_SCHEMAS.md §9.4)
+
+export interface AnimalDef {
+  id: AnimalId;
+  name: string; // 'Hen'
+  plural: string; // 'Hens'
+  building: BuildingId; // 'coop' | 'barn'
+  price: number;
+  feed: FeedId; // one portion per cycle
+  intervalSec: number; // simulated seconds per production cycle
+  product: AnimalProductId;
+  /** Hens sometimes lay a large egg instead (rolled with the seeded RNG). */
+  largeProduct?: { id: AnimalProductId; chance: number };
+  /** Farming XP per product collected by hand (a quarter when the Collecting Basket collects). */
+  xp: Readonly<Partial<Record<AnimalProductId, number>>>;
+  /** Default names, used in order (never random). */
+  names: readonly string[];
+}
+
+export interface BuildingLevelDef {
+  price: number;
+  capacity: number; // animals housed (silo: 0)
+  trough: number; // feed portions (silo: 0)
+  store: number; // products held (silo: 0)
+  requires: readonly UnlockCondition[];
+  flags?: readonly ('autoFeed' | 'autoMill')[]; // silo levels 1 and 2
+}
+
+export interface BuildingDef {
+  id: BuildingId;
+  name: string;
+  description: string;
+  footprint: { cols: number; rows: number };
+  houses: AnimalId | null; // silo: null
+  levels: readonly BuildingLevelDef[]; // index 0 = level 1
+  placeIn: ParcelId;
+  /** Sprite id stem: `obj_coop` → `obj_coop_1` … `obj_coop_3`. */
+  sprite: string;
+}
+
+export interface FeedDef {
+  id: FeedId;
+  name: string;
+  from: CropId; // hay from wheat, corn feed from corn
+  perUnit: number; // portions per unit of crop
+  buyPrice: number; // at the Ranch
 }

@@ -36,7 +36,8 @@ import {
   trapTile,
   zoneAt,
 } from '../src/render/scene';
-import fixture from './fixtures/save-v10.json';
+import fixture from './fixtures/save-v11.json';
+import fixtureV10 from './fixtures/save-v10.json';
 import fixtureV9 from './fixtures/save-v9.json';
 import fixtureV8 from './fixtures/save-v8.json';
 import { farmLevel } from '../src/systems/unlocks';
@@ -44,10 +45,12 @@ import { at, NY } from './helpers';
 
 const FIXTURE_TEXT = JSON.stringify(fixture);
 
-/** Removes what the v9 → v10 migration added, so older migrations can be compared with their fixtures. */
+/** Removes what the v9 → v10 and v10 → v11 migrations added, so older migrations can be compared with their fixtures. */
 function withoutV10(rest: Record<string, unknown>): Record<string, unknown> {
   delete rest.orchard;
+  delete rest.ranch;
   delete (rest.stats as Record<string, unknown>).fruitPicked;
+  delete (rest.stats as Record<string, unknown>).productsCollected;
   const cal = rest.calendar as Record<string, unknown>;
   delete cal.dayZeroKey;
   delete cal.maxDayIndex;
@@ -65,13 +68,13 @@ function memoryStorage(initial: Record<string, string> = {}): SaveStorage & { da
 }
 
 describe('save file', () => {
-  it('is at version 10 (v2 phase 03) with one migration per older version', () => {
-    expect(SAVE_VERSION).toBe(10);
-    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
+  it('is at version 11 (v2 phase 04) with one migration per older version', () => {
+    expect(SAVE_VERSION).toBe(11);
+    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
     expect(SAVE_KEY).toBe('hearthfield-idle/save');
   });
 
-  it('the v10 fixture loads unchanged', () => {
+  it('the v11 fixture loads unchanged', () => {
     const file = parseSave(FIXTURE_TEXT);
     expect(file).toEqual(fixture);
   });
@@ -103,7 +106,7 @@ describe('save file', () => {
     fresh.upgrades.backpack = 1; // a new save owns no upgrades yet, so give the record an entry
     fresh.shippingBin.items.push({ item: 'turnip', qty: 1 });
     fresh.expansions.push('farm_1');
-    fresh.land.parcels.push('orchard');
+    fresh.land.parcels.push('orchard', 'yard');
     fresh.placed.push({ id: 1, kind: 'sprinkler', at: { col: 0, row: 0 } });
     // Progression: one goal of each shape, a partly filled bundle, a milestone and a finished bundle.
     fresh.progression.goals = [
@@ -148,6 +151,17 @@ describe('save file', () => {
       fruit: 10,
       lastFruitDay: 4,
     });
+    // The ranch: a coop with a store, a hen and a cow.
+    fresh.ranch.buildings.push({
+      id: 1,
+      kind: 'coop',
+      level: 2,
+      at: { col: 22, row: 9 },
+      trough: 40,
+      store: [{ item: 'egg', qty: 5 }],
+      cycleMs: 600000,
+    });
+    fresh.ranch.animals.push({ id: 1, kind: 'chicken', name: 'Clover', building: 1 });
     fresh.fishing.traps.push({
       id: 1,
       location: 'pond',
@@ -323,6 +337,7 @@ describe('migrations', () => {
     expect(s.expansions).toEqual([]);
     expect(s.stats).toEqual({
       fruitPicked: 0,
+      productsCollected: 0,
       lifetimeGold: 0,
       goldToday: 0,
       cropsHarvested: 0,
@@ -351,6 +366,7 @@ describe('migrations', () => {
     expect(s.stats).toEqual({
       ...old.stats,
       fruitPicked: 0,
+      productsCollected: 0,
       fishCaught: 0,
       dishesCooked: 0,
       dishesEaten: 0,
@@ -376,6 +392,7 @@ describe('migrations', () => {
     expect(s.stats).toEqual({
       ...old.stats,
       fruitPicked: 0,
+      productsCollected: 0,
       dishesCooked: 0,
       dishesEaten: 0,
       bestDishTier: 0,
@@ -395,7 +412,7 @@ describe('migrations', () => {
     const { state: old } = fixtureV6;
     expect(s.gold).toBe(old.gold); // no milestone gold is paid a second time
     expect(s.farm).toEqual(old.farm);
-    expect(s.stats).toEqual({ ...old.stats, fruitPicked: 0 });
+    expect(s.stats).toEqual({ ...old.stats, fruitPicked: 0, productsCollected: 0 });
     expect(s.upgrades).toEqual(old.upgrades);
     // Deeds the save already shows: planted, harvested, sold, expanded, sprinkler, fish, dish, ate, farmhand, river.
     expect(s.progression.milestones.done).toEqual([
@@ -558,6 +575,41 @@ describe('migrations', () => {
     }
   });
 
+  it('migrates a v10 save (v11): no buildings, no animals, nothing is lost', () => {
+    const file = parseSave(JSON.stringify(fixtureV10));
+    expect(file.version).toBe(SAVE_VERSION);
+    expect(validateState(file.state)).toBeNull();
+    const s = file.state;
+    expect(s.ranch).toEqual({ buildings: [], animals: [] });
+    expect(s.stats.productsCollected).toBe(0);
+    expect(s.orchard).toEqual(fixtureV10.state.orchard);
+    expect(s.land).toEqual(fixtureV10.state.land);
+    const rest: Record<string, unknown> = JSON.parse(JSON.stringify(s));
+    delete rest.ranch;
+    delete (rest.stats as Record<string, unknown>).productsCollected;
+    expect(rest).toEqual(fixtureV10.state);
+    // Eggs and milk are not shipped automatically until the player says so.
+    expect(s.autoSell).toEqual(fixtureV10.state.autoSell);
+  });
+
+  it('refuses damaged ranches', () => {
+    const bad = (mutate: (c: typeof fixture.state) => void): string | null => {
+      const c = structuredClone(fixture.state);
+      mutate(c);
+      return validateState(c);
+    };
+    expect(bad(() => undefined)).toBeNull();
+    expect(bad((c) => (c.ranch.buildings[1]!.kind = 'coop' as never))).toBe('bad building'); // two coops
+    expect(bad((c) => (c.ranch.buildings[0]!.kind = 'stable' as never))).toBe('bad building');
+    expect(bad((c) => (c.ranch.buildings[0]!.level = 4))).toBe('bad building');
+    expect(bad((c) => (c.ranch.buildings[0]!.trough = -1))).toBe('bad building');
+    expect(bad((c) => (c.ranch.buildings[0]!.store = [{ item: 'egg', qty: -1 }]))).toBe('bad building');
+    expect(bad((c) => (c.ranch.animals[0]!.building = 99))).toBe('bad animal'); // lives nowhere
+    expect(bad((c) => (c.ranch.animals[0]!.kind = 'goat' as never))).toBe('bad animal');
+    expect(bad((c) => (c.ranch.animals[1]!.id = 1))).toBe('bad animal'); // a repeated id
+    expect(bad((c) => (c.ranch.animals[0]!.name = ''))).toBe('bad animal');
+  });
+
   it('migrates a v9 save (v10): no trees, the day index starts counting, nothing is lost', () => {
     const file = parseSave(JSON.stringify(fixtureV9));
     expect(file.version).toBe(SAVE_VERSION);
@@ -569,8 +621,10 @@ describe('migrations', () => {
     expect(s.calendar.maxDayIndex).toBe(0);
     const rest: Record<string, unknown> = JSON.parse(JSON.stringify(s));
     delete rest.orchard;
+    delete rest.ranch;
     const stats = rest.stats as Record<string, unknown>;
     delete stats.fruitPicked;
+    delete stats.productsCollected;
     const cal = rest.calendar as Record<string, unknown>;
     delete cal.dayZeroKey;
     delete cal.maxDayIndex;
@@ -617,6 +671,7 @@ describe('migrations', () => {
     expect(s.stats).toEqual({
       ...old.stats,
       fruitPicked: 0,
+      productsCollected: 0,
       fishCaught: 0,
       dishesCooked: 0,
       dishesEaten: 0,

@@ -3,7 +3,10 @@ import { h } from './dom';
 import type { PanelManager } from './panel';
 
 /** Panel buttons along the bottom. Farming tools join it in phase 02. `nudge` makes one pulse until it is opened. */
-export function buildToolbar(root: HTMLElement, panels: PanelManager): { nudge(id: PanelId): void } {
+export function buildToolbar(
+  root: HTMLElement,
+  panels: PanelManager,
+): { nudge(id: PanelId): void; setVisible(id: PanelId, visible: boolean): void } {
   const buttons = new Map<PanelId, HTMLButtonElement>();
   for (const def of panels.defs()) {
     if (def.toolbar === false) continue;
@@ -31,6 +34,11 @@ export function buildToolbar(root: HTMLElement, panels: PanelManager): { nudge(i
   return {
     nudge(id) {
       buttons.get(id)?.classList.add('is-nudged');
+    },
+    /** Shows or hides one button (the Ranch's appears once the Old Paddock is bought). */
+    setVisible(id, visible) {
+      const b = buttons.get(id);
+      if (b && b.hidden === visible) b.hidden = !visible;
     },
   };
 }

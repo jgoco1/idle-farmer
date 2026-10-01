@@ -23,9 +23,23 @@ import { donate } from '../systems/bundles';
 import { buyDecor, moveDecor, pickUpDecor, placeDecor, styleFarmhouse } from '../systems/decor';
 import { donateProject } from '../systems/townProjects';
 import { buySapling, moveTree, pickTree, plantTree, removeTree } from '../systems/orchard';
+import {
+  buildBuilding,
+  buyAnimal,
+  buyFeed,
+  collectBuilding,
+  fillTrough,
+  makeFeed,
+  moveBuilding,
+  renameAnimal,
+  upgradeBuilding,
+} from '../systems/ranch';
 import { runProgression } from '../systems/progression';
 import type {
+  AnimalId,
+  BuildingId,
   BundleId,
+  FeedId,
   CropId,
   DecorId,
   DishId,
@@ -97,6 +111,19 @@ export type Action =
   | { type: 'pickTree'; id: number }
   | { type: 'moveTree'; id: number; spot: number }
   | { type: 'removeTree'; id: number }
+  /** Ranch panel: buy and place a building (level 1), upgrade it, or move it (v2 phase 04). */
+  | { type: 'buildBuilding'; building: BuildingId; col: number; row: number }
+  | { type: 'upgradeBuilding'; id: number }
+  | { type: 'moveBuilding'; id: number; col: number; row: number }
+  /** Buy a hen or cow for a building with room; names are chosen from a list and can be changed. */
+  | { type: 'buyAnimal'; animal: AnimalId; building: number }
+  | { type: 'renameAnimal'; id: number; name: string }
+  /** Feed: make it from crops (`qty` is the crop used) or buy it, then fill a trough from the bag. */
+  | { type: 'makeFeed'; feed: FeedId; qty: number }
+  | { type: 'buyFeed'; feed: FeedId; qty: number }
+  | { type: 'fillTrough'; building: number }
+  /** Click a building: take what is in its store. */
+  | { type: 'collectBuilding'; building: number }
   | { type: 'debugSetTimeWarp'; on: boolean };
 
 export const TIME_WARP_SPEED = 60;
@@ -193,6 +220,24 @@ function handleAction(state: GameState, ctx: SimContext, action: Action): Action
       return moveTree(state, ctx, action.id, action.spot);
     case 'removeTree':
       return removeTree(state, ctx, action.id);
+    case 'buildBuilding':
+      return buildBuilding(state, ctx, action.building, action.col, action.row);
+    case 'upgradeBuilding':
+      return upgradeBuilding(state, ctx, action.id);
+    case 'moveBuilding':
+      return moveBuilding(state, ctx, action.id, action.col, action.row);
+    case 'buyAnimal':
+      return buyAnimal(state, ctx, action.animal, action.building);
+    case 'renameAnimal':
+      return renameAnimal(state, action.id, action.name);
+    case 'makeFeed':
+      return makeFeed(state, ctx, action.feed, action.qty);
+    case 'buyFeed':
+      return buyFeed(state, ctx, action.feed, action.qty);
+    case 'fillTrough':
+      return fillTrough(state, ctx, action.building);
+    case 'collectBuilding':
+      return collectBuilding(state, ctx, action.building);
     case 'debugSetTimeWarp':
       state.clock.speed = action.on ? TIME_WARP_SPEED : 1;
       return OK;

@@ -15,6 +15,7 @@ import { DECOR_TILE_SPRITES } from './decorTiles';
 import { FARMHOUSE_SPRITES } from './farmhouse';
 import { FISHING_SPRITES } from './fishing';
 import { ITEM_SPRITES } from './items';
+import { RANCH_SPRITES } from './ranch';
 import { TOWN_SPRITES } from './town';
 import { TREE_SPRITES } from './trees';
 import type { SpriteDef } from './types';
@@ -37,6 +38,7 @@ export const ALL_SPRITES: readonly SpriteDef[] = [
   ...FARMHOUSE_SPRITES,
   ...TOWN_SPRITES,
   ...TREE_SPRITES,
+  ...RANCH_SPRITES,
   ...FX_SPRITES,
 ];
 

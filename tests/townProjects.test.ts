@@ -10,7 +10,7 @@ import { buildCalendar } from '../src/core/time';
 import { GAME_DATA } from '../src/data';
 import { CHARM_PER_PROJECT_STAGE, GOAL_SLOTS, TOWN_PROJECT_SCALE } from '../src/data/balance';
 import { TOWN_PROJECT_IDS, type ItemId, type TownProjectId } from '../src/data/ids';
-import { LATER_STAGE_ITEMS, TOWN_PROJECTS } from '../src/data/townProjects';
+import { TOWN_PROJECTS } from '../src/data/townProjects';
 import { WORLD_LAYOUT } from '../src/data/world';
 import { charmOf } from '../src/systems/charm';
 import { addItem, countItem } from '../src/systems/inventory';
@@ -111,11 +111,15 @@ describe('the project data (BALANCE.md §13.3)', () => {
     expect(TOWN_PROJECTS.community_hall.rewards).toContainEqual({ kind: 'goalSlot', count: 1 });
   });
 
-  it('every stage item exists in the game today; the ones that wait for later phases are listed', () => {
+  it('every stage item exists in the game, eggs and milk included', () => {
     for (const id of TOWN_PROJECT_IDS)
       for (const st of TOWN_PROJECTS[id].stages)
         for (const it of st.items) expect(GAME_DATA.items[it.item], it.item).toBeDefined();
-    expect(LATER_STAGE_ITEMS.map((x) => x.item).sort()).toEqual(['egg', 'large_egg', 'milk']);
+    const asked = (project: keyof typeof TOWN_PROJECTS, stage: number) =>
+      TOWN_PROJECTS[project].stages[stage - 1]!.items.map((i) => `${i.item}×${i.qty}`);
+    expect(asked('bakery', 2)).toEqual(['egg×30']);
+    expect(asked('community_hall', 1)).toEqual(['milk×30']);
+    expect(asked('community_hall', 3)).toEqual(['large_egg×10']);
   });
 });
 

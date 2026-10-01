@@ -4,7 +4,7 @@
 import type { OfflineReport } from '../core/offline';
 import { capitalize, formatDuration } from '../core/time';
 import { GAME_DATA } from '../data';
-import type { CropId, FruitId, RecipeId, SkillId, TreeId } from '../data/ids';
+import type { AnimalId, AnimalProductId, CropId, FruitId, RecipeId, SkillId, TreeId } from '../data/ids';
 import { fruitOfTree } from '../data/ids';
 import { SKILL_ICONS, SKILL_NAMES } from '../data/skills';
 import { spriteDataUrl } from '../render/spriteCache';
@@ -34,6 +34,11 @@ export interface AwayTotals {
   treesMatured: TreeId[];
   fruitGrown: Partial<Record<FruitId, number>>;
   fruitGrownTotal: number;
+  /** Eggs and milk that reached a store, and those the Collecting Basket took out of it (the ranch, v2 phase 04). */
+  produced: Partial<Record<AnimalProductId, number>>;
+  collectedByBasket: Partial<Record<AnimalProductId, number>>;
+  /** Animals whose trough ran dry while away (once each kind). */
+  unfed: AnimalId[];
 }
 
 export function awayTotals(report: OfflineReport): AwayTotals {
@@ -54,6 +59,9 @@ export function awayTotals(report: OfflineReport): AwayTotals {
     treesMatured: [],
     fruitGrown: {},
     fruitGrownTotal: 0,
+    produced: {},
+    collectedByBasket: {},
+    unfed: [],
   };
   for (const e of report.events) {
     if (e.type === 'harvested') {
@@ -80,6 +88,12 @@ export function awayTotals(report: OfflineReport): AwayTotals {
     } else if (e.type === 'fruitGrown') {
       t.fruitGrown[e.fruit] = (t.fruitGrown[e.fruit] ?? 0) + e.qty;
       t.fruitGrownTotal += e.qty;
+    } else if (e.type === 'produced') {
+      t.produced[e.product] = (t.produced[e.product] ?? 0) + e.qty;
+    } else if (e.type === 'collected' && e.auto) {
+      t.collectedByBasket[e.product] = (t.collectedByBasket[e.product] ?? 0) + e.qty;
+    } else if (e.type === 'troughEmpty') {
+      if (!t.unfed.includes(e.animal)) t.unfed.push(e.animal);
     } else if (e.type === 'questDone') {
       if (e.kind === 'goal') t.goalsDone += 1;
       else t.milestonesDone += 1;
@@ -138,6 +152,31 @@ export function awayRows(report: OfflineReport, farm: AwayFarm): AwayRow[] {
     rows.push({
       icon: `item_${first[0]}`,
       text: `+${t.fruitGrownTotal} fruit grew on the trees (${first[1]} ${GAME_DATA.items[first[0]]!.name}${rest}).`,
+    });
+  }
+  // The ranch (v2 phase 04): what the animals gave, what the Basket collected, and, gently, who is hungry.
+  const eggs = (m: Partial<Record<AnimalProductId, number>>): number => (m.egg ?? 0) + (m.large_egg ?? 0);
+  const milk = (m: Partial<Record<AnimalProductId, number>>): number => m.milk ?? 0;
+  const gave = (m: Partial<Record<AnimalProductId, number>>): string =>
+    [eggs(m) > 0 ? `${eggs(m)} egg${eggs(m) === 1 ? '' : 's'}` : '', milk(m) > 0 ? `${milk(m)} milk` : '']
+      .filter(Boolean)
+      .join(' and ');
+  if (eggs(t.produced) + milk(t.produced) > 0) {
+    rows.push({
+      icon: eggs(t.produced) > 0 ? 'item_egg' : 'item_milk',
+      text: `The animals gave ${gave(t.produced)} while you were away.`,
+    });
+  }
+  if (eggs(t.collectedByBasket) + milk(t.collectedByBasket) > 0) {
+    rows.push({
+      icon: 'item_milk',
+      text: `The Collecting Basket gathered ${gave(t.collectedByBasket)} for your bag.`,
+    });
+  }
+  for (const animal of t.unfed) {
+    rows.push({
+      icon: 'obj_trough_empty',
+      text: animal === 'cow' ? 'The cows would love some hay.' : 'The hens would love some feed.',
     });
   }
   if (t.buffsExpired > 0) {

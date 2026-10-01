@@ -114,6 +114,24 @@ export function decorAt(state: GameState, data: GameData, col: number, row: numb
   return undefined;
 }
 
+/** The name of the ranch building whose footprint or trough tile covers (col, row), lower-case, or null. */
+function buildingNameAt(state: GameState, data: GameData, col: number, row: number): string | null {
+  for (const b of state.ranch.buildings) {
+    const def = data.buildings[b.kind];
+    const inFootprint =
+      col >= b.at.col &&
+      col < b.at.col + def.footprint.cols &&
+      row >= b.at.row &&
+      row < b.at.row + def.footprint.rows;
+    const trough =
+      def.houses !== null &&
+      col === b.at.col + def.footprint.cols &&
+      row === b.at.row + def.footprint.rows - 1;
+    if (inFootprint || trough) return def.name.toLowerCase();
+  }
+  return null;
+}
+
 /** Why tile (col, row) cannot hold a decoration (ignoring other decorations), or null. */
 export function tileProblem(state: GameState, data: GameData, col: number, row: number): string | null {
   if (
@@ -172,6 +190,8 @@ export function decorPlacementProblem(
     if (p) return p;
     const other = decorAt(state, data, t.col, t.row);
     if (other && other.id !== movingId) return `${data.decor[other.decor].name} is already there.`;
+    const building = buildingNameAt(state, data, t.col, t.row);
+    if (building) return `The ${building} stands there.`;
   }
   return null;
 }

@@ -244,7 +244,13 @@ export function experiment(state: GameState, ctx: SimContext, items: readonly It
   }
   for (const item of set) {
     const def = ctx.data.items[item];
-    if (!def || def.category === 'seed' || def.category === 'sapling' || def.category === 'dish')
+    if (
+      !def ||
+      def.category === 'seed' ||
+      def.category === 'sapling' ||
+      def.category === 'dish' ||
+      def.category === 'feed'
+    )
       return fail("That isn't an ingredient.");
     if (countItem(state.inventory, item, false) < 1) return fail(`You don't have any ${def.name}.`);
   }

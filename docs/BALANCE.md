@@ -1231,7 +1231,7 @@ Every v2 phase also keeps `tests/simulate.test.ts` green (determinism, speed: on
 
 ### 13.12 v2 constants and tuning notes
 
-Constants that are formula parameters go in `src/data/balance.ts`: `DECOR_BASE_SLOTS = 100`, `DECOR_SLOTS_PER_PROJECT = 40`, `CHARM_PER_PROJECT_STAGE = 10`, `TOWN_PROJECT_SCALE = 0.8` (set to 1 by the design, tuned in v2 phase 02: see its notes below), `FRUIT_CAP_DAYS = 4`, `SAPLING_PRICE_FACTOR = 4`, `LARGE_EGG_CHANCE = 0.1`, `FEED_PER_WHEAT = 2`, `FEED_PER_CORN = 3`, `FEED_BUY_PRICE = { hay: 40, corn_feed: 40 }`, `SILO_RESERVE = 10`, `BARNYARD_TROUGH_BONUS = 0.5`, `ORCHARD_BONUS_SPOTS = 2`, `GOAL_SLOTS_HALL_BONUS = 1`. Content tables (parcels, decorations, projects, trees, animals, buildings) live in their data files. Camera numbers (drag threshold 6 CSS px, zoom limits) are UI constants in `src/render/camera.ts`, not balance.
+Constants that are formula parameters go in `src/data/balance.ts`: `DECOR_BASE_SLOTS = 100`, `DECOR_SLOTS_PER_PROJECT = 40`, `CHARM_PER_PROJECT_STAGE = 10`, `TOWN_PROJECT_SCALE = 0.7` (set to 1 by the design, tuned to 0.8 in v2 phase 02 and to 0.7 in v2 phase 04: see their notes below), `FRUIT_CAP_DAYS = 4`, `SAPLING_PRICE_FACTOR = 4`, `LARGE_EGG_CHANCE = 0.1` (also `AUTO_COLLECT_XP_SHARE = 0.25` and `FEED_AMOUNTS = [1, 10]`), `FEED_PER_WHEAT = 2`, `FEED_PER_CORN = 3`, `FEED_BUY_PRICE = { hay: 40, corn_feed: 40 }`, `SILO_RESERVE = 10`, `BARNYARD_TROUGH_BONUS = 0.5`, `ORCHARD_BONUS_SPOTS = 2`, `GOAL_SLOTS_HALL_BONUS = 1`. Content tables (parcels, decorations, projects, trees, animals, buildings) live in their data files. Camera numbers (drag threshold 6 CSS px, zoom limits) are UI constants in `src/render/camera.ts`, not balance.
 
 **v2 phase 00 notes.**
 - Decoration and project prices were set from the phase 09 report's lifetime-gold curve, less roughly 40% spent on seeds. They are a first cut: v2 phase 02's simulator run sets `TOWN_PROJECT_SCALE` so the §13.4 curve holds, and phases 03–04 recheck it after the orchard and animals add income.
@@ -1265,3 +1265,89 @@ Constants that are formula parameters go in `src/data/balance.ts`: `DECOR_BASE_S
 - **Orchard income:** 6–8k gold a day, 1% of gold, every bot (see §13.5 "Measured"); the Active Player 3k a day on days 7–14 (its trees mature on day 9).
 - **Phase 09 checks and §13.4 checks:** all pass except one: **buffs kept up +27%** at day 7 on 8 seeds (day 3 +22%, day 14 +11%; target +10–25%). The unit test's four seeds pair at +17%. The Chef's new fruit dishes (Peach Cobbler is a summer Silver Tongue T3) lift it a little; the paired medians swing ±10 points between seed sets, and no lever was moved for 2 points. Strategy spread 1.18× (d3), 1.24× (d7), 1.09× (d30); Casual Idler 160% of the Active Player on day 3; early waits ≤ 2.0 min; no runaway growth; gold still to spend (share of catalogue): Greedy Farmer 100%, 98%, 90%, 54%, 15%, 2% (days 1, 3, 7, 14, 21, 30), Active Player 100%, 99%, 96%, 85%, 63%, 36%; no hoard (worst 1.8 and 2.6 days' income for the Farmer and the Active Player).
 - **`SPEND_REPORT=1`** runs the full gold-sink check (8 seeds, 30 days, Greedy Farmer and Active Player, about 60 s: `SPEND_REPORT=1 npx vitest run tests/simulate.test.ts -t "gold sink"`); it passes. The default suite runs one seed of the Farmer for 21 days.
+
+### 13.13 v2 balance report (after v2 phase 04)
+
+The whole v2 content set with the ranch, from `npm run simulate -- --seeds 1,2,3,4,5,6,7,8` (30 real days, medians). Gold by day:
+
+| Bot | Play (h) | Gold d1 | Gold d3 | Gold d7 | Gold d14 | Gold d30 | FL d3 · d30 | Recipes | Dead time | Longest early wait | Buff uptime (play · all) | Gold from offline |
+| Greedy Farmer | 59.7 | 57,553 | 403,789 | 2,744,271 | 9,019,884 | 23,915,153 | 7 · 8 | 12 | 3% | 2.0 min | 0% · 0% | 75% |
+| Angler | 59.7 | 65,602 | 454,801 | 2,949,595 | 9,822,386 | 26,128,122 | 8 · 8 | 13 | 0% | 0.5 min | 0% · 0% | 71% |
+| Chef | 59.7 | 60,534 | 386,700 | 2,409,256 | 8,871,457 | 25,806,618 | 9 · 10 | 31 | 0% | 1.2 min | 100% · 49% | 70% |
+| Chef who sells (control) | 59.7 | 58,456 | 352,316 | 2,035,671 | 7,915,936 | 23,847,655 | 9 · 10 | 31 | 0% | 1.2 min | 0% · 0% | 70% |
+| Casual Idler | 6.0 | 2,095 | 224,307 | 2,692,591 | 10,681,971 | 29,707,500 | 6 · 8 | 11 | 0% | 0.9 min | 0% · 0% | 80% |
+| Active Player | 30.0 | 19,530 | 140,480 | 666,517 | 3,992,498 | 13,122,362 | 8 · 10 | 31 | 0% | 0.7 min | 1% · 0% | 64% |
+| Casual Idler | 6,972 · 1% | 5,974 · 1% |
+
+Every check, as the simulator prints them:
+
+| Check | Target | Measured | |
+|---|---|---|---|
+| No strategy dominates (day 3) | ≤ 1.5× lifetime gold | 1.18× (Greedy Farmer 403,789, Angler 454,801, Chef 386,700) | ✅ |
+| No strategy dominates (day 7) | ≤ 1.5× lifetime gold | 1.22× (Greedy Farmer 2,744,271, Angler 2,949,595, Chef 2,409,256) | ✅ |
+| No strategy dominates (day 30) | ≤ 1.5× lifetime gold | 1.09× (Greedy Farmer 23,915,153, Angler 26,128,122, Chef 25,806,618) | ✅ |
+| Casual Idler vs Active Player (day 3) | ≥ 40% of the lifetime gold | 160% | ✅ |
+| Buffs kept up: Chef vs the same Chef selling its dishes (day 7, paired by seed) | +10% to +25% (worth it, not mandatory) | +28% (day 3 +22%, day 14 +14%) | ❌ |
+| Greedy Farmer: early dead time | no wait over 2 min in the first 30 min of play | 2.0 min (dead-time share 3%) | ✅ |
+| Angler: early dead time | no wait over 2 min in the first 30 min of play | 0.5 min (dead-time share 0%) | ✅ |
+| Chef: early dead time | no wait over 2 min in the first 30 min of play | 1.2 min (dead-time share 0%) | ✅ |
+| Active Player: early dead time | no wait over 2 min in the first 30 min of play | 0.7 min (dead-time share 0%) | ✅ |
+| Greedy Farmer: no runaway growth after day 3 | gold/hour at most ~3× the day before; week 4 not far above week 2 | worst day-over-day 2.26×, day 28 / day 14 1.03× | ✅ |
+| Angler: no runaway growth after day 3 | gold/hour at most ~3× the day before; week 4 not far above week 2 | worst day-over-day 1.98×, day 28 / day 14 0.93× | ✅ |
+| Chef: no runaway growth after day 3 | gold/hour at most ~3× the day before; week 4 not far above week 2 | worst day-over-day 1.74×, day 28 / day 14 0.86× | ✅ |
+| Greedy Farmer: orchard income (days 7–14) | ≤ 5% of gold at day 14 | 1% (7,685 gold a day) | ✅ |
+| Active Player: orchard income (days 7–14) | ≤ 15% of gold (side income) | 1% (3,128 gold a day) | ✅ |
+| Greedy Farmer: animal income (days 14–30) | ≤ 15% of gold (side income) | 7% (67,886 gold a day) | ✅ |
+| Active Player: animal income (days 14–30) | ≤ 15% of gold (side income) | 4% (21,362 gold a day) | ✅ |
+| Greedy Farmer: gold stays meaningful (day 21) | gold still to spend > 0 | 2,157,728 | ✅ |
+| Greedy Farmer: share still to spend, day 1 | 99%–100% (±10 points) | 100% | ✅ |
+| Greedy Farmer: share still to spend, day 3 | 90%–97% (±10 points) | 98% | ✅ |
+| Greedy Farmer: share still to spend, day 7 | 65%–85% (±10 points) | 90% | ✅ |
+| Greedy Farmer: share still to spend, day 14 | 30%–55% (±10 points) | 59% | ✅ |
+| Greedy Farmer: share still to spend, day 21 | 5%–30% (±10 points) | 19% | ✅ |
+| Greedy Farmer: share still to spend, day 30 | 0%–10% (±10 points) | 2% | ✅ |
+| Greedy Farmer: no hoard after day 7 | gold in hand ≤ 3 days’ income while there is still something to buy | 1.40 days’ income at worst (median over seeds) | ✅ |
+| Angler: gold stays meaningful (day 21) | gold still to spend > 0 | 1,069,885 | ✅ |
+| Angler: no hoard after day 7 | gold in hand ≤ 3 days’ income while there is still something to buy | 1.49 days’ income at worst (median over seeds) | ✅ |
+| Chef: gold stays meaningful (day 21) | gold still to spend > 0 | 1,051,450 | ✅ |
+| Chef: no hoard after day 7 | gold in hand ≤ 3 days’ income while there is still something to buy | 1.58 days’ income at worst (median over seeds) | ✅ |
+| Active Player: gold stays meaningful (day 21) | gold still to spend > 0 | 7,119,950 | ✅ |
+| Active Player: gold still to spend on day 30 | > 0 and more than the gold in hand | 3,870,950 to spend vs 910,463 in hand | ✅ |
+| Active Player: share still to spend, day 1 | 99%–100% (±10 points) | 100% | ✅ |
+| Active Player: share still to spend, day 3 | 97%–100% (±10 points) | 99% | ✅ |
+| Active Player: share still to spend, day 7 | 85%–95% (±10 points) | 96% | ✅ |
+| Active Player: share still to spend, day 14 | 55%–75% (±10 points) | 86% | ❌ |
+| Active Player: share still to spend, day 21 | 30%–55% (±10 points) | 63% | ✅ |
+| Active Player: share still to spend, day 30 | 5%–30% (±10 points) | 35% | ✅ |
+| Active Player: no hoard after day 7 | gold in hand ≤ 3 days’ income while there is still something to buy | 1.87 days’ income at worst (median over seeds) | ✅ |
+
+**v2 phase 04 notes** (`npm run simulate -- --seeds 1,2,3,4,5,6,7,8`, 30 days, medians).
+- **One number moved: `TOWN_PROJECT_SCALE` 0.8 → 0.7** (`src/data/balance.ts`). The projects now cost 5,950,000 instead of 6,800,000 (§13.3's figures are before the scale and stay as printed). Why: the ranch adds 1,140,000 to the catalogue (every building level 955,000, 12 hens and 6 cows 108,000, the Collecting Basket 50,000, the two cards that need a building 27,000) and, bought in the second week when a day of income is about a million, delays the town by about a day; the Farmer then reached the bandstand's ten pumpkins after the autumn weeks and the hall waited a year. At 0.8 the Farmer ended day 30 with 26% of the catalogue still to spend (target 0–10%); at 0.7 it ends with 2%. Every animal and building number is §13.6's.
+- **The catalogue** (`scripts/sim/catalogue.ts`): v1 538,030 + land 680,000 + saplings 137,300 + **ranch 1,140,000** + decorations 2,773,000 + town projects 5,950,000 = **11,218,330**. The two recipe cards that need a building count in the ranch part, the Collecting Basket (category `ranch`) too.
+- **The brain** (`scripts/sim/brain.ts`): every look it collects (no Basket yet), makes feed from spare wheat and corn (it keeps 20 of each back) and fills the troughs, buying feed (40g a portion) only when a trough is under a quarter full; it buys `RANCH_PLAN` (coop, 4 hens, silo, barn, 2 cows, Collecting Basket, coop 2, 8 hens, barn 2, 4 cows, silo 2, coop 3, 12 hens, barn 3, 6 cows) as **one of three turns of `spendV2`** (the ranch, a project's gold, decorations), when leaving and after the seeds the planter needs are stocked. Buying it in the middle of a session left the farm without seed for the absence and income at day 7 halved (33,974 crops harvested fell to 23,783); buying it as soon as the v1 list was done starved the town. Eggs, large eggs and milk later stages ask for are held back like fruit (`fruitStock`), and a few of a seasonal crop a project will want (the bandstand's pumpkins) are planted and kept before the stage's gold is in (`cropErrands`). The Auto-Seller stays off for eggs and milk; the bots sell them at the market, cook them, and give them to the Barnyard bundle.
+- **Pacing against §13.10** (real day, Greedy Farmer · Active Player): Old Paddock bought 4.5 · 9.0; coop built 6.1 · 12; first egg 7.0 · 13.5; barn 7.5 · 14.5; **first milk 9.0 · 16** (target 4–7 · 5–9). The doc's "first egg within 45 minutes of the coop and a hen" holds in the game (`tests/ranch.test.ts`); the bots buy the hen on a later turn than the coop, and milk later still, because the ranch shares its turn with the town and decorations. Seaside Meadow 6.0 · 12.
+- **Animal income** (medians; the bots sell what the kitchen and the town do not take):
+
+| Bot | days 7–14 | days 14–30 | hungry hours |
+|---|---|---|---|
+| Greedy Farmer | 29,316 · 3% | 67,886 · 7% | 0.0 |
+| Angler | 32,634 · 3% | 68,983 · 7% | 0.0 |
+| Chef | 26,645 · 3% | 61,122 · 6% | 0.0 |
+| Chef who sells (control) | 18,607 · 2% | 56,823 · 6% | 0.0 |
+| Casual Idler | 72,779 · 6% | 108,120 · 9% | 0.0 |
+| Active Player | 50 · 0% | 21,362 · 4% | 0.0 |
+
+  A full ranch is about 7% of a bot's gold a day in the last two weeks (target ≤ 15%); no animal ever waits long for feed (hungry hours about 0, the silo and the bots keep the troughs full).
+- **Gold still to spend** (share of the catalogue; target bands in §13.4):
+
+| Bot | d1 | d3 | d7 | d14 | d21 | d30 | Spent out |
+|---|---|---|---|---|---|---|---|
+| Greedy Farmer | 11,179,230 · 100% | 10,946,440 · 98% | 10,078,760 · 90% | 6,589,850 · 59% | 2,157,728 · 19% | 208,075 · 2% | – |
+| Angler | 11,168,945 · 100% | 10,906,220 · 97% | 9,954,490 · 89% | 5,932,344 · 53% | 1,069,885 · 10% | 141,200 · 1% | – |
+| Chef | 11,173,950 · 100% | 10,970,095 · 98% | 10,030,765 · 89% | 6,401,950 · 57% | 1,051,450 · 9% | 125,950 · 1% | – |
+| Chef who sells (control) | 11,176,950 · 100% | 11,011,370 · 98% | 10,066,950 · 90% | 7,136,950 · 64% | 2,314,984 · 21% | 125,950 · 1% | – |
+| Casual Idler | 11,217,630 · 100% | 11,071,990 · 99% | 9,954,748 · 89% | 5,969,225 · 53% | 4,545,710 · 41% | 3,705,710 · 33% | – |
+| Active Player | 11,205,510 · 100% | 11,138,610 · 99% | 10,774,450 · 96% | 9,652,597 · 86% | 7,119,950 · 63% | 3,870,950 · 35% | – |
+
+- **Phase 09 checks and §13.4 checks: all pass except two:** (1) **buffs kept up +28%** at day 7 on 8 seeds (day 3 +22%, day 14 +14%; target +10–25%): the same 2–3 points over as v2-03's +27%, from the gold dishes (Persimmon Pudding, Peach Cobbler) the Chef cooks; the unit test's four seeds pair at +17%. (2) The **Active Player's share still to spend on day 14 is 86%** (limit 85% with the tolerance); its income is a third of the Farmer's and it plays one hour an evening, so its ranch and town come a week behind. Strategy spread 1.18× (d3), 1.22× (d7), 1.09× (d30); Casual Idler 160% of the Active Player on day 3; early waits ≤ 2.0 min; no runaway growth (worst 2.26×); no hoard (worst 1.9 days' income); animal income 7% and 4% (Farmer and Active, days 14–30).
+- **Performance** (`e2e/perf.spec.ts`, now with a full ranch of 12 hens and 6 cows wandering in the world scenario): 4.4 KB allocated a frame in the world (3.7 KB without the ranch; budget 11 KB), 2.9 KB on the farm, 60 fps; 8 hours away on a full farm with a full ranch 75 ms (budget 100 ms); 8 hours of a full ranch alone and 30 days in `tests/ranch.test.ts` are well inside 100 ms and 300 ms.

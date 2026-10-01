@@ -14,6 +14,7 @@ import { collectAllTraps, msToNextTrapRoll, tickTraps } from './traps';
 import { msToNextCookFinish, tickCooking } from './cooking';
 import { msToNextBuffExpiry, tickBuffs } from './buffs';
 import { growOrchard } from './orchard';
+import { ranchPickup, tickRanch } from './ranch';
 import { resetDailyGoals, revalidateGoals, runProgression } from './progression';
 
 /**
@@ -22,6 +23,7 @@ import { resetDailyGoals, revalidateGoals, runProgression } from './progression'
  * Every system must give the same result for one large step as for many small ones.
  */
 export function tickSystems(state: GameState, ctx: SimContext, dtMs: number): void {
+  tickRanch(state, ctx, dtMs); // first: its large-egg rolls keep their order whatever the step size (see ranch.ts)
   tickFarming(state, ctx, dtMs);
   tickAutomation(state, ctx, dtMs); // farmhand harvest → planter (auto-ship is part of harvesting), before the bin
   tickTraps(state, ctx, dtMs); // idle fishing: one roll per trap per 3 simulated minutes
@@ -30,6 +32,8 @@ export function tickSystems(state: GameState, ctx: SimContext, dtMs: number): vo
   if (dtMs >= state.shippingBin.msToPickup && hasFlag(state, ctx.data, 'trap_collector', 'autoCollect')) {
     collectAllTraps(state, ctx);
   }
+  // The silo tops up the troughs and the Collecting Basket empties the stores, again just before the pickup.
+  if (dtMs >= state.shippingBin.msToPickup) ranchPickup(state, ctx);
   tickShippingBin(state, ctx, dtMs); // last: a pickup lands at the end of the step, at that moment's prices
   tickCooking(state, ctx, dtMs); // dishes finish (hearty in winter) into the bag
   tickBuffs(state, ctx, dtMs); // this step's bonuses were applied through ctx.mods

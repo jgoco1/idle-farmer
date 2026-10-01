@@ -9,10 +9,11 @@
 
 import { createInitialState, cloneState, type GameState } from './state';
 import type { LocalClock } from './time';
-import { isDecorId, isFruitId, isParcelId, isTownProjectId } from '../data/ids';
+import { isAnimalId, isBuildingId, isDecorId, isFruitId, isParcelId, isTownProjectId } from '../data/ids';
+import { GAME_DATA } from '../data';
 import { WORLD_COLS, WORLD_ROWS, WORLD_LAYOUT } from '../data/world';
 
-export const SAVE_VERSION = 10;
+export const SAVE_VERSION = 11;
 export const SAVE_KEY = 'hearthfield-idle/save';
 export const AUTOSAVE_MS = 15_000;
 
@@ -184,6 +185,15 @@ export const migrations: Record<number, Migration> = {
     stats: { ...old.stats, fruitPicked: 0 },
     calendar: { ...old.calendar, dayZeroKey: old.calendar?.lastDayKey ?? '1970-01-01', maxDayIndex: 0 },
   }),
+  /**
+   * v10 → v11 (v2 phase 04, the ranch): no buildings and no animals, and no products collected yet.
+   * The Auto-Seller needs no entries: a missing toggle for eggs and milk means off.
+   */
+  10: (old) => ({
+    ...old,
+    ranch: { buildings: [], animals: [] },
+    stats: { ...old.stats, productsCollected: 0 },
+  }),
 };
 
 export class SaveError extends Error {
@@ -286,6 +296,7 @@ function economyProblem(s: Record<string, unknown>): string | null {
     'dishesEaten',
     'bestDishTier',
     'fruitPicked',
+    'productsCollected',
   ]) {
     if (!isInt(stats[k])) return 'bad stats';
   }
@@ -462,6 +473,34 @@ function orchardProblem(s: Record<string, unknown>): string | null {
   return null;
 }
 
+function ranchProblem(s: Record<string, unknown>): string | null {
+  const { ranch } = s;
+  if (!isObj(ranch) || !Array.isArray(ranch.buildings) || !Array.isArray(ranch.animals)) return 'bad ranch';
+  const ids = new Set<number>();
+  const kinds = new Set<string>();
+  for (const b of ranch.buildings) {
+    if (!isObj(b) || !isInt(b.id) || typeof b.kind !== 'string' || !isBuildingId(b.kind))
+      return 'bad building';
+    if (!isInt(b.level) || b.level < 1 || b.level > GAME_DATA.buildings[b.kind].levels.length)
+      return 'bad building';
+    if (!isObj(b.at) || !isInt(b.at.col) || !isInt(b.at.row)) return 'bad building';
+    if (!isInt(b.trough) || b.trough < 0 || !isInt(b.cycleMs) || b.cycleMs < 0) return 'bad building';
+    if (!Array.isArray(b.store) || b.store.some(stackProblem)) return 'bad building';
+    if (ids.has(b.id) || kinds.has(b.kind)) return 'bad building';
+    ids.add(b.id);
+    kinds.add(b.kind);
+  }
+  const animalIds = new Set<number>();
+  for (const a of ranch.animals) {
+    if (!isObj(a) || !isInt(a.id) || typeof a.kind !== 'string' || !isAnimalId(a.kind)) return 'bad animal';
+    if (typeof a.name !== 'string' || a.name.length === 0 || !isInt(a.building) || !ids.has(a.building))
+      return 'bad animal';
+    if (animalIds.has(a.id)) return 'bad animal';
+    animalIds.add(a.id);
+  }
+  return null;
+}
+
 function cookingProblem(s: Record<string, unknown>): string | null {
   const { kitchen, buffs } = s;
   if (!isObj(kitchen) || !Array.isArray(kitchen.known) || !Array.isArray(kitchen.queue)) return 'bad kitchen';
@@ -517,7 +556,8 @@ export function validateState(s: unknown): string | null {
     landProblem(s) ??
     decorProblem(s) ??
     townProblem(s) ??
-    orchardProblem(s)
+    orchardProblem(s) ??
+    ranchProblem(s)
   );
 }
 

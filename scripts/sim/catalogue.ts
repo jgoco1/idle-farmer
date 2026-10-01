@@ -2,11 +2,14 @@
 // to a natural count, at list price, and how much of it a farm already owns. Counts v1 (every upgrade
 // level, placeable, expansion and recipe card), the land parcels (v2-01), and (v2-02) the decorations
 // (the counted copies of each piece, 40 path and 30 fence tiles a set, the farmhouse pieces) and the town
-// projects' gold, and (v2-03) the saplings. Later v2 phases add the ranch.
+// projects' gold, (v2-03) the saplings and (v2-04) the ranch: every building level, the hens and cows the buildings
+// hold at their top level, the Collecting Basket and the two recipe cards that need a building.
 
 import type { GameState } from '../../src/core/state';
 import type { GameData } from '../../src/data';
 import {
+  ANIMAL_IDS,
+  BUILDING_IDS,
   DECOR_IDS,
   FRUIT_IDS,
   PARCEL_IDS,
@@ -46,21 +49,38 @@ export function treeCopies(data: GameData, fruit: (typeof FRUIT_IDS)[number]): n
       : 0;
 }
 
+/** A recipe card that only opens with a ranch building (Lemon Meringue Pie, Persimmon Pudding). */
+function cardNeedsBuilding(unlock: readonly { kind: string }[]): boolean {
+  return unlock.some((c) => c.kind === 'building');
+}
+
 /** The parts of the catalogue, at list price. */
 export function catalogueParts(data: GameData): {
   v1: number;
   parcels: number;
   saplings: number;
+  ranch: number;
   decor: number;
   projects: number;
 } {
   let v1 = 0;
-  for (const id of Object.keys(data.upgrades) as UpgradeId[])
-    v1 += upgradeSpend(data, id, data.upgrades[id]!.max);
+  let ranch = 0;
+  for (const id of Object.keys(data.upgrades) as UpgradeId[]) {
+    const spend = upgradeSpend(data, id, data.upgrades[id]!.max);
+    if (data.upgrades[id]!.category === 'ranch') ranch += spend;
+    else v1 += spend;
+  }
   for (const id of Object.keys(data.expansions) as ExpansionId[]) v1 += data.expansions[id].price;
   for (const id of RECIPE_IDS) {
     const d = data.recipes[id].discovery;
-    if (d.kind === 'card') v1 += d.price;
+    if (d.kind !== 'card') continue;
+    if (cardNeedsBuilding(d.unlock)) ranch += d.price;
+    else v1 += d.price;
+  }
+  for (const id of BUILDING_IDS) ranch += data.buildings[id].levels.reduce((sum, l) => sum + l.price, 0);
+  for (const id of ANIMAL_IDS) {
+    const a = data.animals[id];
+    ranch += a.price * data.buildings[a.building].levels.at(-1)!.capacity;
   }
   const parcels = PARCEL_IDS.reduce((sum, id) => sum + data.parcels[id].price, 0);
   const saplings = FRUIT_IDS.reduce(
@@ -73,12 +93,12 @@ export function catalogueParts(data: GameData): {
       sum + data.townProjects[id].stages.reduce((n, _s, i) => n + stageGold(data.townProjects[id], i), 0),
     0,
   );
-  return { v1, parcels, saplings, decor, projects };
+  return { v1, parcels, saplings, ranch, decor, projects };
 }
 
 export function catalogueTotal(data: GameData): number {
   const p = catalogueParts(data);
-  return p.v1 + p.parcels + p.saplings + p.decor + p.projects;
+  return p.v1 + p.parcels + p.saplings + p.ranch + p.decor + p.projects;
 }
 
 /** The list price of everything in the catalogue this farm already owns (a known recipe card counts). */
@@ -92,6 +112,9 @@ export function catalogueOwned(s: GameState, data: GameData): number {
     if (d?.kind === 'card') sum += d.price;
   }
   for (const id of s.land.parcels) sum += data.parcels[id].price;
+  for (const b of s.ranch.buildings)
+    for (let l = 0; l < b.level; l++) sum += data.buildings[b.kind].levels[l]!.price;
+  for (const a of s.ranch.animals) sum += data.animals[a.kind].price;
   for (const f of FRUIT_IDS) {
     // planted trees and saplings in the bag count as bought (a removed tree is not counted again)
     const have =

@@ -4,6 +4,7 @@
 
 import {
   CROP_IDS,
+  ANIMAL_PRODUCT_IDS,
   FRUIT_IDS,
   PARCEL_IDS,
   type ExpansionId,
@@ -54,6 +55,7 @@ const SECTIONS: readonly { title: string; category: UpgradeCategory; ids: readon
   { title: 'Kitchen', category: 'kitchen', ids: ['kitchen'] },
   { title: 'Tools', category: 'tools', ids: ['watering_can', 'hoe'] },
   { title: 'Storage', category: 'storage', ids: ['backpack', 'barn_storage'] },
+  { title: 'Ranch', category: 'ranch', ids: ['ranch_collector'] },
 ];
 
 const CARD_ICON: Partial<Record<UpgradeId, string>> = {
@@ -65,6 +67,7 @@ const CARD_ICON: Partial<Record<UpgradeId, string>> = {
   watering_can: 'ui_tool_water',
   hoe: 'ui_tool_hoe',
   kitchen: 'buff_cookSpeed',
+  ranch_collector: 'item_egg',
 };
 
 export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
@@ -287,7 +290,7 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
         return h(
           'div',
           { class: 'seller-toggles', role: 'group', 'aria-label': 'Ship automatically' },
-          ...([...CROP_IDS, ...FRUIT_IDS] as readonly ItemId[]).map((crop) => {
+          ...([...CROP_IDS, ...FRUIT_IDS, ...ANIMAL_PRODUCT_IDS] as readonly ItemId[]).map((crop) => {
             const on = autoSellOn(state, hooks.data, crop);
             const box = h('input', { type: 'checkbox', 'data-role': `sell-${crop}` });
             box.checked = on;

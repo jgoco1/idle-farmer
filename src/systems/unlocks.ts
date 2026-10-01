@@ -52,6 +52,8 @@ function conditionMet(state: GameState, c: UnlockCondition, data?: GameData): bo
       return state.land.parcels.includes(c.id);
     case 'charm':
       return data !== undefined && charmOf(state, data) >= c.amount;
+    case 'building':
+      return state.ranch.buildings.some((b) => b.kind === c.id && b.level >= c.level);
     case 'townProject':
       return (
         data !== undefined &&
@@ -115,6 +117,8 @@ function hintFor(state: GameState, data: GameData, c: UnlockCondition): string {
       return `Buy the ${data.parcels[c.id].name} first.`;
     case 'charm':
       return `Reach charm ${c.amount}.`;
+    case 'building':
+      return `Build the ${data.buildings[c.id].name}${c.level > 1 ? ` to level ${c.level}` : ''} first.`;
     case 'townProject': {
       const p = data.townProjects[c.id];
       return c.stage === undefined || c.stage >= p.stages.length
