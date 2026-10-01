@@ -13,6 +13,7 @@ import { hasFlag } from './upgrades';
 import { collectAllTraps, msToNextTrapRoll, tickTraps } from './traps';
 import { msToNextCookFinish, tickCooking } from './cooking';
 import { msToNextBuffExpiry, tickBuffs } from './buffs';
+import { growOrchard } from './orchard';
 import { resetDailyGoals, revalidateGoals, runProgression } from './progression';
 
 /**
@@ -52,8 +53,9 @@ export function msToNextSimEvent(state: GameState, ctx: SimContext): number {
   );
 }
 
-/** Daily refresh at 06:00 local (BALANCE.md §1): market specials and sparkline, goldToday, per-day goals. */
+/** Daily refresh at 06:00 local (BALANCE.md §1): fruit on the trees, market specials and sparkline, goldToday, per-day goals. */
 export function onDayStarted(state: GameState, ctx: SimContext): void {
+  growOrchard(state, ctx); // trees count real days: first, so today's market already knows a tree turned mature
   openMarketDay(state, ctx.data, ctx.rng, ctx.calendar.season);
   state.stats.goldToday = 0;
   state.stats.daysPassed += 1;

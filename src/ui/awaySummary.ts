@@ -4,7 +4,8 @@
 import type { OfflineReport } from '../core/offline';
 import { capitalize, formatDuration } from '../core/time';
 import { GAME_DATA } from '../data';
-import type { CropId, RecipeId, SkillId } from '../data/ids';
+import type { CropId, FruitId, RecipeId, SkillId, TreeId } from '../data/ids';
+import { fruitOfTree } from '../data/ids';
 import { SKILL_ICONS, SKILL_NAMES } from '../data/skills';
 import { spriteDataUrl } from '../render/spriteCache';
 import { h } from './dom';
@@ -29,6 +30,10 @@ export interface AwayTotals {
   levelUps: { skill: string; level: number }[];
   goalsDone: number;
   milestonesDone: number;
+  /** Trees that turned mature while away, and fruit that grew on the trees (orchard, v2 phase 03). */
+  treesMatured: TreeId[];
+  fruitGrown: Partial<Record<FruitId, number>>;
+  fruitGrownTotal: number;
 }
 
 export function awayTotals(report: OfflineReport): AwayTotals {
@@ -46,6 +51,9 @@ export function awayTotals(report: OfflineReport): AwayTotals {
     levelUps: [],
     goalsDone: 0,
     milestonesDone: 0,
+    treesMatured: [],
+    fruitGrown: {},
+    fruitGrownTotal: 0,
   };
   for (const e of report.events) {
     if (e.type === 'harvested') {
@@ -67,6 +75,11 @@ export function awayTotals(report: OfflineReport): AwayTotals {
       t.buffsExpired += 1;
     } else if (e.type === 'levelUp') {
       t.levelUps.push({ skill: e.skill, level: e.level });
+    } else if (e.type === 'treeMatured') {
+      t.treesMatured.push(e.tree);
+    } else if (e.type === 'fruitGrown') {
+      t.fruitGrown[e.fruit] = (t.fruitGrown[e.fruit] ?? 0) + e.qty;
+      t.fruitGrownTotal += e.qty;
     } else if (e.type === 'questDone') {
       if (e.kind === 'goal') t.goalsDone += 1;
       else t.milestonesDone += 1;
@@ -109,6 +122,22 @@ export function awayRows(report: OfflineReport, farm: AwayFarm): AwayRow[] {
     rows.push({
       icon: `item_${first![0]}`,
       text: `${t.cookedTotal} dish${t.cookedTotal === 1 ? '' : 'es'} finished cooking${hearty}.`,
+    });
+  }
+  for (const tree of t.treesMatured) {
+    const def = GAME_DATA.trees[tree];
+    rows.push({
+      icon: `item_${fruitOfTree(tree)}`,
+      text: `Your ${def.name.toLowerCase()} tree is ready to bear.`,
+    });
+  }
+  if (t.fruitGrownTotal > 0) {
+    const grown = (Object.entries(t.fruitGrown) as [FruitId, number][]).sort((a, b) => b[1] - a[1]);
+    const first = grown[0]!;
+    const rest = grown.length > 1 ? ` and ${grown.length - 1} other kind${grown.length > 2 ? 's' : ''}` : '';
+    rows.push({
+      icon: `item_${first[0]}`,
+      text: `+${t.fruitGrownTotal} fruit grew on the trees (${first[1]} ${GAME_DATA.items[first[0]]!.name}${rest}).`,
     });
   }
   if (t.buffsExpired > 0) {

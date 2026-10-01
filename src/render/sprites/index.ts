@@ -16,6 +16,7 @@ import { FARMHOUSE_SPRITES } from './farmhouse';
 import { FISHING_SPRITES } from './fishing';
 import { ITEM_SPRITES } from './items';
 import { TOWN_SPRITES } from './town';
+import { TREE_SPRITES } from './trees';
 import type { SpriteDef } from './types';
 
 export type { SpriteDef } from './types';
@@ -35,6 +36,7 @@ export const ALL_SPRITES: readonly SpriteDef[] = [
   ...DECOR_PIECE_SPRITES,
   ...FARMHOUSE_SPRITES,
   ...TOWN_SPRITES,
+  ...TREE_SPRITES,
   ...FX_SPRITES,
 ];
 

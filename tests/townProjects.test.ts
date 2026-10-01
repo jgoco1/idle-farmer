@@ -115,13 +115,7 @@ describe('the project data (BALANCE.md §13.3)', () => {
     for (const id of TOWN_PROJECT_IDS)
       for (const st of TOWN_PROJECTS[id].stages)
         for (const it of st.items) expect(GAME_DATA.items[it.item], it.item).toBeDefined();
-    expect(LATER_STAGE_ITEMS.map((x) => x.item).sort()).toEqual([
-      'apple',
-      'egg',
-      'large_egg',
-      'milk',
-      'persimmon',
-    ]);
+    expect(LATER_STAGE_ITEMS.map((x) => x.item).sort()).toEqual(['egg', 'large_egg', 'milk']);
   });
 });
 

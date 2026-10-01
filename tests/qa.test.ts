@@ -40,6 +40,7 @@ import fixtureV6 from './fixtures/save-v6.json';
 import fixtureV7 from './fixtures/save-v7.json';
 import fixtureV8 from './fixtures/save-v8.json';
 import fixtureV9 from './fixtures/save-v9.json';
+import fixtureV10 from './fixtures/save-v10.json';
 import { at, DAY, HOUR, NY } from './helpers';
 
 const MIN = 60_000;
@@ -339,6 +340,7 @@ describe('old and broken saves', () => {
     fixtureV7,
     fixtureV8,
     fixtureV9,
+    fixtureV10,
   ];
 
   it('there is a fixture for every save version, and each migrates, validates and plays on', () => {

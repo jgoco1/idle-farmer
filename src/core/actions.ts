@@ -22,6 +22,7 @@ import { eatDish } from '../systems/buffs';
 import { donate } from '../systems/bundles';
 import { buyDecor, moveDecor, pickUpDecor, placeDecor, styleFarmhouse } from '../systems/decor';
 import { donateProject } from '../systems/townProjects';
+import { buySapling, moveTree, pickTree, plantTree, removeTree } from '../systems/orchard';
 import { runProgression } from '../systems/progression';
 import type {
   BundleId,
@@ -30,6 +31,7 @@ import type {
   DishId,
   ExpansionId,
   FishLocationId,
+  FruitId,
   ItemId,
   ParcelId,
   RecipeId,
@@ -88,6 +90,13 @@ export type Action =
   | { type: 'styleFarmhouse'; paint?: DecorId | null; roof?: DecorId | null; loft?: boolean }
   /** Community Board › Town: give gold and/or items toward a project's current stage. */
   | { type: 'donateProject'; project: TownProjectId; gold?: number; item?: ItemId; qty?: number }
+  /** Shop › Trees: buy saplings (bag items). Planting uses a tree spot of the orchard (v2 phase 03). */
+  | { type: 'buySapling'; fruit: FruitId; qty: number }
+  | { type: 'plantTree'; fruit: FruitId; spot: number }
+  /** Click a tree: pick all its fruit. Moving keeps its age; removing loses it (the UI confirms both). */
+  | { type: 'pickTree'; id: number }
+  | { type: 'moveTree'; id: number; spot: number }
+  | { type: 'removeTree'; id: number }
   | { type: 'debugSetTimeWarp'; on: boolean };
 
 export const TIME_WARP_SPEED = 60;
@@ -174,6 +183,16 @@ function handleAction(state: GameState, ctx: SimContext, action: Action): Action
       return styleFarmhouse(state, ctx, action.paint, action.roof, action.loft);
     case 'donateProject':
       return donateProject(state, ctx, action.project, action.gold, action.item, action.qty);
+    case 'buySapling':
+      return buySapling(state, ctx, action.fruit, action.qty);
+    case 'plantTree':
+      return plantTree(state, ctx, action.fruit, action.spot);
+    case 'pickTree':
+      return pickTree(state, ctx, action.id);
+    case 'moveTree':
+      return moveTree(state, ctx, action.id, action.spot);
+    case 'removeTree':
+      return removeTree(state, ctx, action.id);
     case 'debugSetTimeWarp':
       state.clock.speed = action.on ? TIME_WARP_SPEED : 1;
       return OK;

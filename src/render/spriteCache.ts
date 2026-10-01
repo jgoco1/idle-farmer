@@ -46,6 +46,17 @@ export function spriteFrame(id: string, timeMs = 0): HTMLCanvasElement {
   return frame;
 }
 
+/**
+ * `spriteFrame` for a sprite whose animation is offset by a whole number of ms (crops in a field are staggered): the
+ * offset is added here, so a per-plot caller passes the same render time and a small integer, not a new double.
+ */
+export function spriteFrameOffset(id: string, timeMs: number, offsetMs: number): HTMLCanvasElement {
+  const def = spriteDef(id);
+  const f = frames(def);
+  if (!def.frameMs || f.length < 2) return f[0]!;
+  return f[Math.floor((timeMs + offsetMs) / def.frameMs) % f.length]!;
+}
+
 /** Top-left draw position for a sprite placed on tile (col, row), honouring its anchor. */
 export function anchoredPosition(
   def: SpriteDef,

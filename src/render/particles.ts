@@ -121,6 +121,14 @@ const RECIPES: Record<ParticleKind, Recipe> = {
 
 const HEART = ['.x.x.', 'xxxxx', 'xxxxx', '.xxx.', '..x..'];
 const NOTE = ['..xx', '..x.', '..x.', 'xxx.', 'xx..'];
+/** The set pixels of a bitmap as flat [dx, dy, dx, dy, …], built once (drawing one every frame must not allocate). */
+function pixelsOf(rows: readonly string[]): readonly number[] {
+  const out: number[] = [];
+  rows.forEach((row, dy) => [...row].forEach((ch, dx) => ch === 'x' && out.push(dx, dy)));
+  return out;
+}
+const HEART_PIXELS = pixelsOf(HEART);
+const NOTE_PIXELS = pixelsOf(NOTE);
 
 export class ParticleSystem {
   private readonly pool: Particle[] = Array.from({ length: POOL_SIZE }, () => ({
@@ -224,13 +232,11 @@ export class ParticleSystem {
         f.fillRect(x - (rx >> 1), y - ry, rx, 1);
         f.fillRect(x - (rx >> 1), y + ry, rx, 1);
       } else if (p.kind === 'heart') {
-        HEART.forEach((row, ry) =>
-          [...row].forEach((ch, rx) => ch === 'x' && f.fillRect(x - 2 + rx, y - 2 + ry, 1, 1)),
-        );
+        for (let i = 0; i < HEART_PIXELS.length; i += 2)
+          f.fillRect(x - 2 + HEART_PIXELS[i]!, y - 2 + HEART_PIXELS[i + 1]!, 1, 1);
       } else if (p.kind === 'note') {
-        NOTE.forEach((row, ry) =>
-          [...row].forEach((ch, rx) => ch === 'x' && f.fillRect(x - 1 + rx, y - 2 + ry, 1, 1)),
-        );
+        for (let i = 0; i < NOTE_PIXELS.length; i += 2)
+          f.fillRect(x - 1 + NOTE_PIXELS[i]!, y - 2 + NOTE_PIXELS[i + 1]!, 1, 1);
       } else if (p.kind === 'sparkle') {
         const s = t < 0.5 ? p.size : Math.max(1, p.size - 1);
         f.fillRect(x, y - s, 1, s * 2 + 1);

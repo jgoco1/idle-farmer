@@ -25,6 +25,12 @@ export default defineConfig({
     },
     launchOptions: executablePath ? { executablePath } : {},
   },
+  // The perf spec measures frame time, allocation and a load-time catch-up, all of which move with machine load,
+  // so it runs by itself, after every other spec has finished (one worker, nothing else busy).
+  projects: [
+    { name: 'specs', testIgnore: /perf\.spec\.ts/ },
+    { name: 'perf', testMatch: /perf\.spec\.ts/, dependencies: ['specs'], fullyParallel: false },
+  ],
   webServer: {
     command: 'npm run build && npx vite preview --port 4173 --strictPort',
     url: 'http://localhost:4173/idle-farmer/',

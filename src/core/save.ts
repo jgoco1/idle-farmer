@@ -9,10 +9,10 @@
 
 import { createInitialState, cloneState, type GameState } from './state';
 import type { LocalClock } from './time';
-import { isDecorId, isParcelId, isTownProjectId } from '../data/ids';
-import { WORLD_COLS, WORLD_ROWS } from '../data/world';
+import { isDecorId, isFruitId, isParcelId, isTownProjectId } from '../data/ids';
+import { WORLD_COLS, WORLD_ROWS, WORLD_LAYOUT } from '../data/world';
 
-export const SAVE_VERSION = 9;
+export const SAVE_VERSION = 10;
 export const SAVE_KEY = 'hearthfield-idle/save';
 export const AUTOSAVE_MS = 15_000;
 
@@ -173,6 +173,17 @@ export const migrations: Record<number, Migration> = {
     decor: { owned: {}, placed: [], farmhouse: { paint: null, roof: null, loft: false } },
     town: { projects: {} },
   }),
+  /**
+   * v9 → v10 (v2 phase 03, the orchard): no trees, no fruit picked, and the calendar's day index
+   * starts counting: day zero is the save's last seen day, and the highest index seen is 0. Day zero
+   * only has to be consistent, because every tree's age is a difference of two day indexes.
+   */
+  9: (old) => ({
+    ...old,
+    orchard: { trees: [] },
+    stats: { ...old.stats, fruitPicked: 0 },
+    calendar: { ...old.calendar, dayZeroKey: old.calendar?.lastDayKey ?? '1970-01-01', maxDayIndex: 0 },
+  }),
 };
 
 export class SaveError extends Error {
@@ -274,6 +285,7 @@ function economyProblem(s: Record<string, unknown>): string | null {
     'dishesCooked',
     'dishesEaten',
     'bestDishTier',
+    'fruitPicked',
   ]) {
     if (!isInt(stats[k])) return 'bad stats';
   }
@@ -431,6 +443,25 @@ function townProblem(s: Record<string, unknown>): string | null {
   return null;
 }
 
+function orchardProblem(s: Record<string, unknown>): string | null {
+  const { orchard } = s;
+  if (!isObj(orchard) || !Array.isArray(orchard.trees)) return 'bad orchard';
+  const ids = new Set<number>();
+  const spots = new Set<number>();
+  for (const t of orchard.trees) {
+    if (!isObj(t) || !isInt(t.id) || typeof t.tree !== 'string' || !t.tree.endsWith('_tree'))
+      return 'bad tree';
+    if (!isFruitId(t.tree.slice(0, -'_tree'.length))) return 'bad tree';
+    if (!isInt(t.spot) || t.spot < 0 || t.spot >= WORLD_LAYOUT.treeSpots.length) return 'bad tree';
+    if (!isInt(t.plantedDay) || !isInt(t.lastFruitDay) || !isInt(t.fruit) || t.fruit < 0) return 'bad tree';
+    if (t.lastFruitDay < t.plantedDay) return 'bad tree';
+    if (ids.has(t.id) || spots.has(t.spot)) return 'bad tree';
+    ids.add(t.id);
+    spots.add(t.spot);
+  }
+  return null;
+}
+
 function cookingProblem(s: Record<string, unknown>): string | null {
   const { kitchen, buffs } = s;
   if (!isObj(kitchen) || !Array.isArray(kitchen.known) || !Array.isArray(kitchen.queue)) return 'bad kitchen';
@@ -463,6 +494,8 @@ export function validateState(s: unknown): string | null {
     !isNum(calendar.seasonEpoch) ||
     !isNum(calendar.maxWeekIndex) ||
     typeof calendar.lastDayKey !== 'string' ||
+    typeof calendar.dayZeroKey !== 'string' ||
+    !isInt(calendar.maxDayIndex) ||
     !isNum(calendar.debugOffsetMs)
   )
     return 'bad calendar';
@@ -483,7 +516,8 @@ export function validateState(s: unknown): string | null {
     progressionProblem(s) ??
     landProblem(s) ??
     decorProblem(s) ??
-    townProblem(s)
+    townProblem(s) ??
+    orchardProblem(s)
   );
 }
 

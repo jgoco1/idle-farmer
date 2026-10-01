@@ -21,6 +21,7 @@ import type {
   RecipeId,
   SeasonId,
   TownProjectId,
+  TreeId,
   UpgradeId,
 } from './ids';
 import { ITEMS } from './items';
@@ -43,9 +44,11 @@ import type {
   SeasonDef,
   SkillPerkDef,
   TownProjectDef,
+  TreeDef,
   UpgradeDef,
 } from './types';
 import { TOWN_PROJECTS } from './townProjects';
+import { TREES } from './trees';
 import { UPGRADES } from './upgrades';
 import { WORLD_LAYOUT, type WorldLayout } from './world';
 
@@ -81,6 +84,8 @@ export interface GameData {
   decor: Readonly<Record<DecorId, DecorDef>>;
   /** The six town projects of the Community Board (v2 phase 02). */
   townProjects: Readonly<Record<TownProjectId, TownProjectDef>>;
+  /** The seven fruit trees (v2 phase 03). */
+  trees: Readonly<Record<TreeId, TreeDef>>;
 }
 
 export const GAME_DATA: GameData = Object.freeze({
@@ -103,4 +108,5 @@ export const GAME_DATA: GameData = Object.freeze({
   decorSets: DECOR_SETS,
   decor: DECOR,
   townProjects: TOWN_PROJECTS,
+  trees: TREES,
 });

@@ -188,8 +188,8 @@ describe('ambient life', () => {
   it('keeps every creature inside the scene while it moves', () => {
     const a = new Ambient();
     for (let i = 0; i < 600; i++) a.update(50, clock(12, 'spring'));
-    const creatures = (a as unknown as { butterflies: { x: number; y: number }[] }).butterflies;
-    for (const c of creatures) {
+    for (let i = 0; i < AMBIENT_COUNTS.spring.butterflies; i++) {
+      const c = a.butterflyAt(i);
       expect(c.x).toBeGreaterThanOrEqual(0);
       expect(c.x).toBeLessThanOrEqual(320);
       expect(c.y).toBeGreaterThanOrEqual(0);

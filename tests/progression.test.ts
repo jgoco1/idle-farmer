@@ -623,6 +623,7 @@ describe('milestones', () => {
       'm17_first_decor',
       'm18_charm_25',
       'm19_first_project',
+      'm20_first_fruit',
       'm23_charm_100',
     ]);
     for (const m of MILESTONES) {
@@ -778,8 +779,8 @@ describe('milestones', () => {
 const START_TEMPLATES = ['harvest_crop', 'harvest_any', 'catch_fish', 'cook_distinct', 'eat_dish'];
 
 describe('the goal board', () => {
-  it('has 10 templates, each with a warm line', () => {
-    expect(Object.keys(GOAL_TEMPLATES)).toHaveLength(10);
+  it('has 11 templates, each with a warm line', () => {
+    expect(Object.keys(GOAL_TEMPLATES)).toHaveLength(11);
     for (const t of Object.values(GOAL_TEMPLATES)) expect(t.flavor.length, t.id).toBeGreaterThan(10);
   });
 
@@ -1094,7 +1095,7 @@ describe('the Community Board', () => {
     for (const slot of BUNDLES[id].slots) expect(give(s, id, slot.item, slot.qty)).toEqual({ ok: true });
   }
 
-  it('has the 6 bundles of BALANCE.md', () => {
+  it('has the 6 bundles of BALANCE.md and the Orchard Basket (v2-03)', () => {
     expect(BUNDLE_IDS).toEqual([
       'spring_crops',
       'summer_crops',
@@ -1102,6 +1103,7 @@ describe('the Community Board', () => {
       'pond_fish',
       'river_and_sea',
       'cozy_dinner',
+      'orchard_basket',
     ]);
     expect(BUNDLES.spring_crops.slots).toEqual([
       { item: 'turnip', qty: 10 },

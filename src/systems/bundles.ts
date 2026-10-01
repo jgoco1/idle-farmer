@@ -52,6 +52,7 @@ export interface BundleBonuses {
   trapPerLocation: number;
   goldenScarecrow: boolean;
   greenhouse: boolean;
+  treeSpots: number;
 }
 
 const NO_BUNDLE_BONUSES: Readonly<BundleBonuses> = Object.freeze({
@@ -61,6 +62,7 @@ const NO_BUNDLE_BONUSES: Readonly<BundleBonuses> = Object.freeze({
   trapPerLocation: 0,
   goldenScarecrow: false,
   greenhouse: false,
+  treeSpots: 0,
 });
 
 /** What the completed bundles give, in total. Do not modify the result. */
@@ -73,6 +75,7 @@ export function bundleBonuses(state: GameState, data: GameData): Readonly<Bundle
     trapPerLocation: 0,
     goldenScarecrow: false,
     greenhouse: false,
+    treeSpots: 0,
   };
   for (const id of state.progression.completedBundles) {
     const r = data.bundles[id].reward;
@@ -91,6 +94,9 @@ export function bundleBonuses(state: GameState, data: GameData): Readonly<Bundle
         break;
       case 'goldenScarecrow':
         b.goldenScarecrow = true;
+        break;
+      case 'treeSpots':
+        b.treeSpots += r.count;
         break;
       case 'unlockGreenhouse':
         b.greenhouse = true;

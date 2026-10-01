@@ -24,6 +24,11 @@ export interface Calendar {
   weekday: number; // 0 = Sunday … 6 = Saturday, local
   dayKey: string; // 'YYYY-MM-DD' of the 06:00 → 06:00 local day
   weekIndex: number; // 0 = the first (possibly longer) spring; +1 at each counted Sunday 00:00
+  /** Real 06:00 → 06:00 days since the save's day zero; never decreases (v2 phase 03, the one clock trees use). */
+  dayIndex: number;
+  /** Civil day number of `dayIndex` 0, and the Sunday week of the season epoch: what `seasonOfDay` needs. */
+  dayZero: number;
+  epochWeek: number;
   season: SeasonId; // SEASONS[weekIndex % 4]
   year: number; // floor(weekIndex / 4) + 1
   isNight: boolean;
@@ -51,20 +56,31 @@ export interface CalendarState {
   maxWeekIndex: number;
   lastDayKey: string;
   debugOffsetMs: number;
+  /** The dayKey that is day 0 (a new save: its first dayKey). Only differences of day indexes matter. */
+  dayZeroKey: string;
+  /** The highest `dayIndex` seen, like `maxWeekIndex`: the day index never goes back with the clock. */
+  maxDayIndex: number;
 }
 
 /** The browser's local time zone. */
+let sysMinute = Number.NaN;
+let sysParts: LocalParts | null = null;
 export const systemLocalClock: LocalClock = {
   parts(t) {
+    // The calendar is built several times a frame and the minute rarely changes: the last answer is reused
+    // (nobody modifies a LocalParts), so a steady frame allocates nothing here.
+    const minute = Math.floor(t / MINUTE_MS);
+    if (minute === sysMinute && sysParts) return sysParts;
     const dt = new Date(t);
-    return {
+    sysMinute = minute;
+    return (sysParts = {
       y: dt.getFullYear(),
       mo: dt.getMonth() + 1,
       d: dt.getDate(),
       h: dt.getHours(),
       mi: dt.getMinutes(),
       wd: dt.getDay(),
-    };
+    });
   },
 };
 
@@ -196,11 +212,49 @@ export function weekIndexAt(t: number, seasonEpoch: number, lc: LocalClock): num
 
 /** 'YYYY-MM-DD' of the local 06:00 → 06:00 day containing `t`. */
 export function dayKeyAt(t: number, lc: LocalClock): string {
+  return keyOfDay(dayNumberAt(t, lc));
+}
+
+/** Civil day number of the local 06:00 → 06:00 day containing `t`. */
+function dayNumberAt(t: number, lc: LocalClock): number {
   const p = lc.parts(t);
-  let day = daysFromCivil(p.y, p.mo, p.d);
-  if (p.h < DAY_START_HOUR) day -= 1;
+  const day = daysFromCivil(p.y, p.mo, p.d);
+  return p.h < DAY_START_HOUR ? day - 1 : day;
+}
+
+let keyDay = Number.NaN;
+let keyText = '';
+/** 'YYYY-MM-DD' of a civil day number; the last one is kept, because the same day is asked for every frame. */
+function keyOfDay(day: number): string {
+  if (day === keyDay) return keyText;
   const c = civilFromDays(day);
-  return `${c.y}-${String(c.mo).padStart(2, '0')}-${String(c.d).padStart(2, '0')}`;
+  keyDay = day;
+  return (keyText = `${c.y}-${String(c.mo).padStart(2, '0')}-${String(c.d).padStart(2, '0')}`);
+}
+
+/** Whole days since 1970-01-01 of a 'YYYY-MM-DD' key. */
+let zeroKey = '';
+let zeroDay = 0;
+export function civilDayOfKey(key: string): number {
+  if (key === zeroKey) return zeroDay; // the day-zero key is asked for every calendar build
+  const y = Number(key.slice(0, 4));
+  const mo = Number(key.slice(5, 7));
+  const d = Number(key.slice(8, 10));
+  zeroKey = key;
+  return (zeroDay = daysFromCivil(y, mo, d));
+}
+
+/** The raw day index of a dayKey (not yet held up by `maxDayIndex`). */
+export function dayIndexOfKey(key: string, dayZeroKey: string): number {
+  return civilDayOfKey(key) - civilDayOfKey(dayZeroKey);
+}
+
+/**
+ * The season of real day `d` (day index), by the weekly rule applied to that day's date: the same
+ * result however an absence was split into steps, so fruit on missed days is counted exactly.
+ */
+export function seasonOfDay(cal: Pick<Calendar, 'dayZero' | 'epochWeek'>, d: number): SeasonId {
+  return seasonOfWeek(Math.max(0, sundayWeek(cal.dayZero + d) - cal.epochWeek + 1));
 }
 
 /** The first local 06:00 strictly after `t`. */
@@ -245,13 +299,19 @@ export function seasonOfWeek(weekIndex: number): SeasonId {
 export function buildCalendar(t: number, cal: CalendarState, lc: LocalClock): Calendar {
   const p = lc.parts(t);
   const weekIndex = Math.max(weekIndexAt(t, cal.seasonEpoch, lc), cal.maxWeekIndex);
+  const dayNumber = dayNumberAt(t, lc);
+  const dayKey = keyOfDay(dayNumber);
+  const dayZero = civilDayOfKey(cal.dayZeroKey);
   return {
     nowMs: t,
     hour: p.h,
     minute: p.mi,
     weekday: p.wd,
-    dayKey: dayKeyAt(t, lc),
+    dayKey,
     weekIndex,
+    dayIndex: Math.max(cal.maxDayIndex, dayNumber - dayZero),
+    dayZero,
+    epochWeek: epochWeek(cal.seasonEpoch),
     season: seasonOfWeek(weekIndex),
     year: Math.floor(weekIndex / SEASONS.length) + 1,
     isNight: p.h >= NIGHT_START_HOUR || p.h < DAY_START_HOUR,
@@ -267,6 +327,8 @@ export function createCalendarState(createdAt: number, lc: LocalClock): Calendar
     maxWeekIndex: 0,
     lastDayKey: dayKeyAt(createdAt, lc),
     debugOffsetMs: 0,
+    dayZeroKey: dayKeyAt(createdAt, lc),
+    maxDayIndex: 0,
   };
 }
 

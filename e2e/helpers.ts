@@ -33,15 +33,39 @@ async function onScreen(page: Page, col: number, row: number): Promise<{ x: numb
 }
 
 /**
- * Client (page) position of the centre of world tile (col, row). If the tile is not comfortably in
- * view, the camera jumps to it first.
+ * Waits until the camera has stopped moving: some actions glide it (planting mode pans to the
+ * orchard, buying land glides to it), and a point read mid-glide is a different tile by the time
+ * the click lands. Two reads one frame apart must agree.
+ */
+async function cameraAtRest(page: Page): Promise<void> {
+  await page.waitForFunction(
+    () =>
+      new Promise<boolean>((resolve) => {
+        const v = (window as unknown as WithView).__view;
+        const a = v.camera();
+        requestAnimationFrame(() =>
+          requestAnimationFrame(() => {
+            const b = v.camera();
+            resolve(a.x === b.x && a.y === b.y && a.zoom === b.zoom);
+          }),
+        );
+      }),
+    undefined,
+    { timeout: 5000 },
+  );
+}
+
+/**
+ * Client (page) position of the centre of world tile (col, row), read once the camera is at rest.
+ * If the tile is not comfortably in view, the camera jumps to it first.
  */
 export async function tilePoint(page: Page, col: number, row: number): Promise<{ x: number; y: number }> {
   await page.waitForFunction(() => !!(window as unknown as Partial<WithView>).__view);
+  await cameraAtRest(page);
   let at = await onScreen(page, col, row);
   if (!at) {
     await page.evaluate(([c, r]) => (window as unknown as WithView).__view.showTile(c!, r!), [col, row]);
-    await page.waitForTimeout(50);
+    await cameraAtRest(page);
     at = await onScreen(page, col, row);
   }
   if (!at) throw new Error(`world tile (${col}, ${row}) could not be brought into view`);

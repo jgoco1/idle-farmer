@@ -265,7 +265,7 @@ export function kitchenPanel(hooks: KitchenHooks): PanelDef {
         const owned = new Map<ItemId, number>();
         for (const s of state.inventory.slots) {
           const cat = s ? hooks.data.items[s.item]?.category : undefined;
-          if (s && !s.hearty && (cat === 'crop' || cat === 'fish' || cat === 'junk')) {
+          if (s && !s.hearty && (cat === 'crop' || cat === 'fruit' || cat === 'fish' || cat === 'junk')) {
             owned.set(s.item, (owned.get(s.item) ?? 0) + s.qty);
           }
         }

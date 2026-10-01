@@ -73,3 +73,11 @@ v2 phase 02 (decorations, charm and town projects):
 - **Stage items that wait for later phases**: apples, persimmons, eggs, large eggs and milk join the bakery's and the hall's stages in v2-03 and v2-04 (`LATER_STAGE_ITEMS` in `src/data/townProjects.ts`). v2-03 and v2-04.
 - **Placing decorations in the Orchard and the Paddock**: allowed today (outside tree spots); v2-04's coop, barn and silo are placed on free tiles, so a decoration already there blocks them. The building-placement check should say which decoration is in the way, or offer to pick it up. v2-04.
 - **Festival lights and the band across the whole square**: v2-02 hangs one string between two poles and puts four musicians on the bandstand; a fuller square (bunting between all the buildings, dancing townsfolk) would be pure art work. Later polish.
+
+v2 phase 03 (the orchard):
+- **Orchard income is about 1% of gold, not the 5–15% BALANCE §13.10 expected** (6–8k a day against bots earning 0.5–1M a day by day 7–14). Raising fruit prices or fruit per day by about 5× would reach the band; a later balance phase should decide whether the orchard should matter more (the owner fixed the tree table). Later balance.
+- **A tree tooltip on touch screens**: the label shows under a mouse pointer; on a phone a tap picks the fruit and nothing names the tree. A first tap that shows the label and a second that picks would be gentler. Later polish.
+- **A farmhand that walks the orchard**: the sprite walks to the tile below a tree it picked from, one trip per tree; a proper route (a short loop along the rows) would read better. Later polish.
+- **Sway for mature canopies** (ART_STYLE §6.2 lists a 2-frame sway as optional): not drawn. Later polish.
+- **Fruit waiting on a bare winter tree** stays drawn on the branches until picked (nothing is lost, GDD §12.1); falling leaves and a "ripe" glint would tell the player it is waiting. Later polish.
+- **Move a tree by dragging it**: Move in the Trees tab enters a spot-picking mode; dragging a tree between spots in the scene would be quicker, but a drag is a pan (GDD §12.1). Later polish.

@@ -4,6 +4,7 @@
 
 import {
   CROP_IDS,
+  FRUIT_IDS,
   PARCEL_IDS,
   type ExpansionId,
   type ItemId,
@@ -286,7 +287,7 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
         return h(
           'div',
           { class: 'seller-toggles', role: 'group', 'aria-label': 'Ship automatically' },
-          ...CROP_IDS.map((crop) => {
+          ...([...CROP_IDS, ...FRUIT_IDS] as readonly ItemId[]).map((crop) => {
             const on = autoSellOn(state, hooks.data, crop);
             const box = h('input', { type: 'checkbox', 'data-role': `sell-${crop}` });
             box.checked = on;
@@ -296,11 +297,11 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
             });
             return h(
               'label',
-              { class: 'seller-toggle', title: hooks.data.crops[crop].name },
+              { class: 'seller-toggle', title: hooks.data.items[crop]?.name ?? crop },
               box,
               h('img', {
                 class: 'pixel',
-                alt: hooks.data.crops[crop].name,
+                alt: hooks.data.items[crop]?.name ?? crop,
                 width: 16,
                 height: 16,
                 src: spriteDataUrl(`item_${crop}`),

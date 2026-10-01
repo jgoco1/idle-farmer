@@ -696,3 +696,70 @@ The extra 77 kB is sprite data (about 300 more sprites). The renderer's per-fram
 - **Do not allocate per frame** in anything you add to `render()` or `sceneView()`: `for…of`, `Object.values` and template strings in a per-frame path showed up in the perf test.
 - **Costs and numbers** live in `src/data/balance.ts`; `TOWN_PROJECT_SCALE` is the lever if orchard income shifts the §13.4 curve.
 
+
+---
+
+## v2 Phase 03: Fruit trees and the orchard
+
+### Built
+- **The calendar day index.** `Calendar.dayIndex` (real 06:00 → 06:00 days since the save's day zero, never decreasing), `Calendar.dayZero` and `epochWeek`, `seasonOfDay(cal, d)` (the season of any real day by its date), and `CalendarState.dayZeroKey` / `maxDayIndex` (`src/core/time.ts`; `processCalendar` raises `maxDayIndex` with the day key, like `maxWeekIndex`). Tested across DST changes, time-zone travel, a clock set back, a 30-day absence and a random walk of times (`tests/time.test.ts`).
+- **Data.** `src/data/trees.ts` (the seven trees of BALANCE §13.5, built from a table plus `FRUIT_CAP_DAYS`), fruit and sapling items (`items.ts`: `ItemCategory` gains `fruit` and `sapling`), the id helpers (`FruitId`, `TreeId`, `SaplingId`, `treeOfFruit`, `saplingOf`, …), four recipes (`baked_apple` T1, `cherry_jam` T2, `pear_crumble` T2, `peach_cobbler` T3; tiers computed by the existing formula), three recipe cards (3,000 / 4,000 / 8,000, open with the parcel), milestone `m20_first_fruit` (teaches Baked Apple), goal template `pick_fruit`, the Orchard Basket bundle (reward `treeSpots`), apples in the bakery's stage 3 and persimmons in the hall's stage 2.
+- **`src/systems/orchard.ts`.** Derived age, stage and days to mature; `growOrchard` (called first in `onDayStarted`: for every day since a tree's `lastFruitDay`, if it is mature and in season add its fruit up to the cap, report `treeMatured` and `fruitGrown`); `buySapling`, `plantTree`, `moveTree` (free, keeps age and fruit), `removeTree`, `pickTree` (all the fruit, partial with a full bag, to the Shipping Bin with the Auto-Seller), `pickTreesFor` (the farmhand: ripe trees first, one capacity each, a quarter of the XP), `hasTreeWork` (`msToNextAutomation` sees ripe trees), `openTreeSpots` (8, or 10 with the Orchard Basket), `treeAtTile`, `firstBearingDay`. Fruit joins the market's specials once a mature tree of it stands and the sparkline once one is planted; the Auto-Seller ships fruit by default (and Level 2 keeps its reserve of 10).
+- **Save 10.** `orchard: { trees }`, `stats.fruitPicked`, `calendar.dayZeroKey` / `maxDayIndex`; `migrations[9]`, validation (`orchardProblem`), `tests/fixtures/save-v10.json` (two trees, one laden), a v9 → v10 migration test, a damaged-orchard test.
+- **UI.** The Shop's **Trees** tab (`src/ui/treeShop.ts`: price, seasons, days to mature, "would first bear on …", Buy and Plant, and a "Your trees" list with Pick, Move and Remove; removal asks first and says the growth is lost and the sapling is not refunded), **planting mode** (`src/ui/plantMode.ts`: the free spots outlined, a 2 × 2 footprint snapped to a spot, green or red, a banner, Esc), a **tree tooltip** (a small parchment label: stage, days until mature, seasons, fruit hanging / cap), **edge pips** for ripe trees, toasts and a particle burst when a tree matures or fruit ripens, fruit toasts and a rising item when picked, away-summary rows ("Your peach tree is ready to bear", "+16 fruit grew on the trees"), fruit toggles under the Auto-Seller card, "Fruit picked" in Stats, fruit as kitchen experiment ingredients.
+- **Art** (`src/render/sprites/trees.ts`, drawn with the shape kit): per tree a sapling, a young tree and four mature looks (spring blossom, summer green, autumn gold, winter bare branches with snow, or snow-dusted leaves for the two winter bearers), 32 × 48; three fruit overlays per tree in its own colours; 7 fruit and 7 sapling item icons; 4 dish icons. Trees are drawn in the renderer's depth-merged object loop, culled to the view, with no allocation per frame.
+- **Simulator.** The brain plants and picks (BALANCE §13.12, v2-03 notes), the harness marks `first_sapling`, `first_tree`, `first_mature_tree` and `first_fruit` and counts orchard gold in every snapshot, the catalogue counts saplings, and the report has an **orchard income** table, a **first fruit by tree** table (`scripts/sim/trees.ts`) and two orchard checks.
+- **Test health (the v2-02 review).** Perf: see the table. `tests/simulate.test.ts`: the 60 s gold-sink check is `SPEND_REPORT=1` opt-in with a one-seed 21-day version by default; `npm test` is **38–43 s** in this container (was 94 s with that test).
+- **Tests:** 1,173 unit tests (was 1,042): `tests/orchard.test.ts` (data, stages by age, fruit in season and to the cap, nothing lost, one big jump equals daily visits, 30 days away, several days offline and the away summary, clock set back, buying, planting, moving, removing, picking by click, a full bag, the Auto-Seller, the farmhand's capacity and the one-big-step rule, market specials and sparkline, the goal and the bundle, tree art), day-index tests, save tests, updated cooking, progression and townProjects counts. e2e: 38 (was 30), `e2e/orchard.spec.ts`: Trees tab and planting, fast-forward real days with the debug offset until fruit ripens, tooltip, pip, picking, removing with a confirmation, moving, and the orchard in each season.
+- **Screenshots:** `docs/screenshots/v2-03-orchard-spring.png`, `-summer`, `-autumn`, `-winter` and `v2-03-tree-tooltip.png`.
+
+### First fruit by tree (simulator, planted on the schedule's first evening, Wed 25 Feb 2026)
+| Tree | Seasons | Days to mature | First fruit after | Season then |
+|---|---|---|---|---|
+| Cherry | spring | 3 | 3 days | spring |
+| Apricot | spring, summer | 4 | 4 days | summer |
+| Peach | summer | 4 | 4 days | summer |
+| Apple | summer, autumn | 5 | 5 days | summer |
+| Pear | autumn | 5 | 11 days | autumn |
+| Persimmon | autumn, winter | 6 | 11 days | autumn |
+| Lemon | winter, spring | 7 | 18 days | winter |
+
+The bots' own first fruit (they plant a tree that will bear in the season it matures in): Greedy Farmer and Angler and Chef **day 6.5**, Casual Idler 7.5, Active Player **9.0** (BALANCE §13.12).
+
+### Performance
+| Measure (`e2e/perf.spec.ts`, this container) | Before (v2-02 code, with 8 trees) | After | Budget |
+|---|---|---|---|
+| Allocated per frame, world pan | 13.3–13.5 KB | **3–4 KB** (median of three; 3.2–4.6 KB) | < 11 KB (was 12) |
+| Allocated per frame, farm at the default view | 9.8 KB | 3.1 KB | < 11 KB |
+| Frame rate, full world | 60 fps | 60 fps (p95 16.8 ms, worst 16.8 ms) | 60 fps |
+| Script per frame | 1.3–1.6 ms | 1.0–1.1 ms | < 8 ms |
+| 8 h away on that farm, page load | 66–123 ms | 67.6 ms median (60.7 / 74.0 / 67.6) | < 100 ms |
+| Bundle (JS / gzip) | 378.7 / 119.1 kB | 412.0 / 129.6 kB | – |
+Where the garbage was (heap profile of the unminified build): the ambient creatures' double fields and the calls that took doubles (moved into `Float64Array`s and integer-only calls), a boxed double from `plotStage` for every plot every frame (integer maths now) and a plot sprite list rebuilt on every frame (now on each simulation tick or event), the held-key `Map` iteration, the heart and note particle bitmaps (spread strings), the system clock's calendar (a new parts object, a day-key string and a parsed day-zero key on every build: now remembered per minute, day and key), and `for…of` over the bag and the plot list. The budgets were not raised; the assertion for the world pan went from 12 KB to 11 KB, and both perf tests now warm up, take three measurements and judge the median. The perf spec is its own Playwright project that runs after every other spec (one worker, nothing else busy).
+
+### Deviations
+- **Orchard income is about 1% of gold, not 5–15%** (BALANCE §13.10): the tree table is fixed by the owner and the estimate was off by an order of magnitude against the bots' incomes (§13.5 "Measured"). No check enforces the lower bound; IDEAS.md has it.
+- **The Active Player's Orchard is still bought on day 5** (target 2–4) and its first fruit comes on day 9: moving it earlier breaks the buff check or the Farmer's spending (§13.12). **Buffs kept up measure +27%** on eight seeds at day 7 (target 10–25%; +17% on the unit test's four).
+- **Moving a tree asks no confirmation** (GDD said both would): it is free, keeps age and fruit, and the mode's banner says so, with Esc to cancel. Removing asks.
+- **The tooltip is a small DOM label** next to the tree rather than the browser's `title` (native tooltips do not show on touch or in screenshots); it appears under a mouse pointer only.
+- **The farmhand picks trees before plots** (each tree one unit of its capacity), so a big field never starves the orchard. Its sprite walks to the tile below a picked tree.
+- **`Calendar` carries `dayZero` and `epochWeek`** so `seasonOfDay(ctx.calendar, d)` works from the context alone (DATA_SCHEMAS §9.5 said `CalendarState`; the doc is fixed).
+- **`sceneView()` rebuilds the plot sprite list per simulation tick or event**, not per frame (a performance change; plots show a click's result at the next frame because every action emits an event).
+- **Playwright projects:** `specs` and `perf` (the perf spec runs last, alone). `npm run test:e2e` still runs everything.
+- **Catalogue:** the three v2-03 recipe cards (15,000) are counted in the v1 part, because the catalogue sums every `card` recipe; BALANCE §13.4's "v2 recipe cards 42,000" row is smaller than the doc says until v2-04.
+
+### Known issues
+- The **tree tooltip needs a mouse**: on a phone a tap picks the fruit and nothing names the tree (IDEAS.md).
+- **No bot finishes the Community Hall** (a Harvest Feast, as in v2-02); the bakery now finishes on day 9–13 once apples are held back for it.
+- Fruit hangs on bare winter branches until picked (nothing is lost); there is no "waiting" cue beyond the edge pip.
+- The unit test for the day-30 gold sink runs one seed for 21 days by default; the full eight-seed check needs `SPEND_REPORT=1` (it passes).
+- `e2e` specs that rewrite `docs/screenshots/*.png` (phases 05–08, v2-01, v2-02) still do; `git checkout docs/screenshots` unless you meant to update them.
+
+### Next-phase notes (for v2 phase 04: animals)
+- **Save 11:** `ranch: { buildings, animals }`, `migrations[10]`, `tests/fixtures/save-v11.json`; milestones `m21_first_egg` and `m22_first_milk` go after `m20_first_fruit` and before `m23_charm_100` in `MILESTONES`; the `collect_produce` goal template joins `variantsOf` / `keyOf` in `src/systems/progression.ts` (model it on `pick_fruit`); the Barnyard bundle takes a `troughBonus` reward in `BundleReward` and `bundleBonuses` (model it on `treeSpots`).
+- **Town stages:** eggs, milk and large eggs are in `LATER_STAGE_ITEMS` (`src/data/townProjects.ts`); append each to its stage and delete the line (the bakery's stage 2 needs eggs, the hall's stage 1 milk, stage 3 large eggs). The brain's `fruitStock` pattern (hold what later stages ask for, keep it out of the Auto-Seller and the stove) is the one to copy for eggs and milk; without it the projects stall and every bot hoards.
+- **Drawing:** animals and buildings go into `Renderer.render`'s depth-merged object loop next to `drawTree` (a fourth stream sorted by bottom edge); trees draw from `view.trees`, so give `SceneView` `animals` and `buildings` the same way. Wandering animals use the render-side RNG only and, like the ambient creatures, must keep their numbers in `Float64Array`s.
+- **Pips:** add `animal` kinds to `PipKind` (`src/render/pips.ts`) and `ICON` / `LABEL` (`src/ui/edgePips.ts`), and push targets in `updatePips()` (`src/main.ts`).
+- **Placement:** buildings are placed by clicking free tiles in the yard; reuse `PlantMode`'s approach (the renderer's `decorateMode` routing plus a `DecorGhost` with `snap`). The v2-02 note about decorations in the way still applies: say which decoration blocks a building.
+- **Catalogue and checks:** extend `catalogueParts` / `catalogueOwned` (`scripts/sim/catalogue.ts`) with the ranch; the orchard-income table in the report shows how to add the animal one. If gold still to spend drifts, `TOWN_PROJECT_SCALE` is the lever.
+- **Performance:** keep it at the new level (about 3–4 KB a frame): integer-returning helpers in the render path, typed arrays for moving things, no `Map` iteration or template strings per frame (CLAUDE.md "Orchard conventions").

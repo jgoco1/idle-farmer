@@ -261,3 +261,12 @@ export const DECOR_BUY_AMOUNTS: readonly number[] = [1, 5, 10];
 /** The "Raise your charm" goal asks for `max(GOAL_CHARM_MIN, niceTarget(GOAL_CHARM_SHARE × charm))` more charm. */
 export const GOAL_CHARM_SHARE = 0.1;
 export const GOAL_CHARM_MIN = 3;
+
+// ---- fruit trees (v2 phase 03, BALANCE.md §13.5)
+
+/** A tree holds at most this many bearing days' worth of fruit; a full tree just stops adding. */
+export const FRUIT_CAP_DAYS = 4;
+/** The farmhand's picking XP is this share of a hand-picked fruit's. */
+export const FARMHAND_FRUIT_XP_SHARE = 0.25;
+/** Tree spots open with the parcel; the rest come with the Orchard Basket bundle. */
+export const BASE_TREE_SPOTS = 8;

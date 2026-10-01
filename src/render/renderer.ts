@@ -4,7 +4,10 @@
 // camera's integer zoom. The renderer only reads state; clicks go out through the callbacks, and a
 // press that moves more than a few pixels is a pan, never a click.
 
-import type { PlacedDecor, PlacedObject } from '../core/state';
+import type { PlacedDecor, PlacedObject, TreeState } from '../core/state';
+import { TREES } from '../data/trees';
+import { fruitLevel, TREE_SPRITE_IDS } from './sprites/trees';
+import { stageForAge } from '../systems/orchard';
 import { DECOR } from '../data/decor';
 import { TOWN_PROJECT_IDS, type TownProjectId } from '../data/ids';
 import { WORLD_LAYOUT } from '../data/world';
@@ -67,9 +70,27 @@ import {
   type Rect,
   type Viewport,
 } from './camera';
-import { anchoredPosition, spriteFrame, spriteFrameAt } from './spriteCache';
+import { anchoredPosition, spriteFrame, spriteFrameAt, spriteFrameOffset } from './spriteCache';
 import { spriteDef } from './sprites';
 import { tintAt } from './tint';
+
+/** The tree spots in drawing order (nearer, lower spots on top), as indexes into the layout's spots. */
+const SPOT_ORDER: readonly number[] = WORLD_LAYOUT.treeSpots
+  .map((s, i) => ({ i, bottom: (s.row + 2) * 16, col: s.col }))
+  .sort((a, b) => a.bottom - b.bottom || a.col - b.col)
+  .map((s) => s.i);
+const TREE_W = 32;
+const TREE_H = 48;
+
+/** The tree whose sprite covers tile (col, row): its 2 × 2 spot and the tile of canopy above it. */
+function treeAtTileIn(trees: readonly TreeState[], col: number, row: number): TreeState | null {
+  for (let i = 0; i < trees.length; i++) {
+    const t = trees[i]!;
+    const s = WORLD_LAYOUT.treeSpots[t.spot]!;
+    if (col >= s.col && col < s.col + 2 && row >= s.row - 1 && row < s.row + 2) return t;
+  }
+  return null;
+}
 
 export interface ZoneClick {
   zone: Zone;
@@ -92,6 +113,8 @@ export interface RendererOptions {
   onPlotClick(p: PlotPointer): void;
   /** A click on a locked parcel's "For sale" sign. */
   onSignClick(parcel: ParcelId): void;
+  /** A click on a fruit tree (v2 phase 03). */
+  onTreeClick?(id: number): void;
   /** A click on a town project's site (v2 phase 02). */
   onTownClick?(project: TownProjectId): void;
   /** While Decorate mode is on, every click on the world arrives here instead (v2 phase 02). */
@@ -115,6 +138,8 @@ export interface SceneView {
   cooking: boolean;
   /** The decorations standing on the land (v2 phase 02). */
   decor: readonly PlacedDecor[];
+  /** The orchard's trees (v2 phase 03); their stage comes from the calendar's day index. */
+  trees: readonly TreeState[];
   /** The cosmetic rewards of finished town projects. */
   cosmetics: { bakerySmoke: boolean; band: boolean; lighthouseBeam: boolean; festival: boolean };
 }
@@ -128,6 +153,10 @@ export interface DecorGhost {
   flipped: boolean;
   /** Why the piece cannot stand with its top-left at (col, row), or null when it can. */
   problemAt(col: number, row: number): string | null;
+  /** Where the piece lands when the pointer is on (col, row), for things with fixed spots (trees); null = nowhere. */
+  snap?(col: number, row: number): { col: number; row: number } | null;
+  /** Faint outlines of every place it could go (the free tree spots). */
+  markers?: readonly { col: number; row: number; cols: number; rows: number }[];
 }
 
 /** The range preview while placing: the offsets around the hovered plot, and whether the spot is valid. */
@@ -233,6 +262,9 @@ export class Renderer {
   };
   private hover: { col: number; row: number } | null = null;
   private fx: Fx[] = [];
+  /** The planted trees by spot index (rebuilt each frame in place) and the list the last frame drew, for clicks. */
+  private readonly spotTree: (TreeState | null)[] = WORLD_LAYOUT.treeSpots.map(() => null);
+  private treeList: readonly TreeState[] = [];
   private preview: PlacementPreview | null = null;
   private greenhousePlots = 0;
   private look: SceneLook = DEFAULT_LOOK;
@@ -280,7 +312,9 @@ export class Renderer {
   private wheelSum = 0;
   private wheelStepped = false;
   private wheelLast = 0;
-  private readonly keysHeld = new Map<string, number>();
+  /** Held pan keys and when each went down (parallel arrays: iterated every frame while a key is held, so no Map iterator). */
+  private readonly heldKeys: string[] = [];
+  private readonly heldSince: number[] = [];
 
   constructor(private readonly opts: RendererOptions) {
     this.canvas = opts.canvas;
@@ -316,9 +350,12 @@ export class Renderer {
     this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     document.addEventListener('keydown', (e) => this.keyDown(e));
     document.addEventListener('keyup', (e) =>
-      this.keysHeld.delete(e.key.length === 1 ? e.key.toLowerCase() : e.key),
+      this.releaseKey(e.key.length === 1 ? e.key.toLowerCase() : e.key),
     );
-    window.addEventListener('blur', () => this.keysHeld.clear());
+    window.addEventListener('blur', () => {
+      this.heldKeys.length = 0;
+      this.heldSince.length = 0;
+    });
     this.farmhand.onWork = (job) => {
       if (job.sprite) this.fx.push({ sprite: job.sprite, col: job.col, row: job.row, start: this.lastTime });
     };
@@ -576,6 +613,8 @@ export class Renderer {
       return;
     }
     if (t) {
+      const tree = treeAtTileIn(this.treeList, t.col, t.row);
+      if (tree && this.opts.onTreeClick) return this.opts.onTreeClick(tree.id);
       const plot = plotIndexAt(this.grid, t.col, t.row, this.greenhousePlots);
       if (plot >= 0) return this.opts.onPlotClick({ plot, shiftKey });
       const zone = zoneAt(this.zones, t.col, t.row);
@@ -619,8 +658,9 @@ export class Renderer {
     const dir = PAN_KEYS[key];
     if (dir) {
       e.preventDefault();
-      if (!e.repeat && !this.keysHeld.has(key)) {
-        this.keysHeld.set(key, performance.now());
+      if (!e.repeat && !this.heldKeys.includes(key)) {
+        this.heldKeys.push(key);
+        this.heldSince.push(performance.now());
         this.target.x = this.cam.x + dir[0] * TILE;
         this.target.y = this.cam.y + dir[1] * TILE;
         this.target.zoom = this.cam.zoom;
@@ -642,13 +682,21 @@ export class Renderer {
   }
 
   /** Held pan keys keep the camera moving smoothly (after their first one-tile step). */
+  private releaseKey(key: string): void {
+    const i = this.heldKeys.indexOf(key);
+    if (i < 0) return;
+    this.heldKeys.splice(i, 1);
+    this.heldSince.splice(i, 1);
+  }
+
+  /** Held pan keys keep the camera moving smoothly (after their first one-tile step). */
   private keyPan(dtMs: number, nowMs: number): void {
-    if (this.keysHeld.size === 0) return;
+    if (this.heldKeys.length === 0) return;
     let dx = 0;
     let dy = 0;
-    for (const [key, since] of this.keysHeld) {
-      if (nowMs - since < KEY_HOLD_MS) continue;
-      const dir = PAN_KEYS[key];
+    for (let i = 0; i < this.heldKeys.length; i++) {
+      if (nowMs - this.heldSince[i]! < KEY_HOLD_MS) continue;
+      const dir = PAN_KEYS[this.heldKeys[i]!];
       if (!dir) continue;
       dx += dir[0];
       dy += dir[1];
@@ -664,7 +712,7 @@ export class Renderer {
 
   /** The camera eases toward its target on the render clock (at once under reduced motion). */
   private stepCamera(dtMs: number, nowMs: number): void {
-    if (this.resting && this.keysHeld.size === 0) return; // nothing moves: no work, no garbage
+    if (this.resting && this.heldKeys.length === 0) return; // nothing moves: no work, no garbage
     this.keyPan(dtMs, nowMs);
     const arrived = easeToward(this.cam, this.target, dtMs, this.reducedMotion());
     if (
@@ -672,7 +720,7 @@ export class Renderer {
       !this.resting &&
       !this.press.active &&
       this.pointers.size === 0 &&
-      this.keysHeld.size === 0
+      this.heldKeys.length === 0
     ) {
       this.resting = true;
       this.opts.onCameraRest?.(this.atDefault ? null : { x: this.cam.x, y: this.cam.y, zoom: this.cam.zoom });
@@ -858,6 +906,11 @@ export class Renderer {
       this.decorDraws = buildDecorDraws(view.decor, DECOR);
     }
     const decor = this.decorDraws;
+    const trees = view.trees;
+    this.treeList = trees;
+    for (let i = 0; i < this.spotTree.length; i++) this.spotTree[i] = null;
+    for (let i = 0; i < trees.length; i++) this.spotTree[trees[i]!.spot] = trees[i]!;
+    let ti = 0;
     const season = SEASON_INDEX[calendar.season];
     const lit = isLitTime(calendar.hour, calendar.minute);
     let drawn = 0;
@@ -867,11 +920,15 @@ export class Renderer {
       const bottom = o.y + o.h;
       while (di < decor.length && decor[di]!.bottom < bottom)
         this.drawDecor(decor[di++]!, season, winter, lit, vis, timeMs);
+      while (ti < SPOT_ORDER.length && (WORLD_LAYOUT.treeSpots[SPOT_ORDER[ti]!]!.row + 2) * TILE < bottom)
+        this.drawTree(this.spotTree[SPOT_ORDER[ti++]!], season, calendar.dayIndex, vis);
       if (!overlaps(vis, o.x, o.y, o.w, o.h)) continue;
       f.drawImage(spriteFrame(o.sprite, timeMs), o.x, o.y);
       drawn++;
     }
     while (di < decor.length) this.drawDecor(decor[di++]!, season, winter, lit, vis, timeMs);
+    while (ti < SPOT_ORDER.length)
+      this.drawTree(this.spotTree[SPOT_ORDER[ti++]!], season, calendar.dayIndex, vis);
     this.objectsDrawn = drawn;
     this.drawTownLife(view, calendar, timeMs, vis, dtMs);
     if (view.cooking)
@@ -918,6 +975,28 @@ export class Renderer {
       c.fillRect(0, 0, this.view.w, this.view.h);
     }
     if (x1 > x0 && y1 > y0) c.drawImage(this.frame, x0, y0, x1 - x0, y1 - y0, dx, dy, dw, dh);
+  }
+
+  /** One fruit tree: its stage's sprite (a mature one in the season's look) with the fruit hanging on it. */
+  private drawTree(t: TreeState | null | undefined, season: number, dayIndex: number, vis: Rect): void {
+    if (!t) return;
+    const spot = WORLD_LAYOUT.treeSpots[t.spot]!;
+    const x = spot.col * TILE;
+    const y = (spot.row + 2) * TILE - TREE_H;
+    if (!overlaps(vis, x, y, TREE_W, TREE_H)) return;
+    const def = TREES[t.tree];
+    const ids = TREE_SPRITE_IDS[def.fruit];
+    const stage = stageForAge(def, dayIndex - t.plantedDay);
+    const f = this.fctx;
+    if (stage === 'sapling') return void f.drawImage(spriteFrame(ids.sapling), x, y);
+    if (stage === 'young') return void f.drawImage(spriteFrame(ids.young), x, y);
+    f.drawImage(spriteFrameAt(ids.mature[season]!, 0), x, y);
+    if (t.fruit > 0) f.drawImage(spriteFrame(ids.fruit[fruitLevel(t.fruit, def.fruitCap)]), x, y);
+  }
+
+  /** Shows `sprite` rising out of a tile (the picked fruit). Cosmetic only. */
+  addTileFx(col: number, row: number, sprite: string, timeMs: number): void {
+    this.fx.push({ sprite, col, row, start: timeMs });
   }
 
   /** One decoration: its season's sprite (lit frame at night, snow-dusted in winter), mirrored if flipped, and a windmill's sails. */
@@ -1066,7 +1145,7 @@ export class Renderer {
         const wobble = hovered && p.crop.endsWith('_4') && !this.reducedMotion();
         const dx = wobble ? Math.round(Math.sin(timeMs / 55)) : 0;
         // Offset the animation per plot so ready crops don't all twinkle in unison.
-        f.drawImage(spriteFrame(p.crop, timeMs + i * 137), pos.x + dx, pos.y);
+        f.drawImage(spriteFrameOffset(p.crop, timeMs, i * 137), pos.x + dx, pos.y);
       }
     }
   }
@@ -1141,17 +1220,27 @@ export class Renderer {
     const h = this.hover;
     if (!g || !h) return;
     const f = this.fctx;
-    const ok = g.problemAt(h.col, h.row) === null;
+    if (g.markers) {
+      f.globalAlpha = 0.5;
+      f.strokeStyle = PALETTE.white_warm;
+      for (let i = 0; i < g.markers.length; i++) {
+        const m = g.markers[i]!;
+        f.strokeRect(m.col * TILE + 0.5, m.row * TILE + 0.5, m.cols * TILE - 1, m.rows * TILE - 1);
+      }
+    }
+    const at = g.snap ? g.snap(h.col, h.row) : h;
+    if (!at) return void (f.globalAlpha = 1);
+    const ok = g.problemAt(at.col, at.row) === null;
     f.globalAlpha = 0.35;
     f.fillStyle = ok ? PALETTE.grass_3 : PALETTE.red;
-    f.fillRect(h.col * TILE, h.row * TILE, g.cols * TILE, g.rows * TILE);
+    f.fillRect(at.col * TILE, at.row * TILE, g.cols * TILE, g.rows * TILE);
     f.globalAlpha = 0.9;
     f.strokeStyle = ok ? PALETTE.white_warm : PALETTE.red_light;
-    f.strokeRect(h.col * TILE + 0.5, h.row * TILE + 0.5, g.cols * TILE - 1, g.rows * TILE - 1);
+    f.strokeRect(at.col * TILE + 0.5, at.row * TILE + 0.5, g.cols * TILE - 1, g.rows * TILE - 1);
     if (g.sprite) {
       const img = spriteFrame(g.sprite);
-      const x = h.col * TILE + Math.round((g.cols * TILE - img.width) / 2);
-      const y = (h.row + g.rows) * TILE - img.height;
+      const x = at.col * TILE + Math.round((g.cols * TILE - img.width) / 2);
+      const y = (at.row + g.rows) * TILE - img.height;
       f.globalAlpha = ok ? 0.7 : 0.4;
       if (g.flipped) {
         f.save();
@@ -1248,7 +1337,11 @@ export class Renderer {
   private setHover(t: { col: number; row: number } | null): void {
     if (t && this.hover && t.col === this.hover.col && t.row === this.hover.row) return;
     this.hover = t ? { col: t.col, row: t.row } : null;
-    const clickable = t && (zoneAt(this.zones, t.col, t.row) || forSaleSignAt(this.owned, t.col, t.row));
+    const clickable =
+      t &&
+      (zoneAt(this.zones, t.col, t.row) ||
+        forSaleSignAt(this.owned, t.col, t.row) ||
+        treeAtTileIn(this.treeList, t.col, t.row));
     this.canvas.style.cursor = clickable ? 'pointer' : 'grab';
   }
 

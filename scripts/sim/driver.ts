@@ -52,6 +52,8 @@ export interface Snapshot {
   toSpend: number;
   /** Derived charm (v2 phase 02). */
   charm: number;
+  /** Gold from selling fruit so far (v2 phase 03). */
+  orchardGold: number;
 }
 
 export interface Metrics {
@@ -79,6 +81,8 @@ export interface Metrics {
   offlineSimMs: number;
   /** Gold earned while away (from the offline walks). */
   offlineGold: number;
+  /** Gold from selling fruit (v2 phase 03). */
+  orchardGold: number;
 }
 
 /** A wait longer than this with nothing useful to do counts as dead time (GDD §2: "nobody waits more than ~2 minutes"). */
@@ -106,6 +110,7 @@ export class SimRun {
     eaten: 0,
     offlineSimMs: 0,
     offlineGold: 0,
+    orchardGold: 0,
   };
   private lastUsefulPlayMs = 0;
   /** The next daily or weekly calendar boundary (calendar time), cached between looks. */
@@ -128,7 +133,9 @@ export class SimRun {
       if (e.source === 'quest') this.metrics.goldFromQuests += e.amount;
     });
     bus.on('sold', (e) => {
-      if (data.items[e.item]?.category === 'dish') this.metrics.dishGold += e.gold;
+      const cat = data.items[e.item]?.category;
+      if (cat === 'dish') this.metrics.dishGold += e.gold;
+      else if (cat === 'fruit') this.metrics.orchardGold += e.gold;
     });
     bus.on('harvested', () => this.mark('first_harvest'));
     bus.on('cooked', (e) => {
@@ -142,6 +149,10 @@ export class SimRun {
     bus.on('purchased', (e) => this.mark(`bought_${e.what}`));
     bus.on('placed', (e) => this.mark(`placed_${e.kind}`));
     bus.on('decorPlaced', () => this.mark('first_decor'));
+    bus.on('purchased', (e) => e.what.startsWith('sapling_') && this.mark('first_sapling'));
+    bus.on('treePlanted', () => this.mark('first_tree'));
+    bus.on('treeMatured', () => this.mark('first_mature_tree'));
+    bus.on('fruitPicked', () => this.mark('first_fruit'));
     bus.on('projectStageDone', (e) => {
       this.mark('first_stage');
       if (e.complete) {
@@ -290,6 +301,7 @@ export class SimRun {
       milestones: s.progression.milestones.done.length,
       toSpend: toSpend(s, this.data),
       charm: charmOf(s, this.data),
+      orchardGold: this.metrics.orchardGold,
     });
   }
 }

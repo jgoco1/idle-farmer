@@ -52,6 +52,7 @@ export type RecipeId =
   | 'berry_bowl'
   | 'seaweed_salad'
   | 'wheat_flatbread'
+  | 'baked_apple'
   // T2
   | 'vegetable_soup'
   | 'fish_tacos'
@@ -60,12 +61,15 @@ export type RecipeId =
   | 'blueberry_muffin'
   | 'glazed_yams'
   | 'garlic_trout'
+  | 'cherry_jam'
+  | 'pear_crumble'
   // T3
   | 'seafood_stew'
   | 'pumpkin_soup'
   | 'cranberry_pie'
   | 'catfish_gumbo'
   | 'scholars_stew'
+  | 'peach_cobbler'
   // T4
   | 'garden_banquet'
   | 'royal_sturgeon'
@@ -75,7 +79,13 @@ export type RecipeId =
 /** A cooked dish is an item whose id is the recipe id. */
 export type DishId = RecipeId;
 
-export type ItemId = CropId | SeedId | FishId | JunkId | DishId;
+/** The fruits of the orchard's trees (v2 phase 03, BALANCE.md §13.5). A fruit is also an item, like a crop. */
+export type FruitId = 'cherry' | 'apricot' | 'peach' | 'apple' | 'pear' | 'persimmon' | 'lemon';
+/** A tree is `<fruit>_tree`; its sapling is the bag item `sapling_<fruit>`. */
+export type TreeId = `${FruitId}_tree`;
+export type SaplingId = `sapling_${FruitId}`;
+
+export type ItemId = CropId | SeedId | FishId | JunkId | DishId | FruitId | SaplingId;
 
 export type UpgradeId =
   // farm automation and tools (phase 04)
@@ -178,10 +188,18 @@ export type MilestoneId =
   | 'm17_first_decor'
   | 'm18_charm_25'
   | 'm19_first_project'
-  | 'm23_charm_100';
+  | 'm23_charm_100'
+  // v2-03
+  | 'm20_first_fruit';
 
 export type BundleId =
-  'spring_crops' | 'summer_crops' | 'autumn_harvest' | 'pond_fish' | 'river_and_sea' | 'cozy_dinner';
+  | 'spring_crops'
+  | 'summer_crops'
+  | 'autumn_harvest'
+  | 'pond_fish'
+  | 'river_and_sea'
+  | 'cozy_dinner'
+  | 'orchard_basket';
 
 export type GoalTemplateId =
   | 'harvest_crop'
@@ -193,7 +211,8 @@ export type GoalTemplateId =
   | 'cook_tier'
   | 'cook_distinct'
   | 'eat_dish'
-  | 'raise_charm';
+  | 'raise_charm'
+  | 'pick_fruit';
 
 export type PanelId =
   'inventory' | 'shop' | 'market' | 'kitchen' | 'fishing' | 'upgrades' | 'goals' | 'settings';
@@ -244,6 +263,7 @@ export const RECIPE_IDS: readonly RecipeId[] = [
   'berry_bowl',
   'seaweed_salad',
   'wheat_flatbread',
+  'baked_apple',
   'vegetable_soup',
   'fish_tacos',
   'tomato_pasta',
@@ -251,11 +271,14 @@ export const RECIPE_IDS: readonly RecipeId[] = [
   'blueberry_muffin',
   'glazed_yams',
   'garlic_trout',
+  'cherry_jam',
+  'pear_crumble',
   'seafood_stew',
   'pumpkin_soup',
   'cranberry_pie',
   'catfish_gumbo',
   'scholars_stew',
+  'peach_cobbler',
   'garden_banquet',
   'royal_sturgeon',
   'harvest_feast',
@@ -309,6 +332,40 @@ export const DECOR_IDS: readonly DecorId[] = [
   'fair_stall',
   'windmill',
 ];
+
+export const FRUIT_IDS: readonly FruitId[] = [
+  'cherry',
+  'apricot',
+  'peach',
+  'apple',
+  'pear',
+  'persimmon',
+  'lemon',
+];
+
+export function treeOfFruit(f: FruitId): TreeId {
+  return `${f}_tree`;
+}
+
+export function fruitOfTree(t: TreeId): FruitId {
+  return t.slice(0, -'_tree'.length) as FruitId;
+}
+
+export function saplingOf(f: FruitId): SaplingId {
+  return `sapling_${f}`;
+}
+
+export function fruitOfSapling(s: SaplingId): FruitId {
+  return s.slice('sapling_'.length) as FruitId;
+}
+
+export function isFruitId(id: string): id is FruitId {
+  return (FRUIT_IDS as readonly string[]).includes(id);
+}
+
+export function isSaplingId(id: string): id is SaplingId {
+  return id.startsWith('sapling_') && isFruitId(id.slice('sapling_'.length));
+}
 
 export function isDecorId(id: string): id is DecorId {
   return (DECOR_IDS as readonly string[]).includes(id);

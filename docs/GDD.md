@@ -495,7 +495,7 @@ Fruit trees are long-term investments: planted once, they grow over **real days*
 - **The Auto-Seller** gets per-fruit toggles; fruit defaults to **on**, like crops, and Level 2's reserve keeps 10 of each for cooking.
 - Picked fruit gives Farming XP (BALANCE.md §13.5), a quarter when the farmhand picks it.
 
-**Moving or removing a tree.** Both ask for confirmation, because trees are long-term. **Moving** to a free spot keeps the tree's age and fruit ("It will keep growing where you put it"). **Removing** explains that the tree and its growth are gone and the sapling is not refunded.
+**Moving or removing a tree** (the Trees tab's "Your trees" list has Pick, Move and Remove). **Moving** enters the same spot-picking mode as planting (a banner says "it keeps its age and fruit") and is free; leaving the mode cancels it. **Removing** asks first: the tree and its growth are gone and the sapling is not refunded.
 
 **While you were away** lists trees that became mature and fruit that grew ("Your peach tree is ready to bear", "+24 apples on the trees"). Edge pips point at trees with ripe fruit; the tree tooltip shows stage, days until mature, the seasons it bears in, and fruit hanging / cap.
 
