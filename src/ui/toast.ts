@@ -11,9 +11,14 @@ export class Toasts {
 
   constructor(private readonly host: HTMLElement) {}
 
-  /** Shows a message now; when the stack is full the oldest one makes room. */
-  show(text: string, tone: ToastTone = 'info'): void {
-    this.add(text, tone);
+  /** Shows a message now; when the stack is full the oldest one makes room. `onClick` makes it a button (v2: pan there). */
+  show(text: string, tone: ToastTone = 'info', onClick?: () => void): void {
+    const el = this.add(text, tone);
+    if (onClick) {
+      el.classList.add('toast-link');
+      el.tabIndex = 0;
+      el.addEventListener('click', onClick);
+    }
     while (this.host.children.length > MAX_TOASTS) this.host.firstElementChild?.remove();
   }
 
@@ -26,7 +31,7 @@ export class Toasts {
     else this.add(text, tone);
   }
 
-  private add(text: string, tone: ToastTone): void {
+  private add(text: string, tone: ToastTone): HTMLElement {
     const el = h('div', { class: `toast toast-${tone}`, role: 'status', text });
     this.host.append(el);
     window.setTimeout(() => {
@@ -37,5 +42,6 @@ export class Toasts {
         if (next) this.showKept(next.text, next.tone);
       }, 300);
     }, TOAST_MS);
+    return el;
   }
 }

@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+import { clickTile } from './helpers';
 
 type Session = {
   phase: string;
@@ -25,12 +26,6 @@ type Win = {
     advance(ms: number): number;
   };
 };
-
-async function tileCenter(canvas: Locator, col: number, row: number): Promise<{ x: number; y: number }> {
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error('canvas has no box');
-  return { x: (box.width * (col + 0.5)) / 20, y: (box.height * (row + 0.5)) / 12 };
-}
 
 async function dispatch(page: Page, action: unknown): Promise<void> {
   const r = await page.evaluate((a) => (window as unknown as Win).__game.dispatch(a), action);
@@ -66,7 +61,7 @@ test('cast, wait for the bite and reel a fish in with scripted input', async ({ 
   await page.keyboard.press('Escape');
 
   // Clicking the pond opens the Fishing panel.
-  await canvas.click({ position: await tileCenter(canvas, 2, 8) });
+  await clickTile(page, 2, 8);
   const panel = page.getByRole('dialog', { name: 'Fishing' });
   await expect(panel).toBeVisible();
   await expect(panel).toContainText('Biting now at the pond');
@@ -175,7 +170,7 @@ test('traps fill while time passes and are collected by a click in the scene', a
   await page.screenshot({ path: 'test-results/traps-full.png' });
 
   // Clicking the first pond trap (tile 2,9) collects it.
-  await canvas.click({ position: await tileCenter(canvas, 2, 9) });
+  await clickTile(page, 2, 9);
   const after = await page.evaluate(() =>
     (window as unknown as Win).__game.state.fishing.traps.map((t) =>
       t.contents.reduce((n, c) => n + c.qty, 0),
@@ -197,7 +192,7 @@ test('River Access opens the river in the scene and the Fishing panel', async ({
   await expect(canvas).toBeVisible();
 
   // Locked: clicking the riverbank explains how to open it.
-  await canvas.click({ position: await tileCenter(canvas, 9, 11) });
+  await clickTile(page, 9, 11);
   await expect(page.locator('#toasts')).toContainText('River Access');
 
   await page.evaluate(() => {
@@ -213,7 +208,7 @@ test('River Access opens the river in the scene and the Fishing panel', async ({
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/farm-river.png' });
 
-  await canvas.click({ position: await tileCenter(canvas, 9, 11) });
+  await clickTile(page, 9, 11);
   const panel = page.getByRole('dialog', { name: 'Fishing' });
   await expect(panel).toBeVisible();
   await expect(panel).toContainText('Biting now at the river');

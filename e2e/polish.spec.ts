@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+import { camera, clickPlot, clickTile, plotTile, tapTile } from './helpers';
 
 type Win = {
   __game: {
@@ -8,14 +9,6 @@ type Win = {
   };
 };
 
-async function tileCenter(canvas: Locator, col: number, row: number): Promise<{ x: number; y: number }> {
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error('canvas has no box');
-  return { x: (box.width * (col + 0.5)) / 20, y: (box.height * (row + 0.5)) / 12 };
-}
-
-const plotPos = (canvas: Locator, i: number): Promise<{ x: number; y: number }> =>
-  tileCenter(canvas, 6 + (i % 4), 2 + Math.floor(i / 4));
 
 /** The loading splash fades out after the first frame; screenshots wait for it to be gone. */
 const splashGone = (page: Page): Promise<void> => expect(page.locator('#splash')).toHaveCount(0);
@@ -63,8 +56,7 @@ test.describe('first-time tutorial', () => {
     await card.getByRole('button', { name: 'Next' }).click();
     await expect(card).toContainText('Plant seeds');
     // Planting advances it: the Auto tool plants the starting seeds on a tilled plot.
-    const canvas = page.locator('#scene-canvas');
-    await canvas.click({ position: await plotPos(canvas, 0) });
+    await clickPlot(page, 0);
     await expect(card).toContainText('Water them');
 
     await card.getByRole('button', { name: 'Skip tutorial' }).click();
@@ -118,8 +110,7 @@ test('the farm cat purrs when clicked, and audio starts on the first click witho
 }) => {
   const errors = watchErrors(page);
   await page.goto('./');
-  const canvas = page.locator('#scene-canvas');
-  await canvas.click({ position: await tileCenter(canvas, 5, 3) });
+  await clickTile(page, 5, 3);
   await expect(page.locator('#toasts')).toContainText('farm cat');
   expect(errors).toEqual([]);
 });
@@ -194,9 +185,7 @@ for (const vp of [
       expect(small).toEqual([]);
 
       // Tapping a plot plants.
-      const pos = await plotPos(canvas, 0);
-      const box = (await canvas.boundingBox())!;
-      await page.touchscreen.tap(box.x + pos.x, box.y + pos.y);
+      await tapTile(page, ...plotTile(0));
       await expect
         .poll(() =>
           page.evaluate(
@@ -229,15 +218,18 @@ for (const vp of [
       await expectNoSeriousA11y(page, `the phone layout ${vp.name}`);
       await panel.getByRole('button', { name: 'Close Inventory' }).tap();
 
-      // Zoom in: the scene doubles and can be panned.
-      const before = (await canvas.boundingBox())!.width;
-      await page.getByRole('button', { name: 'Zoom the farm in' }).tap();
-      const after = (await canvas.boundingBox())!.width;
-      expect(after).toBeCloseTo(before * 2, -1);
-      await expect(page.getByRole('button', { name: 'Drag to move the view' })).toBeVisible();
+      // The scene fills the space between the HUD and the toolbar, and the view buttons zoom it.
+      const sceneBox = (await page.locator('#scene').boundingBox())!;
+      const canvasBox = (await canvas.boundingBox())!;
+      expect(canvasBox.width).toBeCloseTo(sceneBox.width, 0);
+      expect(canvasBox.height).toBeCloseTo(sceneBox.height, 0);
+      const before = await camera(page);
+      expect(before.zoom).toBeGreaterThanOrEqual(2); // at least 32 CSS px tiles on a phone
+      await page.getByRole('button', { name: 'Zoom in' }).tap();
+      expect((await camera(page)).zoom).toBe(before.zoom + 1);
       await page.screenshot({ path: `test-results/mobile-zoom-${vp.name}.png` });
-      await page.getByRole('button', { name: 'Zoom the farm out' }).tap();
-      expect((await canvas.boundingBox())!.width).toBeCloseTo(before, -1);
+      await page.getByRole('button', { name: 'Back to the farm' }).tap();
+      await expect.poll(async () => (await camera(page)).zoom).toBe(before.zoom);
       expect(errors).toEqual([]);
     });
 

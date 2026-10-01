@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+import { clickTile } from './helpers';
 
 type Win = {
   __game: {
@@ -17,12 +18,6 @@ type Win = {
     advance(ms: number): number;
   };
 };
-
-async function tileCenter(canvas: Locator, col: number, row: number): Promise<{ x: number; y: number }> {
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error('canvas has no box');
-  return { x: (box.width * (col + 0.5)) / 20, y: (box.height * (row + 0.5)) / 12 };
-}
 
 async function dispatch(page: Page, action: unknown): Promise<void> {
   const r = await page.evaluate((a) => (window as unknown as Win).__game.dispatch(a), action);
@@ -160,7 +155,7 @@ test('the Community Board: give what the bag has, finish Spring Crops, place the
 
   await spring.getByRole('button', { name: 'Place the golden scarecrow' }).click();
   await expect(page.getByTestId('placement-banner')).toContainText(/golden scarecrow/);
-  await canvas.click({ position: await tileCenter(canvas, 8, 3) }); // plot (2, 1)
+  await clickTile(page, 8, 3); // plot (2, 1)
   const placed = await page.evaluate(() => (window as unknown as Win).__game.state.placed.map((o) => o.kind));
   expect(placed).toEqual(['golden_scarecrow']);
 });

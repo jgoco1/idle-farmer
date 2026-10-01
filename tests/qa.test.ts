@@ -38,6 +38,7 @@ import fixtureV4 from './fixtures/save-v4.json';
 import fixtureV5 from './fixtures/save-v5.json';
 import fixtureV6 from './fixtures/save-v6.json';
 import fixtureV7 from './fixtures/save-v7.json';
+import fixtureV8 from './fixtures/save-v8.json';
 import { at, DAY, HOUR, NY } from './helpers';
 
 const MIN = 60_000;
@@ -327,7 +328,7 @@ describe('saving in the middle of things', () => {
 });
 
 describe('old and broken saves', () => {
-  const FIXTURES = [fixtureV1, fixtureV2, fixtureV3, fixtureV4, fixtureV5, fixtureV6, fixtureV7];
+  const FIXTURES = [fixtureV1, fixtureV2, fixtureV3, fixtureV4, fixtureV5, fixtureV6, fixtureV7, fixtureV8];
 
   it('there is a fixture for every save version, and each migrates, validates and plays on', () => {
     expect(FIXTURES.map((f) => f.version)).toEqual(Array.from({ length: SAVE_VERSION }, (_, i) => i + 1));
@@ -358,7 +359,7 @@ describe('old and broken saves', () => {
   });
 
   it('refuses broken saves with a SaveError that keeps the raw text', () => {
-    const good = JSON.stringify(fixtureV7);
+    const good = JSON.stringify(fixtureV8);
     const broken: Record<string, string> = {
       truncated: good.slice(0, good.length / 2),
       empty: '',

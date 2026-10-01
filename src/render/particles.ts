@@ -1,4 +1,4 @@
-// A small pooled particle system for the scene (logical 320 × 192 px). Cosmetic only: it has its own
+// A small pooled particle system for the scene (world px). Cosmetic only: it has its own
 // generator, never reads or writes game state, and emits nothing at all under reduced motion.
 // Kinds: soil puffs, water droplets, leaf bursts, splash ripples, steam, sparkles and pet hearts.
 // Coins that fly to the HUD are DOM elements (src/ui/coinFly.ts) because the HUD is outside the canvas.
@@ -188,10 +188,13 @@ export class ParticleSystem {
     }
   }
 
-  draw(f: CanvasRenderingContext2D): void {
+  /** Draws the live particles; with `view` (world px), only those inside it. */
+  draw(f: CanvasRenderingContext2D, view?: { x: number; y: number; w: number; h: number }): void {
     for (let i = 0; i < this.pool.length; i++) {
       const p = this.pool[i]!;
       if (!p.alive) continue;
+      if (view && (p.x < view.x - 8 || p.y < view.y - 8 || p.x > view.x + view.w + 8 || p.y > view.y + view.h + 8))
+        continue;
       const t = p.age / p.life;
       f.globalAlpha = p.kind === 'steam' ? 0.6 * (1 - t) : 1 - t * t;
       f.fillStyle = p.color;

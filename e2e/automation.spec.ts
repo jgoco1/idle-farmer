@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+import { clickTile, hoverTile } from './helpers';
 
 type Win = {
   __game: {
@@ -22,12 +23,6 @@ interface LooseState {
   shippingBin: { items: unknown[] };
 }
 
-async function tileCenter(canvas: Locator, col: number, row: number): Promise<{ x: number; y: number }> {
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error('canvas has no box');
-  return { x: (box.width * (col + 0.5)) / 20, y: (box.height * (row + 0.5)) / 12 };
-}
-
 async function dispatch(page: Page, action: unknown): Promise<void> {
   const r = await page.evaluate((a) => (window as unknown as Win).__game.dispatch(a), action);
   expect(r.ok, r.reason).toBe(true);
@@ -49,8 +44,8 @@ test('a sprinkler keeps its plots watered for hours while the rest dry out', asy
   // Buying drops into placement mode; the banner names it. Put it on plot (1,1) = tile (7,3).
   const banner = page.getByTestId('placement-banner');
   await expect(banner).toContainText('Placing sprinklers');
-  await canvas.hover({ position: await tileCenter(canvas, 7, 3) });
-  await canvas.click({ position: await tileCenter(canvas, 7, 3) });
+  await hoverTile(page, 7, 3);
+  await clickTile(page, 7, 3);
   await expect(banner).toContainText('No sprinklers left');
   const placed = await page.evaluate(() => (window as unknown as Win).__game.state.placed);
   expect(placed).toMatchObject([{ kind: 'sprinkler', at: { col: 1, row: 1 } }]);
@@ -58,9 +53,9 @@ test('a sprinkler keeps its plots watered for hours while the rest dry out', asy
   await page.screenshot({ path: 'test-results/sprinkler-placed.png' });
 
   // Picking it up again works from the same mode, and it can be placed once more.
-  await canvas.click({ position: await tileCenter(canvas, 7, 3) });
+  await clickTile(page, 7, 3);
   expect(await page.evaluate(() => (window as unknown as Win).__game.state.placed.length)).toBe(0);
-  await canvas.click({ position: await tileCenter(canvas, 7, 3) });
+  await clickTile(page, 7, 3);
   expect(await page.evaluate(() => (window as unknown as Win).__game.state.placed.length)).toBe(1);
   await page.keyboard.press('Escape');
   await expect(banner).toBeHidden();

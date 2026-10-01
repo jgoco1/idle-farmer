@@ -1,4 +1,5 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+import { clickTile } from './helpers';
 
 type Win = {
   __game: {
@@ -12,12 +13,6 @@ type Win = {
     advance(ms: number): number;
   };
 };
-
-async function tileCenter(canvas: Locator, col: number, row: number): Promise<{ x: number; y: number }> {
-  const box = await canvas.boundingBox();
-  if (!box) throw new Error('canvas has no box');
-  return { x: (box.width * (col + 0.5)) / 20, y: (box.height * (row + 0.5)) / 12 };
-}
 
 /** Puts `stacks` into the first bag slots (the e2e test's shortcut for "go and grow these"). */
 async function stockBag(page: Page, stacks: { item: string; qty: number }[]): Promise<void> {
@@ -44,7 +39,7 @@ test('cook a T1 dish in the Kitchen, eat it and see the buff in the HUD', async 
   ]);
 
   // The farmhouse opens the Kitchen: three starter recipes with have/need and tier.
-  await canvas.click({ position: await tileCenter(canvas, 2, 2) });
+  await clickTile(page, 2, 2);
   const kitchen = page.getByRole('dialog', { name: 'Kitchen' });
   await expect(kitchen).toBeVisible();
   const turnip = kitchen.locator('[data-recipe="roasted_turnip"]');

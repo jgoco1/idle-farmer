@@ -12,7 +12,7 @@ import { addItem, countItem } from '../src/systems/inventory';
 import { buySeeds, maxAffordableSeeds, seedStock } from '../src/systems/shop';
 import { farmLevel, isUnlocked, provisionalFarmLevel, unlockHint } from '../src/systems/unlocks';
 import { buyUpgrade, upgradeCost } from '../src/systems/upgrades';
-import { buildLayout, buildZones, decorFor, plotIndexAt, zoneAt } from '../src/render/scene';
+import { buildLayout, buildZones, sceneryFor, plotIndexAt, zoneAt } from '../src/render/scene';
 import { at, NY, setFarmLevel } from './helpers';
 
 const CREATED = at(NY, 2026, 1, 7, 10);
@@ -243,7 +243,11 @@ describe('farm expansion', () => {
   });
 
   it('changes the scene: the fence moves, weeds go, trees are cleared, stones and a scarecrow appear', () => {
-    const sprites = (ex: Parameters<typeof decorFor>[0]) => decorFor(ex).map((d) => d.sprite);
+    // The home region only (parcels and the town have their own scenery).
+    const sprites = (ex: Parameters<typeof sceneryFor>[0]) =>
+      sceneryFor(ex)
+        .filter((d) => d.col < 20 && d.row < 12)
+        .map((d) => d.sprite);
     expect(sprites([])).toContain('obj_weeds');
     expect(sprites(['farm_1'])).not.toContain('obj_weeds');
     expect(sprites(['farm_1'])).not.toContain('obj_stones');

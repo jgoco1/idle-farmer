@@ -2,7 +2,7 @@
 // seed planter, auto-seller, greenhouse), the tools and storage. Each card shows the level, what the
 // next level does, its cost and what still locks it; buying flashes the card and says what changed.
 
-import { CROP_IDS, type ExpansionId, type ItemId, type UpgradeId } from '../data/ids';
+import { CROP_IDS, PARCEL_IDS, type ExpansionId, type ItemId, type ParcelId, type UpgradeId } from '../data/ids';
 import type { PlacedKind } from '../core/state';
 import type { UpgradeCategory } from '../data/types';
 import { FARM_EXPANSIONS, FISHING_EXPANSIONS } from '../data/expansions';
@@ -10,6 +10,7 @@ import { spriteDataUrl } from '../render/spriteCache';
 import type { ActionResult } from '../systems/context';
 import { autoSellOn } from '../systems/autoSeller';
 import { expansionStatus } from '../systems/expansions';
+import { parcelStatus } from '../systems/parcels';
 import { placedCount, stockOf } from '../systems/placement';
 import { unlockHints } from '../systems/unlocks';
 import { purchaseBlock, requirementsFor, upgradeCost, upgradeLevel } from '../systems/upgrades';
@@ -20,6 +21,7 @@ import type { GameViewHooks } from './panels';
 export interface UpgradesHooks extends GameViewHooks {
   buyExpansion(id: ExpansionId): ActionResult;
   buyUpgrade(id: UpgradeId): ActionResult;
+  buyParcel(id: ParcelId): ActionResult;
   /** Enters placement mode for a sprinkler or scarecrow. */
   place(kind: PlacedKind): void;
   setAutoSell(item: ItemId, on: boolean): ActionResult;
@@ -67,12 +69,15 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
       const gold = h('p', { class: 'shop-gold' });
       const farm = h('div', { class: 'crate-list' });
       const waters = h('div', { class: 'crate-list' });
+      const land = h('div', { class: 'crate-list', 'data-section': 'land' });
       const sections = SECTIONS.map((sec) => ({ sec, list: h('div', { class: 'crate-list' }) }));
       const msg = h('p', { class: 'form-msg', role: 'status' });
       body.append(
         gold,
         h('h3', { text: 'Field' }),
         farm,
+        h('h3', { text: 'Land' }),
+        land,
         ...sections.flatMap(({ sec, list }) => [
           h('h3', { text: sec.title }),
           ...(sec.category === 'fishing' ? [waters] : []),
@@ -165,6 +170,33 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
             return card(id, def.name, text, status, buttons);
           });
         farm.replaceChildren(...expansionCards(FARM_EXPANSIONS));
+        land.replaceChildren(
+          ...PARCEL_IDS.map((id) => {
+            const def = hooks.data.parcels[id];
+            const status = parcelStatus(state, hooks.data, id);
+            const buttons: HTMLElement[] = [];
+            let text = `${def.description} ${def.opens}.`;
+            if (status === 'available') {
+              const button = h('button', {
+                type: 'button',
+                class: 'btn btn-small btn-primary',
+                text: `Buy · ${def.price.toLocaleString('en-US')}g`,
+                'aria-label': `Buy ${def.name} for ${def.price} gold`,
+                disabled: state.gold < def.price,
+              });
+              button.addEventListener('click', () => {
+                say(hooks.buyParcel(id), `${def.name} is yours!`, id);
+                render();
+              });
+              buttons.push(button);
+            } else if (status === 'locked') {
+              text = `${def.price.toLocaleString('en-US')}g · ${def.opens}. ${unlockHints(state, hooks.data, def.requires).join(' ')}`;
+            } else {
+              text = `Yours · ${def.opens}.`;
+            }
+            return card(id, def.name, text, status, buttons);
+          }),
+        );
         waters.replaceChildren(...expansionCards(FISHING_EXPANSIONS));
 
         for (const { sec, list } of sections) {
