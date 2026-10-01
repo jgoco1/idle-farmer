@@ -3,6 +3,8 @@ export interface SpriteDef {
   frames: readonly (readonly string[])[]; // one or more frames of equal size
   frameMs?: number; // animation speed; omit for static sprites
   anchor?: 'top-left' | 'bottom-center'; // bottom-center for crops, trees, buildings
+  /** A glow piece (v2): frame 0 is the day look and frame 1 the lit one, picked by the renderer from the time of day, not animated. */
+  lit?: true;
 }
 
 /** Rotates every frame of a sprite 90° clockwise `turns` times (used for pond edges and corners). */
@@ -99,6 +101,24 @@ export function sparkled(rows: readonly string[]): string[] {
       out[y + 1]![x] = 'U';
       break;
     }
+  }
+  return out.map((r) => r.join(''));
+}
+
+/**
+ * A light dusting of snow on the top edge of a sprite: in each column the first opaque pixel (or, under
+ * an outline, the pixel below it) turns `white_warm`. Used for decorations in winter (ART_STYLE.md §6.6).
+ */
+export function snowdusted(rows: readonly string[]): string[] {
+  const h = rows.length;
+  const w = rows[0]?.length ?? 0;
+  const out = rows.map((r) => [...r]);
+  for (let x = 0; x < w; x++) {
+    let y = 0;
+    while (y < h && rows[y]![x] === CLEAR) y++;
+    if (y >= h) continue;
+    if (rows[y]![x] === OUTLINE) y++;
+    if (y < h && rows[y]![x] !== CLEAR && rows[y]![x] !== OUTLINE && x % 4 !== 3) out[y]![x] = 'w';
   }
   return out.map((r) => r.join(''));
 }

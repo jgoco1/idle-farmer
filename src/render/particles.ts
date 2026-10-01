@@ -1,11 +1,12 @@
 // A small pooled particle system for the scene (world px). Cosmetic only: it has its own
 // generator, never reads or writes game state, and emits nothing at all under reduced motion.
-// Kinds: soil puffs, water droplets, leaf bursts, splash ripples, steam, sparkles and pet hearts.
+// Kinds: soil puffs, water droplets, leaf bursts, splash ripples, steam, sparkles, pet hearts and the
+// bandstand's music notes.
 // Coins that fly to the HUD are DOM elements (src/ui/coinFly.ts) because the HUD is outside the canvas.
 
 import { PALETTE } from './palette';
 
-export type ParticleKind = 'soil' | 'droplet' | 'leaf' | 'ripple' | 'steam' | 'sparkle' | 'heart';
+export type ParticleKind = 'soil' | 'droplet' | 'leaf' | 'ripple' | 'steam' | 'sparkle' | 'heart' | 'note';
 
 interface Particle {
   alive: boolean;
@@ -106,9 +107,20 @@ const RECIPES: Record<ParticleKind, Recipe> = {
     size: [5, 5],
     colors: [PALETTE.red_light],
   },
+  note: {
+    count: 1,
+    life: [1100, 1500],
+    speed: [8, 14],
+    angle: -Math.PI / 2,
+    spread: 0.9,
+    gravity: -3,
+    size: [3, 3],
+    colors: [PALETTE.yellow_light, PALETTE.pink_light, PALETTE.water_foam],
+  },
 };
 
 const HEART = ['.x.x.', 'xxxxx', 'xxxxx', '.xxx.', '..x..'];
+const NOTE = ['..xx', '..x.', '..x.', 'xxx.', 'xx..'];
 
 export class ParticleSystem {
   private readonly pool: Particle[] = Array.from({ length: POOL_SIZE }, () => ({
@@ -157,7 +169,7 @@ export class ParticleSystem {
       const speed = r.speed[0] + this.rand() * (r.speed[1] - r.speed[0]);
       p.alive = true;
       p.kind = kind;
-      p.x = x + (kind === 'ripple' || kind === 'heart' ? 0 : (this.rand() - 0.5) * 6);
+      p.x = x + (kind === 'ripple' || kind === 'heart' || kind === 'note' ? 0 : (this.rand() - 0.5) * 6);
       p.y = y;
       p.vx = Math.cos(ang) * speed;
       p.vy = Math.sin(ang) * speed;
@@ -214,6 +226,10 @@ export class ParticleSystem {
       } else if (p.kind === 'heart') {
         HEART.forEach((row, ry) =>
           [...row].forEach((ch, rx) => ch === 'x' && f.fillRect(x - 2 + rx, y - 2 + ry, 1, 1)),
+        );
+      } else if (p.kind === 'note') {
+        NOTE.forEach((row, ry) =>
+          [...row].forEach((ch, rx) => ch === 'x' && f.fillRect(x - 1 + rx, y - 2 + ry, 1, 1)),
         );
       } else if (p.kind === 'sparkle') {
         const s = t < 0.5 ? p.size : Math.max(1, p.size - 1);

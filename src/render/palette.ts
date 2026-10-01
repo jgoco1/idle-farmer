@@ -1,4 +1,4 @@
-// The 47-colour palette (docs/ART_STYLE.md §1). Never write a hex colour anywhere else: sprites use
+// The 49-colour palette (docs/ART_STYLE.md §1, §6.1). Never write a hex colour anywhere else: sprites use
 // the one-character keys, code uses PALETTE.<name>, and CSS uses the generated --c-<name> variables.
 
 export const PALETTE = {
@@ -56,6 +56,9 @@ export const PALETTE = {
   gold_dark: '#c28b2c',
   night_tint: '#1d2748',
   dusk_tint: '#e0875a',
+  // v2 (ART_STYLE.md §6.1)
+  lamp_glow: '#ffe3a3',
+  slate: '#5b6478',
 } as const;
 
 export type PaletteName = keyof typeof PALETTE;
@@ -108,6 +111,8 @@ export const KEY_TO_NAME = {
   F: 'gold_dark',
   t: 'night_tint',
   T: 'dusk_tint',
+  a: 'lamp_glow',
+  A: 'slate',
 } as const satisfies Record<string, PaletteName>;
 
 export type PaletteKey = keyof typeof KEY_TO_NAME;

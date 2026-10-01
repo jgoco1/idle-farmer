@@ -9,8 +9,13 @@ import { AMBIENT_SPRITES } from './ambient';
 import { AUTOMATION_SPRITES } from './automation';
 import { COOKING_SPRITES } from './cooking';
 import { CROP_SPRITES } from './crops';
+import { FX_SPRITES } from './decorFx';
+import { DECOR_PIECE_SPRITES } from './decorPieces';
+import { DECOR_TILE_SPRITES } from './decorTiles';
+import { FARMHOUSE_SPRITES } from './farmhouse';
 import { FISHING_SPRITES } from './fishing';
 import { ITEM_SPRITES } from './items';
+import { TOWN_SPRITES } from './town';
 import type { SpriteDef } from './types';
 
 export type { SpriteDef } from './types';
@@ -26,6 +31,11 @@ export const ALL_SPRITES: readonly SpriteDef[] = [
   ...FISHING_SPRITES,
   ...COOKING_SPRITES,
   ...AMBIENT_SPRITES,
+  ...DECOR_TILE_SPRITES,
+  ...DECOR_PIECE_SPRITES,
+  ...FARMHOUSE_SPRITES,
+  ...TOWN_SPRITES,
+  ...FX_SPRITES,
 ];
 
 export const SPRITES: Readonly<Record<string, SpriteDef>> = Object.freeze(

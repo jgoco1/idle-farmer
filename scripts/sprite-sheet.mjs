@@ -1,7 +1,7 @@
 // Renders every sprite (or those whose id starts with a prefix) to scripts/out/sprites.png, on a
 // soil-coloured background, for eyeballing art without a browser: `node scripts/sprite-sheet.mjs crop_`,
 // or `IDS=item_roasted_turnip,ui_hearty node scripts/sprite-sheet.mjs` for an explicit list.
-// Each sprite is scaled ×SCALE; animated sprites show all frames side by side.
+// Each sprite is scaled ×SCALE; animated sprites show all frames side by side. TALL=1 keeps tall sprites whole.
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
@@ -24,7 +24,7 @@ try {
   const cellW = 16 * SCALE + 8;
   const cellH = 48 * SCALE + 8;
   const maxH = Math.max(...cells.map((f) => f.length));
-  const rowH = Math.min(cellH, maxH * SCALE + 8);
+  const rowH = process.env.TALL ? maxH * SCALE + 8 : Math.min(cellH, maxH * SCALE + 8);
   const W = PER_ROW * cellW * (Math.max(...cells.map((f) => f[0].length)) / 16);
   const H = Math.ceil(cells.length / PER_ROW) * rowH;
   const px = new Uint8Array(W * H * 3).fill(60);
