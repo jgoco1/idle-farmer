@@ -463,10 +463,13 @@ export class Brain {
       // Keeping buffs up: two of each dish worth eating stay in the bag (more would crowd out seeds).
       const hold =
         def.category === 'dish'
-          ? this.style.cook === 'eat' &&
-            buffPriority(this.style, s, this.data.recipes[stack.item as DishId].buff) >= 2
-            ? 2
-            : 0
+          ? Math.max(
+              this.style.cook === 'eat' &&
+                buffPriority(this.style, s, this.data.recipes[stack.item as DishId].buff) >= 2
+                ? 2
+                : 0,
+              this.projectWants(s).find((w) => w.item === stack.item)?.qty ?? 0,
+            )
           : (keep.get(stack.item) ?? 0);
       const qty = countItem(s.inventory, stack.item) - hold;
       if (qty <= 0) continue;

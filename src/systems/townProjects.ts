@@ -110,16 +110,35 @@ export function decorSetOpen(state: GameState, data: GameData, set: DecorSetId):
   return isUnlocked(state, data.decorSets[set].unlock, data);
 }
 
+/** Whether a finished project gave this cosmetic. Indexed loops, no allocation: the renderer asks every frame. */
 export function hasCosmetic(
   state: GameState,
   data: GameData,
   what: Extract<TownProjectReward, { kind: 'cosmetic' }>['what'],
 ): boolean {
-  return rewardsOf(state, data).some((r) => r.kind === 'cosmetic' && r.what === what);
+  for (let i = 0; i < TOWN_PROJECT_IDS.length; i++) {
+    const id = TOWN_PROJECT_IDS[i]!;
+    if (!state.town.projects[id] || !isProjectDone(state, data, id)) continue;
+    const rewards = data.townProjects[id].rewards;
+    for (let k = 0; k < rewards.length; k++) {
+      const r = rewards[k]!;
+      if (r.kind === 'cosmetic' && r.what === what) return true;
+    }
+  }
+  return false;
 }
 
-export function hasMusicTrack(state: GameState, data: GameData, id: 'town_square'): boolean {
-  return rewardsOf(state, data).some((r) => r.kind === 'musicTrack' && r.id === id);
+export function hasMusicTrack(state: GameState, data: GameData, track: 'town_square'): boolean {
+  for (let i = 0; i < TOWN_PROJECT_IDS.length; i++) {
+    const id = TOWN_PROJECT_IDS[i]!;
+    if (!state.town.projects[id] || !isProjectDone(state, data, id)) continue;
+    const rewards = data.townProjects[id].rewards;
+    for (let k = 0; k < rewards.length; k++) {
+      const r = rewards[k]!;
+      if (r.kind === 'musicTrack' && r.id === track) return true;
+    }
+  }
+  return false;
 }
 
 // ---- donating

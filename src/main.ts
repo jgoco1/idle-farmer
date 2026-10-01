@@ -26,7 +26,7 @@ import { PrefsStore } from './core/prefs';
 import { createInitialState, type Plot } from './core/state';
 import { systemLocalClock } from './core/time';
 import { GAME_DATA } from './data';
-import type { CropId } from './data/ids';
+import { TOWN_PROJECT_IDS, type CropId } from './data/ids';
 import { applyPaletteCssVars } from './render/palette';
 import { Renderer, type DecorGhost, type SceneView } from './render/renderer';
 import {
@@ -691,12 +691,22 @@ const look: { farmhouse: string; stages: Record<string, number> } = {
   farmhouse: 'obj_farmhouse',
   stages: {},
 };
+let lookPaint: string | null = null;
+let lookRoof: string | null = null;
+let lookLoft = false;
 function updateLook(): SceneLook {
   const s = game.state;
   const f = s.decor.farmhouse;
-  look.farmhouse = farmhouseSpriteId(f.paint, f.roof, f.loft);
-  for (const id in s.town.projects)
-    look.stages[id] = s.town.projects[id as keyof typeof s.town.projects]?.stagesDone ?? 0;
+  if (f.paint !== lookPaint || f.roof !== lookRoof || f.loft !== lookLoft) {
+    lookPaint = f.paint;
+    lookRoof = f.roof;
+    lookLoft = f.loft;
+    look.farmhouse = farmhouseSpriteId(f.paint, f.roof, f.loft);
+  }
+  for (let i = 0; i < TOWN_PROJECT_IDS.length; i++) {
+    const id = TOWN_PROJECT_IDS[i]!;
+    look.stages[id] = s.town.projects[id]?.stagesDone ?? 0;
+  }
   return look as SceneLook;
 }
 const renderer = new Renderer({

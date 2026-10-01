@@ -470,6 +470,13 @@ Costs are in BALANCE.md §13.3: about 8.5M gold in all, with items (driftwood, w
 
 **Idle behaviour:** none. Decorations and projects have no timers, and the simulator spends on them only while a player is present.
 
+#### As built in v2 phase 02
+
+- **Decorate** is a button in the scene controls (a palette); the stock tray appears above the toolbar. Click a chip to choose a piece, click a free tile to place it (a refused tile says why in the tooltip), click a placed piece to pick it up into your hand, click a free tile to drop it, `F` flips, `Delete` (or the button) returns it to the stock, `Esc` drops what you hold, then leaves the mode.
+- **Charm** is on the Goals tab (with the next threshold and what it opens) and in the Stats tab. The charm milestones and the "Raise your charm" goal are in BALANCE.md §13.9.
+- **Town projects** are on the Goals panel's **Town** tab; clicking a project's site in the square opens it. Gold is given in 10%, 25% or "all I can" bites and items like bundle slots. Two of the table's items per stage that do not exist yet (eggs, milk, apples, persimmons, large eggs) join in v2 phases 03 and 04.
+- The **Town Square tune** (the bandstand's reward) is in the rotation about one hour in three, and can be switched off or played on demand in Settings.
+
 ### 12.3 The orchard (v2 phase 03)
 
 Fruit trees are long-term investments: planted once, they grow over **real days**, never wither and bear fruit in their seasons forever.

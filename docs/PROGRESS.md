@@ -631,3 +631,68 @@ Documentation only; no game code changed.
 - **Camera:** never store it in state. To show something, `renderer.panToTile(col, row)`; for screen positions of DOM effects use `renderer.tileClientCenter` / `tileRectClient` / `worldToClient` and check `isTileVisible` first.
 - **Catalogue:** extend `scripts/sim/catalogue.ts` (`catalogueParts`, `catalogueOwned`) with decorations and project stages; §13.4's curve and checks then go in `tuningChecks` (`scripts/sim/report.ts`).
 - **e2e:** use `clickTile(page, col, row)` from `e2e/helpers.ts`; it pans the tile into view. `window.__view.showTile`, `camera()`, `chunksDrawn()` and `objectsDrawn()` are there for specs.
+
+## v2 Phase 02: Decorations, charm and town projects
+
+### Built
+- **Data.** `src/data/decor.ts` (the three sets and 32 pieces of BALANCE §13.2, with `DECOR_ORDER`), `src/data/townProjects.ts` (the six projects of §13.3, `LATER_STAGE_ITEMS`), `DECOR_BLOCKED` and `fixedBlockReason` in `src/data/world.ts`, the `DecorId`, `DecorSetId` ids and guards, `UnlockCondition` kinds `charm` and `townProject`, quest objectives `ownParcel`, `placeDecor`, `reachCharm`, `gainCharm` and `projectStage`, the `decor` quest reward, and the constants in `balance.ts` (`DECOR_BASE_SLOTS`, `DECOR_SLOTS_PER_PROJECT`, `CHARM_PER_PROJECT_STAGE`, `TOWN_PROJECT_SCALE`, `GOAL_SLOTS_HALL_BONUS`, `FARM_POINT_MILESTONES`, the donate shares and buy amounts, the charm goal's size).
+- **Systems.** `src/systems/decor.ts` (stock, `buyDecor`, `placeDecor`, `moveDecor`, `pickUpDecor`, `styleFarmhouse`, `decorPlacementProblem` with footprints, blocked tiles, owned land, overlaps, stock and the slot cap, `autotileMask`), `src/systems/charm.ts` (`charmOf`, `charmBreakdown`, `nextCharmUnlock`, `noteCharm`: charm is derived, never stored), `src/systems/townProjects.ts` (stages, `donateProject`, the derived rewards: slot cap, goal slots, decoration sets, cosmetics, the music track). Actions `buyDecor`, `placeDecor`, `moveDecor`, `pickUpDecor`, `styleFarmhouse`, `donateProject`; events `decorPlaced`, `decorMoved`, `decorPickedUp`, `charmChanged`, `projectDonated`, `projectStageDone`.
+- **Progression.** Milestones `m16_first_parcel`, `m17_first_decor`, `m18_charm_25`, `m19_first_project`, `m23_charm_100` (no farm points: `farmPoints` counts only m01 to m15), the goal template `raise_charm`, a variable goal board size (`goalSlots`: the Community Hall adds a 4th goal), and a first-step settle so a loaded save gets `m16` at once.
+- **Save 9.** `decor` and `town`, `migrations[8]`, validation, `tests/fixtures/save-v9.json`, and a v8 → v9 test.
+- **Decor shop.** A **Decor** tab in the Shop (`src/ui/decorShop.ts`): the sets with previews, prices, charm, owned and placed counts, locked pieces with their hints, buy ×1/×5/×10, a Place button, and the farmhouse look (paint, roof, loft: free and reversible).
+- **Decorate mode** (`src/ui/decorate.ts`): a scene-control toggle and a stock tray; a grid-snapped ghost (green or red, the reason as a tooltip), place, move (click a placed piece, then a free tile), flip (`F`), pick up (`Del`), `Esc`. The renderer sends every click to it while it is on.
+- **Charm and the Town tab** on the Goals panel (`src/ui/townPanel.ts`): charm with the next threshold, the Town tab with gold in 10% / 25% / all-I-can bites and items like bundle slots (through the purchase guard), the project sites in the square open it, and stage toasts with a flourish and a pan to the site. Charm and project stats are in Stats.
+- **Art.** `src/render/sprites/draw.ts` (a shape-drawing kit), `decorTiles.ts` (3 paths and 3 fences × 16 masks), `decorPieces.ts` (every piece, lamps with a lit frame, seasonal sprites, the windmill's sails), `farmhouse.ts` (paints, roofs and the loft), `town.ts` (every project at every stage), `decorFx.ts` (halos, the band, the festival lights). Palette keys `a` and `A` added (49 colours). Details in ART_STYLE §6.8.
+- **Rendering.** Placed pieces merge with the scene's objects by depth (`src/render/decorDraw.ts`, rebuilt only when the pieces change, culled to the view, snow-dusted in winter); lit lamps, bridge lanterns, windows and the lighthouse glow after the night tint; the lighthouse beam, the bakery's morning smoke, the Saturday-evening band with music notes, and the festival lights are cosmetic rewards. The scene's look (farmhouse style, town stages) rebuilds the layout when it changes.
+- **Audio.** A Town Square tune (`THEMES.town_square`), in the rotation one hour in three once the bandstand is built; Settings can switch it off (`Prefs.townTune`) or play it now.
+- **Simulator.** Decorations and projects in the catalogue and brain, `charm` in snapshots, new moments, a charm-by-day table, and the §13.4 checks (`spendChecks`). BALANCE §13.12 has the table and the tuning note.
+- **Tests:** 1,042 unit tests (was 771): `tests/decor.test.ts`, `tests/townProjects.test.ts`, `tests/decorRender.test.ts`, extra sprite, save, world and simulator tests. e2e: `e2e/decor.spec.ts` (buy a lamp and a path, place, move and pick them up in Decorate mode, the lamp glows at night, the Decor shop, a donated stage changes the world).
+- **Screenshots:** `docs/screenshots/v2-02-decorated-day.png`, `v2-02-decorated-night.png`, `v2-02-decor-shop.png`, `v2-02-town-project.png`.
+
+### Gold still to spend (simulator, 8 seeds, medians; catalogue 10,776,030 so far)
+| Bot | d1 | d3 | d7 | d14 | d21 | d30 |
+|---|---|---|---|---|---|---|
+| Greedy Farmer | 100% | 97% | 90% | 54% | 11% | 1% |
+| Angler | 100% | 97% | 88% | 50% | 3% | 1% |
+| Chef | 100% | 98% | 89% | 55% | 12% | 1% |
+| Casual Idler | 100% | 99% | 85% | 51% | 47% | 38% |
+| Active Player | 100% | 99% | 97% | 83% | 59% | 33% |
+
+All phase 09 checks and the three §13.4 checks pass (BALANCE §13.12 has the numbers and the pacing against §13.10).
+
+### Performance
+| Measure | Before (v2-01) | After | Budget |
+|---|---|---|---|
+| Frame rate, full world at 1× and panning | 60 fps | 60 fps (p95 16.8 ms) | 60 fps |
+| Allocated per frame, world pan | 11.4 KB | 11.3–11.5 KB | < 12 KB |
+| Bundle (JS / gzip) | 301.9 / 95.1 kB | 378.7 / 119.1 kB | – |
+The extra 77 kB is sprite data (about 300 more sprites). The renderer's per-frame work for decorations is an indexed walk of a list that is rebuilt only when a piece changes; the cosmetics flags use allocation-free loops (`for…of` over the project list added about 1 KB a frame and was replaced).
+
+### Deviations
+- **`TOWN_PROJECT_SCALE` is 0.8**, not 1.0: the §13.4 curve needed it (BALANCE §13.12). The tables keep their printed figures.
+- **Stage items from later phases are left out for now** (eggs, large eggs, milk, apples, persimmons) because those items do not exist yet. They are listed in `LATER_STAGE_ITEMS`; v2-03 and v2-04 add them to the bakery's and the hall's stages. Everything else in §13.3 is as printed.
+- **The phase prompt's "longer bin pickup window" reward is not built**: GDD §12.2's project table (which wins) does not give it. IDEAS.md has it.
+- **Farmhouse sprites are composed combinations** (`obj_farmhouse_<paint>_<roof>[_loft]`) rather than separate wall and roof layers (ART_STYLE §6.8).
+- **Placing on the Orchard and the Paddock is allowed** (outside tree spots), though they are meant for trees and animals; v2-04's buildings must say what is in the way (IDEAS.md). Pieces also go on the Meadow's beach.
+- **A 2 × 2 piece does not fit in the Orchard** (its open rows and columns are one tile wide); the Meadow, the Paddock and some home corners take them.
+- **Touch placement has no ghost**: a tap places at once (a refused tile says why in a toast).
+- **The scene-control buttons sit under the panels** (z-index 9, was 14) so a panel's close button is no longer covered.
+- **Simulator:** the brain spends once per session, at its end (after stocking seeds); mid-session spending starved the planter. Item errands (fishing, planting, cooking) start only when a stage's gold is in. BALANCE §13.12 explains both.
+
+### Known issues
+- No bot finishes the Community Hall: its last stage needs a Harvest Feast (Tier 4 dish). The Greedy Farmer never cooks and the Chef rarely keeps a spare. A real player who cooks will.
+- The Active Player starts its first project stage on day 12 (target 5–9) because it spends only after the v1 wish list. The Greedy Farmer is in band.
+- Koi (the fountain's last stage) bites only 08:00–18:00 in spring and summer, so an evening player has to catch one on a weekend or at lunch; the simulator's fishing trips go out at midday.
+- Decorations stack with wild flowers on the same tile (the flower is drawn under or over by depth order); harmless.
+- The decoration slot cap (100 at first) is reached before a whole set is placed; IDEAS.md has a swap idea.
+- The e2e perf test's allocation budget (12 KB) now has about 0.5 KB of headroom on the world pan.
+
+### Next-phase notes (for v2 phase 03: the orchard)
+- **Trees go in `WORLD_LAYOUT.treeSpots`** (2 × 2, bottom-centre sprites). `fixedBlockReason` already blocks those tiles for decorations, so nothing needs changing. Draw trees in the same depth-merged pass as decorations (`Renderer.render`, the object loop): add a draw list like `DecorDraw` rather than a second pass.
+- **The bakery's and the hall's missing items:** add `apple ×30` to bakery stage 3 and `persimmon ×20` to the hall's stage 2 in `TOWN_PROJECTS` (`src/data/townProjects.ts`), delete their lines from `LATER_STAGE_ITEMS`, and teach the brain (`projectWants` already handles any item: crops, fish, junk or a dish; fruit needs an errand for picking). Eggs, milk and large eggs follow in v2-04.
+- **Goals and milestones:** `m20_first_fruit` goes after `m19` and before `m23_charm_100` in `MILESTONES` (the chain order in BALANCE §13.9); `pick_fruit` joins the goal templates (`GoalTemplateId`, `GOAL_TEMPLATES`, `variantsOf` in `src/systems/progression.ts`). Add the event to `advance` and `EVENT_FOR`. v2-03 also bumps `SAVE_VERSION` to 10 (`orchard`, `calendar.dayZeroKey`).
+- **The catalogue:** extend `catalogueParts` and `catalogueOwned` (`scripts/sim/catalogue.ts`) with saplings; the §13.4 checks in `spendChecks` then use the new total. Moving `pa('orchard')` earlier in `FARM_SHOPPING` is still open (BALANCE §13.12, v2-01 notes).
+- **Toasts:** route fruit and tree toasts through `toastAt` in `src/main.ts`; add a `PipTarget` kind for ripe trees in `updatePips`.
+- **Do not allocate per frame** in anything you add to `render()` or `sceneView()`: `for…of`, `Object.values` and template strings in a per-frame path showed up in the perf test.
+- **Costs and numbers** live in `src/data/balance.ts`; `TOWN_PROJECT_SCALE` is the lever if orchard income shifts the §13.4 curve.
+
