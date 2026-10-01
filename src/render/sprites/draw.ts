@@ -31,7 +31,10 @@ export class Pix {
 
   /** A 1 px border of `ch` around the rectangle (no fill). */
   frame(x: number, y: number, w: number, h: number, ch: string): this {
-    this.hline(x, y, w, ch).hline(x, y + h - 1, w, ch).vline(x, y, h, ch).vline(x + w - 1, y, h, ch);
+    this.hline(x, y, w, ch)
+      .hline(x, y + h - 1, w, ch)
+      .vline(x, y, h, ch)
+      .vline(x + w - 1, y, h, ch);
     return this;
   }
 
@@ -121,5 +124,7 @@ export function mirrored(rows: readonly string[]): string[] {
 
 /** The rows of `a` with every opaque pixel of `b` drawn over it (same size). */
 export function overlay(a: readonly string[], b: readonly string[]): string[] {
-  return a.map((row, y) => [...row].map((ch, x) => (b[y]?.[x] && b[y]![x] !== '.' ? b[y]![x]! : ch)).join(''));
+  return a.map((row, y) =>
+    [...row].map((ch, x) => (b[y]?.[x] && b[y]![x] !== '.' ? b[y]![x]! : ch)).join(''),
+  );
 }

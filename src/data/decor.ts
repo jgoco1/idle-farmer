@@ -36,6 +36,15 @@ type Row = Omit<DecorDef, 'sprite' | 'unlock' | 'kind' | 'size'> & {
 
 const FARMHOUSE_SIZE = { cols: 0, rows: 0 } as const;
 
+/** Farmhouse pieces are not sprites of their own: the shop shows the styled farmhouse that piece gives. */
+const FARMHOUSE_PREVIEW: Partial<Record<DecorId, string>> = {
+  paint_sage: 'obj_farmhouse_sage_tile',
+  paint_sky: 'obj_farmhouse_sky_tile',
+  roof_thatch: 'obj_farmhouse_red_thatch',
+  roof_slate: 'obj_farmhouse_red_slate',
+  farmhouse_loft: 'obj_farmhouse_red_tile_loft',
+};
+
 function piece(r: Row): DecorDef {
   const { needs, size, kind, ...rest } = r;
   return {
@@ -43,7 +52,7 @@ function piece(r: Row): DecorDef {
     kind: kind ?? 'place',
     size: size ?? { cols: 1, rows: 1 },
     unlock: charm(needs),
-    sprite: `decor_${r.id}`,
+    sprite: FARMHOUSE_PREVIEW[r.id] ?? `decor_${r.id}`,
   };
 }
 

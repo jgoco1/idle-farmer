@@ -4,7 +4,20 @@
 // camera's integer zoom. The renderer only reads state; clicks go out through the callbacks, and a
 // press that moves more than a few pixels is a pan, never a click.
 
-import type { PlacedObject } from '../core/state';
+import type { PlacedDecor, PlacedObject } from '../core/state';
+import { DECOR } from '../data/decor';
+import { TOWN_PROJECT_IDS, type TownProjectId } from '../data/ids';
+import { WORLD_LAYOUT } from '../data/world';
+import {
+  buildDecorDraws,
+  decorKey,
+  glowStrength,
+  isLitTime,
+  SEASON_INDEX,
+  townGlows,
+  type DecorDraw,
+  type GlowPoint,
+} from './decorDraw';
 import type { Calendar } from '../core/time';
 import type { Offset } from '../systems/placement';
 import { Ambient } from './ambient';
@@ -15,6 +28,7 @@ import { PALETTE } from './palette';
 import {
   buildLayout,
   buildZones,
+  DEFAULT_LOOK,
   forSaleSignAt,
   GREENHOUSE_ROOF_TILE,
   PET_TILE,
@@ -22,12 +36,15 @@ import {
   tileOfPlot,
   TILE,
   tileAt,
+  townSiteAt,
+  townSpritePos,
   WORLD_H,
   WORLD_W,
   zoneAt,
   type Grid,
   type PlotSprites,
   type SceneLayout,
+  type SceneLook,
   type Zone,
 } from './scene';
 import {
@@ -50,7 +67,7 @@ import {
   type Rect,
   type Viewport,
 } from './camera';
-import { anchoredPosition, spriteFrame } from './spriteCache';
+import { anchoredPosition, spriteFrame, spriteFrameAt } from './spriteCache';
 import { spriteDef } from './sprites';
 import { tintAt } from './tint';
 
@@ -75,6 +92,10 @@ export interface RendererOptions {
   onPlotClick(p: PlotPointer): void;
   /** A click on a locked parcel's "For sale" sign. */
   onSignClick(parcel: ParcelId): void;
+  /** A click on a town project's site (v2 phase 02). */
+  onTownClick?(project: TownProjectId): void;
+  /** While Decorate mode is on, every click on the world arrives here instead (v2 phase 02). */
+  onDecorClick?(col: number, row: number): void;
   /** The camera came to rest somewhere new (null: back at the default view). For prefs. */
   onCameraRest?(cam: Camera | null): void;
 }
@@ -92,6 +113,21 @@ export interface SceneView {
   traps: readonly { col: number; row: number; full: boolean }[];
   /** Something is cooking: steam curls from the farmhouse chimney. */
   cooking: boolean;
+  /** The decorations standing on the land (v2 phase 02). */
+  decor: readonly PlacedDecor[];
+  /** The cosmetic rewards of finished town projects. */
+  cosmetics: { bakerySmoke: boolean; band: boolean; lighthouseBeam: boolean; festival: boolean };
+}
+
+/** The decoration being placed or moved in Decorate mode: its footprint, a ghost sprite and why a tile is refused. */
+export interface DecorGhost {
+  cols: number;
+  rows: number;
+  /** Sprite id drawn translucently at the hovered tile (null: just the footprint). */
+  sprite: string | null;
+  flipped: boolean;
+  /** Why the piece cannot stand with its top-left at (col, row), or null when it can. */
+  problemAt(col: number, row: number): string | null;
 }
 
 /** The range preview while placing: the offsets around the hovered plot, and whether the spot is valid. */
@@ -111,6 +147,9 @@ interface Fx {
 }
 
 const FX_MS = 700;
+/** The festival lights hang between two poles in the town square (Community Hall reward). */
+const FESTIVAL_POLES = [5, 11] as const;
+const FESTIVAL_ROW = 18;
 
 const byRow = (a: PlacedObject, b: PlacedObject): number => a.at.row - b.at.row;
 /** A number that changes when any placed object's row changes (a move within the field). */
@@ -196,6 +235,20 @@ export class Renderer {
   private fx: Fx[] = [];
   private preview: PlacementPreview | null = null;
   private greenhousePlots = 0;
+  private look: SceneLook = DEFAULT_LOOK;
+  private readonly lookStages: number[] = TOWN_PROJECT_IDS.map(() => 0);
+  private lookFarmhouse = '';
+  private decorDraws: DecorDraw[] = [];
+  private decorSig = Number.NaN;
+  /** Decorate mode (v2): clicks go to `onDecorClick`, and the ghost follows the pointer. */
+  decorateMode = false;
+  private ghost: DecorGhost | null = null;
+  /** How many glowing pieces and lights the last frame lit (for tests). */
+  lightsLit = 0;
+  private night = 0;
+  private dusk = 0;
+  private smokeClock = 0;
+  private noteClock = 0;
   readonly farmhand = new FarmhandVisual();
   /** Returns true when motion should be reduced (Settings → Motion, or the system preference). */
   reducedMotion: () => boolean = () => false;
@@ -518,11 +571,17 @@ export class Renderer {
   /** A press that never became a pan: plots, zones, signs, or (twice on open ground) a zoom in. */
   private click(clientX: number, clientY: number, shiftKey: boolean, time: number): void {
     const t = this.tileAtClient(clientX, clientY);
+    if (this.decorateMode) {
+      if (t) this.opts.onDecorClick?.(t.col, t.row);
+      return;
+    }
     if (t) {
       const plot = plotIndexAt(this.grid, t.col, t.row, this.greenhousePlots);
       if (plot >= 0) return this.opts.onPlotClick({ plot, shiftKey });
       const zone = zoneAt(this.zones, t.col, t.row);
       if (zone && zone.id !== 'plots') return this.opts.onZoneClick({ zone, col: t.col, row: t.row });
+      const site = townSiteAt(t.col, t.row);
+      if (site && this.opts.onTownClick) return this.opts.onTownClick(site);
       const sign = forSaleSignAt(this.owned, t.col, t.row);
       if (sign) return this.opts.onSignClick(sign);
     }
@@ -633,24 +692,52 @@ export class Renderer {
     this.preview = p;
   }
 
+  /** Turns Decorate mode on or off; the ghost follows the pointer while it is on. */
+  setDecorGhost(g: DecorGhost | null): void {
+    this.ghost = g;
+  }
+
+  /** Sprite ids of the scene's fixed objects (for e2e: what the town looks like now). */
+  layoutSpriteIds(): string[] {
+    return this.layout.objects.map((o) => o.sprite);
+  }
+
+  /** The tile under the pointer, or null (for tooltips in Decorate mode). */
+  get hoverTile(): Readonly<{ col: number; row: number }> | null {
+    return this.hover;
+  }
+
   /** Rebuilds the static layer when the plot grid, the bought expansions or the owned parcels change. */
-  setScene(grid: Grid, expansions: readonly ExpansionId[] = [], parcels: readonly ParcelId[] = []): void {
+  setScene(
+    grid: Grid,
+    expansions: readonly ExpansionId[] = [],
+    parcels: readonly ParcelId[] = [],
+    look: SceneLook = DEFAULT_LOOK,
+  ): void {
     // Called every frame: compare without building the key string unless something may have changed.
+    let lookSame = look.farmhouse === this.lookFarmhouse;
+    for (let i = 0; lookSame && i < TOWN_PROJECT_IDS.length; i++)
+      lookSame = (look.stages[TOWN_PROJECT_IDS[i]!] ?? 0) === this.lookStages[i];
     if (
       grid.cols === this.grid.cols &&
       grid.rows === this.grid.rows &&
       expansions.length === this.sceneExpansions &&
-      parcels.length === this.sceneParcels
+      parcels.length === this.sceneParcels &&
+      lookSame
     )
       return;
     this.sceneExpansions = expansions.length;
     this.sceneParcels = parcels.length;
-    const key = `${grid.cols}x${grid.rows}|${expansions.join(',')}|${parcels.join(',')}`;
+    this.lookFarmhouse = look.farmhouse;
+    for (let i = 0; i < TOWN_PROJECT_IDS.length; i++)
+      this.lookStages[i] = look.stages[TOWN_PROJECT_IDS[i]!] ?? 0;
+    this.look = { farmhouse: look.farmhouse, stages: { ...look.stages } };
+    const key = `${grid.cols}x${grid.rows}|${expansions.join(',')}|${parcels.join(',')}|${look.farmhouse}|${this.lookStages.join('')}`;
     if (key === this.sceneKey) return;
     this.sceneKey = key;
     this.grid = { cols: grid.cols, rows: grid.rows };
     this.owned = [...parcels];
-    this.layout = buildLayout(this.grid, expansions, parcels);
+    this.layout = buildLayout(this.grid, expansions, parcels, this.look);
     this.zones = buildZones(this.grid);
     this.buildChunks();
   }
@@ -721,7 +808,11 @@ export class Renderer {
       this.steamClock += dtMs;
       if (this.steamClock > 380) {
         this.steamClock = 0;
-        this.particles.emit('steam', CHIMNEY_STEAM.x + 11, CHIMNEY_STEAM.y + 18);
+        this.particles.emit(
+          'steam',
+          CHIMNEY_STEAM.x + 11,
+          CHIMNEY_STEAM.y + 18 - (this.lookFarmhouse.endsWith('_loft') ? TILE : 0),
+        );
       }
     }
     this.greenhousePlots = view.greenhouse.length;
@@ -760,15 +851,35 @@ export class Renderer {
       );
       this.drawPlots(view.greenhouse, timeMs, true);
     }
+    // Objects and decorations, merged by their bottom edge so nearer things overlap farther ones.
+    const dk = decorKey(view.decor);
+    if (dk !== this.decorSig) {
+      this.decorSig = dk;
+      this.decorDraws = buildDecorDraws(view.decor, DECOR);
+    }
+    const decor = this.decorDraws;
+    const season = SEASON_INDEX[calendar.season];
+    const lit = isLitTime(calendar.hour, calendar.minute);
     let drawn = 0;
+    let di = 0;
     for (let i = 0; i < objects.length; i++) {
       const o = objects[i]!;
+      const bottom = o.y + o.h;
+      while (di < decor.length && decor[di]!.bottom < bottom)
+        this.drawDecor(decor[di++]!, season, winter, lit, vis, timeMs);
       if (!overlaps(vis, o.x, o.y, o.w, o.h)) continue;
       f.drawImage(spriteFrame(o.sprite, timeMs), o.x, o.y);
       drawn++;
     }
+    while (di < decor.length) this.drawDecor(decor[di++]!, season, winter, lit, vis, timeMs);
     this.objectsDrawn = drawn;
-    if (view.cooking) f.drawImage(spriteFrame('fx_steam', timeMs), CHIMNEY_STEAM.x, CHIMNEY_STEAM.y);
+    this.drawTownLife(view, calendar, timeMs, vis, dtMs);
+    if (view.cooking)
+      f.drawImage(
+        spriteFrame('fx_steam', timeMs),
+        CHIMNEY_STEAM.x,
+        CHIMNEY_STEAM.y - (this.lookFarmhouse.endsWith('_loft') ? TILE : 0),
+      );
     f.drawImage(
       spriteFrame('obj_cat_sleep', this.reducedMotion() ? 0 : timeMs),
       PET_TILE.col * TILE,
@@ -781,6 +892,7 @@ export class Renderer {
     this.ambient.drawAir(f, aclock);
     this.particles.draw(f, vis);
     this.drawTint(calendar, x0, y0, x1 - x0, y1 - y0);
+    this.drawLights(view, vis, lit, timeMs);
     this.ambient.drawGlow(f, timeMs, aclock);
     this.drawFx(timeMs);
     this.drawHover();
@@ -806,6 +918,138 @@ export class Renderer {
       c.fillRect(0, 0, this.view.w, this.view.h);
     }
     if (x1 > x0 && y1 > y0) c.drawImage(this.frame, x0, y0, x1 - x0, y1 - y0, dx, dy, dw, dh);
+  }
+
+  /** One decoration: its season's sprite (lit frame at night, snow-dusted in winter), mirrored if flipped, and a windmill's sails. */
+  private drawDecor(
+    d: DecorDraw,
+    season: number,
+    winter: boolean,
+    lit: boolean,
+    vis: Rect,
+    timeMs: number,
+  ): void {
+    if (!overlaps(vis, d.x, d.y - 4, d.w, d.h + 4)) return;
+    const f = this.fctx;
+    const img = spriteFrameAt(d.sprites[season]!, d.glows && lit ? 1 : 0, winter);
+    if (d.flipped) {
+      f.save();
+      f.translate(d.x + d.w, d.y);
+      f.scale(-1, 1);
+      f.drawImage(img, 0, 0);
+      f.restore();
+    } else f.drawImage(img, d.x, d.y);
+    if (d.windmill)
+      f.drawImage(spriteFrame('decor_windmill_sails', this.reducedMotion() ? 0 : timeMs), d.x, d.y - 1);
+  }
+
+  /** The finished projects' touches: the bakery's morning smoke, the Saturday band and the festival lights (day side). */
+  private drawTownLife(view: SceneView, calendar: Calendar, timeMs: number, vis: Rect, dtMs: number): void {
+    const f = this.fctx;
+    const c = view.cosmetics;
+    if (c.festival) {
+      for (const col of FESTIVAL_POLES) {
+        const pos = anchoredPosition(spriteDef('obj_lights_pole'), col, FESTIVAL_ROW, TILE, this.posScratch);
+        if (overlaps(vis, pos.x, pos.y, 16, 32)) f.drawImage(spriteFrame('obj_lights_pole'), pos.x, pos.y);
+      }
+      for (let col = FESTIVAL_POLES[0] + 1; col < FESTIVAL_POLES[1]; col++) {
+        const y = (FESTIVAL_ROW + 1) * TILE - 32;
+        if (overlaps(vis, col * TILE, y, TILE, TILE))
+          f.drawImage(spriteFrame('obj_lights_string'), col * TILE, y);
+      }
+    }
+    const reduced = this.reducedMotion();
+    if (c.band && calendar.weekday === 6 && calendar.hour >= 17 && calendar.hour < 22) {
+      const at = townSpritePos('bandstand', 48);
+      const bx = at.x + 8;
+      const by = at.y + 17;
+      if (overlaps(vis, bx, by, 32, 16)) {
+        f.drawImage(spriteFrame('fx_band', reduced ? 0 : timeMs), bx, by);
+        this.noteClock += dtMs;
+        if (this.noteClock > 700) {
+          this.noteClock = 0;
+          this.particles.emit('note', bx + 6 + ((timeMs / 700) % 4) * 7, by + 2);
+        }
+      }
+    }
+    if (c.bakerySmoke && calendar.hour >= 6 && calendar.hour < 11 && !reduced) {
+      const at = townSpritePos('bakery', 64);
+      if (overlaps(vis, at.x, at.y, 48, 64)) {
+        this.smokeClock += dtMs;
+        if (this.smokeClock > 450) {
+          this.smokeClock = 0;
+          this.particles.emit('steam', at.x + 34, at.y + 8);
+        }
+      }
+    }
+  }
+
+  /** Warm halos over everything lit, after the night tint (ART_STYLE.md §6.5); a steady glow under reduced motion. */
+  private drawLights(view: SceneView, vis: Rect, litTime: boolean, timeMs: number): void {
+    this.lightsLit = 0;
+    const strength = glowStrength(this.night, this.dusk);
+    if (strength <= 0) return;
+    const f = this.fctx;
+    const flicker = this.reducedMotion() ? 1 : 0.94 + 0.06 * Math.sin(timeMs / 280);
+    f.globalCompositeOperation = 'lighter';
+    f.globalAlpha = strength * 0.8 * flicker;
+    const decor = this.decorDraws;
+    if (litTime) {
+      for (let i = 0; i < decor.length; i++) {
+        const d = decor[i]!;
+        if (!d.glows || !overlaps(vis, d.x - 16, d.y - 16, d.w + 32, d.h + 32)) continue;
+        for (let k = 0; k < d.glowPoints.length; k++) this.halo(d.x, d.y, d.glowPoints[k]!);
+      }
+    }
+    for (let i = 0; i < TOWN_PROJECT_IDS.length; i++) {
+      const id = TOWN_PROJECT_IDS[i]!;
+      const pts = townGlows(id, this.lookStages[i]!);
+      if (pts.length === 0) continue;
+      const rows = id === 'old_bridge' ? 2 : id === 'community_hall' ? 4 : id === 'bandstand' ? 3 : 4;
+      const at = townSpritePos(id, rows * TILE);
+      if (!overlaps(vis, at.x - 16, at.y - 16, 96, 96)) continue;
+      for (let k = 0; k < pts.length; k++) this.halo(at.x, at.y, pts[k]!);
+    }
+    if (view.cosmetics.festival) {
+      for (let col = FESTIVAL_POLES[0] + 1; col < FESTIVAL_POLES[1]; col++) {
+        const x = col * TILE;
+        const y = (FESTIVAL_ROW + 1) * TILE - 32;
+        if (overlaps(vis, x - 8, y - 8, 32, 32)) this.halo(x, y, { dx: 8, dy: 6, large: false });
+      }
+    }
+    const lighthouse = this.lookStages[TOWN_PROJECT_IDS.indexOf('lighthouse')]!;
+    if (view.cosmetics.lighthouseBeam && lighthouse >= 3 && this.night > 0.02)
+      this.drawBeam(timeMs, strength);
+    f.globalAlpha = 1;
+    f.globalCompositeOperation = 'source-over';
+  }
+
+  private halo(x: number, y: number, p: GlowPoint): void {
+    const img = spriteFrame(p.large ? 'fx_glow_large' : 'fx_glow_small');
+    this.fctx.drawImage(img, Math.round(x + p.dx - img.width / 2), Math.round(y + p.dy - img.height / 2));
+    this.lightsLit++;
+  }
+
+  /** The lighthouse beam: a thin wedge turning once every 8 s, clipped to the sea; still, pointing out to sea, under reduced motion. */
+  private drawBeam(timeMs: number, strength: number): void {
+    const f = this.fctx;
+    const at = townSpritePos('lighthouse', 64);
+    const cx = at.x + 16;
+    const cy = at.y + 7;
+    const angle = this.reducedMotion() ? 0 : (timeMs / 8000) * Math.PI * 2;
+    f.save();
+    f.beginPath();
+    for (const r of WORLD_LAYOUT.sea) f.rect(r.col * TILE, r.row * TILE, r.cols * TILE, r.rows * TILE);
+    f.clip();
+    f.globalAlpha = strength * 0.28;
+    f.fillStyle = PALETTE.lamp_glow;
+    f.beginPath();
+    f.moveTo(cx, cy);
+    f.lineTo(cx + Math.cos(angle - 0.09) * 150, cy + Math.sin(angle - 0.09) * 150);
+    f.lineTo(cx + Math.cos(angle + 0.09) * 150, cy + Math.sin(angle + 0.09) * 150);
+    f.closePath();
+    f.fill();
+    f.restore();
   }
 
   /** Per-plot soil (dry, wet or untilled) and the crop growing on it. */
@@ -891,7 +1135,37 @@ export class Renderer {
     } else f.drawImage(sprite, x, y);
   }
 
+  /** The piece being placed: its footprint (green if it can stand there, red if not) and a translucent ghost. */
+  private drawGhost(): void {
+    const g = this.ghost;
+    const h = this.hover;
+    if (!g || !h) return;
+    const f = this.fctx;
+    const ok = g.problemAt(h.col, h.row) === null;
+    f.globalAlpha = 0.35;
+    f.fillStyle = ok ? PALETTE.grass_3 : PALETTE.red;
+    f.fillRect(h.col * TILE, h.row * TILE, g.cols * TILE, g.rows * TILE);
+    f.globalAlpha = 0.9;
+    f.strokeStyle = ok ? PALETTE.white_warm : PALETTE.red_light;
+    f.strokeRect(h.col * TILE + 0.5, h.row * TILE + 0.5, g.cols * TILE - 1, g.rows * TILE - 1);
+    if (g.sprite) {
+      const img = spriteFrame(g.sprite);
+      const x = h.col * TILE + Math.round((g.cols * TILE - img.width) / 2);
+      const y = (h.row + g.rows) * TILE - img.height;
+      f.globalAlpha = ok ? 0.7 : 0.4;
+      if (g.flipped) {
+        f.save();
+        f.translate(x + img.width, y);
+        f.scale(-1, 1);
+        f.drawImage(img, 0, 0);
+        f.restore();
+      } else f.drawImage(img, x, y);
+    }
+    f.globalAlpha = 1;
+  }
+
   private drawPreview(): void {
+    this.drawGhost();
     const p = this.preview;
     const h = this.hover;
     if (!p || !h) return;
@@ -934,6 +1208,8 @@ export class Renderer {
   /** The day/night tint over the part of the world in view. */
   private drawTint(calendar: Calendar, x: number, y: number, w: number, h: number): void {
     const { night, dusk } = tintAt(calendar.hour, calendar.minute);
+    this.night = night;
+    this.dusk = dusk;
     const f = this.fctx;
     if (dusk > 0) {
       f.globalCompositeOperation = 'soft-light';

@@ -5,7 +5,7 @@
 
 import type { Action } from '../core/actions';
 import { DAY_MS, formatDuration } from '../core/time';
-import { GOAL_SLOTS, MAX_SKILL_LEVEL } from '../data/balance';
+import { MAX_SKILL_LEVEL } from '../data/balance';
 import { BUNDLE_IDS } from '../data/quests';
 import { SKILL_BLURB, SKILL_ICONS, SKILL_IDS, SKILL_NAMES } from '../data/skills';
 import type { ItemId } from '../data/ids';
@@ -21,20 +21,28 @@ import { h } from './dom';
 import type { PanelDef } from './panel';
 import type { GameViewHooks } from './panels';
 import { renderFishCollection } from './fishingPanel';
+import { renderTown } from './townPanel';
+import { charmBreakdown, nextCharmUnlock } from '../systems/charm';
+import { decorSlotCap, goalSlots } from '../systems/townProjects';
+import { slotsUsed } from '../systems/decor';
+import type { ItemId as ItemIdT, TownProjectId } from '../data/ids';
 
 export interface GoalsHooks extends GameViewHooks {
   dispatch(action: Action): ActionResult;
+  /** Gives toward a town project's current stage (through the purchase guard). */
+  donateProject(project: TownProjectId, gold?: number, item?: ItemIdT, qty?: number): ActionResult;
   /** Enters placement mode for the golden scarecrow. */
   placeGolden(): void;
 }
 
-type Tab = 'goals' | 'milestones' | 'skills' | 'collections' | 'fish' | 'stats';
+type Tab = 'goals' | 'milestones' | 'skills' | 'collections' | 'town' | 'fish' | 'stats';
 
 const TABS: readonly [Tab, string][] = [
   ['goals', 'Goals'],
   ['milestones', 'Milestones'],
   ['skills', 'Skills'],
   ['collections', 'Collections'],
+  ['town', 'Town'],
   ['fish', 'Fish'],
   ['stats', 'Stats'],
 ];
@@ -61,9 +69,9 @@ export function progressBar(value: number, max: number, label: string): HTMLElem
   );
 }
 
-export function goalsPanel(hooks: GoalsHooks): PanelDef {
+export function goalsPanel(hooks: GoalsHooks): { def: PanelDef; showTown(): void } {
   let tab: Tab = 'goals';
-  return {
+  const def: PanelDef = {
     id: 'goals',
     title: 'Goals',
     icon: '★',
@@ -115,6 +123,24 @@ export function goalsPanel(hooks: GoalsHooks): PanelDef {
             text: 'Skill levels and finished milestones both count as farm points. Each Farm Level opens new seeds, recipes and upgrades.',
           }),
         );
+        const charm = charmBreakdown(st, hooks.data);
+        const nextUnlock = nextCharmUnlock(st, hooks.data);
+        const charmCard = h(
+          'div',
+          { class: 'goal-head charm-head', 'data-testid': 'charm' },
+          h('strong', { text: `Charm ${charm.total}` }),
+          h('span', {
+            class: 'seed-note',
+            text: nextUnlock
+              ? ` · ${nextUnlock.amount - charm.total} more to open ${nextUnlock.pieces.map((id) => hooks.data.decor[id].name).join(', ')}`
+              : ' · every decoration is open',
+          }),
+          nextUnlock ? progressBar(charm.total, nextUnlock.amount, 'Charm toward the next decoration') : null,
+          h('p', {
+            class: 'muted',
+            text: `From decorations ${charm.pieces}, the farmhouse ${charm.farmhouse} and town projects ${charm.projects}. ${slotsUsed(st)} of ${decorSlotCap(st, hooks.data)} decoration slots used. Charm only opens more pieces; it never changes prices or income.`,
+          }),
+        );
         const cards = st.progression.goals.map((g) => {
           const target = goalTarget(g.objective);
           const daily = g.objective.kind === 'earnGold' && g.objective.withinOneDay === true;
@@ -141,9 +167,10 @@ export function goalsPanel(hooks: GoalsHooks): PanelDef {
         });
         root.replaceChildren(
           head,
+          charmCard,
           h('h3', { class: 'kitchen-head', text: `Goal board · ${st.progression.goalsDone} finished` }),
           ...cards,
-          ...(cards.length < GOAL_SLOTS
+          ...(cards.length < goalSlots(st, hooks.data)
             ? [h('p', { class: 'muted', text: 'New goals appear as you unlock more of the farm.' })]
             : []),
         );
@@ -359,6 +386,12 @@ export function goalsPanel(hooks: GoalsHooks): PanelDef {
           ['Goals finished', st.progression.goalsDone.toLocaleString('en-US')],
           ['Milestones', `${st.progression.milestones.done.length} / ${hooks.data.milestones.length}`],
           ['Bundles', `${st.progression.completedBundles.length} / ${BUNDLE_IDS.length}`],
+          ['Charm', String(charmBreakdown(st, hooks.data).total)],
+          ['Decorations placed', String(st.decor.placed.length)],
+          [
+            'Town project stages',
+            `${Object.values(st.town.projects).reduce((n, p) => n + (p?.stagesDone ?? 0), 0)} / ${Object.values(hooks.data.townProjects).reduce((n, p) => n + p.stages.length, 0)}`,
+          ],
           ['Farm Level', String(farmLevel(st))],
           ['Time played', formatDuration(st.meta.playTimeMs)],
           ['Farm started', days === 0 ? 'today' : `${days} day${days === 1 ? '' : 's'} ago`],
@@ -373,8 +406,15 @@ export function goalsPanel(hooks: GoalsHooks): PanelDef {
         );
       };
 
+      const renderTownTab = (root: HTMLElement): void =>
+        renderTown(root, { data: hooks.data, state: hooks.state, donate: hooks.donateProject }, () => {
+          drawn.delete('town');
+          refresh();
+        });
+
       const renderers: Record<Exclude<Tab, 'fish'>, (root: HTMLElement) => void> = {
         goals: renderGoals,
+        town: renderTownTab,
         milestones: renderMilestones,
         skills: renderSkills,
         collections: renderCollections,
@@ -390,6 +430,17 @@ export function goalsPanel(hooks: GoalsHooks): PanelDef {
               st.progression.goals,
               st.progression.goalsDone,
               farmPoints(st),
+              farmLevel(st),
+              st.decor.placed.length,
+              st.decor.farmhouse,
+              st.town.projects,
+            ]);
+          case 'town':
+            return JSON.stringify([
+              st.town.projects,
+              st.gold,
+              st.inventory.slots.map((x) => (x ? `${x.item}${x.qty}` : '')),
+              st.progression.milestones.done.length,
               farmLevel(st),
             ]);
           case 'milestones':
@@ -428,6 +479,12 @@ export function goalsPanel(hooks: GoalsHooks): PanelDef {
         else renderers[tab](sections.get(tab)!);
       }
       return { refresh };
+    },
+  };
+  return {
+    def,
+    showTown() {
+      tab = 'town';
     },
   };
 }

@@ -194,7 +194,9 @@ describe('decoration, town and lighting sprites (v2 phase 02)', () => {
       );
       expect(looks.size, id).toBeGreaterThanOrEqual(2);
     }
-    expect(SPRITES.decor_flower_bed_winter!.frames[0]).not.toEqual(SPRITES.decor_flower_bed_spring!.frames[0]);
+    expect(SPRITES.decor_flower_bed_winter!.frames[0]).not.toEqual(
+      SPRITES.decor_flower_bed_spring!.frames[0],
+    );
     expect(SPRITES.decor_sandcastle_winter!.frames[0]).not.toEqual(SPRITES.decor_sandcastle!.frames[0]);
   });
 
@@ -228,7 +230,10 @@ describe('decoration, town and lighting sprites (v2 phase 02)', () => {
     for (const paint of ['red', 'sage', 'sky'])
       for (const roof of ['tile', 'thatch', 'slate'])
         for (const loft of ['', '_loft']) {
-          const id = paint === 'red' && roof === 'tile' && loft === '' ? 'obj_farmhouse' : `obj_farmhouse_${paint}_${roof}${loft}`;
+          const id =
+            paint === 'red' && roof === 'tile' && loft === ''
+              ? 'obj_farmhouse'
+              : `obj_farmhouse_${paint}_${roof}${loft}`;
           const [w, h] = size(id);
           expect(w).toBe(64);
           expect(h).toBe(loft ? 64 : 48);

@@ -28,6 +28,7 @@ import { eatWithConfirm } from './eat';
 import type { Action } from '../core/actions';
 import { buffDurationMs, buffMagnitude } from '../systems/buffs';
 import { formatDuration } from '../core/time';
+import { buildDecorShop, type DecorShopHooks } from './decorShop';
 
 export interface SettingsHooks {
   prefs: PrefsStore;
@@ -39,6 +40,10 @@ export interface SettingsHooks {
   /** Returns an error message, or null when the save was imported. */
   importSave(text: string): string | null;
   hardReset(): void;
+  /** The bandstand is built: the Town Square tune can play (v2 phase 02). */
+  townTuneOwned(): boolean;
+  /** Plays the Town Square tune now (true) or goes back to the seasons (false). */
+  playTownTune(on: boolean): void;
 }
 
 export function settingsPanel(hooks: SettingsHooks): PanelDef {
@@ -85,6 +90,34 @@ export function settingsPanel(hooks: SettingsHooks): PanelDef {
       );
       numbers.addEventListener('change', () =>
         prefs.set('numberFormat', numbers.value === 'short' ? 'short' : 'full'),
+      );
+
+      // The Town Square tune: only once the Bandstand stands.
+      const tune = h('input', { type: 'checkbox', id: 'set-town-tune' });
+      tune.addEventListener('change', () => prefs.set('townTune', tune.checked));
+      const tuneRow = h(
+        'label',
+        { class: 'field', for: 'set-town-tune' },
+        tune,
+        ' Town Square tune in the rotation',
+      );
+      let tunePlaying = false;
+      const tuneNow = h('button', {
+        type: 'button',
+        class: 'btn',
+        'data-play-town-tune': '',
+        text: 'Play the Town Square tune now',
+      });
+      tuneNow.addEventListener('click', () => {
+        tunePlaying = !tunePlaying;
+        hooks.playTownTune(tunePlaying);
+        tuneNow.textContent = tunePlaying ? 'Back to the seasons' : 'Play the Town Square tune now';
+      });
+      const tuneBox = h(
+        'div',
+        { class: 'town-tune', hidden: true },
+        tuneRow,
+        h('div', { class: 'btn-row' }, tuneNow),
       );
 
       // Help: replay the tutorial and a short glossary.
@@ -182,6 +215,7 @@ export function settingsPanel(hooks: SettingsHooks): PanelDef {
         h('h3', { text: 'Sound' }),
         ...sliders.map((x) => x.row),
         h('label', { class: 'field', for: 'set-mute' }, mute, ' Mute everything'),
+        tuneBox,
         h('h3', { text: 'Display' }),
         h('label', { class: 'field', for: 'set-reduce-motion' }, motion, ' Reduce motion'),
         h('p', {
@@ -219,6 +253,8 @@ export function settingsPanel(hooks: SettingsHooks): PanelDef {
             sl.out.textContent = `${v}%`;
           }
           mute.checked = p.muted;
+          tuneBox.hidden = !hooks.townTuneOwned();
+          tune.checked = p.townTune;
           motion.checked = reducedMotion(p, systemPrefersReducedMotion());
           scale.value = String(p.uiScale);
           numbers.value = p.numberFormat;
@@ -364,6 +400,8 @@ export function inventoryPanel(hooks: InventoryHooks): PanelDef {
 export interface ShopHooks extends GameViewHooks {
   buySeeds(crop: CropId, qty: number): ActionResult;
   buyRecipe(recipe: RecipeId): ActionResult;
+  /** The Decor tab (v2 phase 02). */
+  decor: Omit<DecorShopHooks, 'data' | 'state'>;
 }
 
 /**
@@ -383,7 +421,55 @@ export function shopPanel(hooks: ShopHooks): PanelDef {
       const msg = h('p', { class: 'form-msg', role: 'status' });
       const cardsHead = h('h3', { text: 'Recipe cards' });
       const cards = h('div', { class: 'crate-list', 'data-testid': 'recipe-cards' });
-      body.append(h('h3', { text: 'Seeds' }), gold, list, msg, later, cardsHead, cards);
+      const seedsSection = h(
+        'div',
+        { class: 'shop-section', 'data-section': 'seeds' },
+        h('h3', { text: 'Seeds' }),
+        gold,
+        list,
+        msg,
+        later,
+        cardsHead,
+        cards,
+      );
+      const decorShop = buildDecorShop({ ...hooks.decor, data: hooks.data, state: hooks.state });
+      const decorSection = h(
+        'div',
+        { class: 'shop-section', 'data-section': 'decor', hidden: true },
+        decorShop.el,
+      );
+      let tab: 'seeds' | 'decor' = 'seeds';
+      const tabButtons = new Map<string, HTMLButtonElement>();
+      const tabs = h('div', { class: 'tabs', role: 'tablist' });
+      for (const [id, label] of [
+        ['seeds', 'Seeds & recipes'],
+        ['decor', 'Decor'],
+      ] as const) {
+        const b = h('button', {
+          type: 'button',
+          class: 'btn btn-small',
+          role: 'tab',
+          'data-tab': id,
+          text: label,
+        });
+        b.addEventListener('click', () => {
+          tab = id;
+          showTab();
+          render();
+        });
+        tabButtons.set(id, b);
+        tabs.append(b);
+      }
+      const showTab = (): void => {
+        seedsSection.hidden = tab !== 'seeds';
+        decorSection.hidden = tab !== 'decor';
+        for (const [id, b] of tabButtons) {
+          b.setAttribute('aria-selected', String(id === tab));
+          b.classList.toggle('is-active', id === tab);
+        }
+      };
+      body.append(tabs, seedsSection, decorSection);
+      showTab();
 
       const renderCards = (state: GameState): void => {
         const stock = recipeCards(state, hooks.data);
@@ -432,6 +518,10 @@ export function shopPanel(hooks: ShopHooks): PanelDef {
       };
 
       const render = (): void => {
+        if (tab === 'decor') {
+          decorShop.render();
+          return;
+        }
         // The list is rebuilt, so remember which buy button had focus and restore it after.
         const focused = document.activeElement;
         const focusLabel =

@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { ALL_BOTS, runBot, SIM_START, SIM_ZONE, type BotId } from '../scripts/sim/bots';
 import { HOUR, MIN } from '../scripts/sim/driver';
 import {
+  spendChecks,
   csvFiles,
   lifetimeAtDay,
   markdownReport,
@@ -150,5 +151,31 @@ describe('pacing on a real-world schedule (BALANCE.md §11, phase 09)', { timeou
         }
       }
     }
+  });
+});
+
+describe('the gold sink (BALANCE.md §13.4, v2 phase 02)', { timeout: 300_000 }, () => {
+  it('a keen player still has something to buy for 30 days, and the curve of what is left is in its bands', () => {
+    const runs: Partial<Record<BotId, RunResult[]>> = {};
+    for (const bot of ['farmer', 'active'] as const)
+      runs[bot] = [1, 2, 3, 4].map((seed) => {
+        const r = runBot(bot, { seed, days: 30 });
+        return { metrics: r.metrics, state: r.state };
+      });
+    const checks = spendChecks({ seeds: [1, 2, 3, 4], days: 30, runs, elapsedMs: 0 });
+    expect(checks.length).toBeGreaterThan(10);
+    // Checks 1 and 2 of §13.4: gold stays meaningful, and the share still to spend stays inside its bands.
+    for (const c of checks.filter((x) => !x.what.includes('hoard')))
+      expect(c.ok, `${c.what}: ${c.measured}`).toBe(true);
+  });
+
+  it('spends on decorations and projects: charm, placed pieces and finished stages show up', () => {
+    const r = runBot('farmer', { seed: 1, days: 14 });
+    const s = r.state;
+    expect(s.decor.placed.length).toBeGreaterThan(20);
+    expect(Object.values(s.town.projects).reduce((n, p) => n + (p?.stagesDone ?? 0), 0)).toBeGreaterThan(3);
+    expect(r.metrics.moments.first_decor).toBeDefined();
+    expect(r.metrics.moments.charm_25).toBeDefined();
+    expect(r.metrics.snapshots.at(-1)!.charm).toBeGreaterThan(50);
   });
 });

@@ -32,6 +32,8 @@ import { farmPoints } from '../src/systems/skills';
 import { at, NY, setFarmLevel } from './helpers';
 
 const T = at(NY, 2026, 1, 7, 12);
+/** A gold figure from BALANCE.md §13.3 as the game charges it (after TOWN_PROJECT_SCALE). */
+const sc = (n: number): number => Math.round(n * TOWN_PROJECT_SCALE);
 
 function farm(gold = 100_000_000): GameState {
   const s = createInitialState(T, NY, 1);
@@ -74,7 +76,9 @@ describe('the project data (BALANCE.md §13.3)', () => {
     const gold = (id: TownProjectId): number => TOWN_PROJECTS[id].stages.reduce((n, s) => n + s.gold, 0);
     expect(TOWN_PROJECT_IDS.map(gold)).toEqual([400_000, 600_000, 900_000, 1_200_000, 1_800_000, 3_600_000]);
     expect(TOWN_PROJECT_IDS.reduce((n, id) => n + gold(id), 0)).toBe(8_500_000);
-    expect(TOWN_PROJECT_SCALE).toBe(1);
+    // The doc's figures are before the scale, which the simulator's gold-still-to-spend check tunes (BALANCE.md §13.12).
+    expect(TOWN_PROJECT_SCALE).toBeGreaterThan(0.5);
+    expect(TOWN_PROJECT_SCALE).toBeLessThanOrEqual(1);
   });
 
   it('sits where the world layout says, and every stage names what changes', () => {
@@ -151,21 +155,28 @@ describe('who may start which project', () => {
 
 describe('donating a bit at a time', () => {
   it('takes gold in parts, never more than the stage needs or than you have', () => {
-    const s = farm(50_000);
-    const r = give(s, 'old_bridge', 6_000); // 10% of stage 1's 60,000
+    const need = sc(60_000); // stage 1 of the bridge
+    const have = Math.round(need * 0.8);
+    const s = farm(have);
+    const r = give(s, 'old_bridge', need / 10);
     expect(r.ok).toBe(true);
-    expect(s.gold).toBe(44_000);
-    expect(s.town.projects.old_bridge).toEqual({ stagesDone: 0, gold: 6_000, items: [] });
-    expect(r.events).toContainEqual({ type: 'projectDonated', project: 'old_bridge', gold: 6_000, items: 0 });
+    expect(s.gold).toBe(have - need / 10);
+    expect(s.town.projects.old_bridge).toEqual({ stagesDone: 0, gold: need / 10, items: [] });
+    expect(r.events).toContainEqual({
+      type: 'projectDonated',
+      project: 'old_bridge',
+      gold: need / 10,
+      items: 0,
+    });
     // Asking for more than you have gives what you have.
     give(s, 'old_bridge', 1_000_000);
     expect(s.gold).toBe(0);
-    expect(s.town.projects.old_bridge!.gold).toBe(50_000);
+    expect(s.town.projects.old_bridge!.gold).toBe(have);
     expect(give(s, 'old_bridge', 1).ok).toBe(false); // nothing left to give
     s.gold = 100_000;
-    give(s, 'old_bridge', 1_000_000); // only the 10,000 still missing
-    expect(s.gold).toBe(90_000);
-    expect(currentStage(s, GAME_DATA, 'old_bridge')!.goldHave).toBe(60_000);
+    give(s, 'old_bridge', 1_000_000); // only what is still missing
+    expect(s.gold).toBe(100_000 - (need - have));
+    expect(currentStage(s, GAME_DATA, 'old_bridge')!.goldHave).toBe(need);
     expect(give(s, 'old_bridge', 1).reason).toMatch(/all the gold/);
   });
 
@@ -208,7 +219,7 @@ describe('donating a bit at a time', () => {
 
   it('finishing a stage needs both the gold and the items, then the next stage opens with a clean slate', () => {
     const s = farm();
-    expect(give(s, 'old_bridge', 60_000).events.map((e) => e.type)).not.toContain('projectStageDone'); // items missing
+    expect(give(s, 'old_bridge', sc(60_000)).events.map((e) => e.type)).not.toContain('projectStageDone'); // items missing
     addItem(s.inventory, 'driftwood', 10);
     const done = give(s, 'old_bridge', undefined, 'driftwood', 10);
     expect(done.events).toContainEqual({
@@ -220,7 +231,7 @@ describe('donating a bit at a time', () => {
     expect(s.town.projects.old_bridge).toEqual({ stagesDone: 1, gold: 0, items: [] });
     const next = currentStage(s, GAME_DATA, 'old_bridge')!;
     expect(next.index).toBe(1);
-    expect(next.goldNeed).toBe(120_000);
+    expect(next.goldNeed).toBe(sc(120_000));
     expect(next.items).toEqual([]);
   });
 
@@ -228,7 +239,7 @@ describe('donating a bit at a time', () => {
     const s = farm();
     expect(charmOf(s, GAME_DATA)).toBe(0);
     addItem(s.inventory, 'driftwood', 10);
-    give(s, 'old_bridge', 60_000);
+    give(s, 'old_bridge', sc(60_000));
     const r = give(s, 'old_bridge', undefined, 'driftwood', 10);
     expect(charmOf(s, GAME_DATA)).toBe(CHARM_PER_PROJECT_STAGE);
     expect(r.events).toContainEqual({ type: 'charmChanged', from: 0, to: 10 });
@@ -307,10 +318,14 @@ describe('what finishing a project gives', () => {
     expect(goalSlots(s, GAME_DATA)).toBe(GOAL_SLOTS);
   });
 
-  it('finishing every project costs the 8.5M and pays back only the two milestone purses (m18, m19), no gold of its own', () => {
+  it('finishing every project costs the doc’s 8.5M (scaled) and pays back only the two milestone purses (m18, m19), no gold of its own', () => {
     const s = farm(1e10);
     for (const id of TOWN_PROJECT_IDS) finish(s, id);
-    expect(s.gold).toBe(1e10 - 8_500_000 + 10_000 + 20_000);
+    const cost = TOWN_PROJECT_IDS.reduce(
+      (n, id) => n + TOWN_PROJECTS[id].stages.reduce((m, _st, i) => m + stageGold(TOWN_PROJECTS[id], i), 0),
+      0,
+    );
+    expect(s.gold).toBe(1e10 - cost + 10_000 + 20_000);
     expect(s.stats.lifetimeGold).toBe(30_000);
   });
 });
@@ -371,9 +386,9 @@ describe('the v2 milestones and the charm goal', () => {
     const s = farm();
     settle(s);
     const gold = s.gold;
-    give(s, 'fountain', 120_000);
+    give(s, 'fountain', sc(120_000));
     expect(done(s)).toContain('m19_first_project');
-    expect(s.gold).toBe(gold - 120_000 + 20_000);
+    expect(s.gold).toBe(gold - sc(120_000) + 20_000);
   });
 
   it('the v2 milestones are not farm points', () => {

@@ -30,8 +30,12 @@ function band(frame: number): string[] {
     const x = 3 + i * 7;
     const bob = (i + frame) % 2;
     const y = 6 + bob;
-    p.rect(x, y + 3, 4, 5 - bob, coat).hline(x, y + 3, 4, 'w').set(x, y + 3, coat);
-    p.rect(x + 1, y, 2, 3, 'I').set(x + 1, y, i % 2 ? 'm' : 'M').set(x + 2, y, i % 2 ? 'm' : 'M');
+    p.rect(x, y + 3, 4, 5 - bob, coat)
+      .hline(x, y + 3, 4, 'w')
+      .set(x, y + 3, coat);
+    p.rect(x + 1, y, 2, 3, 'I')
+      .set(x + 1, y, i % 2 ? 'm' : 'M')
+      .set(x + 2, y, i % 2 ? 'm' : 'M');
     // an instrument held in front: a fiddle, a horn, a drum, a flute
     if (i === 0) p.line(x + 3, y + 4, x + 6, y + 6, 'p');
     if (i === 1) p.rect(x + 4, y + 3, 2, 2, 'f').set(x + 6, y + 2, 'F');

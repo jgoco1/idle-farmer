@@ -9,19 +9,40 @@ import { Pix } from './draw';
 import type { SpriteDef } from './types';
 
 /** Running-bond stone blocks, a light edge on the top and left of each. */
-function blocks(p: Pix, x: number, y: number, w: number, h: number, base = 'N', mortar = 'n', light = 'w'): void {
+function blocks(
+  p: Pix,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  base = 'N',
+  mortar = 'n',
+  light = 'w',
+): void {
   p.rect(x, y, w, h, base);
   for (let j = 0; j < h; j++) {
     const row = Math.floor(j / 4);
     const off = (row % 2) * 3;
     if (j % 4 === 3) p.hline(x, y + j, w, mortar);
-    else for (let i = 0; i < w; i++) if ((i + off) % 6 === 5) p.set(x + i, y + j, mortar);
-    else if (j % 4 === 0 && (i + off) % 6 === 0 && (i + row) % 3 === 0) p.set(x + i, y + j, light);
+    else
+      for (let i = 0; i < w; i++)
+        if ((i + off) % 6 === 5) p.set(x + i, y + j, mortar);
+        else if (j % 4 === 0 && (i + off) % 6 === 0 && (i + row) % 3 === 0) p.set(x + i, y + j, light);
   }
 }
 
 /** A pitched roof of shingles: a trapezoid from `x` (wide eaves, width `w`) at `y + h` up to a narrow ridge at `y`. */
-function roof(p: Pix, x: number, y: number, w: number, h: number, light: string, mid: string, dark: string, ridgeW = 6): void {
+function roof(
+  p: Pix,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  light: string,
+  mid: string,
+  dark: string,
+  ridgeW = 6,
+): void {
   for (let j = 0; j < h; j++) {
     const t = j / Math.max(1, h - 1);
     const inset = Math.round((1 - t) * ((w - ridgeW) / 2));
@@ -33,7 +54,11 @@ function roof(p: Pix, x: number, y: number, w: number, h: number, light: string,
 }
 
 function weeds(p: Pix, xs: number[], y: number): void {
-  for (const x of xs) p.set(x, y, 'g').set(x + 1, y - 1, 'G').set(x + 2, y, 'g').set(x + 1, y, 'h');
+  for (const x of xs)
+    p.set(x, y, 'g')
+      .set(x + 1, y - 1, 'G')
+      .set(x + 2, y, 'g')
+      .set(x + 1, y, 'h');
 }
 
 function shadowRow(p: Pix, x0: number, x1: number, y: number): Pix {
@@ -95,13 +120,18 @@ function bakery(stage: number): string[] {
   p.rect(33, 38, 8, 8, 'c').frame(33, 38, 8, 8, 'M').vline(37, 38, 8, 'M');
   roof(p, 1, 12, 46, 22, 'Q', 'R', 'r', 8);
   if (stage === 3) {
-    p.rect(31, 8, 6, 15, 'N').vline(31, 8, 15, 'w').vline(36, 8, 15, 'n').rect(30, 7, 8, 2, 'n').hline(30, 7, 8, 'N');
+    p.rect(31, 8, 6, 15, 'N')
+      .vline(31, 8, 15, 'w')
+      .vline(36, 8, 15, 'n')
+      .rect(30, 7, 8, 2, 'n')
+      .hline(30, 7, 8, 'N');
     p.rect(18, 42, 11, 12, 'M').hline(18, 42, 11, 'p').vline(23, 42, 12, 'm').set(26, 48, 'f'); // a real door
     p.rect(7, 38, 8, 8, 'U').frame(7, 38, 8, 8, 'M').vline(11, 38, 8, 'M').hline(7, 41, 8, 'M');
     p.rect(33, 38, 8, 8, 'U').frame(33, 38, 8, 8, 'M').vline(37, 38, 8, 'M').hline(33, 41, 8, 'M');
     p.rect(5, 46, 10, 2, 'M').rect(6, 45, 8, 1, 'i').rect(33, 46, 10, 2, 'M').rect(34, 45, 8, 1, 'u'); // flower boxes
     // a striped awning over the door and a hanging bread sign
-    for (let i = 0; i < 13; i++) p.hline(17 + i, 40, 1, i % 2 === 0 ? 'q' : 'w').hline(17 + i, 41, 1, i % 2 === 0 ? 'r' : 'x');
+    for (let i = 0; i < 13; i++)
+      p.hline(17 + i, 40, 1, i % 2 === 0 ? 'q' : 'w').hline(17 + i, 41, 1, i % 2 === 0 ? 'r' : 'x');
     p.hline(1, 33, 46, 'r');
     p.rect(1, 50, 5, 5, 'M').ellipse(3.5, 52, 2, 1.2, 'o');
   } else {
@@ -136,7 +166,18 @@ function fountain(stage: number, frame: number): string[] {
   p.ellipse(23.5, 50, 17, 6, stage >= 2 ? 'b' : 'y');
   if (stage >= 2) {
     p.ellipse(23.5, 50, 15, 5, 'B');
-    const ripple = frame === 0 ? [[12, 50], [28, 53], [34, 48]] : [[16, 52], [30, 50], [22, 47]];
+    const ripple =
+      frame === 0
+        ? [
+            [12, 50],
+            [28, 53],
+            [34, 48],
+          ]
+        : [
+            [16, 52],
+            [30, 50],
+            [22, 47],
+          ];
     for (const [x, y] of ripple as [number, number][]) p.hline(x, y, 4, 'c').set(x + 1, y - 1, 'C');
     p.hline(8, 50, 3, 'C').hline(37, 50, 2, 'C');
   } else {
@@ -150,17 +191,35 @@ function fountain(stage: number, frame: number): string[] {
   if (stage === 3) {
     // the water plays: a plume and falling drops, different in each frame
     p.vline(23, 20, 12, 'C').vline(24, 20, 12, 'c');
-    p.set(22, 19 + frame, 'C').set(25, 19 + frame, 'C').set(23, 18, 'w').set(24, 18, 'w');
+    p.set(22, 19 + frame, 'C')
+      .set(25, 19 + frame, 'C')
+      .set(23, 18, 'w')
+      .set(24, 18, 'w');
     const drops: [number, number][] =
       frame === 0
-        ? [[-6, 26], [-3, 22], [4, 22], [7, 26]]
-        : [[-7, 28], [-4, 24], [5, 24], [8, 28]];
+        ? [
+            [-6, 26],
+            [-3, 22],
+            [4, 22],
+            [7, 26],
+          ]
+        : [
+            [-7, 28],
+            [-4, 24],
+            [5, 24],
+            [8, 28],
+          ];
     for (const [dx, dy] of drops) p.set(24 + dx, dy, 'C').set(24 + dx + (dx < 0 ? 1 : -1), dy - 1, 'c');
     p.hline(17, 38, 3, 'c').hline(28, 38, 3, 'c');
     // a koi swimming in the pool
     const kx = frame === 0 ? 12 : 14;
-    p.rect(kx, 52, 4, 2, 'o').set(kx - 1, 52, 'O').set(kx + 4, 53, 'o').set(kx + 1, 52, 'w');
-    p.rect(kx + 18, 49, 3, 2, 'w').set(kx + 21, 50, 'O').set(kx + 18, 49, 'q');
+    p.rect(kx, 52, 4, 2, 'o')
+      .set(kx - 1, 52, 'O')
+      .set(kx + 4, 53, 'o')
+      .set(kx + 1, 52, 'w');
+    p.rect(kx + 18, 49, 3, 2, 'w')
+      .set(kx + 21, 50, 'O')
+      .set(kx + 18, 49, 'q');
   } else if (stage === 2) {
     p.hline(20, 34, 8, 'c');
   }
@@ -182,7 +241,9 @@ function bandstand(stage: number): string[] {
       [6, 36],
       [41, 36],
     ] as const)
-      p.rect(x, y, 4, 3, 'N').hline(x, y + 2, 4, 'n').set(x, y, 'w');
+      p.rect(x, y, 4, 3, 'N')
+        .hline(x, y + 2, 4, 'n')
+        .set(x, y, 'w');
     for (const x of [8, 38]) {
       p.vline(x, 30, 8, 'M').set(x, 29, 'p');
     }
@@ -211,7 +272,9 @@ function bandstand(stage: number): string[] {
     const flags = ['q', 'u', 'j', 'i', 'o', 'v'];
     for (let x = 2, n = 0; x < 46; x += 4, n++) {
       const sag = Math.round(2 * Math.sin((Math.PI * ((x - 2) % 16)) / 16));
-      p.hline(x, 15 + sag, 3, flags[n % flags.length]!).hline(x, 16 + sag, 3, flags[n % flags.length]!).set(x + 1, 17 + sag, flags[n % flags.length]!);
+      p.hline(x, 15 + sag, 3, flags[n % flags.length]!)
+        .hline(x, 16 + sag, 3, flags[n % flags.length]!)
+        .set(x + 1, 17 + sag, flags[n % flags.length]!);
     }
     p.rect(21, 20, 6, 8, 'm');
     p.rect(11, 20, 2, 8, 'u').rect(35, 20, 2, 8, 'u'); // lanterns lit
@@ -223,7 +286,13 @@ function bandstand(stage: number): string[] {
 
 function lighthouse(stage: number): string[] {
   const p = new Pix(32, 64);
-  const tower = (top: number, bottom: number, paint: (y: number) => string, wBottom = 20, wTop = 13): void => {
+  const tower = (
+    top: number,
+    bottom: number,
+    paint: (y: number) => string,
+    wBottom = 20,
+    wTop = 13,
+  ): void => {
     for (let y = top; y <= bottom; y++) {
       const t = (y - top) / Math.max(1, bottom - top);
       const w = Math.round(wTop + (wBottom - wTop) * t);
@@ -301,7 +370,10 @@ function hall(stage: number): string[] {
   for (const x of [4, 20, 42, 57]) p.rect(x, 30, 3, 22, 'M').vline(x, 30, 22, 'p');
   p.hline(4, 40, 56, 'M');
   p.rect(26, 36, 12, 16, 'm').hline(26, 36, 12, 'M').vline(31, 36, 16, 'M').vline(32, 36, 16, 'M'); // double doors
-  for (const x of [9, 46]) p.rect(x, 34, 7, 9, 'c').frame(x, 34, 7, 9, 'M').vline(x + 3, 34, 9, 'M');
+  for (const x of [9, 46])
+    p.rect(x, 34, 7, 9, 'c')
+      .frame(x, 34, 7, 9, 'M')
+      .vline(x + 3, 34, 9, 'M');
   if (stage === 2) {
     // open to the sky: rafters
     for (let x = 6; x < 60; x += 8) p.line(x, 30, x + 4, 22, 'M');
@@ -312,13 +384,20 @@ function hall(stage: number): string[] {
   p.rect(30, 3, 4, 6, 'N').vline(30, 3, 6, 'w').rect(29, 2, 6, 2, 'n'); // a chimney
   p.rect(24, 20, 16, 8, 'x').frame(24, 20, 16, 8, 'k').hline(24, 20, 16, 'k'); // a gable window
   p.rect(30, 22, 4, 5, 'c').vline(32, 22, 5, 'M');
-  p.rect(26, 36, 12, 16, 'M').hline(26, 36, 12, 'p').vline(31, 36, 16, 'm').vline(32, 36, 16, 'm').set(30, 45, 'f').set(33, 45, 'f');
+  p.rect(26, 36, 12, 16, 'M')
+    .hline(26, 36, 12, 'p')
+    .vline(31, 36, 16, 'm')
+    .vline(32, 36, 16, 'm')
+    .set(30, 45, 'f')
+    .set(33, 45, 'f');
   if (stage === 4) {
     // festival lights strung along the eaves and a pennant on the ridge
     for (let x = 1; x < 63; x += 4) {
       const sag = Math.round(2 * Math.sin((Math.PI * ((x - 1) % 20)) / 20));
       const c = ['q', 'u', 'j', 'i', 'o'][Math.floor(x / 4) % 5]!;
-      p.set(x, 31 + sag, 'm').rect(x, 32 + sag, 2, 2, c).set(x, 32 + sag, 'U');
+      p.set(x, 31 + sag, 'm')
+        .rect(x, 32 + sag, 2, 2, c)
+        .set(x, 32 + sag, 'U');
     }
     p.rect(9, 34, 7, 9, 'u').frame(9, 34, 7, 9, 'M').vline(12, 34, 9, 'M');
     p.rect(46, 34, 7, 9, 'u').frame(46, 34, 7, 9, 'M').vline(49, 34, 9, 'M');
@@ -332,7 +411,9 @@ function hall(stage: number): string[] {
 function bridge(stage: number): string[] {
   const p = new Pix(80, 32);
   const post = (x: number, top: number): void => {
-    p.rect(x, top, 3, 31 - top, 'M').vline(x, top, 31 - top, 'p').set(x + 1, top - 1, 'M');
+    p.rect(x, top, 3, 31 - top, 'M')
+      .vline(x, top, 31 - top, 'p')
+      .set(x + 1, top - 1, 'M');
   };
   if (stage === 0) {
     // the two end posts, and the stumps of planks that once reached out
@@ -361,7 +442,10 @@ function bridge(stage: number): string[] {
     p.hline(3, 17, 74, 'M');
     for (const x of [3, 38, 74]) {
       p.rect(x, 4, 3, 16, 'm').vline(x, 4, 16, 'M');
-      p.rect(x - 1, 0, 5, 5, 'u').set(x - 1, 0, 'U').hline(x - 1, 4, 5, 'F').set(x + 1, 2, 'w');
+      p.rect(x - 1, 0, 5, 5, 'u')
+        .set(x - 1, 0, 'U')
+        .hline(x - 1, 4, 5, 'F')
+        .set(x + 1, 2, 'w');
     }
   }
   return finish(p, 31, 3, 76);

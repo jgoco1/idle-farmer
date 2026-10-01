@@ -33,7 +33,8 @@ function pathRegion(mask: number): boolean[][] {
 
 function pathTile(mask: number, paint: PathPaint): string[] {
   const region = pathRegion(mask);
-  const at = (x: number, y: number): boolean => region[y]?.[x] ?? (x < 0 ? !!(mask & W) : x > 15 ? !!(mask & E) : y < 0 ? !!(mask & N) : !!(mask & S));
+  const at = (x: number, y: number): boolean =>
+    region[y]?.[x] ?? (x < 0 ? !!(mask & W) : x > 15 ? !!(mask & E) : y < 0 ? !!(mask & N) : !!(mask & S));
   const out = new Pix(16, 16);
   for (let y = 0; y < 16; y++)
     for (let x = 0; x < 16; x++) {
@@ -101,7 +102,10 @@ function picket(mask: number): string[] {
   if (mask & N) p.rect(7, 0, 2, 8, wood.mid).vline(8, 0, 8, wood.dark);
   if (mask & S) p.rect(7, 9, 2, 7, wood.mid).vline(8, 9, 7, wood.dark);
   // The post stands on top of the rails.
-  p.rect(6, 4, 4, 10, wood.light).vline(9, 4, 10, wood.mid).hline(6, 3, 4, wood.mid).hline(6, 13, 4, wood.dark);
+  p.rect(6, 4, 4, 10, wood.light)
+    .vline(9, 4, 10, wood.mid)
+    .hline(6, 3, 4, wood.mid)
+    .hline(6, 13, 4, wood.dark);
   p.set(6, 3, '.').set(9, 3, '.');
   const rows = p.outlinedRows();
   return rows;
@@ -110,8 +114,20 @@ function picket(mask: number): string[] {
 /** Seaside: a driftwood post at the middle with rope sagging towards joined sides. */
 function rope(mask: number): string[] {
   const p = new Pix(16, 16);
-  if (mask & E) for (let x = 8; x <= 15; x++) p.set(x, 5 + Math.floor(((x - 8) * (x - 8)) / 18), 'y').set(x, 6 + Math.floor(((x - 8) * (x - 8)) / 18), 'Y');
-  if (mask & W) for (let x = 0; x <= 7; x++) p.set(x, 5 + Math.floor(((7 - x) * (7 - x)) / 18), 'y').set(x, 6 + Math.floor(((7 - x) * (7 - x)) / 18), 'Y');
+  if (mask & E)
+    for (let x = 8; x <= 15; x++)
+      p.set(x, 5 + Math.floor(((x - 8) * (x - 8)) / 18), 'y').set(
+        x,
+        6 + Math.floor(((x - 8) * (x - 8)) / 18),
+        'Y',
+      );
+  if (mask & W)
+    for (let x = 0; x <= 7; x++)
+      p.set(x, 5 + Math.floor(((7 - x) * (7 - x)) / 18), 'y').set(
+        x,
+        6 + Math.floor(((7 - x) * (7 - x)) / 18),
+        'Y',
+      );
   if (mask & N) p.rect(7, 0, 2, 5, 'y').vline(8, 0, 5, 'Y');
   if (mask & S) p.rect(7, 9, 2, 7, 'y').vline(8, 9, 7, 'Y');
   p.rect(6, 3, 4, 11, 'p').vline(6, 3, 11, 'P').vline(9, 3, 11, 'M').hline(6, 3, 4, 'P');
@@ -135,12 +151,10 @@ function rail(mask: number): string[] {
   return p.outlinedRows();
 }
 
-function family(
-  id: string,
-  make: (mask: number) => string[],
-): SpriteDef[] {
+function family(id: string, make: (mask: number) => string[]): SpriteDef[] {
   const sprites: SpriteDef[] = [];
-  for (let mask = 0; mask < 16; mask++) sprites.push({ id: `decor_${id}_${mask}`, anchor: 'top-left', frames: [make(mask)] });
+  for (let mask = 0; mask < 16; mask++)
+    sprites.push({ id: `decor_${id}_${mask}`, anchor: 'top-left', frames: [make(mask)] });
   sprites.push({ id: `decor_${id}`, anchor: 'top-left', frames: [make(E | W)] });
   return sprites;
 }

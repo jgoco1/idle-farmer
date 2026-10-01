@@ -251,7 +251,7 @@ export const DECOR_SLOTS_PER_PROJECT = 40;
 /** Each completed town-project stage adds this much charm. */
 export const CHARM_PER_PROJECT_STAGE = 10;
 /** Multiplies every town-project gold figure: the one lever for the gold-still-to-spend check (BALANCE.md §13.4). */
-export const TOWN_PROJECT_SCALE = 1;
+export const TOWN_PROJECT_SCALE = 0.8;
 /** The Community Hall's reward: one more goal on the board. */
 export const GOAL_SLOTS_HALL_BONUS = 1;
 /** The shares of a stage's gold the donate buttons give (and "all I can"). */

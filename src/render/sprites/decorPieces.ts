@@ -36,14 +36,20 @@ function flowerBed(season: (typeof SEASONS)[number]): string[] {
     const top = 2 + ((i * 7) % 3);
     if (season === 'winter') {
       // bare twigs with a dusting of snow, and one holly berry
-      p.vline(x + 1, top + 2, 4, 'm').set(x, top + 2, 'm').set(x + 2, top + 3, 'm');
+      p.vline(x + 1, top + 2, 4, 'm')
+        .set(x, top + 2, 'm')
+        .set(x + 2, top + 3, 'm');
       p.set(x + 1, top + 1, 'w').set(x, top + 2, 'w');
       if (i === 2) p.set(x + 1, top + 3, 'q').set(x + 2, top + 4, 'q');
       continue;
     }
-    p.vline(x + 1, top + 2, 5, 'l').set(x, top + 4, 'G').set(x + 2, top + 5, 'G');
+    p.vline(x + 1, top + 2, 5, 'l')
+      .set(x, top + 4, 'G')
+      .set(x + 2, top + 5, 'G');
     const c = i % 2 === 0 ? a : b;
-    p.rect(x, top, 3, 2, c).set(x + 1, top - 1, c).set(x + 1, top + 2 > 8 ? 8 : top + 2, c);
+    p.rect(x, top, 3, 2, c)
+      .set(x + 1, top - 1, c)
+      .set(x + 1, top + 2 > 8 ? 8 : top + 2, c);
     p.set(x + 1, top, season === 'spring' ? 'w' : 'U');
   }
   if (season === 'winter') p.hline(3, 6, 26, 'w').hline(2, 8, 28, 'w');
@@ -107,7 +113,9 @@ const ROSE_ARCH: string[] = (() => {
   // vines and roses
   for (let x = 3; x <= 28; x += 2) {
     const y = Math.round(10 - 7 * Math.sin((Math.PI * (x - 3)) / 25));
-    p.set(x, y - 1, 'l').set(x + 1, y, 'L').set(x, y + 2, 'h');
+    p.set(x, y - 1, 'l')
+      .set(x + 1, y, 'L')
+      .set(x, y + 2, 'h');
   }
   for (const [x, y] of [
     [7, 6],
@@ -178,7 +186,8 @@ const BEACH_UMBRELLA: string[] = (() => {
   const p = new Pix(16, 32);
   p.ellipse(7.5, 8, 7, 5, 'q');
   for (let x = 1; x <= 14; x++) {
-    if (Math.floor((x - 1) / 3) % 2 === 1) for (let y = 3; y <= 12; y++) if (p.get(x, y) === 'q') p.set(x, y, 'w');
+    if (Math.floor((x - 1) / 3) % 2 === 1)
+      for (let y = 3; y <= 12; y++) if (p.get(x, y) === 'q') p.set(x, y, 'w');
   }
   p.rect(1, 12, 14, 1, 'q').hline(1, 12, 14, 'r');
   p.hline(4, 4, 4, 'Q');
@@ -221,7 +230,9 @@ const ROWBOAT: string[] = (() => {
 const DRIFTWOOD_ARCH: string[] = (() => {
   const p = new Pix(32, 32);
   const legs = (x: number, w: number): void => {
-    p.rect(x, 12, w, 17, 'N').vline(x, 12, 17, 'x').vline(x + w - 1, 12, 17, 'Y');
+    p.rect(x, 12, w, 17, 'N')
+      .vline(x, 12, 17, 'x')
+      .vline(x + w - 1, 12, 17, 'Y');
     for (const y of [16, 22, 26]) p.set(x + 1, y, 'n');
   };
   legs(3, 4);
@@ -321,7 +332,10 @@ const SUNFLOWER_PATCH: string[] = (() => {
   ];
   for (const [x, y] of heads) {
     p.vline(x, y + 3, 22 - y, 'l');
-    p.set(x - 1, y + 12, 'G').set(x - 2, y + 11, 'G').set(x + 1, y + 15, 'G').set(x + 2, y + 14, 'G');
+    p.set(x - 1, y + 12, 'G')
+      .set(x - 2, y + 11, 'G')
+      .set(x + 1, y + 15, 'G')
+      .set(x + 2, y + 14, 'G');
     p.ellipse(x, y, 3, 3, 'u');
     p.rect(x - 4, y, 9, 1, 'u').vline(x, y - 4, 9, 'u');
     p.ellipse(x, y, 1.5, 1.5, 'm').set(x, y, 'd');
@@ -367,7 +381,9 @@ const APPLE_CART: string[] = (() => {
     [15, 4],
     [20, 5],
   ] as const) {
-    p.rect(x, y, 3, 3, 'q').set(x, y, 'Q').set(x + 2, y + 2, 'r');
+    p.rect(x, y, 3, 3, 'q')
+      .set(x, y, 'Q')
+      .set(x + 2, y + 2, 'r');
   }
   p.rect(5, 8, 22, 4, 'M').hline(5, 8, 22, 'P').hline(5, 11, 22, 'm').vline(5, 8, 4, 'p');
   p.hline(5, 10, 22, 'p');
