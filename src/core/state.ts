@@ -24,6 +24,7 @@ import type {
   BuffType,
   BuildingId,
   BundleId,
+  CatId,
   CropId,
   DecorId,
   ExpansionId,
@@ -170,6 +171,15 @@ export interface GameState {
 
   // ---- the ranch (v2 phase 04, save 11)
   ranch: RanchState;
+
+  // ---- the farm cats (save 12): cosmetic only
+  cats: CatsState;
+}
+
+/** The farm cats: who has been adopted (the starting tabby always), and who naps by the farmhouse door. */
+export interface CatsState {
+  adopted: CatId[];
+  active: CatId;
 }
 
 /** A coop, barn or silo in the Old Paddock (DATA_SCHEMAS.md §9.6). Capacity, trough size and store size are derived. */
@@ -383,6 +393,7 @@ export function createInitialState(now: number, lc: LocalClock, seed: number = s
     town: { projects: {} },
     orchard: { trees: [] },
     ranch: { buildings: [], animals: [] },
+    cats: { adopted: ['cat_tabby'], active: 'cat_tabby' },
   };
   // A new farm opens with today's specials and the first sparkline point (every save starts in spring).
   openMarketDay(state, GAME_DATA, createRng(state), 'spring');

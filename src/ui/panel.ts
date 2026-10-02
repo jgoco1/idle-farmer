@@ -19,6 +19,8 @@ export interface PanelDef {
   live?: boolean;
   /** Also re-run `refresh` this often while open (the Market, whose prices drift every tick). */
   refreshMs?: number;
+  /** A wider box on desktop, for panels with rows of buttons or a play area (Shop, Fishing, …). */
+  wide?: boolean;
 }
 
 interface PanelEntry {
@@ -93,6 +95,7 @@ export class PanelManager {
     entry.refresh?.();
     entry.root.hidden = false;
     this.host.classList.add('has-panel');
+    this.host.classList.toggle('is-wide', entry.def.wide === true);
     document.body.classList.add('panel-open');
     const first = entry.root.querySelector<HTMLElement>(`.panel-body ${FOCUSABLE}`);
     (first ?? entry.root).focus();
@@ -123,7 +126,7 @@ export class PanelManager {
     if (!this.openId) return;
     this.hide(this.openId);
     this.openId = null;
-    this.host.classList.remove('has-panel');
+    this.host.classList.remove('has-panel', 'is-wide');
     document.body.classList.remove('panel-open');
     this.returnFocus?.focus();
     this.returnFocus = null;

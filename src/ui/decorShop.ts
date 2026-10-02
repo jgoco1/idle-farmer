@@ -1,14 +1,16 @@
 // The Decor tab of the Shop (GDD §12.2): the three sets with a preview, price, charm, how many you own and
 // how many stand on the land; locked pieces show their hint. Bought pieces go to the decoration stock (not the
-// bag) and are put down in Decorate mode. Farmhouse paint, roof and loft are owned once and applied here for free.
+// bag) and are put down in Decorate mode. Farmhouse paint, roof and loft are owned once and applied here for free,
+// and the farm cats are adopted and chosen here too.
 
 import type { GameState } from '../core/state';
 import type { GameData } from '../data';
 import { DECOR_BUY_AMOUNTS } from '../data/balance';
-import { DECOR_IDS, DECOR_SET_IDS, type DecorId } from '../data/ids';
+import { CAT_IDS, DECOR_IDS, DECOR_SET_IDS, type CatId, type DecorId } from '../data/ids';
 import type { DecorDef } from '../data/types';
 import { spriteDataUrl } from '../render/spriteCache';
 import type { ActionResult } from '../systems/context';
+import { hasCat } from '../systems/cats';
 import { charmOf, nextCharmUnlock } from '../systems/charm';
 import { decorStatus, decorStock, ownedDecor, placedDecorCount, slotsUsed } from '../systems/decor';
 import { decorSetOpen, decorSlotCap } from '../systems/townProjects';
@@ -20,6 +22,8 @@ export interface DecorShopHooks {
   state(): GameState;
   buyDecor(id: DecorId, qty: number): ActionResult;
   styleFarmhouse(paint?: DecorId | null, roof?: DecorId | null, loft?: boolean): ActionResult;
+  adoptCat(cat: CatId): ActionResult;
+  chooseCat(cat: CatId): ActionResult;
   /** Leaves the shop and enters Decorate mode, with `id` chosen when given. */
   startDecorate(id?: DecorId): void;
 }
@@ -171,13 +175,73 @@ export function buildDecorShop(hooks: DecorShopHooks): { el: HTMLElement; render
     );
   };
 
+  const catsCard = (state: GameState): HTMLElement => {
+    const rows = CAT_IDS.map((id) => {
+      const def = hooks.data.cats[id];
+      const adopted = hasCat(state, id);
+      const napping = state.cats.active === id;
+      let button: HTMLButtonElement;
+      if (!adopted) {
+        button = h('button', {
+          type: 'button',
+          class: 'btn btn-small',
+          'data-cat': id,
+          text: `Adopt · ${gold(def.price)}`,
+          'aria-label': `Adopt the ${def.name} for ${def.price} gold`,
+          disabled: state.gold < def.price,
+        });
+        button.addEventListener('click', () => {
+          say(hooks.adoptCat(id), `The ${def.name} has moved in, and is already asleep by the door.`);
+          render();
+        });
+      } else {
+        button = h('button', {
+          type: 'button',
+          class: `btn btn-small${napping ? ' is-active' : ''}`,
+          'data-cat': id,
+          'aria-pressed': String(napping),
+          text: napping ? 'Napping' : 'Choose',
+          'aria-label': napping
+            ? `The ${def.name} is napping by the door`
+            : `Let the ${def.name} nap by the door`,
+        });
+        button.addEventListener('click', () => {
+          if (!napping) say(hooks.chooseCat(id), `The ${def.name} curls up by the door.`);
+          render();
+        });
+      }
+      return h(
+        'div',
+        { class: 'crate-row decor-row', 'data-cat-row': id },
+        h('img', { class: 'pixel decor-preview', alt: '', src: spriteDataUrl(def.sprite) }),
+        h(
+          'div',
+          { class: 'crate-text' },
+          h('span', { text: def.price > 0 ? `${def.name} · ${gold(def.price)}` : def.name }),
+          h('span', { class: 'seed-note', text: adopted ? `${def.description} Adopted.` : def.description }),
+        ),
+        h('div', { class: 'btn-row' }, button),
+      );
+    });
+    return h(
+      'div',
+      { class: 'decor-set', 'data-testid': 'farm-cats' },
+      h('h4', { text: 'Farm cats' }),
+      h('p', {
+        class: 'seed-note',
+        text: 'Adopt a cat once, then choose who naps by the farmhouse door. Just for company: cats add no charm.',
+      }),
+      ...rows,
+    );
+  };
+
   function render(): void {
     const state = hooks.state();
     const data = hooks.data;
     const focused = document.activeElement;
     const keep =
       focused instanceof HTMLElement && el.contains(focused)
-        ? (focused.dataset.decorBuy ?? focused.dataset.farmhouse ?? null)
+        ? (focused.dataset.decorBuy ?? focused.dataset.farmhouse ?? focused.dataset.cat ?? null)
         : null;
     const charm = charmOf(state, data);
     const next = nextCharmUnlock(state, data);
@@ -204,6 +268,7 @@ export function buildDecorShop(hooks: DecorShopHooks): { el: HTMLElement; render
       }),
       farmhouseCard(state),
       msg,
+      catsCard(state),
     ];
     for (const set of DECOR_SET_IDS) {
       const sd = data.decorSets[set];
@@ -223,8 +288,9 @@ export function buildDecorShop(hooks: DecorShopHooks): { el: HTMLElement; render
     }
     el.replaceChildren(...parts.filter((p): p is HTMLElement => p !== null));
     if (keep) {
-      const sel =
-        keep.includes(':') && !keep.startsWith('paint') && !keep.startsWith('roof')
+      const sel = keep.startsWith('cat_')
+        ? `[data-cat="${keep}"]:not([disabled])`
+        : keep.includes(':') && !keep.startsWith('paint') && !keep.startsWith('roof')
           ? `[data-decor-buy="${keep}"]:not([disabled])`
           : `[data-farmhouse="${keep}"]:not([disabled])`;
       el.querySelector<HTMLButtonElement>(sel)?.focus();

@@ -7,6 +7,7 @@ import type {
   BuffType,
   BuildingId,
   BundleId,
+  CatId,
   FeedId,
   CropId,
   DecorId,
@@ -55,7 +56,8 @@ export type GameEvent =
         | SaplingId
         | BuildingId
         | AnimalId
-        | FeedId;
+        | FeedId
+        | CatId;
       gold: number;
     }
   | { type: 'parcelBought'; parcel: ParcelId }

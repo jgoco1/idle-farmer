@@ -149,6 +149,8 @@ export interface SceneView {
   ranch: RanchView;
   /** The cosmetic rewards of finished town projects. */
   cosmetics: { bakerySmoke: boolean; band: boolean; lighthouseBeam: boolean; festival: boolean };
+  /** Sprite of the farm cat napping by the door (`CatDef.sprite` of the chosen cat). */
+  cat: string;
 }
 
 /** The decoration being placed or moved in Decorate mode: its footprint, a ghost sprite and why a tile is refused. */
@@ -964,7 +966,7 @@ export class Renderer {
         CHIMNEY_STEAM.y - (this.lookFarmhouse.endsWith('_loft') ? TILE : 0),
       );
     f.drawImage(
-      spriteFrame('obj_cat_sleep', this.reducedMotion() ? 0 : timeMs),
+      spriteFrame(view.cat, this.reducedMotion() ? 0 : timeMs),
       PET_TILE.col * TILE,
       PET_TILE.row * TILE,
     );

@@ -36,7 +36,8 @@ import {
   trapTile,
   zoneAt,
 } from '../src/render/scene';
-import fixture from './fixtures/save-v11.json';
+import fixture from './fixtures/save-v12.json';
+import fixtureV11 from './fixtures/save-v11.json';
 import fixtureV10 from './fixtures/save-v10.json';
 import fixtureV9 from './fixtures/save-v9.json';
 import fixtureV8 from './fixtures/save-v8.json';
@@ -45,10 +46,11 @@ import { at, NY } from './helpers';
 
 const FIXTURE_TEXT = JSON.stringify(fixture);
 
-/** Removes what the v9 → v10 and v10 → v11 migrations added, so older migrations can be compared with their fixtures. */
+/** Removes what the v9 → v10, v10 → v11 and v11 → v12 migrations added, so older migrations can be compared with their fixtures. */
 function withoutV10(rest: Record<string, unknown>): Record<string, unknown> {
   delete rest.orchard;
   delete rest.ranch;
+  delete rest.cats;
   delete (rest.stats as Record<string, unknown>).fruitPicked;
   delete (rest.stats as Record<string, unknown>).productsCollected;
   const cal = rest.calendar as Record<string, unknown>;
@@ -68,13 +70,13 @@ function memoryStorage(initial: Record<string, string> = {}): SaveStorage & { da
 }
 
 describe('save file', () => {
-  it('is at version 11 (v2 phase 04) with one migration per older version', () => {
-    expect(SAVE_VERSION).toBe(11);
-    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+  it('is at version 12 (the farm cats) with one migration per older version', () => {
+    expect(SAVE_VERSION).toBe(12);
+    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11']);
     expect(SAVE_KEY).toBe('hearthfield-idle/save');
   });
 
-  it('the v11 fixture loads unchanged', () => {
+  it('the v12 fixture loads unchanged', () => {
     const file = parseSave(FIXTURE_TEXT);
     expect(file).toEqual(fixture);
   });
@@ -586,10 +588,35 @@ describe('migrations', () => {
     expect(s.land).toEqual(fixtureV10.state.land);
     const rest: Record<string, unknown> = JSON.parse(JSON.stringify(s));
     delete rest.ranch;
+    delete rest.cats;
     delete (rest.stats as Record<string, unknown>).productsCollected;
     expect(rest).toEqual(fixtureV10.state);
     // Eggs and milk are not shipped automatically until the player says so.
     expect(s.autoSell).toEqual(fixtureV10.state.autoSell);
+  });
+
+  it('migrates a v11 save (v12): the brown tabby naps by the door, nobody else adopted, nothing is lost', () => {
+    const file = parseSave(JSON.stringify(fixtureV11));
+    expect(file.version).toBe(SAVE_VERSION);
+    expect(validateState(file.state)).toBeNull();
+    expect(file.state.cats).toEqual({ adopted: ['cat_tabby'], active: 'cat_tabby' });
+    const rest: Record<string, unknown> = JSON.parse(JSON.stringify(file.state));
+    delete rest.cats;
+    expect(rest).toEqual(fixtureV11.state);
+  });
+
+  it('refuses damaged cats', () => {
+    const bad = (mutate: (c: typeof fixture.state) => void): string | null => {
+      const c = structuredClone(fixture.state);
+      mutate(c);
+      return validateState(c);
+    };
+    expect(bad(() => undefined)).toBeNull();
+    expect(bad((c) => (c.cats.active = 'cat_calico'))).toBe('bad cats'); // not adopted
+    expect(bad((c) => (c.cats.adopted = ['cat_siamese']))).toBe('bad cats'); // the tabby always stays
+    expect(bad((c) => c.cats.adopted.push('cat_siamese'))).toBe('bad cats'); // twice
+    expect(bad((c) => c.cats.adopted.push('cat_lion'))).toBe('bad cats');
+    expect(bad((c) => delete (c as Partial<typeof c>).cats)).toBe('bad cats');
   });
 
   it('refuses damaged ranches', () => {
@@ -622,6 +649,7 @@ describe('migrations', () => {
     const rest: Record<string, unknown> = JSON.parse(JSON.stringify(s));
     delete rest.orchard;
     delete rest.ranch;
+    delete rest.cats;
     const stats = rest.stats as Record<string, unknown>;
     delete stats.fruitPicked;
     delete stats.productsCollected;

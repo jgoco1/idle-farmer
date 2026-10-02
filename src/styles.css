@@ -8,7 +8,8 @@
     Consolas, 'Liberation Mono', monospace;
   --hud-h: 52px;
   --toolbar-h: 60px;
-  --panel-w: 340px;
+  --panel-w: 360px;
+  --panel-w-wide: 480px;
 }
 
 * {
@@ -316,6 +317,11 @@ canvas {
   font-size: 18px;
 }
 
+/* Set by src/ui/toolbar.ts when the labelled buttons would overflow the bar. */
+.toolbar.is-compact .tool-label {
+  display: none;
+}
+
 /* ---------- farming tools (right end of the toolbar) */
 .tool-group {
   display: flex;
@@ -349,7 +355,7 @@ canvas {
 .seed-picker {
   position: fixed;
   right: 8px;
-  bottom: calc(var(--toolbar-h) + 8px);
+  bottom: calc(var(--toolbar-h) * var(--ui-scale) + 8px);
   z-index: 20;
   width: min(300px, calc(100vw - 16px));
   max-height: 60dvh;
@@ -614,10 +620,12 @@ canvas {
 /* ---------- panels: parchment inside a wood frame */
 .panel-host {
   position: fixed;
-  top: calc(var(--hud-h) + 8px);
+  /* --hud-h and --toolbar-h are the bars' unzoomed heights; the host itself is not zoomed. */
+  top: calc(var(--hud-h) * var(--ui-scale) + 8px);
   right: 8px;
-  bottom: calc(var(--toolbar-h) + 8px);
-  width: min(var(--panel-w), calc(100vw - 16px));
+  bottom: calc(var(--toolbar-h) * var(--ui-scale) + 8px);
+  /* The box grows with the interface size, so the zoomed panel keeps its layout instead of scrolling. */
+  width: min(calc(var(--panel-w) * var(--ui-scale)), calc(100vw - 16px));
   pointer-events: none;
   display: flex;
   flex-direction: column;
@@ -794,7 +802,7 @@ textarea:focus-visible,
 .debug {
   position: fixed;
   left: 8px;
-  top: calc(var(--hud-h) + 8px);
+  top: calc(var(--hud-h) * var(--ui-scale) + 8px);
   z-index: 40;
   background: color-mix(in srgb, var(--c-outline) 85%, transparent);
   color: var(--c-white_warm);
@@ -1368,10 +1376,14 @@ textarea:focus-visible,
 .toolbar {
   zoom: var(--ui-scale);
 }
+.panel-host.is-wide {
+  --panel-w: var(--panel-w-wide);
+}
+/* Under standard CSS zoom a percentage resolves against the host's real size, so 100% fills it. */
 .panel-host .panel {
   zoom: var(--ui-scale);
-  width: calc(100% / var(--ui-scale));
-  max-height: calc(100% / var(--ui-scale));
+  width: 100%;
+  max-height: 100%;
 }
 .toasts {
   zoom: var(--ui-scale);
@@ -1483,7 +1495,7 @@ summary:focus-visible,
   position: fixed;
   z-index: 9; /* under the panels, so a panel's close button is never covered */
   right: 8px;
-  top: calc(var(--hud-h) + 8px);
+  top: calc(var(--hud-h) * var(--ui-scale) + 8px);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1545,12 +1557,12 @@ summary:focus-visible,
     top: auto;
     left: 0;
     right: 0;
-    bottom: var(--toolbar-h);
+    bottom: calc(var(--toolbar-h) * var(--ui-scale));
     width: auto;
     max-height: 72dvh;
   }
   .panel-host .panel {
-    width: calc(100% / var(--ui-scale));
+    width: 100%;
     max-height: calc(72dvh / var(--ui-scale));
     border-left: none;
     border-right: none;
@@ -1599,7 +1611,7 @@ body.tutorial-on .toasts {
   position: fixed;
   z-index: 40;
   left: 50%;
-  bottom: calc(var(--toolbar-h, 60px) + 8px);
+  bottom: calc(var(--toolbar-h, 60px) * var(--ui-scale) + 8px);
   transform: translateX(-50%);
   width: min(720px, calc(100vw - 16px));
   padding: 6px 8px;
@@ -1663,6 +1675,9 @@ body.tutorial-on .toasts {
   height: 48px;
   object-fit: contain;
 }
+.decor-row {
+  grid-template-columns: 48px 1fr; /* room for the 48 px preview */
+}
 .decor-head {
   display: flex;
   flex-wrap: wrap;
@@ -1698,7 +1713,7 @@ body.tutorial-on .toasts {
 }
 @media (max-width: 600px) {
   .decor-tray {
-    bottom: calc(var(--toolbar-h, 60px) + 4px);
+    bottom: calc(var(--toolbar-h, 60px) * var(--ui-scale) + 4px);
   }
 }
 

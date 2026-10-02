@@ -233,6 +233,8 @@ panels.register(
       buyDecor: (decor, qty) =>
         guard.run(`decor:${decor}:${qty}`, () => game.dispatch({ type: 'buyDecor', decor, qty })),
       styleFarmhouse: (paint, roof, loft) => game.dispatch({ type: 'styleFarmhouse', paint, roof, loft }),
+      adoptCat: (cat) => guard.run(`cat:${cat}`, () => game.dispatch({ type: 'adoptCat', cat })),
+      chooseCat: (cat) => game.dispatch({ type: 'chooseCat', cat }),
       startDecorate: (id) => {
         panels.close();
         placement.stop();
@@ -1138,6 +1140,7 @@ const view$: SceneView = {
   trees: [],
   ranch: { buildings: [], animals: [], troughLevel: [] },
   cosmetics: { bakerySmoke: false, band: false, lighthouseBeam: false, festival: false },
+  cat: GAME_DATA.cats.cat_tabby.sprite,
 };
 const plotsView: PlotSprites[] = [];
 const greenhouseView: PlotSprites[] = [];
@@ -1197,6 +1200,7 @@ function sceneView(): SceneView {
   cos.band = hasCosmetic(s, GAME_DATA, 'bandSaturday');
   cos.lighthouseBeam = hasCosmetic(s, GAME_DATA, 'lighthouseBeam');
   cos.festival = hasCosmetic(s, GAME_DATA, 'festivalLights');
+  view$.cat = GAME_DATA.cats[s.cats.active].sprite;
   return view$;
 }
 

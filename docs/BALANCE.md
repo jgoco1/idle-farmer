@@ -911,6 +911,8 @@ Total **680,000**. The Orchard lands on day 2–3 for a keen player and day 3–
 | Showpiece | well, stall, figurehead, windmill | 120,000 – 450,000 | 8 – 15 | 1 |
 | Farmhouse | paint 40,000; roof 90,000 – 120,000; loft 600,000 | | 5 / 8 / 20 | applied only |
 
+**Farm cats** (v2 polish, `src/data/cats.ts`): cosmetic, adopted once, no charm. Brown Tabby 0 (every farm has it), Orange Tabby and Black Cat 2,000, Silver Tabby and Tuxedo Cat 4,000, Siamese and Calico 8,000 (24,000 for all six). They are an early treat rather than a sink, so the bots ignore them and no simulator number moves.
+
 **Every piece.** Size is the footprint in tiles (cols × rows). "Charm needed" is the charm that unlocks the piece once its set is open. Glow pieces light up at night; seasonal pieces change sprite by season.
 
 | id | Set | Size | Price | Charm | Counted | Charm needed | Notes |

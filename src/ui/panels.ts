@@ -415,6 +415,7 @@ export interface ShopHooks extends GameViewHooks {
 export function shopPanel(hooks: ShopHooks): PanelDef {
   return {
     id: 'shop',
+    wide: true,
     title: 'Shop',
     icon: '🛒',
     live: true,

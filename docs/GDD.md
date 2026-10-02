@@ -90,7 +90,7 @@ One screen. The scene is a 320 × 192 logical-pixel canvas (20 × 12 tiles) scal
 │  └──────┘    ≈≈≈≈≈≈≈≈≈ RIVER (unlock) ≈≈≈≈≈≈≈≈≈≈≈   ▤▤ DOCK ≈≈≈  │  Fishing · Upgrades ·     │
 │              ≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈≈   ▤▤ (ocean)   │  Goals · Settings         │
 ├────────────────────────────────────────────────────────────────┴───────────────────────────┤
-│ [🎒 Inventory] [🛒 Shop] [⚖ Market] [🍲 Kitchen] [🎣 Fishing] [⚙ Upgrades] [★ Goals]   tools: │
+│ [🎒 Inventory] [🛒 Shop] [⚖ Market] [🍲 Kitchen] [🎣 Fishing] [🔨 Upgrades] [★ Goals]   tools: │
 │                                                          [Auto][Hoe][Seeds ▾][Can][Hand]   │  toolbar
 └────────────────────────────────────────────────────────────────────────────────────────────┘
       ▲ toasts appear bottom-centre above the toolbar ("+3 Turnips", "New seeds in the shop!")
@@ -268,6 +268,7 @@ Ideas like these go to `docs/IDEAS.md`.
 | v2-02 | decoration shop, Decorate mode, charm, town projects (save 9) |
 | v2-03 | fruit trees, the calendar day index, fruit recipes, the Orchard Basket bundle (save 10) |
 | v2-04 | coop, barn and silo; chickens and cows; feed; egg and milk recipes; the Barnyard bundle (save 11) |
+| v2 polish | farm cats to adopt, the field fence's corners and gates, the home path at every field size, panel sizes (save 12) |
 
 
 ## 11. Owner decisions
@@ -469,6 +470,10 @@ The **Town** tab of the Community Board (Goals panel; also opened by clicking a 
 Costs are in BALANCE.md §13.3: about 8.5M gold in all, with items (driftwood, wheat, eggs, apples, milk, pumpkins, a koi…) that pull the other systems in.
 
 **Idle behaviour:** none. Decorations and projects have no timers, and the simulator spends on them only while a player is present.
+
+#### Farm cats (v2 polish)
+
+Every farm has a **brown tabby** ("standard issue") asleep by the farmhouse door. More cats can be **adopted** in the Decor tab's **Farm cats** card: an orange tabby, a black cat, a silver tabby, a tuxedo, a Siamese and a calico (prices in BALANCE.md §13.2). Adopting costs gold once and puts the new cat by the door; any adopted cat can be chosen again for free. Only one cat naps there at a time, and clicking it purrs as before. Cats are company only: no charm, no gold, no modifier.
 
 #### As built in v2 phase 02
 

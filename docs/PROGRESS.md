@@ -810,3 +810,32 @@ The first version of the yard allocated 7.6 KB a frame: a `put` closure rebuilt 
 - **Busy Bees for animals** (IDEAS.md) would be a `ctx.mods` seam read in `tickRanch`'s interval; today the interval is fixed.
 - **Perf:** keep integer coordinates and no closures in `RanchLife.draw` and `prepare`; `PERF_PROFILE=1` on the perf spec shows the garbage.
 - **Balance levers** if the next phase moves income: `TOWN_PROJECT_SCALE` (0.7), the ranch plan's order in `RANCH_PLAN`, and `FEED_BUY_PRICE`.
+
+## v2 polish: farm cats, the fence and path, panel sizes
+
+A small owner-requested pass between v2-04 and v2-05 (no phase prompt).
+
+### Built
+- **Farm cats.** The default cat is now a brown "standard issue" tabby. The Shop's Decor tab has a **Farm cats** card: adopt an Orange Tabby or Black Cat (2,000), a Silver Tabby or Tuxedo Cat (4,000), or a Siamese or Calico (8,000), then choose who naps by the farmhouse door. Cosmetic only: no charm, gold or modifier (tested). Data `src/data/cats.ts`, system `src/systems/cats.ts`, actions `adoptCat` and `chooseCat`, sprites `obj_cat_<coat>_sleep` (one curled shape coloured by coat, `src/render/sprites/ambient.ts`), `SceneView.cat`.
+- **Save 12.** `cats: { adopted, active }`; `migrations[11]` gives every save the tabby; `catsProblem` validation; `tests/fixtures/save-v12.json`; a v11 → v12 migration test and a damaged-cats test.
+- **The field fence closes.** Corner posts (`obj_fence_nw/ne/sw/se`) sit on the side rail's line, so the sides meet the top and bottom rails.
+- **The home path at every field size** (`pathFor(grid)` in `src/render/scene.ts`). While the field is 4 × 2 the path runs under the fence as before. From the first expansion it goes from the door along row 4 to a **gate** in the fence's west side, then from a gate in the east side down beside the market to the bin. At full size (the fence reaches column 14) it leaves through a gate in the bottom rail. Gates are `obj_fence_gate_v/h` on path ground. The stepping stones moved onto the new path.
+- **Panel sizes.** Panels are 360 px wide (was 340). Shop, Fishing, Kitchen, Market, Ranch and Upgrades are 480 px (`PanelDef.wide`). With a larger interface size the box now grows with its contents instead of shrinking and scrolling: under standard CSS `zoom` a percentage resolves against the parent's real size, so the old `calc(100% / scale)` made the panel smaller. The panel host, scene controls, seed picker, decor tray and debug overlay now sit below and above the zoomed bars (their heights times the scale).
+- **The toolbar** drops its text labels (icons stay, with their names as aria-label and title) when the buttons would overflow, for example at 1.5× on a laptop.
+- **Upgrades icon** is 🔨 (was ⚙, the same as Settings).
+- **Decor rows** in the Shop had their 48 px preview in a 32 px column, so the text overlapped it; the column is now 48 px.
+- **Tests:** unit tests `tests/cats.test.ts`; fence and path at every size in `tests/scene.test.ts`; decoration blocking at every size in `tests/decorRender.test.ts`; save tests. e2e: adopting a Siamese in `e2e/decor.spec.ts`.
+
+### Deviations
+- **New path tiles (3, 4), (4, 4) and (13, 9)** joined `DECOR_BLOCKED`. A decoration an older save already placed there stays where it is; the path is simply drawn under it.
+- **The cat still sleeps at (5, 3)**, on the fence's west side, because tests and the click zone use that tile.
+
+### Known issues
+- At 2× on a small laptop screen, a wide panel fills most of the view; that is the size the player chose.
+- Specs from earlier phases still rewrite `docs/screenshots/*.png` (v2-05 makes that opt-in).
+
+### Next-phase notes (for v2 phase 05)
+- **The feed store is save 13** (the prompt has been updated): the newest fixture is `tests/fixtures/save-v12.json`, and `withoutV10` in `tests/save.test.ts` strips every field added since v9 (add `feedStore` there too).
+- **Panels:** set `wide: true` on a `PanelDef` for the 480 px box; never size a zoomed element with `calc(… / var(--ui-scale))` percentages (CLAUDE.md, code conventions).
+- **The path and fence** come from `pathFor` and `fenceRect`; anything new in the home region must stay off every tile `pathFor` returns at any size (they are all in `DECOR_BLOCKED`).
+

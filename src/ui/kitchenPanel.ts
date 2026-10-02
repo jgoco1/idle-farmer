@@ -31,6 +31,7 @@ function chipIcon(sprite: string): HTMLElement {
 export function kitchenPanel(hooks: KitchenHooks): PanelDef {
   return {
     id: 'kitchen',
+    wide: true,
     title: 'Kitchen',
     icon: '🍲',
     live: true,

@@ -9,11 +9,19 @@
 
 import { createInitialState, cloneState, type GameState } from './state';
 import type { LocalClock } from './time';
-import { isAnimalId, isBuildingId, isDecorId, isFruitId, isParcelId, isTownProjectId } from '../data/ids';
+import {
+  isAnimalId,
+  isBuildingId,
+  isCatId,
+  isDecorId,
+  isFruitId,
+  isParcelId,
+  isTownProjectId,
+} from '../data/ids';
 import { GAME_DATA } from '../data';
 import { WORLD_COLS, WORLD_ROWS, WORLD_LAYOUT } from '../data/world';
 
-export const SAVE_VERSION = 11;
+export const SAVE_VERSION = 12;
 export const SAVE_KEY = 'hearthfield-idle/save';
 export const AUTOSAVE_MS = 15_000;
 
@@ -194,6 +202,11 @@ export const migrations: Record<number, Migration> = {
     ranch: { buildings: [], animals: [] },
     stats: { ...old.stats, productsCollected: 0 },
   }),
+  /**
+   * v11 → v12 (the farm cats): every farm has its brown tabby, and nobody else has been adopted yet. The cat
+   * was orange before; the orange tabby is now one to adopt.
+   */
+  11: (old) => ({ ...old, cats: { adopted: ['cat_tabby'], active: 'cat_tabby' } }),
 };
 
 export class SaveError extends Error {
@@ -501,6 +514,18 @@ function ranchProblem(s: Record<string, unknown>): string | null {
   return null;
 }
 
+function catsProblem(s: Record<string, unknown>): string | null {
+  const { cats } = s;
+  if (!isObj(cats) || !Array.isArray(cats.adopted) || typeof cats.active !== 'string') return 'bad cats';
+  const seen = new Set<string>();
+  for (const id of cats.adopted) {
+    if (typeof id !== 'string' || !isCatId(id) || seen.has(id)) return 'bad cats';
+    seen.add(id);
+  }
+  if (!seen.has('cat_tabby') || !seen.has(cats.active)) return 'bad cats';
+  return null;
+}
+
 function cookingProblem(s: Record<string, unknown>): string | null {
   const { kitchen, buffs } = s;
   if (!isObj(kitchen) || !Array.isArray(kitchen.known) || !Array.isArray(kitchen.queue)) return 'bad kitchen';
@@ -557,7 +582,8 @@ export function validateState(s: unknown): string | null {
     decorProblem(s) ??
     townProblem(s) ??
     orchardProblem(s) ??
-    ranchProblem(s)
+    ranchProblem(s) ??
+    catsProblem(s)
   );
 }
 

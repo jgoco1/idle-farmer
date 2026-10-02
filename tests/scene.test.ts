@@ -3,6 +3,8 @@ import type { Plot } from '../src/core/state';
 import {
   buildLayout,
   buildZones,
+  fenceRect,
+  pathFor,
   plotIndexAt,
   plotSprites,
   tileOfPlot,
@@ -160,5 +162,80 @@ describe('plot sprites (phase 02)', () => {
     expect(tileOfPlot({ cols: 4, rows: 2 }, 0)).toEqual({ col: 6, row: 2 });
     expect(tileOfPlot({ cols: 4, rows: 2 }, 5)).toEqual({ col: 7, row: 3 });
     expect(plotIndexAt({ cols: 4, rows: 2 }, 7, 3)).toBe(5);
+  });
+});
+
+describe('the field fence and the home path', () => {
+  const SIZES = [
+    { grid: { cols: 4, rows: 2 }, ex: [] },
+    { grid: { cols: 4, rows: 3 }, ex: ['farm_1'] },
+    { grid: { cols: 5, rows: 4 }, ex: ['farm_1', 'farm_2'] },
+    { grid: { cols: 6, rows: 5 }, ex: ['farm_1', 'farm_2', 'farm_3'] },
+    { grid: { cols: 8, rows: 6 }, ex: ['farm_1', 'farm_2', 'farm_3', 'farm_4'] },
+  ] as const;
+  const FENCE = /^obj_fence_/;
+
+  it('closes the ring at every size: corner posts, rails, sides and a gate where the path meets it', () => {
+    for (const { grid, ex } of SIZES) {
+      const f = fenceRect(grid);
+      const right = f.col + f.cols - 1;
+      const bottom = f.row + f.rows - 1;
+      const at = new Map<string, string>();
+      for (const o of buildLayout(grid, ex).objects)
+        if (FENCE.test(o.sprite)) {
+          const key = `${o.x / 16},${o.y / 16}`;
+          expect(at.has(key), `${grid.cols}×${grid.rows} ${key} twice`).toBe(false);
+          at.set(key, o.sprite);
+        }
+      expect(at.size).toBe(2 * f.cols + 2 * (f.rows - 2));
+      expect(at.get(`${f.col},${f.row}`)).toBe('obj_fence_nw');
+      expect(at.get(`${right},${f.row}`)).toBe('obj_fence_ne');
+      expect(at.get(`${f.col},${bottom}`)).toBe('obj_fence_sw');
+      expect(at.get(`${right},${bottom}`)).toBe('obj_fence_se');
+      const gates = pathFor(grid).gates;
+      for (const g of gates) expect(at.get(`${g.col},${g.row}`)).toBe(g.sprite);
+      expect(gates.length).toBe(grid.rows > 2 ? 2 : 0);
+    }
+  });
+
+  it('runs from the farmhouse door to the bin at every size, never under the fence or the field', () => {
+    for (const { grid, ex } of SIZES) {
+      const name = `${grid.cols}×${grid.rows}`;
+      const { tiles, gates } = pathFor(grid);
+      const f = fenceRect(grid);
+      const ground = buildLayout(grid, ex).ground;
+      const inside = (c: number, r: number): boolean =>
+        c >= f.col && c < f.col + f.cols && r >= f.row && r < f.row + f.rows;
+      for (const [c, r] of tiles) {
+        expect(inside(c, r), `${name} ${c},${r}`).toBe(false);
+        expect(ground[r]![c], `${name} ${c},${r}`).toBe('tile_path');
+      }
+      for (const g of gates) expect(ground[g.row]![g.col]).toBe('tile_path');
+      // Walk the path (through its gates and across the field) from the door to the tile beside the lane.
+      const open = new Set([...tiles.map(([c, r]) => `${c},${r}`), ...gates.map((g) => `${g.col},${g.row}`)]);
+      for (let r = f.row + 1; r < f.row + f.rows - 1; r++)
+        for (let c = f.col + 1; c < f.col + f.cols - 1; c++) open.add(`${c},${r}`);
+      const seen = new Set(['2,4']);
+      const queue = [[2, 4]];
+      while (queue.length > 0) {
+        const [c, r] = queue.shift()!;
+        for (const [dc, dr] of [
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
+        ]) {
+          const k = `${c! + dc!},${r! + dr!}`;
+          if (open.has(k) && !seen.has(k)) {
+            seen.add(k);
+            queue.push([c! + dc!, r! + dr!]);
+          }
+        }
+      }
+      expect(seen.has('17,9'), name).toBe(true);
+      expect(ground[9]![18]).toBe('tile_path'); // the lane carries on from there
+      // Every path tile is part of that one route (no stubs cut off by the field).
+      for (const [c, r] of tiles) expect(seen.has(`${c},${r}`), `${name} ${c},${r}`).toBe(true);
+    }
   });
 });

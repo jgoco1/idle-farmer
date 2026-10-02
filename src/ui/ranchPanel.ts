@@ -63,6 +63,7 @@ function productionLine(hooks: RanchHooks, b: BuildingState): string {
 export function ranchPanel(hooks: RanchHooks): PanelDef {
   return {
     id: 'ranch',
+    wide: true,
     title: 'Ranch',
     icon: '🐔',
     live: true,

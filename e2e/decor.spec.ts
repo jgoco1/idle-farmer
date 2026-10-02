@@ -129,9 +129,11 @@ test('donating a town project stage changes the world and adds charm', async ({ 
   await page.locator('[data-donate="old_bridge:all"]').click();
   await page.locator('[data-give="old_bridge:driftwood"]').click();
   await expect.poll(() => game(page, (g) => g.state.town.projects.old_bridge?.stagesDone)).toBe(1);
-  const after = await page.evaluate(() => (window as unknown as Win).__view.sceneSprites());
-  expect(after).toContain('obj_old_bridge_1');
-  expect(after).not.toContain('obj_old_bridge_0');
+  // The layout is rebuilt on the next animation frame, not at the donation: wait for it.
+  const sprites = (): Promise<string[]> =>
+    page.evaluate(() => (window as unknown as Win).__view.sceneSprites());
+  await expect.poll(sprites).toContain('obj_old_bridge_1');
+  expect(await sprites()).not.toContain('obj_old_bridge_0');
   await page.getByRole('tab', { name: 'Goals' }).click();
   await expect(page.getByTestId('charm')).toContainText('Charm 10');
   expect(await game(page, (g) => g.state.progression.milestones.done)).toContain('m19_first_project');
@@ -146,4 +148,27 @@ test('donating a town project stage changes the world and adds charm', async ({ 
   await page.evaluate(() => (window as unknown as Win).__view.showTile(4, 17));
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'docs/screenshots/v2-02-town-project.png' });
+});
+
+test('adopt a Siamese in the Decor tab: it naps by the door, and the brown tabby can come back', async ({
+  page,
+}) => {
+  const cats = (): Promise<{ adopted: string[]; active: string }> =>
+    page.evaluate(
+      () =>
+        (window as unknown as { __game: { state: { cats: { adopted: string[]; active: string } } } }).__game
+          .state.cats,
+    );
+  expect(await cats()).toEqual({ adopted: ['cat_tabby'], active: 'cat_tabby' });
+  await game(page, (g) => (g.state.gold = 50_000));
+  await page.getByRole('button', { name: /^Shop/ }).first().click();
+  await page.getByRole('tab', { name: 'Decor' }).click();
+  const list = page.getByTestId('farm-cats');
+  await expect(list.locator('[data-cat="cat_tabby"]')).toHaveText('Napping');
+  await list.locator('[data-cat="cat_siamese"]').click();
+  await expect(list.locator('[data-cat="cat_siamese"]')).toHaveText('Napping');
+  await expect(list.locator('[data-cat="cat_tabby"]')).toHaveText('Choose');
+  expect(await cats()).toEqual({ adopted: ['cat_tabby', 'cat_siamese'], active: 'cat_siamese' });
+  await list.locator('[data-cat="cat_tabby"]').click();
+  expect(await cats()).toEqual({ adopted: ['cat_tabby', 'cat_siamese'], active: 'cat_tabby' });
 });

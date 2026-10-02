@@ -21,6 +21,7 @@ import { buyRecipe, cancelCooking, experiment, startCooking } from '../systems/c
 import { eatDish } from '../systems/buffs';
 import { donate } from '../systems/bundles';
 import { buyDecor, moveDecor, pickUpDecor, placeDecor, styleFarmhouse } from '../systems/decor';
+import { adoptCat, chooseCat } from '../systems/cats';
 import { donateProject } from '../systems/townProjects';
 import { buySapling, moveTree, pickTree, plantTree, removeTree } from '../systems/orchard';
 import {
@@ -38,6 +39,7 @@ import { runProgression } from '../systems/progression';
 import type {
   AnimalId,
   BuildingId,
+  CatId,
   BundleId,
   FeedId,
   CropId,
@@ -102,6 +104,9 @@ export type Action =
   | { type: 'pickUpDecor'; id: number }
   /** Applies owned farmhouse pieces (null = the original look; omitted = unchanged). Free and reversible. */
   | { type: 'styleFarmhouse'; paint?: DecorId | null; roof?: DecorId | null; loft?: boolean }
+  // the farm cats (cosmetic)
+  | { type: 'adoptCat'; cat: CatId }
+  | { type: 'chooseCat'; cat: CatId }
   /** Community Board › Town: give gold and/or items toward a project's current stage. */
   | { type: 'donateProject'; project: TownProjectId; gold?: number; item?: ItemId; qty?: number }
   /** Shop › Trees: buy saplings (bag items). Planting uses a tree spot of the orchard (v2 phase 03). */
@@ -208,6 +213,10 @@ function handleAction(state: GameState, ctx: SimContext, action: Action): Action
       return pickUpDecor(state, ctx, action.id);
     case 'styleFarmhouse':
       return styleFarmhouse(state, ctx, action.paint, action.roof, action.loft);
+    case 'adoptCat':
+      return adoptCat(state, ctx, action.cat);
+    case 'chooseCat':
+      return chooseCat(state, ctx, action.cat);
     case 'donateProject':
       return donateProject(state, ctx, action.project, action.gold, action.item, action.qty);
     case 'buySapling':
