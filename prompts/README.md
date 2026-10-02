@@ -162,3 +162,34 @@ The owner chose these features after playing v1. The prompts are in `prompts/v2/
 - **Every v2 phase changes the save** (versions 8, 9, 10 and 11). Keep one long-running playtest save, and send back any PR that breaks it.
 - **The balance simulator is the safety net:** each phase runs `npm run simulate`. Check the PR for the "gold still to spend" table and the phase 09 checks.
 - As in v1, when you say a phase is done, a checking session can verify it: build it, run the unit and browser tests, send screenshots, fix small test problems, and merge with your approval.
+
+## v3: Android, iOS and Steam
+
+Run after v2-05 (and any open fix PRs). The game stays one web codebase; each platform is a thin shell around the same build.
+
+### Owner decisions for v3
+| Topic | Decision |
+|---|---|
+| Shells | **Capacitor** for Android and iOS; **Electron** for Steam (same Chromium as the e2e tests, and `steamworks.js` supports it) |
+| Money and data | No ads, no in-app purchases, no accounts, no analytics, no network calls. The privacy policy says "no data collected". Store price is the owner's call. |
+| Saves | Local to each device, in a real file on native platforms with rotating backups. Steam Cloud syncs the desktop file with no code. Export and import move a save between platforms. |
+| Gamepad | Optional (v3-03), needed only for Steam Deck "Verified" |
+
+### Order and models
+| # | Prompt file | Model | Depends on | What you get |
+|---|---|---|---|---|
+| v3-00 | `v3/00-platform-shell.md` | **Opus 5.5** | v2-05 | A platform layer (storage, pause and resume, back button, safe areas), saves with backups, an installable offline web app, `build:app`, privacy policy and store text |
+| v3-01 | `v3/01-mobile.md` | Sonnet 5.5 | v3-00 | Capacitor Android and iOS projects, native file saves, CI that builds an APK/AAB and an iOS simulator build, a device test checklist, store screenshots |
+| v3-02 | `v3/02-steam-desktop.md` | **Opus 5.5** | v3-00 | An Electron app for Windows, macOS and Linux built in CI, file saves for Steam Cloud, achievements for the milestones, SteamPipe upload notes |
+| v3-03 | `v3/03-gamepad-deck.md` (optional) | **Opus 5.5** | v3-02 | Full controller play (tile cursor, panel navigation, glyphs), the Deck's on-screen keyboard, 1280 × 800 checks for a Deck review |
+
+v3-01 and v3-02 are independent; run whichever store you want first.
+
+### What you have to do yourself
+The sessions can build everything up to a signed file, but the stores need you. Each prompt ends with an "Owner steps" list:
+- **Before v3-01:** pick the final game name and an app id (for example `io.github.jgoco1.hearthfield`). It can't be changed after the first upload.
+- **Google Play:** a developer account (one-time fee; new personal accounts must run a closed test first), an upload keystore saved as repo secrets.
+- **Apple:** the Developer Program (yearly fee), and a Mac with Xcode (or a cloud build service) to sign and upload.
+- **Steam:** Steamworks and the per-app fee, the store page and capsule art, achievements entered from the generated CSV, uploads with SteamPipe.
+- **macOS desktop builds:** a Developer ID certificate for notarization (same Apple account).
+- Fees and rules change: check each store's current terms before you start.
