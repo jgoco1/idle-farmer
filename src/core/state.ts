@@ -28,6 +28,7 @@ import type {
   CropId,
   DecorId,
   ExpansionId,
+  FeedId,
   FishId,
   FishLocationId,
   GoalTemplateId,
@@ -204,6 +205,8 @@ export interface AnimalState {
 export interface RanchState {
   buildings: BuildingState[];
   animals: AnimalState[];
+  /** v2-05 (save 13): portions of each feed waiting in the ranch's feed store, at most FEED_STORE_CAPACITY each. */
+  feedStore: Record<FeedId, number>;
 }
 
 /** A planted fruit tree (DATA_SCHEMAS.md §9.6). Its age, stage and ripeness are derived (BALANCE.md §13.5). */
@@ -392,7 +395,7 @@ export function createInitialState(now: number, lc: LocalClock, seed: number = s
     decor: createStartingDecor(),
     town: { projects: {} },
     orchard: { trees: [] },
-    ranch: { buildings: [], animals: [] },
+    ranch: { buildings: [], animals: [], feedStore: { hay: 0, corn_feed: 0 } },
     cats: { adopted: ['cat_tabby'], active: 'cat_tabby' },
   };
   // A new farm opens with today's specials and the first sparkline point (every save starts in spring).

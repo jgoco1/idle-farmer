@@ -21,7 +21,7 @@ import {
 import { GAME_DATA } from '../data';
 import { WORLD_COLS, WORLD_ROWS, WORLD_LAYOUT } from '../data/world';
 
-export const SAVE_VERSION = 12;
+export const SAVE_VERSION = 13;
 export const SAVE_KEY = 'hearthfield-idle/save';
 export const AUTOSAVE_MS = 15_000;
 
@@ -207,6 +207,28 @@ export const migrations: Record<number, Migration> = {
    * was orange before; the orange tabby is now one to adopt.
    */
   11: (old) => ({ ...old, cats: { adopted: ['cat_tabby'], active: 'cat_tabby' } }),
+  /**
+   * v12 → v13 (v2 phase 05, the feed store): hay and corn feed move from the bag into the ranch's feed store, up to
+   * its capacity (600 of each, written out here so a later capacity change never alters this migration). Anything
+   * over that stays in the bag, where troughs still draw from it, so nothing is lost.
+   */
+  12: (old) => {
+    const CAPACITY = 600;
+    const feedStore: Record<string, number> = { hay: 0, corn_feed: 0 };
+    const slots = Array.isArray(old.inventory?.slots) ? old.inventory.slots : [];
+    const kept = slots.map((slot: { item?: unknown; qty?: unknown } | null) => {
+      if (!slot || typeof slot.item !== 'string' || !(slot.item in feedStore)) return slot;
+      const qty = typeof slot.qty === 'number' ? slot.qty : 0;
+      const moved = Math.max(0, Math.min(qty, CAPACITY - feedStore[slot.item]!));
+      feedStore[slot.item]! += moved;
+      return qty - moved > 0 ? { ...slot, qty: qty - moved } : null;
+    });
+    return {
+      ...old,
+      inventory: { ...old.inventory, slots: kept },
+      ranch: { ...old.ranch, feedStore },
+    };
+  },
 };
 
 export class SaveError extends Error {
@@ -503,6 +525,10 @@ function ranchProblem(s: Record<string, unknown>): string | null {
     ids.add(b.id);
     kinds.add(b.kind);
   }
+  const { feedStore } = ranch;
+  if (!isObj(feedStore) || !isInt(feedStore.hay) || !isInt(feedStore.corn_feed)) return 'bad feed store';
+  if (feedStore.hay < 0 || feedStore.corn_feed < 0 || Object.keys(feedStore).length !== 2)
+    return 'bad feed store';
   const animalIds = new Set<number>();
   for (const a of ranch.animals) {
     if (!isObj(a) || !isInt(a.id) || typeof a.kind !== 'string' || !isAnimalId(a.kind)) return 'bad animal';

@@ -5,9 +5,10 @@
 
 import type { GameState } from '../core/state';
 import type { GameData } from '../data';
-import type { BundleId, ItemId } from '../data/ids';
+import { isFeedId, type BundleId, type ItemId } from '../data/ids';
 import type { ItemStack } from '../data/types';
 import { fail, OK, type ActionResult, type SimContext } from './context';
+import { feedAvailable, takeFeed } from './feedStore';
 import { countItem, removeItem } from './inventory';
 
 export function isBundleDone(state: GameState, id: BundleId): boolean {
@@ -133,12 +134,16 @@ export function donate(
   if (!Number.isInteger(qty) || qty <= 0) return fail('Choose how many to give.');
   const missing = slot.qty - donated(state, id, item);
   if (missing <= 0) return fail(`${def.name} has all the ${name} it needs.`);
-  const give = Math.min(qty, missing, countItem(state.inventory, item));
+  const give = Math.min(qty, missing, haveForBundle(state, item));
   if (give <= 0) return fail(`You don't have any ${name}.`);
-  // Plain stacks first: hearty dishes are worth more to eat.
-  const plain = Math.min(give, countItem(state.inventory, item, false));
-  if (plain > 0) removeItem(state.inventory, item, plain, false);
-  if (give - plain > 0) removeItem(state.inventory, item, give - plain, true);
+  if (isFeedId(item)) {
+    takeFeed(state, item, give); // v2-05: feed lives in the ranch's feed store
+  } else {
+    // Plain stacks first: hearty dishes are worth more to eat.
+    const plain = Math.min(give, countItem(state.inventory, item, false));
+    if (plain > 0) removeItem(state.inventory, item, plain, false);
+    if (give - plain > 0) removeItem(state.inventory, item, give - plain, true);
+  }
   const list = (state.progression.bundles[id] ??= []);
   const entry = list.find((s) => s.item === item);
   if (entry) entry.qty += give;
@@ -159,9 +164,14 @@ function completeBundle(state: GameState, ctx: SimContext, id: BundleId): void {
 /** Bag stacks that could go into `bundle` right now (for the "Give" buttons). */
 export function donatable(state: GameState, data: GameData, id: BundleId): ItemStack[] {
   return bundleSlots(state, data, id)
-    .filter((s) => !s.done && countItem(state.inventory, s.item) > 0)
+    .filter((s) => !s.done && haveForBundle(state, s.item) > 0)
     .map((s) => ({
       item: s.item,
-      qty: Math.min(s.need - s.have, countItem(state.inventory, s.item)),
+      qty: Math.min(s.need - s.have, haveForBundle(state, s.item)),
     }));
+}
+
+/** What the player holds of `item` for a bundle: the bag, or for feed the feed store and the bag. */
+export function haveForBundle(state: GameState, item: ItemId): number {
+  return isFeedId(item) ? feedAvailable(state, item) : countItem(state.inventory, item);
 }

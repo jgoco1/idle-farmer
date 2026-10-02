@@ -52,7 +52,15 @@ import {
 import { WORLD_COLS, WORLD_ROWS, WORLD_LAYOUT } from '../../src/data/world';
 import { dishBuff, planEat } from '../../src/systems/buffs';
 import { freeSpots, ripeTrees, saplingsInBag } from '../../src/systems/orchard';
-import { animalCount, buildingOfKind, feedOf, storeCount, troughSize } from '../../src/systems/ranch';
+import { feedAvailable, feedRoom } from '../../src/systems/feedStore';
+import {
+  animalCount,
+  buildingOfKind,
+  feedOf,
+  feedUnitsThatFit,
+  storeCount,
+  troughSize,
+} from '../../src/systems/ranch';
 import { SILO_RESERVE } from '../../src/data/balance';
 import type { AnimalId, BuildingId } from '../../src/data/ids';
 import { seasonOfDay } from '../../src/core/time';
@@ -679,15 +687,23 @@ export class Brain {
     const need = size - b.trough;
     if (need <= 0) return false;
     const def = this.data.feeds[feed];
-    let have = countItem(s.inventory, feed);
+    let have = feedAvailable(s, feed);
     if (have < need) {
       const spare = countItem(s.inventory, def.from) - FEED_CROP_KEEP;
-      const units = Math.min(spare, Math.ceil((need - have) / def.perUnit));
+      const units = Math.min(
+        spare,
+        Math.ceil((need - have) / def.perUnit),
+        feedUnitsThatFit(s, feed, def.perUnit),
+      );
       if (units > 0) run.game.dispatch({ type: 'makeFeed', feed, qty: units });
-      have = countItem(s.inventory, feed);
+      have = feedAvailable(s, feed);
     }
     if (have < need && b.trough * 4 < size) {
-      const buy = Math.min(need - have, Math.floor(Math.max(0, s.gold - reserve) / (def.buyPrice * 4)));
+      const buy = Math.min(
+        need - have,
+        feedRoom(s, feed),
+        Math.floor(Math.max(0, s.gold - reserve) / (def.buyPrice * 4)),
+      );
       if (buy > 0) run.game.dispatch({ type: 'buyFeed', feed, qty: buy });
     }
     return run.game.dispatch({ type: 'fillTrough', building: buildingId }).ok;

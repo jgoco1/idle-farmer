@@ -1770,3 +1770,11 @@ body.tutorial-on .toasts {
 .ranch h3 {
   margin: 10px 0 4px;
 }
+
+/* ---------- the feed store (v2 phase 05) */
+.feed-meter {
+  display: block;
+  width: 100%;
+  height: 10px;
+  margin: 2px 0;
+}

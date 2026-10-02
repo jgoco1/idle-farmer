@@ -280,6 +280,8 @@ export const FEED_PER_WHEAT = 2;
 export const FEED_PER_CORN = 3;
 /** The Ranch's shelf price for one unit of feed. */
 export const FEED_BUY_PRICE = { hay: 40, corn_feed: 40 } as const;
+/** v2-05: the ranch's feed store holds up to this many portions of each feed (two fills of the biggest trough). */
+export const FEED_STORE_CAPACITY = 600;
 /** The silo (level 2) keeps this many wheat and corn back for cooking when it makes feed. */
 export const SILO_RESERVE = 10;
 /** The Barnyard bundle: every trough holds this much more. */
