@@ -32,6 +32,8 @@ const STAGE_TILES_H = 4;
 const STAGE_W = STAGE_TILES_W * 16;
 const STAGE_H = STAGE_TILES_H * 16;
 const SPLASH_MS = 440;
+// UI pacing, not gameplay: after a catch or an escape, cast input is ignored this long so the result can be read.
+const RESULT_PAUSE_MS = 1200;
 
 type Tab = 'fish' | 'traps' | 'collection';
 
@@ -205,10 +207,15 @@ export function fishingPanel(hooks: FishingHooks): FishingPanel {
 
       // ---- input: pointer on the button, Space anywhere in the panel
       let holding = false;
-      let armed = true; // a new cast needs a fresh press, so holding through a catch does not recast
+      // A new cast needs a fresh press: one that begins with no cast under way and after the result
+      // pause. Holding through a catch, or pressing during the reel or the pause, never recasts.
+      let armed = true;
+      let pauseUntil = -Infinity;
+      const pausing = (): boolean => performance.now() < pauseUntil;
       const setHold = (on: boolean): void => {
+        if (on && !holding) armed = !hooks.state().fishing.session && !pausing();
         holding = on;
-        if (!on) armed = true;
+        if (!on && !pausing()) armed = true;
         action.classList.toggle('is-held', on);
       };
       action.addEventListener('pointerdown', (e) => {
@@ -244,7 +251,14 @@ export function fishingPanel(hooks: FishingHooks): FishingPanel {
       });
 
       // ---- events: what the last cast ended in, and a splash on the pond
-      type Result = { text: string; icon: string | null; isNew: boolean } | null;
+      type Result = {
+        text: string;
+        icon: string | null;
+        isNew: boolean;
+        escaped: boolean;
+        /** Shown quietly as the previous cast once a new one has started. */
+        last: boolean;
+      } | null;
       let lastResult = null as Result;
       let splashAt = -Infinity;
       let splashX = STAGE_W / 2;
@@ -258,7 +272,10 @@ export function fishingPanel(hooks: FishingHooks): FishingPanel {
           text: `You caught ${item?.name ?? e.catch}${size}!`,
           icon: item?.sprite ?? null,
           isNew,
+          escaped: false,
+          last: false,
         };
+        pauseUntil = performance.now() + RESULT_PAUSE_MS;
         splashAt = performance.now();
       });
       hooks.bus.on('escaped', () => {
@@ -266,7 +283,10 @@ export function fishingPanel(hooks: FishingHooks): FishingPanel {
           text: 'It got away. Fish are never lost for long; cast again.',
           icon: null,
           isNew: false,
+          escaped: true,
+          last: false,
         };
+        pauseUntil = performance.now() + RESULT_PAUSE_MS;
         splashAt = performance.now();
       });
 
@@ -324,8 +344,15 @@ export function fishingPanel(hooks: FishingHooks): FishingPanel {
           const inside = Math.abs(r.marker - r.zoneCenter) <= r.zoneWidth / 2;
           marker.classList.toggle('in-zone', inside);
         }
+        const waitingOnResult = !s && pausing() && lastResult !== null;
+        action.setAttribute('aria-disabled', String(waitingOnResult));
+        action.classList.toggle('is-paused', waitingOnResult);
         const label = !s
-          ? 'Hold to cast'
+          ? waitingOnResult
+            ? lastResult!.escaped
+              ? 'It got away'
+              : 'Nice!'
+            : 'Hold to cast'
           : s.phase === 'charging'
             ? 'Release to cast'
             : s.phase === 'waiting'
@@ -336,7 +363,9 @@ export function fishingPanel(hooks: FishingHooks): FishingPanel {
         if (action.textContent !== label) action.textContent = label;
         putAway.hidden = !s;
         const text = !s
-          ? 'The water is calm. Hold the button to cast.'
+          ? waitingOnResult
+            ? lastResult!.text
+            : 'The water is calm. Hold the button to cast.'
           : s.phase === 'charging'
             ? s.power >= CAST_POWER_GOOD
               ? 'A strong cast! Release to throw.'
@@ -365,7 +394,7 @@ export function fishingPanel(hooks: FishingHooks): FishingPanel {
             armed = false;
             const r = hooks.dispatch({ type: 'fishStart', location });
             if (!r.ok) status.textContent = r.reason;
-            else lastResult = null;
+            else if (lastResult) lastResult = { ...lastResult, last: true };
           }
         } else {
           location = st.fishing.session.location;
@@ -382,14 +411,20 @@ export function fishingPanel(hooks: FishingHooks): FishingPanel {
         if (shownResult === lastResult) return;
         shownResult = lastResult;
         result.replaceChildren();
+        result.classList.toggle('is-last', !!lastResult?.last);
         if (!lastResult) return;
         const r = lastResult;
         result.append(
+          ...(r.last
+            ? [h('span', { class: 'fish-last-label', text: r.escaped ? 'Last cast:' : 'Last catch:' })]
+            : []),
           ...(r.icon
             ? [h('img', { class: 'pixel', alt: '', width: 32, height: 32, src: spriteDataUrl(r.icon) })]
             : []),
           h('span', { text: r.text }),
-          ...(r.isNew ? [h('strong', { class: 'fish-new', text: ' New for your collection!' })] : []),
+          ...(r.isNew && !r.last
+            ? [h('strong', { class: 'fish-new', text: ' New for your collection!' })]
+            : []),
         );
       };
 

@@ -234,3 +234,85 @@ test('River Access opens the river in the scene and the Fishing panel', async ({
   await canvas.screenshot({ path: 'docs/screenshots/phase05-waters.png' });
   expect(errors).toEqual([]);
 });
+
+// A result must stay readable when the player keeps tapping (fix: fishing-result-pause).
+async function openFishingAndLand(page: Page): Promise<ReturnType<Page['getByRole']>> {
+  await page.goto('./');
+  await expect(page.locator('#scene-canvas')).toBeVisible();
+  await page.evaluate(() => {
+    (window as unknown as Win).__game.state.settings.relaxedFishing = true;
+  });
+  await clickTile(page, 2, 8);
+  const panel = page.getByRole('dialog', { name: 'Fishing' });
+  await expect(panel).toBeVisible();
+  await page.waitForTimeout(400);
+  // Cast with Space, skip the wait, then reel with scripted holds until the fish is landed.
+  await page.keyboard.down('Space');
+  await page.waitForTimeout(500);
+  await page.keyboard.up('Space');
+  await expect.poll(async () => (await session(page))?.phase).toBe('waiting');
+  await page.evaluate(() => {
+    const s = (window as unknown as Win).__game.state.fishing.session;
+    if (s) s.waitMs = 300;
+  });
+  await expect.poll(async () => (await session(page))?.phase, { timeout: 5000 }).toBe('bite');
+  return panel;
+}
+
+// Holds Space while the marker is below the zone's centre; returns when the session is over.
+async function reelWithSpace(page: Page, keepHolding: boolean): Promise<void> {
+  let down = false;
+  for (let i = 0; i < 900; i++) {
+    const s = await session(page);
+    if (!s) break;
+    const r = s.reel;
+    const want = r ? r.marker < r.zoneCenter : true;
+    if (want !== down) {
+      if (want) await page.keyboard.down('Space');
+      else await page.keyboard.up('Space');
+      down = want;
+    }
+    await page.waitForTimeout(25);
+  }
+  if (down && !keepHolding) await page.keyboard.up('Space');
+  else if (!down && keepHolding) await page.keyboard.down('Space');
+}
+
+test('tapping Space right after a catch neither casts nor clears the result', async ({ page }) => {
+  test.setTimeout(90_000);
+  const panel = await openFishingAndLand(page);
+  await reelWithSpace(page, false);
+  const result = panel.locator('.fish-result');
+  const t0 = Date.now();
+  for (let i = 0; i < 4; i++) {
+    await page.keyboard.down('Space');
+    await page.keyboard.up('Space');
+  }
+  expect(Date.now() - t0).toBeLessThan(900); // all inside the pause
+  expect(await session(page)).toBeNull();
+  await expect(result).toContainText(/You caught|It got away/);
+  await expect(panel.locator('.fish-action')).toHaveAttribute('aria-disabled', 'true');
+
+  // After the pause one fresh press casts, and the result stays, as the quieter last catch.
+  await page.waitForTimeout(1300);
+  await expect(panel.locator('.fish-action')).not.toHaveAttribute('aria-disabled', 'true');
+  await page.keyboard.down('Space');
+  await expect.poll(async () => (await session(page))?.phase).toBe('charging');
+  await expect(result).toContainText(/You caught|It got away/);
+  await expect(result).toHaveClass(/is-last/);
+  await expect(result).toContainText('Last');
+  await page.keyboard.up('Space');
+});
+
+test('holding Space through the pause does not cast until pressed again', async ({ page }) => {
+  test.setTimeout(90_000);
+  const panel = await openFishingAndLand(page);
+  await reelWithSpace(page, true); // Space is held at the catch
+  await page.waitForTimeout(1500); // past the pause, still held
+  expect(await session(page)).toBeNull();
+  await expect(panel.locator('.fish-result')).toContainText(/You caught|It got away/);
+  await page.keyboard.up('Space');
+  await page.keyboard.down('Space');
+  await expect.poll(async () => (await session(page))?.phase).toBe('charging');
+  await page.keyboard.up('Space');
+});

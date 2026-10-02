@@ -1047,6 +1047,23 @@ textarea:focus-visible,
   min-height: 34px;
   margin: 6px 0;
 }
+.fish-result.is-last {
+  opacity: 0.6;
+  font-size: 0.9em;
+  transition: opacity 0.4s ease;
+}
+.fish-last-label {
+  font-weight: bold;
+}
+.fish-action.is-paused {
+  filter: grayscale(0.6) brightness(0.9);
+  cursor: default;
+}
+@media (prefers-reduced-motion: reduce) {
+  .fish-result.is-last {
+    transition: none;
+  }
+}
 .fish-new {
   color: var(--c-gold_dark);
 }
