@@ -13,7 +13,7 @@ Make the whole game playable with a **controller**, so the Steam build can be re
 
 ## Read first
 - `CLAUDE.md` (world and camera conventions, platform conventions, per-frame garbage rules), and the v3-02 entry in `docs/PROGRESS.md`.
-- `src/render/camera.ts`, `src/render/renderer.ts` (hover, `decorateMode` routing), `src/ui/farmTools.ts`, `src/ui/panel.ts` and its `FOCUSABLE`, `src/ui/fishingPanel.ts`, `src/ui/decorate.ts`, `plantMode.ts`, `buildMode.ts`, `src/ui/modal.ts`, `src/ui/tutorial.ts`.
+- `src/render/camera.ts`, `src/render/renderer.ts` (hover, `decorateMode` routing, `inspected`), `src/render/sceneInput.ts` (Paint strokes and `tapActs`, v2-05), `src/ui/inspectLabel.ts`, `src/ui/farmTools.ts`, `src/ui/panel.ts` and its `FOCUSABLE`, `src/ui/fishingPanel.ts`, `src/ui/decorate.ts`, `plantMode.ts`, `buildMode.ts`, `src/ui/modal.ts`, `src/ui/tutorial.ts`.
 - Valve's current Steam Deck compatibility review criteria (input, text legibility, the on-screen keyboard, default config, resolution). Follow them, and list each criterion in the PR with how it is met.
 
 ## Requirements
@@ -28,7 +28,8 @@ Make the whole game playable with a **controller**, so the Steam build can be re
 - **A tile cursor:** the left stick or D-pad moves a highlighted tile. It snaps to tiles, keeps a short repeat, and the camera follows when the cursor nears the view edge (through the existing `panToTile` and easing, never by moving the world). The right stick pans freely; the triggers or bumpers zoom (the integer zoom steps).
 - `confirm` on the cursor does exactly what a click on that tile does: the farm tool on a plot, opening a zone, picking a tree, collecting from a building, petting. It goes through the same `onPlotClick` / `onZoneClick` / `onSignClick` routes, so there is no second set of rules.
 - Decorate, plant and build modes work with the cursor: `confirm` places or picks up, a face button flips (`F` today), and `back` drops or leaves.
-- The hover label (tree, animal, building) shows for the cursor tile as it does for the mouse.
+- The label (`src/ui/inspectLabel.ts`) shows for the cursor tile as it does on mouse hover; use the renderer's `inspected` target rather than a second label.
+- **Paint mode** works with the cursor: holding `confirm` while moving the cursor over plots is a stroke (`onPaintStart` / `onPaintPlot` / `onPaintEnd`), when the Paint pref is on.
 
 ### 3. In the panels and dialogs
 - **Spatial navigation** between focusable elements in the open panel or modal: the D-pad moves focus to the nearest element in that direction. Write it as a pure, unit-tested function over element rectangles. `confirm` activates the focused element, `back` runs the v3-00 back order, and the bumpers switch tabs inside a panel.
