@@ -195,3 +195,28 @@ export const uiToolHand: SpriteDef = {
     ]),
   ],
 };
+
+/** The Paint toggle (v2-05): a brush with a wooden handle, drawn diagonally like the hoe. */
+export const uiToolPaint: SpriteDef = {
+  id: 'ui_tool_paint',
+  frames: [
+    outlined([
+      '................',
+      '............Nn..',
+      '...........NNn..',
+      '..........NNn...',
+      '.........NNn....',
+      '........NNn.....',
+      '.......mMp......',
+      '......mMMp......',
+      '.....RRRp.......',
+      '....RRRRr.......',
+      '...RRRRr........',
+      '...RRRr.........',
+      '..RRrr..........',
+      '..Rr............',
+      '.r..............',
+      '................',
+    ]),
+  ],
+};

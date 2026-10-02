@@ -1,6 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { camera, clickPlot, clickTile, plotTile, tapTile } from './helpers';
+import { camera, clickPlot, clickTile, plotTile, tapTile, shot } from './helpers';
 
 type Win = {
   __game: {
@@ -120,7 +120,7 @@ test('desktop screenshots and accessibility: the main screen and a panel', async
   await page.goto('./');
   await expect(page.locator('#scene-canvas')).toBeVisible();
   await splashGone(page);
-  await page.screenshot({ path: 'docs/screenshots/phase08-desktop.png' });
+  await page.screenshot({ path: shot('phase08-desktop.png') });
   await expectNoSeriousA11y(page, 'the main screen');
 
   await page.locator('[data-panel-button="inventory"]').click();
@@ -192,7 +192,7 @@ for (const vp of [
           ),
         )
         .toBeGreaterThan(0);
-      await page.screenshot({ path: `docs/screenshots/phase08-mobile-${vp.name}.png` });
+      await page.screenshot({ path: shot(`phase08-mobile-${vp.name}.png`) });
 
       // A panel is a bottom sheet: full width, above the toolbar, with 44 px controls.
       await page.locator('[data-panel-button="inventory"]').tap();

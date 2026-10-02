@@ -1,5 +1,5 @@
 // Player preferences that belong to the browser, not the farm: volumes, motion, UI scale, number
-// format and (v2) the camera. Stored under their own key so they survive a hard reset and never touch SAVE_VERSION.
+// format and (v2) the camera and Paint mode. Stored under their own key so they survive a hard reset and never touch SAVE_VERSION.
 
 import type { SaveStorage } from './save';
 
@@ -24,6 +24,8 @@ export interface Prefs {
   townTune: boolean;
   /** The world camera: centre in world px and an integer zoom; null = the default view (v2 phase 01). */
   camera: CameraPref | null;
+  /** Paint mode (v2-05): a drag that starts on a plot uses the tool along the stroke instead of panning. */
+  paint: boolean;
 }
 
 export interface CameraPref {
@@ -46,6 +48,7 @@ export const DEFAULT_PREFS: Prefs = {
   tutorial: 'pending',
   townTune: true,
   camera: null,
+  paint: false,
 };
 
 function sanitizeCamera(raw: unknown): CameraPref | null {
@@ -76,6 +79,7 @@ export function sanitizePrefs(raw: unknown): Prefs {
       r.tutorial === 'done' || r.tutorial === 'skipped' || r.tutorial === 'pending' ? r.tutorial : d.tutorial,
     townTune: typeof r.townTune === 'boolean' ? r.townTune : d.townTune,
     camera: sanitizeCamera(r.camera),
+    paint: typeof r.paint === 'boolean' ? r.paint : d.paint,
   };
 }
 

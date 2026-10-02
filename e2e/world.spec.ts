@@ -3,7 +3,7 @@
 // edge pips, the camera remembered in prefs, a phone run, and the phase screenshots.
 
 import { expect, test, type Page } from '@playwright/test';
-import { camera, clickTile, tilePoint, type WithView } from './helpers';
+import { camera, clickTile, tilePoint, type WithView, shot } from './helpers';
 
 type Win = WithView & {
   __game: {
@@ -145,7 +145,7 @@ test('buy the Hilltop Orchard from its sign, the Old Paddock from Upgrades › L
   await page.goto('./');
   await splashGone(page);
   await page.mouse.move(0, 0);
-  await page.screenshot({ path: 'docs/screenshots/v2-01-default-view.png' });
+  await page.screenshot({ path: shot('v2-01-default-view.png') });
 
   // A locked sign says what it needs.
   await clickTile(page, 21, 3);
@@ -184,7 +184,7 @@ test('buy the Hilltop Orchard from its sign, the Old Paddock from Upgrades › L
   await page.mouse.move(0, 0);
   await page.waitForTimeout(400);
   await page.evaluate(() => document.getElementById('toasts')!.replaceChildren());
-  await page.screenshot({ path: 'docs/screenshots/v2-01-whole-world.png' });
+  await page.screenshot({ path: shot('v2-01-whole-world.png') });
 
   // Zoomed in on home, only the chunks in view are drawn.
   await page.getByRole('button', { name: 'Back to the farm' }).click();
@@ -227,7 +227,7 @@ test.describe('phone 390x844', () => {
     expect(canvas.height).toBeCloseTo(scene.height, 0); // fills the space between the HUD and toolbar
     const start = await camera(page);
     expect(start.zoom).toBeGreaterThanOrEqual(2);
-    await page.screenshot({ path: 'docs/screenshots/v2-01-phone.png' });
+    await page.screenshot({ path: shot('v2-01-phone.png') });
 
     const before = await plotStates(page);
     const p = await tilePoint(page, 7, 2);

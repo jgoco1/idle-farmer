@@ -82,7 +82,7 @@ import type { ActionResult } from './systems/context';
 import { Toasts } from './ui/toast';
 import { buildSceneControls } from './ui/sceneControls';
 import { PlantMode } from './ui/plantMode';
-import { daysToMature, ripeTrees, treeAtTile, treeStage } from './systems/orchard';
+import { ripeTrees } from './systems/orchard';
 import { ranchPanel } from './ui/ranchPanel';
 import { BuildMode } from './ui/buildMode';
 import { buildingById, ranchOpen, storeCount, storeIsFull, troughIsEmpty, troughSize } from './systems/ranch';
@@ -103,6 +103,7 @@ import { flyCoins } from './ui/coinFly';
 import { TutorialOverlay } from './ui/tutorial';
 import { isFreshFarm, TutorialFlow } from './ui/tutorialFlow';
 import { buildToolbar } from './ui/toolbar';
+import { InspectLabel } from './ui/inspectLabel';
 
 applyPaletteCssVars(document.documentElement);
 
@@ -413,7 +414,10 @@ plant.startMove = (id) => {
   build.stop();
   startMoving(id);
 };
-const tools = new FarmTools(byId('toolbar'), view);
+const tools = new FarmTools(byId('toolbar'), view, {
+  get: () => prefs.value.paint,
+  set: (on) => prefs.set('paint', on),
+});
 
 // ---- layout: panels sit between the real HUD and toolbar heights (they change with UI size and phone width)
 function trackHeights(): void {
@@ -829,7 +833,8 @@ let panelsDirty = false;
 game.bus.onAny(() => (panelsDirty = true));
 
 // ---- farming clicks: a click picks the tool (Auto resolves from the plot) and applies it; Shift-click
-// applies it to the whole field. A drag pans the camera instead (v2), so it never runs a tool.
+// applies it to the whole field. A drag pans the camera instead (v2), so it never runs a tool, unless Paint is on
+// or Alt is held (v2-05): then a drag that starts on a plot paints the tool along the stroke.
 let stroke: { tool: ConcreteTool; seed: CropId | null } | null = null;
 const strokeHarvest = new Map<CropId, number>();
 let strokeFull = false;
@@ -853,6 +858,37 @@ function flushStrokeToasts(): void {
   if (strokeFull) toasts.show('Your bag is full. Some crops are waiting in the ground.', 'warn');
   strokeHarvest.clear();
   strokeFull = false;
+}
+
+/**
+ * A click (or the press that starts a paint stroke) on a plot: Auto resolves the tool from that plot, which then
+ * holds for the whole stroke, as in v1. Returns whether a stroke started (false: placement, or nothing to do).
+ */
+function startStroke(plot: number, shiftKey: boolean): boolean {
+  if (placement.kind) {
+    placeAt(plot);
+    return false;
+  }
+  const seed = tools.seed;
+  const tool =
+    tools.tool === 'auto'
+      ? autoToolFor(game.state, GAME_DATA, game.calendar().season, plot, seed)
+      : tools.tool;
+  if (tool === null) {
+    // Nothing obvious to do: let the action explain why (e.g. "growing, 1m left").
+    const r = game.dispatch({ type: 'useTool', tool: 'auto', plots: [plot], seed });
+    if (!r.ok) toasts.show(r.reason);
+    return false;
+  }
+  stroke = { tool, seed };
+  const all = game.state.farm.plots.map((_, i) => i);
+  usePlotTool(shiftKey ? [plot, ...all.filter((i) => i !== plot)] : [plot], true);
+  return true;
+}
+
+function endStroke(): void {
+  stroke = null;
+  flushStrokeToasts();
 }
 
 function usePlotTool(plots: number[], first: boolean): void {
@@ -972,24 +1008,19 @@ const renderer = new Renderer({
     }
   },
   onPlotClick({ plot, shiftKey }) {
-    if (placement.kind) return placeAt(plot);
-    const seed = tools.seed;
-    const tool =
-      tools.tool === 'auto'
-        ? autoToolFor(game.state, GAME_DATA, game.calendar().season, plot, seed)
-        : tools.tool;
-    if (tool === null) {
-      // Nothing obvious to do: let the action explain why (e.g. "growing, 1m left").
-      const r = game.dispatch({ type: 'useTool', tool: 'auto', plots: [plot], seed });
-      if (!r.ok) toasts.show(r.reason);
-      return;
-    }
-    stroke = { tool, seed };
-    const all = game.state.farm.plots.map((_, i) => i);
-    usePlotTool(shiftKey ? [plot, ...all.filter((i) => i !== plot)] : [plot], true);
-    stroke = null;
-    flushStrokeToasts();
+    if (!startStroke(plot, shiftKey)) return;
+    endStroke();
   },
+  // v2-05 Paint mode (a pref) or Alt-drag: the press on a plot uses the tool there, the drag along the stroke.
+  onPaintStart({ plot, shiftKey }) {
+    if (placement.kind) return false; // placing a sprinkler: presses stay clicks and pans
+    startStroke(plot, shiftKey);
+    return true;
+  },
+  onPaintPlot(plot) {
+    usePlotTool([plot], false);
+  },
+  onPaintEnd: endStroke,
   onTownClick(project) {
     goals.showTown();
     panels.open('goals');
@@ -1026,6 +1057,11 @@ const renderer = new Renderer({
 });
 renderer.reducedMotion = isReducedMotion;
 renderer.restoreCamera(prefs.value.camera);
+renderer.paintMode = prefs.value.paint;
+prefs.onChange((p) => {
+  renderer.paintMode = p.paint;
+  tools.paintButton?.setAttribute('aria-pressed', String(p.paint));
+});
 const controls = buildSceneControls(byId('scene'), renderer, () => decorate.toggle());
 renderer.setScene(game.state.farm.grid, game.state.expansions, game.state.land.parcels, updateLook());
 const pips = new EdgePips(byId('scene'), renderer);
@@ -1204,50 +1240,14 @@ function sceneView(): SceneView {
   return view$;
 }
 
-// ---- a tree's tooltip: stage, days until mature, the seasons it bears in and fruit hanging / cap. A small
-// parchment label above the tree (a native `title` does not show on touch screens). Rebuilt only when the pointer
-// moves to another tile or the tree changes (no string work in a steady frame).
-const treeTip = h('div', { class: 'tree-tip', role: 'tooltip', hidden: true, 'data-testid': 'tree-tip' });
-byId('scene').append(treeTip);
-let tipCol = -1;
-let tipRow = -1;
-let tipSig = -1;
-function updateTreeTooltip(dayIndex: number): void {
-  const hover = renderer.hoverTile;
-  const tree = hover ? treeAtTile(game.state, hover.col, hover.row) : undefined;
-  const sig = tree ? tree.id * 1_000_000 + tree.fruit * 1000 + (dayIndex % 1000) : -1;
-  if ((hover?.col ?? -1) === tipCol && (hover?.row ?? -1) === tipRow && sig === tipSig) return;
-  tipCol = hover?.col ?? -1;
-  tipRow = hover?.row ?? -1;
-  tipSig = sig;
-  if (!tree) {
-    treeTip.hidden = true;
-    return;
-  }
-  const def = GAME_DATA.trees[tree.tree];
-  const stage = treeStage(GAME_DATA, tree, dayIndex);
-  const left = daysToMature(GAME_DATA, tree, dayIndex);
-  const state =
-    stage === 'mature'
-      ? 'Mature'
-      : `${stage === 'sapling' ? 'Sapling' : 'Young'}, ${left} day${left === 1 ? '' : 's'} until mature`;
-  treeTip.replaceChildren(
-    h('strong', { text: `${def.name} tree · ${state}` }),
-    h('span', { text: `Bears in ${def.seasons.join(' and ')}` }),
-    h('span', { text: `Fruit ${tree.fruit} / ${def.fruitCap}${tree.fruit > 0 ? ' · click to pick' : ''}` }),
-  );
-  const spot = WORLD_LAYOUT.treeSpots[tree.spot]!;
-  const box = byId('scene').getBoundingClientRect();
-  // above the canopy, or below the trunk when there is no room above (the top of the screen)
-  const above = renderer.tileClientCenter(spot.col + 1, spot.row - 1);
-  const below = renderer.tileClientCenter(spot.col + 1, spot.row + 2);
-  const roomAbove = above.y - box.top > 110;
-  const at = roomAbove ? above : below;
-  treeTip.classList.toggle('is-below', !roomAbove);
-  treeTip.style.left = `${Math.round(at.x - box.left)}px`;
-  treeTip.style.top = `${Math.round(at.y - box.top)}px`;
-  treeTip.hidden = false;
-}
+// ---- the tree and animal label (v2-03 trees, v2-05 animals and touch): src/ui/inspectLabel.ts
+const label = new InspectLabel({
+  host: byId('scene'),
+  renderer,
+  data: GAME_DATA,
+  state: () => game.state,
+  mods: () => computeModifiers(game.state, GAME_DATA, game.calendar().season),
+});
 
 // ---- loop and autosave
 let splashGone = false;
@@ -1274,11 +1274,8 @@ const loop = startLoop(game, {
       const canvas = byId<HTMLCanvasElement>('scene-canvas');
       if (canvas.title !== (why ?? '')) canvas.title = why ?? '';
     }
-    if (!decorate.on && !plant.on) updateTreeTooltip(cal.dayIndex);
-    else if (!treeTip.hidden) {
-      treeTip.hidden = true;
-      tipCol = -2; // show it again when the pointer next lands on a tree
-    }
+    if (!decorate.on && !plant.on && !build.on) label.update(cal.dayIndex);
+    else label.hide();
     hud.update(game.state, cal);
     tools.update();
     toolbar.setVisible('ranch', ranchOpen(game.state));
@@ -1331,4 +1328,9 @@ if (import.meta.env.DEV || new URLSearchParams(location.search).has('debug')) {
   animalAt: (id: number) => renderer.ranch.positionOf(id),
   /** Building mode (e2e). */
   buildMode: () => build.on,
+  /** What a touch tap is inspecting, and whether a paint stroke is under way (v2-05, e2e). */
+  inspected: () => ({ ...renderer.inspected }),
+  painting: () => renderer.isPainting,
+  /** World px → client point (e2e: tap an animal where it stands now). */
+  worldClient: (x: number, y: number) => renderer.worldToClient(x, y),
 };

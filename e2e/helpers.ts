@@ -112,3 +112,13 @@ export async function clickPlot(
 export async function camera(page: Page): Promise<{ x: number; y: number; zoom: number; default: boolean }> {
   return page.evaluate(() => (window as unknown as WithView).__view.camera());
 }
+
+/**
+ * Where a documentation screenshot goes (v2-05): `docs/screenshots/<name>` only with UPDATE_SCREENSHOTS=1, so an
+ * ordinary e2e run never rewrites the committed images; otherwise `test-results/screenshots/<name>` (gitignored).
+ */
+export function shot(name: string): string {
+  return process.env.UPDATE_SCREENSHOTS === '1'
+    ? `docs/screenshots/${name}`
+    : `test-results/screenshots/${name}`;
+}

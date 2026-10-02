@@ -32,6 +32,7 @@ import {
   buildLayout,
   buildZones,
   DEFAULT_LOOK,
+  fieldCentre,
   forSaleSignAt,
   GREENHOUSE_ROOF_TILE,
   PET_TILE,
@@ -58,6 +59,7 @@ import {
   clampCamera,
   defaultCamera,
   easeToward,
+  isPhone,
   overlaps,
   panBy,
   PressGesture,
@@ -71,6 +73,16 @@ import {
   type Viewport,
 } from './camera';
 import { RanchLife, type RanchView } from './ranchLife';
+import {
+  clearInspected,
+  INSPECT_ANIMAL,
+  INSPECT_NONE,
+  INSPECT_TREE,
+  paintArmed,
+  PaintStroke,
+  tapActs,
+  type Inspected,
+} from './sceneInput';
 import { anchoredPosition, spriteFrame, spriteFrameAt, spriteFrameOffset } from './spriteCache';
 import { spriteDef } from './sprites';
 import { tintAt } from './tint';
@@ -126,6 +138,15 @@ export interface RendererOptions {
   onDecorClick?(col: number, row: number): void;
   /** The camera came to rest somewhere new (null: back at the default view). For prefs. */
   onCameraRest?(cam: Camera | null): void;
+  /**
+   * v2-05 paint strokes: a press on a plot while Paint is on (or with Alt held, on desktop) starts a stroke here
+   * instead of a pan; return false to decline it (the press then pans or clicks as usual).
+   */
+  onPaintStart?(p: PlotPointer): boolean;
+  /** Each further plot the stroke passes over, once. */
+  onPaintPlot?(plot: number): void;
+  /** The stroke ended (the finger or button lifted, or a second finger came down). */
+  onPaintEnd?(): void;
 }
 
 /** Everything the renderer needs from the game state each frame. */
@@ -324,6 +345,15 @@ export class Renderer {
   private pinchDist = 0;
   private lastEmptyTap = { t: -1e9, x: 0, y: 0 };
   private wheelSum = 0;
+  /** Paint mode (v2-05, a per-device pref): a press on a plot paints the tool along the drag instead of panning. */
+  paintMode = false;
+  private stroke: PaintStroke | null = null;
+  /** The tree or animal a touch tap is inspecting; a pan, or a tap elsewhere, clears it (read by the label). */
+  readonly inspected: Inspected = { kind: INSPECT_NONE, id: -1 };
+  /** The mouse's world point (for the animal hover label), valid while the mouse is over the scene. */
+  private mouseWX = 0;
+  private mouseWY = 0;
+  private mouseIn = false;
   private wheelStepped = false;
   private wheelLast = 0;
   /** Held pan keys and when each went down (parallel arrays: iterated every frame while a key is held, so no Map iterator). */
@@ -358,6 +388,7 @@ export class Renderer {
     this.canvas.addEventListener('pointerup', (e) => this.pointerUp(e, true));
     this.canvas.addEventListener('pointercancel', (e) => this.pointerUp(e, false));
     this.canvas.addEventListener('pointerleave', (e) => {
+      if (e.pointerType === 'mouse') this.mouseIn = false;
       if (e.pointerType === 'mouse' && !this.press.active) this.setHover(null);
     });
     this.canvas.addEventListener('wheel', (e) => this.wheel(e), { passive: false });
@@ -381,7 +412,7 @@ export class Renderer {
   restoreCamera(cam: Camera | null): void {
     if (!cam) {
       this.atDefault = true;
-      defaultCamera(this.view, this.cam);
+      this.defaultView(this.cam);
     } else {
       this.atDefault = false;
       this.cam.x = cam.x;
@@ -398,14 +429,22 @@ export class Renderer {
     this.target.zoom = this.cam.zoom;
   }
 
+  private readonly focusScratch = { x: 0, y: 0 };
+  /** The default view; a phone centres on the field (v2-05), whose size the latest `setScene` gave. */
+  private defaultView(out: Camera): Camera {
+    return defaultCamera(this.view, out, fieldCentre(this.grid, this.focusScratch));
+  }
+
   private moved(): void {
     this.atDefault = false;
     this.resting = false;
+    this.clearInspect(); // labels hide on pan (v2-05)
   }
 
   /** Glides back to the default view (the Home button and the H key). */
   home(): void {
-    defaultCamera(this.view, this.target);
+    this.clearInspect();
+    this.defaultView(this.target);
     this.cam.zoom = this.target.zoom;
     clampCamera(this.cam, this.view);
     this.atDefault = true;
@@ -484,8 +523,8 @@ export class Renderer {
     this.canvas.style.height = `${h}px`;
     this.ctx.imageSmoothingEnabled = false; // resizing resets context state
     if (this.atDefault) {
-      defaultCamera(this.view, this.cam);
-      defaultCamera(this.view, this.target);
+      this.defaultView(this.cam);
+      this.defaultView(this.target);
     } else {
       clampCamera(this.cam, this.view);
       clampCamera(this.target, this.view);
@@ -524,8 +563,10 @@ export class Renderer {
       this.pressId = e.pointerId;
       this.lastX = e.clientX;
       this.lastY = e.clientY;
+      if (paintArmed(this.paintMode, e.pointerType, e.altKey, this.decorateMode)) this.startPaint(e);
     } else if (this.pointers.size === 2) {
-      // A second finger: a pinch (and a two-finger pan), never a click.
+      // A second finger: a pinch (and a two-finger pan), never a click, and never paint.
+      this.endPaint();
       this.press.cancel();
       this.pinchDist = this.pinchSpan();
       this.pinchMid(this.ptScratch);
@@ -566,6 +607,7 @@ export class Renderer {
   }
 
   private pointerMove(e: PointerEvent): void {
+    if (e.pointerType === 'mouse') this.trackMouse(e.clientX, e.clientY);
     const p = this.pointers.get(e.pointerId);
     if (!p) {
       if (e.pointerType === 'mouse') this.setHover(this.tileAtClient(e.clientX, e.clientY));
@@ -590,6 +632,11 @@ export class Renderer {
       return;
     }
     if (e.pointerId !== this.pressId) return;
+    if (this.stroke) {
+      this.paintTo(e.clientX, e.clientY);
+      if (e.pointerType === 'mouse') this.setHover(this.tileAtClient(e.clientX, e.clientY));
+      return;
+    }
     if (this.press.move(e.clientX, e.clientY)) {
       panBy(this.cam, this.view, (e.clientX - this.lastX) * k, (e.clientY - this.lastY) * k);
       this.syncTarget();
@@ -616,11 +663,75 @@ export class Renderer {
     this.pressId = -1;
     const click = this.press.up();
     if (e.pointerType === 'mouse') this.setHover(this.tileAtClient(e.clientX, e.clientY));
-    if (wasPress && click && released) this.click(e.clientX, e.clientY, e.shiftKey, e.timeStamp);
+    if (this.stroke) {
+      this.endPaint(); // the stroke already used the tool on the first plot: not a click as well
+      return;
+    }
+    if (wasPress && click && released)
+      this.click(e.clientX, e.clientY, e.shiftKey, e.timeStamp, e.pointerType !== 'mouse');
+  }
+
+  // ---- paint strokes (v2-05)
+
+  /** The plot under a client point, or -1. */
+  private plotAtClient(clientX: number, clientY: number): number {
+    const t = this.tileAtClient(clientX, clientY);
+    return t ? plotIndexAt(this.grid, t.col, t.row, this.greenhousePlots) : -1;
+  }
+
+  /** A press on a plot with Paint on (or Alt): the stroke starts there, unless main declines (placing objects). */
+  private startPaint(e: PointerEvent): void {
+    if (!this.opts.onPaintStart) return;
+    const plot = this.plotAtClient(e.clientX, e.clientY);
+    if (plot < 0) return; // off the field a press pans as usual
+    if (!this.opts.onPaintStart({ plot, shiftKey: e.shiftKey })) return;
+    this.stroke = new PaintStroke(plot, e.clientX, e.clientY);
+    this.press.cancel();
+    clearInspected(this.inspected);
+  }
+
+  private readonly plotAtPoint = (x: number, y: number): number => this.plotAtClient(x, y);
+  private readonly paintPlot = (plot: number): void => this.opts.onPaintPlot?.(plot);
+
+  /** Uses the tool on every plot between the last pointer position and this one (half-tile steps). */
+  private paintTo(clientX: number, clientY: number): void {
+    const rect = this.canvas.getBoundingClientRect();
+    const tilePx = rect.width > 0 ? (TILE * this.cam.zoom * rect.width) / this.view.w : TILE;
+    this.stroke?.walk(clientX, clientY, tilePx / 2, this.plotAtPoint, this.paintPlot);
+  }
+
+  private endPaint(): void {
+    if (!this.stroke) return;
+    this.stroke = null;
+    this.opts.onPaintEnd?.();
+  }
+
+  /** Whether a paint stroke is under way (e2e). */
+  get isPainting(): boolean {
+    return this.stroke !== null;
+  }
+
+  // ---- inspecting (v2-05)
+
+  private trackMouse(clientX: number, clientY: number): void {
+    const s = this.toScreen(clientX, clientY);
+    const w = screenToWorld(this.cam, this.view, s.x, s.y, this.ptScratch);
+    this.mouseWX = w.x;
+    this.mouseWY = w.y;
+    this.mouseIn = true;
+  }
+
+  /** The animal under the mouse pointer, or -1 (desktop hover label). */
+  hoverAnimal(): number {
+    return this.mouseIn ? this.ranch.animalAt(this.mouseWX, this.mouseWY) : -1;
+  }
+
+  clearInspect(): void {
+    clearInspected(this.inspected);
   }
 
   /** A press that never became a pan: plots, zones, signs, or (twice on open ground) a zoom in. */
-  private click(clientX: number, clientY: number, shiftKey: boolean, time: number): void {
+  private click(clientX: number, clientY: number, shiftKey: boolean, time: number, touch = false): void {
     const t = this.tileAtClient(clientX, clientY);
     if (this.decorateMode) {
       if (t) this.opts.onDecorClick?.(t.col, t.row);
@@ -628,12 +739,20 @@ export class Renderer {
     }
     if (t) {
       // Animals first (petting), then trees, then buildings (the hit-testing order of DATA_SCHEMAS.md §9.3).
+      // On a touch screen the first tap on a tree or an animal only shows its label; the second picks or pets.
       const s = this.toScreen(clientX, clientY);
       const w = screenToWorld(this.cam, this.view, s.x, s.y, this.ptScratch);
       const animal = this.ranch.animalAt(w.x, w.y);
-      if (animal >= 0 && this.opts.onAnimalClick) return this.opts.onAnimalClick(animal);
+      if (animal >= 0 && this.opts.onAnimalClick) {
+        if (!tapActs(this.inspected, INSPECT_ANIMAL, animal, touch)) return;
+        return this.opts.onAnimalClick(animal);
+      }
       const tree = treeAtTileIn(this.treeList, t.col, t.row);
-      if (tree && this.opts.onTreeClick) return this.opts.onTreeClick(tree.id);
+      if (tree && this.opts.onTreeClick) {
+        if (!tapActs(this.inspected, INSPECT_TREE, tree.id, touch)) return;
+        return this.opts.onTreeClick(tree.id);
+      }
+      this.clearInspect();
       const building = this.ranch.buildingAt(t.col, t.row);
       if (building >= 0 && this.opts.onBuildingClick) return this.opts.onBuildingClick(building);
       const plot = plotIndexAt(this.grid, t.col, t.row, this.greenhousePlots);
@@ -804,7 +923,13 @@ export class Renderer {
     const key = `${grid.cols}x${grid.rows}|${expansions.join(',')}|${parcels.join(',')}|${look.farmhouse}|${this.lookStages.join('')}`;
     if (key === this.sceneKey) return;
     this.sceneKey = key;
+    const resized = grid.cols !== this.grid.cols || grid.rows !== this.grid.rows;
     this.grid = { cols: grid.cols, rows: grid.rows };
+    if (resized && this.atDefault && isPhone(this.view)) {
+      // A phone's default view follows the field as it grows (v2-05); elsewhere the view stays put.
+      this.defaultView(this.cam);
+      this.defaultView(this.target);
+    }
     this.owned = [...parcels];
     this.layout = buildLayout(this.grid, expansions, parcels, this.look);
     this.zones = buildZones(this.grid);

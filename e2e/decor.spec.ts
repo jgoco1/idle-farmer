@@ -1,8 +1,8 @@
 // v2 phase 02: the Decor shop, Decorate mode (place, move, pick up), a lamp that glows at night, charm, and
-// a town project stage that changes the world. Screenshots go to docs/screenshots.
+// a town project stage that changes the world. Screenshots go to docs/screenshots with UPDATE_SCREENSHOTS=1.
 
 import { expect, test, type Page } from '@playwright/test';
-import { clickTile, hoverTile, type WithView } from './helpers';
+import { clickTile, hoverTile, type WithView, shot } from './helpers';
 
 type Game = {
   state: {
@@ -87,12 +87,12 @@ test('buy a lamp and a path, place and move them in Decorate mode, and the lamp 
   // By day nothing is lit; at night the lamp glows.
   await setLocalTime(page, 12);
   expect(await page.evaluate(() => (window as unknown as Win).__view.lightsLit())).toBe(0);
-  await page.screenshot({ path: 'docs/screenshots/v2-02-decorated-day.png' });
+  await page.screenshot({ path: shot('v2-02-decorated-day.png') });
   await setLocalTime(page, 23);
   await expect
     .poll(() => page.evaluate(() => (window as unknown as Win).__view.lightsLit()))
     .toBeGreaterThan(0);
-  await page.screenshot({ path: 'docs/screenshots/v2-02-decorated-night.png' });
+  await page.screenshot({ path: shot('v2-02-decorated-night.png') });
 
   // Pick it up: back to the stock.
   await clickTile(page, 11, 9);
@@ -110,7 +110,7 @@ test('the Decor shop', async ({ page }) => {
   await page.getByRole('button', { name: /^Shop/ }).first().click();
   await page.getByRole('tab', { name: 'Decor' }).click();
   await expect(page.locator('[data-decor-set="seaside"]')).toContainText('Plank Path');
-  await page.screenshot({ path: 'docs/screenshots/v2-02-decor-shop.png' });
+  await page.screenshot({ path: shot('v2-02-decor-shop.png') });
 });
 
 test('donating a town project stage changes the world and adds charm', async ({ page }) => {
@@ -147,7 +147,7 @@ test('donating a town project stage changes the world and adds charm', async ({ 
   await page.keyboard.press('Escape');
   await page.evaluate(() => (window as unknown as Win).__view.showTile(4, 17));
   await page.waitForTimeout(300);
-  await page.screenshot({ path: 'docs/screenshots/v2-02-town-project.png' });
+  await page.screenshot({ path: shot('v2-02-town-project.png') });
 });
 
 test('adopt a Siamese in the Decor tab: it naps by the door, and the brown tabby can come back', async ({
