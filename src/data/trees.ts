@@ -2,12 +2,12 @@
 // real calendar days, never wither, and bear fruit at each 06:00 refresh in their seasons, up to a cap
 // of FRUIT_CAP_DAYS bearing days' worth. Fruit and sapling items are generated in items.ts.
 
-import { FRUIT_CAP_DAYS } from './balance';
+import { FRUIT_CAP_DAYS, roundNice, SAPLING_PRICE_FACTOR } from './balance';
 import type { FruitId, TreeId } from './ids';
 import { treeOfFruit } from './ids';
 import type { TreeDef } from './types';
 
-type Row = Omit<TreeDef, 'id' | 'fruitCap'>;
+type Row = Omit<TreeDef, 'id' | 'fruitCap' | 'saplingPrice'>;
 
 const ROWS: Record<FruitId, Row> = {
   cherry: {
@@ -16,11 +16,10 @@ const ROWS: Record<FruitId, Row> = {
     plural: 'Cherries',
     description: 'Pink blossom in spring, then bright red fruit by the handful.',
     seasons: ['spring'],
-    saplingPrice: 6_000,
     matureDays: 3,
-    fruitPerDay: 10,
-    fruitPrice: 150,
-    xp: 10,
+    fruitPerDay: 40,
+    fruitPrice: 165,
+    xp: 11,
     shape: 'tall',
   },
   apricot: {
@@ -28,11 +27,10 @@ const ROWS: Record<FruitId, Row> = {
     name: 'Apricot',
     description: 'A sunny little tree that bears from spring into summer.',
     seasons: ['spring', 'summer'],
-    saplingPrice: 13_000,
     matureDays: 4,
-    fruitPerDay: 8,
-    fruitPrice: 210,
-    xp: 12,
+    fruitPerDay: 32,
+    fruitPrice: 270,
+    xp: 14,
     shape: 'spread',
   },
   peach: {
@@ -41,11 +39,10 @@ const ROWS: Record<FruitId, Row> = {
     plural: 'Peaches',
     description: 'Soft, blushing summer fruit on a wide, easy tree.',
     seasons: ['summer'],
-    saplingPrice: 8_300,
     matureDays: 4,
-    fruitPerDay: 8,
-    fruitPrice: 260,
-    xp: 14,
+    fruitPerDay: 32,
+    fruitPrice: 500,
+    xp: 21,
     shape: 'spread',
   },
   apple: {
@@ -53,11 +50,10 @@ const ROWS: Record<FruitId, Row> = {
     name: 'Apple',
     description: 'A sturdy tree for the long days of summer and autumn.',
     seasons: ['summer', 'autumn'],
-    saplingPrice: 14_000,
     matureDays: 5,
-    fruitPerDay: 10,
-    fruitPrice: 180,
-    xp: 11,
+    fruitPerDay: 44,
+    fruitPrice: 295,
+    xp: 15,
     shape: 'round',
   },
   pear: {
@@ -66,11 +62,10 @@ const ROWS: Record<FruitId, Row> = {
     plural: 'Pears',
     description: 'Golden autumn pears, heavy and sweet.',
     seasons: ['autumn'],
-    saplingPrice: 9_000,
     matureDays: 5,
-    fruitPerDay: 8,
-    fruitPrice: 280,
-    xp: 15,
+    fruitPerDay: 36,
+    fruitPrice: 470,
+    xp: 20,
     shape: 'round',
   },
   persimmon: {
@@ -78,11 +73,10 @@ const ROWS: Record<FruitId, Row> = {
     name: 'Persimmon',
     description: 'Orange lanterns that keep glowing into the first snow.',
     seasons: ['autumn', 'winter'],
-    saplingPrice: 20_000,
     matureDays: 6,
-    fruitPerDay: 7,
-    fruitPrice: 360,
-    xp: 17,
+    fruitPerDay: 32,
+    fruitPrice: 715,
+    xp: 26,
     shape: 'round',
   },
   lemon: {
@@ -90,17 +84,26 @@ const ROWS: Record<FruitId, Row> = {
     name: 'Lemon',
     description: 'Bright fruit in the dead of winter, and again as spring comes.',
     seasons: ['winter', 'spring'],
-    saplingPrice: 20_000,
     matureDays: 7,
-    fruitPerDay: 8,
-    fruitPrice: 320,
-    xp: 16,
+    fruitPerDay: 32,
+    fruitPrice: 700,
+    xp: 25,
     shape: 'tall',
   },
 };
 
+/** BALANCE.md §13.5: a sapling repays in about SAPLING_PRICE_FACTOR bearing days of each of its seasons. */
+export function saplingPriceOf(row: Pick<TreeDef, 'fruitPerDay' | 'fruitPrice' | 'seasons'>): number {
+  return roundNice(SAPLING_PRICE_FACTOR * row.fruitPerDay * row.fruitPrice * row.seasons.length);
+}
+
 function build(row: Row): TreeDef {
-  return { ...row, id: treeOfFruit(row.fruit), fruitCap: FRUIT_CAP_DAYS * row.fruitPerDay };
+  return {
+    ...row,
+    id: treeOfFruit(row.fruit),
+    saplingPrice: saplingPriceOf(row),
+    fruitCap: FRUIT_CAP_DAYS * row.fruitPerDay,
+  };
 }
 
 export const TREES: Readonly<Record<TreeId, TreeDef>> = Object.freeze(

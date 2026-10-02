@@ -114,6 +114,8 @@ const fmt = (x: number | null | undefined, digits = 0): string =>
     ? '–'
     : x.toLocaleString('en-US', { maximumFractionDigits: digits, minimumFractionDigits: digits });
 const pct = (x: number): string => `${Math.round(x * 100)}%`;
+/** A share to one decimal (for the bands a rounded percentage would hide). */
+const fmtShare = (x: number): string => `${(x * 100).toFixed(1)}%`;
 
 /**
  * Orchard gold as a share of the gold earned between real days `from` and `to` (BALANCE.md §13.10), median over seeds,
@@ -310,14 +312,16 @@ export function markdownReport(result: SimResult): string {
     lines.push(
       'Orchard income (gold from selling fruit; BALANCE.md §13.10), as gold per day and a share of the gold earned in the window (medians):',
       '',
-      '| Bot | days 7–14 | days 14–' + String(days) + ' |',
-      '|---|---|---|',
+      '| Bot | days 7–14 | days 14–21 (a full orchard) | days 14–' + String(days) + ' |',
+      '|---|---|---|---|',
     );
     for (const b of bots) {
       const w1 = orchardShare(runs[b]!, 7, 14);
+      const w3 = orchardShare(runs[b]!, 14, Math.min(21, days));
       const w2 = orchardShare(runs[b]!, 14, days);
+      const cell = (w: { perDay: number; share: number }): string => `${fmt(w.perDay)} · ${pct(w.share)}`;
       lines.push(
-        `| ${BOTS[b].name} | ${fmt(w1.perDay)} · ${pct(w1.share)} | ${days > 14 ? `${fmt(w2.perDay)} · ${pct(w2.share)}` : '–'} |`,
+        `| ${BOTS[b].name} | ${cell(w1)} | ${days > 14 ? cell(w3) : '–'} | ${days > 14 ? cell(w2) : '–'} |`,
       );
     }
     lines.push('');
@@ -430,17 +434,25 @@ export function tuningChecks(result: SimResult, sums: Map<BotId, BotSummary>): C
       ok: worst <= 3 && (!Number.isFinite(late) || late <= 3),
     });
   }
-  if (days >= 14) {
-    for (const b of ['farmer', 'active'] as const) {
-      if (!has(b) && !result.runs[b]) continue;
-      const w = orchardShare(result.runs[b]!, 7, 14);
-      out.push({
-        what: `${BOTS[b].name}: orchard income (days 7–14)`,
-        target: b === 'active' ? '≤ 15% of gold (side income)' : '≤ 5% of gold at day 14',
-        measured: `${pct(w.share)} (${fmt(w.perDay)} gold a day)`,
-        ok: w.share <= (b === 'active' ? 0.15 : 0.05),
-      });
-    }
+  if (days >= 21 && result.runs.farmer) {
+    // v2-05: a full orchard of 8 trees is worth 5–8% of a player's daily gold from day 14 (the Farmer's trees are all
+    // mature by day 12). Days 14–21 cover autumn and the first winter day, so three or more kinds bear.
+    const w = orchardShare(result.runs.farmer, 14, 21);
+    out.push({
+      what: `${BOTS.farmer.name}: orchard income (days 14–21, a full orchard)`,
+      target: '5%–8% of gold (a side income worth planting)',
+      measured: `${fmtShare(w.share)} (${fmt(w.perDay)} gold a day)`,
+      ok: w.share >= 0.05 && w.share <= 0.08,
+    });
+  }
+  if (days >= 14 && result.runs.active) {
+    const w = orchardShare(result.runs.active, 7, 14);
+    out.push({
+      what: `${BOTS.active.name}: orchard income (days 7–14)`,
+      target: '≤ 15% of gold (side income)',
+      measured: `${pct(w.share)} (${fmt(w.perDay)} gold a day)`,
+      ok: w.share <= 0.15,
+    });
   }
   if (days >= 14) {
     for (const b of ['farmer', 'active'] as const) {
@@ -465,8 +477,12 @@ export const SPEND_TARGETS: Readonly<
   active: { 1: [0.99, 1], 3: [0.97, 1], 7: [0.85, 0.95], 14: [0.55, 0.75], 21: [0.3, 0.55], 30: [0.05, 0.3] },
   farmer: { 1: [0.99, 1], 3: [0.9, 0.97], 7: [0.65, 0.85], 14: [0.3, 0.55], 21: [0.05, 0.3], 30: [0, 0.1] },
 };
-/** The leftover v1 content the wish lists skip, as a share of the catalogue: below this nothing is "still to buy". */
-export const SPEND_FLOOR = 0.02;
+/**
+ * What the bots never buy, as a share of the catalogue: below this nothing is "still to buy". The v1 content the wish
+ * lists skip (140–180k) and, since v2-05's fruit prices, the two saplings that only fit once the Orchard Basket adds
+ * its spots (a cherry and a lemon, 206,000): the bots end day 30 with 3.1–3.5% of the catalogue left (it was 2%).
+ */
+export const SPEND_FLOOR = 0.04;
 /** ±10 points around the target bands is fine. */
 export const SPEND_TOLERANCE = 0.1;
 
