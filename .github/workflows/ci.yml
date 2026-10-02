@@ -26,6 +26,7 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+      - run: npm run build:app
 
   # The browser tests run in their own job so unit results still show quickly (v2 phase 01).
   e2e:

@@ -1,4 +1,6 @@
 dist
+dist-app
+store-shots
 node_modules
 test-results
 playwright-report

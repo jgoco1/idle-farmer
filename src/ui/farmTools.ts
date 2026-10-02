@@ -147,11 +147,6 @@ export class FarmTools {
 
     document.addEventListener('keydown', (e) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      if (e.key === 'Escape' && !this.picker.hidden) {
-        e.preventDefault();
-        this.closePicker();
-        return;
-      }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const t = TOOLS.find((d) => d.key === e.key);
       if (t) this.select(t.tool);
@@ -247,6 +242,13 @@ export class FarmTools {
     (
       this.pickerList.querySelector<HTMLElement>('.is-selected') ?? this.pickerList.querySelector('button')
     )?.focus();
+  }
+
+  /** Closes the seed picker (the back order treats it like a modal); true if it was open. */
+  closePickerIfOpen(): boolean {
+    if (this.picker.hidden) return false;
+    this.closePicker();
+    return true;
   }
 
   private closePicker(): void {

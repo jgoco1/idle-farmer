@@ -64,6 +64,7 @@ export class FakeAudioContext {
   destination = new FakeNode('destination');
   nodes: FakeNode[] = [];
   resumed = 0;
+  suspended = 0;
   constructor() {
     FakeAudioContext.created++;
   }
@@ -80,6 +81,11 @@ export class FakeAudioContext {
   resume(): Promise<void> {
     this.resumed++;
     this.state = 'running';
+    return Promise.resolve();
+  }
+  suspend(): Promise<void> {
+    this.suspended++;
+    this.state = 'suspended';
     return Promise.resolve();
   }
   count(kind: string): number {

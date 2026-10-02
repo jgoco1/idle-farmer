@@ -9,18 +9,25 @@ export interface DebugDeps {
   game: Game;
   fps(): number;
   onOffline(report: ReturnType<Game['debugFakeOffline']>): void;
+  /** Turns the fake notch insets on or off (v3 phase 00); returns whether they are on. */
+  toggleInsets(): boolean;
 }
 
-export function installDebugOverlay({ game, fps, onOffline }: DebugDeps): void {
+export function installDebugOverlay({ game, fps, onOffline, toggleInsets }: DebugDeps): void {
   const stats = h('pre', { class: 'debug-stats' });
   const warp = h('button', { type: 'button', class: 'btn', text: 'Time warp ×60: off' });
   const offline = h('button', { type: 'button', class: 'btn', text: 'Fake 8 h offline' });
   const season = h('button', { type: 'button', class: 'btn', text: 'Next season' });
+  const insets = h('button', {
+    type: 'button',
+    class: 'btn',
+    text: `Fake notch: ${document.documentElement.dataset.fakeInsets === undefined ? 'off' : 'on'}`,
+  });
   const root = h(
     'div',
     { class: 'debug', hidden: true, 'aria-label': 'Debug overlay' },
     stats,
-    h('div', { class: 'btn-row' }, warp, offline, season),
+    h('div', { class: 'btn-row' }, warp, offline, season, insets),
   );
   document.body.append(root);
 
@@ -31,6 +38,10 @@ export function installDebugOverlay({ game, fps, onOffline }: DebugDeps): void {
   });
   offline.addEventListener('click', () => onOffline(game.debugFakeOffline(8 * HOUR_MS)));
   season.addEventListener('click', () => game.debugJumpToSeasonChange());
+  insets.addEventListener(
+    'click',
+    () => (insets.textContent = `Fake notch: ${toggleInsets() ? 'on' : 'off'}`),
+  );
 
   document.addEventListener('keydown', (e) => {
     if (e.key !== '`' || e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)

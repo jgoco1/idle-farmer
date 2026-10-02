@@ -765,6 +765,19 @@ Rules:
 - A save with a **newer** version than the code, or one that fails to parse, is never overwritten. The game shows an error and offers to export the raw text (phase 08 makes this screen friendly).
 - Export/import uses `btoa(JSON.stringify(saveFile))` with UTF-8 safe encoding.
 
+**Where saves live (v3 phase 00).** The save is written through the platform's storage (`src/platform/`): `localStorage` on the web, native storage in the shells. The game stays synchronous over an in-memory copy (`SyncStore` in `src/platform/store.ts`), loaded before the `Game` is created. Keys, all in the `SaveFile` format above (no `SAVE_VERSION` change):
+
+| Key | What |
+|---|---|
+| `hearthfield-idle/save` | the save |
+| `hearthfield-idle/save.bak` | the previous good save; `SaveSlots.write` moves the replaced save here when both validate |
+| `hearthfield-idle/save.bak2` … `.bak4` | native platforms only (`Platform.olderBackups`, up to 3): older backups, moved along at most once an hour |
+| `hearthfield-idle/save.bak-at` | when the older backups last moved (epoch ms) |
+| `hearthfield-idle/save-corrupt-backup` | a save that failed to load, kept when the player starts over or loads the backup |
+| `hearthfield-idle/prefs` | per-device preferences (`src/core/prefs.ts`), not a save |
+
+A save that fails to load offers the newest backup that loads, next to Download and Start a new farm.
+
 ---
 
 ## 9. v2: world, decorations, orchard and animals

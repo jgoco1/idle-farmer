@@ -1,5 +1,5 @@
 // The reusable panel: a parchment body in a wood frame with a title bar and a close button.
-// One panel is open at a time. ESC or the ✕ closes it; its toolbar button toggles it. Focus moves
+// One panel is open at a time. Back (Escape) or the ✕ closes it; its toolbar button toggles it. Focus moves
 // into the panel on open and back to whatever opened it on close.
 //
 // To add a panel: add its id to PanelId (src/data/ids.ts) and a PanelDef in src/ui/panels.ts.
@@ -36,14 +36,8 @@ export class PanelManager {
   private returnFocus: HTMLElement | null = null;
   private readonly listeners = new Set<(id: PanelId | null) => void>();
 
-  constructor(private readonly host: HTMLElement) {
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.openId && !e.defaultPrevented) {
-        e.preventDefault();
-        this.close();
-      }
-    });
-  }
+  // Escape closes the open panel through the back order (src/ui/back.ts, wired in main.ts).
+  constructor(private readonly host: HTMLElement) {}
 
   register(def: PanelDef): void {
     const titleId = `panel-title-${def.id}`;

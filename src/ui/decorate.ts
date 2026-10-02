@@ -111,14 +111,18 @@ export class DecorateMode {
     } else if (k === 'Delete' || k === 'Backspace' || k === 'x') {
       e.preventDefault();
       this.pickUp();
-    } else if (k === 'Escape') {
-      e.preventDefault();
-      if (this.holding !== null || this.selected) {
-        this.holding = null;
-        this.selected = null;
-        this.refresh(true);
-      } else this.stop();
     }
+  }
+
+  /** One step back (Escape, the back button): drop the piece in hand or the chosen one, else leave. False when off. */
+  back(): boolean {
+    if (!this.on) return false;
+    if (this.holding !== null || this.selected) {
+      this.holding = null;
+      this.selected = null;
+      this.refresh(true);
+    } else this.stop();
+    return true;
   }
 
   /** The piece the ghost shows: the one in hand, or the one chosen from the tray. */

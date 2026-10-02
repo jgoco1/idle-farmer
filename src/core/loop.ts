@@ -1,6 +1,6 @@
 // The fixed-timestep simulation loop. Simulation advances in TICK_MS steps (10 per second),
-// independent of the frame rate; rendering runs on requestAnimationFrame. The loop pauses when the
-// tab is hidden and, when it becomes visible again, catches up with the offline logic.
+// independent of the frame rate; rendering runs on requestAnimationFrame. The platform's pause and
+// resume (src/platform/) stop the loop and, when the app is back, catch up with the offline logic.
 
 import type { Game } from './game';
 import type { OfflineReport } from './offline';
@@ -35,22 +35,31 @@ export class FixedStepper {
 
 export interface LoopHooks {
   render(frameDtMs: number): void;
-  /** Called after a hidden tab (or a long frame gap) has been caught up. */
+  /** Called after a pause (or a long frame gap) has been caught up. */
   onResume?(report: OfflineReport): void;
-  /** Called when the tab is hidden, before the loop pauses. */
-  onHide?(): void;
 }
 
 export interface LoopHandle {
   stop(): void;
+  /**
+   * The app went to the background (the platform's onPause): stop drawing and stepping, and note
+   * when, so `resume` can catch up with the offline logic. Safe to call twice.
+   */
+  pause(): void;
+  /** Back in front: catch up the time since `pause` exactly as returning to the tab always has, then draw again. */
+  resume(): void;
+  readonly paused: boolean;
   readonly fps: number;
 }
 
-/** Starts the browser loop. Real time for offline catch-up comes from `game.now()`. */
+/**
+ * Starts the browser loop. Real time for offline catch-up comes from `game.now()`. Pausing is
+ * explicit (v3 phase 00): main.ts calls `pause` and `resume` from the platform's lifecycle events.
+ */
 export function startLoop(game: Game, hooks: LoopHooks): LoopHandle {
   let raf = 0;
   let last = performance.now();
-  let hiddenAt: number | null = null;
+  let pausedAt: number | null = null;
   let fps = 0;
   let fpsFrames = 0;
   let fpsStart = last;
@@ -74,28 +83,28 @@ export function startLoop(game: Game, hooks: LoopHooks): LoopHandle {
     raf = requestAnimationFrame(frame);
   };
 
-  const onVisibility = (): void => {
-    if (document.hidden) {
-      if (hiddenAt !== null) return;
-      hiddenAt = game.now();
-      cancelAnimationFrame(raf);
-      hooks.onHide?.();
-    } else if (hiddenAt !== null) {
-      const from = hiddenAt;
-      hiddenAt = null;
-      hooks.onResume?.(game.catchUp(from, game.now()));
-      last = performance.now();
-      raf = requestAnimationFrame(frame);
-    }
-  };
-
-  document.addEventListener('visibilitychange', onVisibility);
   raf = requestAnimationFrame(frame);
 
   return {
     stop() {
       cancelAnimationFrame(raf);
-      document.removeEventListener('visibilitychange', onVisibility);
+    },
+    pause() {
+      if (pausedAt !== null) return;
+      pausedAt = game.now();
+      cancelAnimationFrame(raf);
+    },
+    resume() {
+      if (pausedAt === null) return;
+      const from = pausedAt;
+      pausedAt = null;
+      hooks.onResume?.(game.catchUp(from, game.now()));
+      last = performance.now();
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(frame);
+    },
+    get paused() {
+      return pausedAt !== null;
     },
     get fps() {
       return fps;

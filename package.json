@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:app": "tsc --noEmit && vite build --mode app",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && prettier --check .",
@@ -14,7 +15,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
-    "simulate": "rolldown scripts/simulate.ts --platform node --format esm --log-level warn -o scripts/out/simulate.mjs && node scripts/out/simulate.mjs"
+    "simulate": "rolldown scripts/simulate.ts --platform node --format esm --log-level warn -o scripts/out/simulate.mjs && node scripts/out/simulate.mjs",
+    "icons": "rolldown scripts/make-icons.ts --platform node --format esm --log-level warn --external @playwright/test -o scripts/out/make-icons.mjs && node scripts/out/make-icons.mjs",
+    "demo-save": "rolldown scripts/make-demo-save.ts --platform node --format esm --log-level warn -o scripts/out/make-demo-save.mjs && node scripts/out/make-demo-save.mjs && prettier --write --log-level warn tests/fixtures/store-demo.json",
+    "shots:store": "playwright test --config playwright.store.config.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

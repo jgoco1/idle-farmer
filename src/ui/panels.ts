@@ -39,6 +39,10 @@ export interface SettingsHooks {
   getRelaxedFishing(): boolean;
   setRelaxedFishing(on: boolean): void;
   exportSave(): string;
+  /** Hands the exported save to the player as a file (a download on the web; v3 phase 00). */
+  downloadSave(): void;
+  /** Saves, then quits the app; null where quitting isn't a thing (web, iOS). */
+  quit: (() => void) | null;
   /** Returns an error message, or null when the save was imported. */
   importSave(text: string): string | null;
   hardReset(): void;
@@ -154,6 +158,8 @@ export function settingsPanel(hooks: SettingsHooks): PanelDef {
       });
       const exportBtn = h('button', { type: 'button', class: 'btn', text: 'Export save' });
       const copyBtn = h('button', { type: 'button', class: 'btn', text: 'Copy', hidden: true });
+      const downloadBtn = h('button', { type: 'button', class: 'btn', text: 'Save to a file' });
+      downloadBtn.addEventListener('click', () => hooks.downloadSave());
       exportBtn.addEventListener('click', () => {
         exportBox.value = hooks.exportSave();
         exportBox.hidden = false;
@@ -236,7 +242,7 @@ export function settingsPanel(hooks: SettingsHooks): PanelDef {
         h('div', { class: 'btn-row' }, replay),
         glossary,
         h('h3', { text: 'Your save' }),
-        h('div', { class: 'btn-row' }, exportBtn, copyBtn),
+        h('div', { class: 'btn-row' }, exportBtn, copyBtn, downloadBtn),
         exportBox,
         importBox,
         h('div', { class: 'btn-row' }, importBtn),
@@ -245,6 +251,12 @@ export function settingsPanel(hooks: SettingsHooks): PanelDef {
         h('div', { class: 'btn-row' }, resetBtn),
         confirmRow,
       );
+      const quit = hooks.quit;
+      if (quit) {
+        const quitBtn = h('button', { type: 'button', class: 'btn', text: 'Save and quit' });
+        quitBtn.addEventListener('click', () => quit());
+        body.append(h('h3', { text: 'Quit' }), h('div', { class: 'btn-row' }, quitBtn));
+      }
 
       return {
         refresh() {

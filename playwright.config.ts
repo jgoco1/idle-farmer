@@ -24,6 +24,9 @@ export default defineConfig({
       ],
     },
     launchOptions: executablePath ? { executablePath } : {},
+    // The Pages build registers a service worker (v3 phase 00). Specs block it so every test loads from the
+    // server and measures the same page; e2e/platform.spec.ts allows it for the offline test.
+    serviceWorkers: 'block',
   },
   // The perf spec measures frame time, allocation and a load-time catch-up, all of which move with machine load,
   // so it runs by itself, after every other spec has finished (one worker, nothing else busy).

@@ -64,6 +64,19 @@ export class AudioEngine {
     return true;
   }
 
+  /** The app went to the background (v3 phase 00): stop the audio clock. `unlock` (the next gesture) resumes it. */
+  suspend(): void {
+    if (this.ctx && this.ctx.state === 'running') void this.ctx.suspend().catch(() => undefined);
+  }
+
+  /**
+   * Back in front: try to resume at once (desktop browsers allow it for a context that already ran);
+   * where the platform insists on a gesture (mobile), the next one resumes it through `unlockOnFirstGesture`.
+   */
+  tryResume(): void {
+    if (this.ctx && this.ctx.state === 'suspended') void this.ctx.resume().catch(() => undefined);
+  }
+
   /** Runs `fn` once the context exists (immediately if it already does). */
   whenReady(fn: () => void): void {
     if (this.ctx) fn();
