@@ -245,7 +245,7 @@ function buffPriority(style: Style, s: GameState, type: BuffType): number {
     case 'growth':
       return 5;
     case 'automationSpeed':
-      return upgradeLevel(s, 'farmhand') > 0 ? 4 : 0;
+      return upgradeLevel(s, 'farmhand') > 0 || s.ranch.animals.length > 0 ? 4 : 0;
     case 'xp':
       return 2;
     case 'fishingLuck':

@@ -247,6 +247,8 @@ export interface BuffDef {
     | 'cookSpeedModifier'
     | 'automationSpeedModifier'
     | 'xpModifier';
+  /** A second modifier it also drives (v2-05: Busy Bees also speeds the animals' production cycles). */
+  alsoSeam?: 'animalSpeedModifier';
   /** Luck is additive (+0.10); every other buff is a percentage. */
   additive: boolean;
   icon: string; // sprite id

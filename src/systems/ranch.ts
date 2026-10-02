@@ -419,6 +419,22 @@ export function fillTrough(state: GameState, ctx: SimContext, buildingId: number
 // ---- production
 
 /**
+ * One production cycle in whole simulated ms: the animal's interval, shortened by Busy Bees
+ * (`animalSpeedModifier`, v2-05). The modifier only changes when a buff starts or ends, and buff
+ * expiry is a step boundary, so the interval is fixed within a step and big steps equal small ones.
+ */
+export function cycleMsOf(def: AnimalDef, speed: number): number {
+  const base = def.intervalSec * 1000;
+  return speed > 1 ? Math.max(1, Math.round(base / speed)) : base;
+}
+
+/** Simulated ms until a housing building's next production cycle, at today's speed (for the panel and labels). */
+export function msToNextProduct(data: GameData, b: BuildingState, speed: number): number {
+  const def = animalDefOf(data, b);
+  return def ? Math.max(0, cycleMsOf(def, speed) - b.cycleMs) : 0;
+}
+
+/**
  * Advances every housing building by `dtMs` of simulated time: whole cycles are run in order (see the
  * file header). A building with no animals keeps its cycle at zero. Events are batched per building.
  */
@@ -434,7 +450,7 @@ export function tickRanch(state: GameState, ctx: SimContext, dtMs: number): void
       b.cycleMs = 0;
       continue;
     }
-    const interval = animalDef.intervalSec * 1000;
+    const interval = cycleMsOf(animalDef, ctx.mods.animalSpeedModifier);
     const total = b.cycleMs + dtMs;
     const cycles = Math.floor(total / interval);
     b.cycleMs = total % interval;

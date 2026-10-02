@@ -21,6 +21,7 @@ import {
   hasCollector,
   levelDef,
   MAX_NAME_LENGTH,
+  msToNextProduct,
   storeCount,
   storeSize,
   troughSize,
@@ -56,7 +57,7 @@ function productionLine(hooks: RanchHooks, b: BuildingState): string {
   if (b.trough <= 0) {
     return `The ${animal.plural.toLowerCase()} would love some feed. Fill the trough and they will get going.`;
   }
-  const left = animal.intervalSec * 1000 - b.cycleMs;
+  const left = msToNextProduct(hooks.data, b, hooks.mods().animalSpeedModifier);
   return `Next ${noun} in ${formatDuration(left)} · ${n} ${n === 1 ? animal.name.toLowerCase() : animal.plural.toLowerCase()} fed from the trough (${def.name.toLowerCase()})`;
 }
 

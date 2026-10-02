@@ -14,6 +14,7 @@ export interface Modifiers {
   fishingSpeedModifier: number; // × bite and trap speed  (phase 05 seam)
   cookSpeedModifier: number; // × cooking speed          (phase 06 seam)
   automationSpeedModifier: number; // × farmhand/planter speed (phase 04 seam)
+  animalSpeedModifier: number; // × animal production speed (v2-05 seam: Busy Bees)
   xpModifier: number; // × XP gained                     (phase 06 buff; read by 07)
   dishSellBonus: number; // additive on dish prices       (season effect 06, Cooking perks 07)
   cookingXpBonus: number; // additive on Cooking XP       (season effect, read by 07)
@@ -33,6 +34,7 @@ export const NO_MODIFIERS: Readonly<Modifiers> = Object.freeze({
   fishingSpeedModifier: 1,
   cookSpeedModifier: 1,
   automationSpeedModifier: 1,
+  animalSpeedModifier: 1,
   xpModifier: 1,
   dishSellBonus: 0,
   cookingXpBonus: 0,
@@ -64,6 +66,7 @@ export function computeModifiers(state: GameState, data: GameData, season?: Seas
     fishingSpeedModifier: 1,
     cookSpeedModifier: 1 + (kitchen?.cookSpeed ?? 0) + perks.cookSpeed,
     automationSpeedModifier: 1,
+    animalSpeedModifier: 1,
     xpModifier: 1,
     dishSellBonus: (effects.dishSellBonus ?? 0) + perks.dishSell,
     cookingXpBonus: effects.cookingXpBonus ?? 0,
@@ -77,8 +80,9 @@ export function computeModifiers(state: GameState, data: GameData, season?: Seas
   };
   // This runs every simulation step, so buffs are folded in one pass rather than looked up per type.
   for (const b of state.buffs.active) {
-    const seam = data.buffs[b.type].seam;
-    mods[seam] += b.magnitude;
+    const def = data.buffs[b.type];
+    mods[def.seam] += b.magnitude;
+    if (def.alsoSeam) mods[def.alsoSeam] += b.magnitude;
   }
   return mods;
 }

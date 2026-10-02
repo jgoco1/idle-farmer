@@ -37,6 +37,8 @@ import {
   buildBuilding,
   buyAnimal,
   collectBuilding,
+  cycleMsOf,
+  msToNextProduct,
   levelDef,
   productXp,
   ranchPickup,
@@ -1027,6 +1029,75 @@ describe('bundle, goals, town projects and unlocks', () => {
 function buildBuildingOk(s: GameState): boolean {
   return buildBuilding(s, ctxFor(s), 'barn', SPOTS.barn.col, SPOTS.barn.row).ok;
 }
+
+describe('Busy Bees speeds the animals (v2-05, the animalSpeedModifier seam)', () => {
+  function bees(s: GameState, tier: 1 | 2 | 3 | 4, remainingMs: number): void {
+    s.buffs.active.push({
+      type: 'automationSpeed',
+      magnitude: 0.1 * tier,
+      tier,
+      remainingMs,
+      source: 'soft_cheese',
+    });
+  }
+
+  it('the buff drives both the farmhand and the animal seam; nothing else does', async () => {
+    const { computeModifiers } = await import('../src/systems/modifiers');
+    const s = farm();
+    expect(computeModifiers(s, GAME_DATA).animalSpeedModifier).toBe(1);
+    bees(s, 2, HOUR);
+    const m = computeModifiers(s, GAME_DATA);
+    expect(m.automationSpeedModifier).toBeCloseTo(1.2);
+    expect(m.animalSpeedModifier).toBeCloseTo(1.2);
+  });
+
+  it('cycles are whole ms, shortened by the modifier', () => {
+    expect(cycleMsOf(ANIMALS.chicken, 1)).toBe(1_800_000);
+    expect(cycleMsOf(ANIMALS.chicken, 1.2)).toBe(1_500_000);
+    expect(cycleMsOf(ANIMALS.cow, 1.3)).toBe(Math.round(2_400_000 / 1.3));
+    expect(Number.isInteger(cycleMsOf(ANIMALS.cow, 1.3))).toBe(true);
+  });
+
+  it('a T2 Busy Bees buff lays a fifth more eggs in the same time', () => {
+    const plain = farm();
+    coopWith(plain, 4, 2);
+    const fast = structuredClone(plain);
+    bees(fast, 2, 10 * HOUR);
+    step(plain, ctxFor(plain, NOON, [], QUIET), 3 * HOUR);
+    step(fast, ctxFor(fast, NOON, [], QUIET), 3 * HOUR);
+    expect(storeCount(plain.ranch.buildings[0]!)).toBe(4 * 6);
+    expect(storeCount(fast.ranch.buildings[0]!)).toBe(4 * 7); // 3 h / 25 min = 7.2 cycles
+  });
+
+  it('offline equivalence holds while the buff runs out part-way: one big step equals many small ones', () => {
+    const big = farm();
+    coopWith(big, 6, 2);
+    build(big, 'barn', 2);
+    addAnimals(big, 'cow', 3);
+    big.ranch.buildings[1]!.trough = 40;
+    bees(big, 3, 95 * MIN + 7_777); // expires mid-cycle
+    const small = structuredClone(big);
+    step(big, ctxFor(big, NOON, [], QUIET), 7 * HOUR);
+    const ctx = ctxFor(small, NOON, [], QUIET);
+    const steps = [1, 13 * MIN, 1_499_999, 77, 31 * MIN + 3];
+    let left = 7 * HOUR;
+    for (let i = 0; left > 0; i++) {
+      const d = Math.min(left, steps[i % steps.length]!);
+      step(small, ctx, d);
+      left -= d;
+    }
+    expect(settled(big)).toEqual(settled(small));
+    expect(big.buffs.active).toHaveLength(0);
+  });
+
+  it('the panel and labels count down to the next product at the buffed speed', () => {
+    const s = farm();
+    const coop = coopWith(s, 1);
+    coop.cycleMs = 10 * MIN;
+    expect(msToNextProduct(GAME_DATA, coop, 1)).toBe(20 * MIN);
+    expect(msToNextProduct(GAME_DATA, coop, 1.2)).toBe(15 * MIN);
+  });
+});
 
 describe('the ranch does not touch anything else', () => {
   it('feeds no modifier: computeModifiers is the same with a full ranch', async () => {

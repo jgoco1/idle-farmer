@@ -63,9 +63,10 @@ export const BUFFS: Readonly<Record<BuffType, BuffDef>> = Object.freeze({
   automationSpeed: {
     type: 'automationSpeed',
     name: 'Busy Bees',
-    description: 'The farmhand and planter work {pct} faster.',
+    description: 'The farmhand, the planter and the animals work {pct} faster.',
     magnitudeScale: 1,
     seam: 'automationSpeedModifier',
+    alsoSeam: 'animalSpeedModifier',
     additive: false,
     icon: 'buff_automationSpeed',
   },

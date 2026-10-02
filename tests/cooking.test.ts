@@ -361,10 +361,13 @@ describe('each buff drives its seam', () => {
       giveBuff(s, type, 2, MIN);
       const mods = computeModifiers(s, GAME_DATA);
       const bonus = buffMagnitude(GAME_DATA, type, 2);
+      const also = GAME_DATA.buffs[type].alsoSeam;
       const rest = { ...mods, [seam(type)]: NO_MODIFIERS[seam(type)] };
+      if (also) rest[also] = NO_MODIFIERS[also];
       expect(rest, type).toEqual(NO_MODIFIERS); // nothing else moved
       const expected = type === 'fishingLuck' ? bonus : 1 + bonus;
       expect(mods[seam(type)], type).toBeCloseTo(expected, 10);
+      if (also) expect(mods[also], type).toBeCloseTo(expected, 10); // Busy Bees also speeds the animals (v2-05)
     }
   });
 
