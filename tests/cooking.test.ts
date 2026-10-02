@@ -176,15 +176,15 @@ describe('recipe data (phase 06)', () => {
 });
 
 describe('buff strength and duration', () => {
-  it('magnitude is 10% × tier × the type scale', () => {
+  it('magnitude is 13% × tier × the type scale (v2-05; was 10%)', () => {
     const table: Record<BuffType, number[]> = {
-      growth: [0.1, 0.2, 0.3, 0.4],
-      sellPrice: [0.05, 0.1, 0.15, 0.2],
-      fishingLuck: [0.1, 0.2, 0.3, 0.4],
-      fishingSpeed: [0.1, 0.2, 0.3, 0.4],
-      cookSpeed: [0.15, 0.3, 0.45, 0.6],
-      automationSpeed: [0.1, 0.2, 0.3, 0.4],
-      xp: [0.15, 0.3, 0.45, 0.6],
+      growth: [0.13, 0.26, 0.39, 0.52],
+      sellPrice: [0.065, 0.13, 0.195, 0.26],
+      fishingLuck: [0.13, 0.26, 0.39, 0.52],
+      fishingSpeed: [0.13, 0.26, 0.39, 0.52],
+      cookSpeed: [0.195, 0.39, 0.585, 0.78],
+      automationSpeed: [0.13, 0.26, 0.39, 0.52],
+      xp: [0.195, 0.39, 0.585, 0.78],
     };
     for (const type of BUFF_TYPES) {
       for (const tier of [1, 2, 3, 4] as const) {
@@ -196,11 +196,11 @@ describe('buff strength and duration', () => {
     }
   });
 
-  it('duration is 15 minutes × 3^(tier − 1), and a hearty dish lasts 50% longer', () => {
-    // Phase 09 (was 6 min × 2^(tier − 1)): a T4 dish eaten before bed lasts most of the night.
-    expect([1, 2, 3, 4].map((t) => buffDurationMs(t as RecipeTier, false) / MIN)).toEqual([15, 45, 135, 405]);
+  it('duration is 25 minutes × 3^(tier − 1), and a hearty dish lasts 50% longer', () => {
+    // Phase 09 (was 6 min × 2^(tier − 1)): a T4 dish eaten before bed lasts most of the night. v2-05: 25 min (was 15).
+    expect([1, 2, 3, 4].map((t) => buffDurationMs(t as RecipeTier, false) / MIN)).toEqual([25, 75, 225, 675]);
     expect([1, 2, 3, 4].map((t) => buffDurationMs(t as RecipeTier, true) / MIN)).toEqual([
-      22.5, 67.5, 202.5, 607.5,
+      37.5, 112.5, 337.5, 1012.5,
     ]);
     expect(HEARTY_DURATION_BONUS).toBe(0.5);
   });
@@ -212,7 +212,7 @@ describe('buff strength and duration', () => {
     const s = farm();
     giveBuff(s, 'growth', 2, 4 * MIN + 30_000);
     expect(buffTooltip(GAME_DATA, s.buffs.active[0]!)).toBe(
-      'Green Thumb (tier 2)\nCrops grow 20% faster.\n4:30 left · from Roasted Turnip',
+      'Green Thumb (tier 2)\nCrops grow 26% faster.\n4:30 left · from Roasted Turnip',
     );
   });
 });
@@ -225,7 +225,7 @@ describe('eating and stacking', () => {
     expect(eatDish(s, ctxAt(s, NOON, events), 'roasted_turnip', undefined, false)).toEqual({ ok: true });
     expect(countItem(s.inventory, 'roasted_turnip')).toBe(1);
     expect(s.buffs.active).toEqual([
-      { type: 'growth', magnitude: 0.1, tier: 1, remainingMs: 15 * MIN, source: 'roasted_turnip' },
+      { type: 'growth', magnitude: 0.13, tier: 1, remainingMs: 25 * MIN, source: 'roasted_turnip' },
     ]);
     expect(s.stats.dishesEaten).toBe(1);
     expect(events.map((e) => e.type)).toEqual(['buffStarted', 'ate']);
@@ -248,7 +248,7 @@ describe('eating and stacking', () => {
     addItem(s.inventory, 'vegetable_soup', 1, true);
     expect(s.inventory.slots.filter((x) => x?.item === 'vegetable_soup')).toHaveLength(2);
     expect(eatDish(s, ctxAt(s), 'vegetable_soup', true, false).ok).toBe(true);
-    expect(s.buffs.active[0]!.remainingMs).toBe(67.5 * MIN); // T2: 45 min, +50%
+    expect(s.buffs.active[0]!.remainingMs).toBe(112.5 * MIN); // T2: 75 min, +50%
     expect(countItem(s.inventory, 'vegetable_soup', true)).toBe(0);
     expect(countItem(s.inventory, 'vegetable_soup', false)).toBe(1);
   });
@@ -257,7 +257,7 @@ describe('eating and stacking', () => {
     const s = farm();
     addItem(s.inventory, 'roasted_turnip', 1, true);
     expect(eatDish(s, ctxAt(s), 'roasted_turnip', undefined, false).ok).toBe(true);
-    expect(s.buffs.active[0]!.remainingMs).toBe(22.5 * MIN); // only a hearty one was there
+    expect(s.buffs.active[0]!.remainingMs).toBe(37.5 * MIN); // only a hearty one was there
     addItem(s.inventory, 'baked_potato', 1);
     addItem(s.inventory, 'baked_potato', 1, true);
     eatDish(s, ctxAt(s), 'baked_potato', undefined, false);
@@ -266,26 +266,26 @@ describe('eating and stacking', () => {
 
   it('eating the same type keeps the stronger magnitude and the longer time, never weakening or shortening', () => {
     const s = farm();
-    giveBuff(s, 'growth', 3, 60 * MIN); // +30%, 60 min left
-    addItem(s.inventory, 'roasted_turnip', 1); // T1: +10% for 15 min
+    giveBuff(s, 'growth', 3, 90 * MIN); // +39%, 90 min left
+    addItem(s.inventory, 'roasted_turnip', 1); // T1: +13% for 25 min
     eatDish(s, ctxAt(s), 'roasted_turnip', undefined, false);
     expect(s.buffs.active).toHaveLength(1);
-    expect(s.buffs.active[0]!.magnitude).toBeCloseTo(0.3, 10);
-    expect(s.buffs.active[0]!.remainingMs).toBe(60 * MIN);
+    expect(s.buffs.active[0]!.magnitude).toBeCloseTo(0.39, 10);
+    expect(s.buffs.active[0]!.remainingMs).toBe(90 * MIN);
     expect(s.buffs.active[0]!.tier).toBe(3);
 
     // A stronger dish raises the magnitude and refreshes the time to the longer of the two.
-    addItem(s.inventory, 'vegetable_soup', 1); // T2 growth: +20% for 45 min, weaker and shorter
+    addItem(s.inventory, 'vegetable_soup', 1); // T2 growth: +26% for 75 min, weaker and shorter
     eatDish(s, ctxAt(s), 'vegetable_soup', undefined, false);
-    expect(s.buffs.active[0]!.magnitude).toBeCloseTo(0.3, 10);
-    expect(s.buffs.active[0]!.remainingMs).toBe(60 * MIN);
+    expect(s.buffs.active[0]!.magnitude).toBeCloseTo(0.39, 10);
+    expect(s.buffs.active[0]!.remainingMs).toBe(90 * MIN);
 
     const t = farm();
     giveBuff(t, 'growth', 1, 2 * MIN);
     addItem(t.inventory, 'vegetable_soup', 1);
     eatDish(t, ctxAt(t), 'vegetable_soup', undefined, false);
-    expect(t.buffs.active[0]!.magnitude).toBeCloseTo(0.2, 10);
-    expect(t.buffs.active[0]!.remainingMs).toBe(45 * MIN);
+    expect(t.buffs.active[0]!.magnitude).toBeCloseTo(0.26, 10);
+    expect(t.buffs.active[0]!.remainingMs).toBe(75 * MIN);
     expect(t.buffs.active[0]!.source).toBe('vegetable_soup');
   });
 
@@ -378,28 +378,28 @@ describe('each buff drives its seam', () => {
     plot.crop = 'turnip';
     plot.waterMsLeft = 60 * MIN;
     const before = structuredClone(s);
-    giveBuff(s, 'growth', 4, 60 * MIN); // +40%
+    giveBuff(s, 'growth', 4, 60 * MIN); // +52%
     step(s, ctxAt(s), 30_000); // a turnip takes 2 minutes, so stay well short of ripe
     step(before, ctxAt(before), 30_000);
     expect(plot.growthMs).toBeGreaterThan(before.farm.plots[0]!.growthMs);
-    expect(plot.growthMs / before.farm.plots[0]!.growthMs).toBeCloseTo(1.4, 2);
+    expect(plot.growthMs / before.farm.plots[0]!.growthMs).toBeCloseTo(1.52, 2);
   });
 
   it('Silver Tongue raises what things sell for', () => {
     const s = farm();
     addItem(s.inventory, 'potato', 1);
     const plain = unitPrice(s, GAME_DATA, computeModifiers(s, GAME_DATA), 'potato');
-    giveBuff(s, 'sellPrice', 4, MIN); // +20%
+    giveBuff(s, 'sellPrice', 4, MIN); // +26%
     const boosted = unitPrice(s, GAME_DATA, computeModifiers(s, GAME_DATA), 'potato');
-    expect(boosted).toBe(Math.floor(GAME_DATA.items.potato!.basePrice * 1.2 * 0.9));
+    expect(boosted).toBe(Math.floor(GAME_DATA.items.potato!.basePrice * 1.26 * 0.9));
     expect(boosted).toBeGreaterThan(plain);
   });
 
   it("Angler's Luck adds luck on top of the rod's", () => {
     const s = farm();
     s.upgrades.fishing_rod = 1; // +0.05
-    giveBuff(s, 'fishingLuck', 3, MIN); // +0.30
-    expect(computeModifiers(s, GAME_DATA).fishingLuckModifier).toBeCloseTo(0.35, 10);
+    giveBuff(s, 'fishingLuck', 3, MIN); // +0.39
+    expect(computeModifiers(s, GAME_DATA).fishingLuckModifier).toBeCloseTo(0.44, 10);
   });
 
   it('Quick Bite makes traps roll faster', () => {
@@ -407,36 +407,36 @@ describe('each buff drives its seam', () => {
       const s = farm(5);
       s.upgrades.fish_trap = 1;
       s.fishing.traps.push({ id: 1, location: 'pond', slot: 0, progressMs: 0, contents: [] });
-      if (buffed) giveBuff(s, 'fishingSpeed', 4, 60 * MIN); // +40%
+      if (buffed) giveBuff(s, 'fishingSpeed', 4, 60 * MIN); // +52%
       tickTraps(s, ctxAt(s), TRAP_INTERVAL_MS * 0.5);
       return s.fishing.traps[0]!.progressMs;
     };
-    expect(roll(true)).toBe(Math.round(TRAP_INTERVAL_MS * 0.5 * 1.4));
+    expect(roll(true)).toBe(Math.round(TRAP_INTERVAL_MS * 0.5 * 1.52));
     expect(roll(false)).toBe(Math.round(TRAP_INTERVAL_MS * 0.5));
   });
 
   it('Quick Hands cooks dishes faster, on top of the kitchen upgrade', () => {
     const s = farm();
-    giveBuff(s, 'cookSpeed', 4, 60 * MIN); // +60%
+    giveBuff(s, 'cookSpeed', 4, 60 * MIN); // +78%
     s.upgrades.kitchen = 1; // +15%
-    expect(computeModifiers(s, GAME_DATA).cookSpeedModifier).toBeCloseTo(1.75, 10);
-    expect(cookMs(RECIPES.roasted_turnip, 1.75)).toBe(Math.ceil(30_000 / 1.75));
+    expect(computeModifiers(s, GAME_DATA).cookSpeedModifier).toBeCloseTo(1.93, 10);
+    expect(cookMs(RECIPES.roasted_turnip, 1.93)).toBe(Math.ceil(30_000 / 1.93));
   });
 
   it('Busy Bees speeds up the farmhand', () => {
     const s = farm();
     s.upgrades.farmhand = 1;
     const slow = farmhandStats(s, ctxAt(s))!.intervalMs;
-    giveBuff(s, 'automationSpeed', 4, MIN); // +40%
+    giveBuff(s, 'automationSpeed', 4, MIN); // +52%
     const fast = farmhandStats(s, ctxAt(s))!.intervalMs;
     expect(slow).toBe(30_000);
-    expect(fast).toBe(Math.round(30_000 / 1.4));
+    expect(fast).toBe(Math.round(30_000 / 1.52));
   });
 
   it("Scholar's Snack raises the xpModifier stub", () => {
     const s = farm();
-    giveBuff(s, 'xp', 2, MIN); // +30%
-    expect(computeModifiers(s, GAME_DATA).xpModifier).toBeCloseTo(1.3, 10);
+    giveBuff(s, 'xp', 2, MIN); // +39%
+    expect(computeModifiers(s, GAME_DATA).xpModifier).toBeCloseTo(1.39, 10);
   });
 });
 
@@ -464,17 +464,17 @@ describe('buffs and offline time', () => {
 
   it('a growth buff that runs out 20 minutes into an 8 hour absence only boosts those 20 minutes', () => {
     const s = dryTurnip();
-    giveBuff(s, 'growth', 4, 20 * MIN); // +40%
+    giveBuff(s, 'growth', 4, 20 * MIN); // +52%
     const report = runOffline(s, SLOW, NY, NOON, NOON + 8 * HOUR);
     expect(report.simulatedMs).toBe(8 * HOUR);
     expect(s.buffs.active).toEqual([]);
     expect(report.events.filter((e) => e.type === 'buffExpired')).toHaveLength(1);
-    // 20 min at 0.5 × 1.4, then 460 min at 0.5.
-    const expected = 20 * MIN * 0.7 + 460 * MIN * 0.5;
+    // 20 min at 0.5 × 1.52, then 460 min at 0.5.
+    const expected = 20 * MIN * 0.76 + 460 * MIN * 0.5;
     expect(s.farm.plots[0]!.growthMs).toBeGreaterThan(expected - 5);
     expect(s.farm.plots[0]!.growthMs).toBeLessThan(expected + 5);
-    // Not the 336 minutes an unsplit step would have given the whole absence.
-    expect(s.farm.plots[0]!.growthMs).toBeLessThan(8 * 60 * MIN * 0.7 - HOUR);
+    // Not the 365 minutes an unsplit step would have given the whole absence.
+    expect(s.farm.plots[0]!.growthMs).toBeLessThan(8 * 60 * MIN * 0.76 - HOUR);
   });
 
   it('one large step gives the same growth as many small ones', () => {
@@ -599,13 +599,13 @@ describe('cooking', () => {
     const s = farm();
     stock(s, 'vegetable_soup');
     s.kitchen.known.push('vegetable_soup');
-    giveBuff(s, 'cookSpeed', 4, 30_000); // +60% for 30 s of a 60 s dish
+    giveBuff(s, 'cookSpeed', 4, 30_000); // +78% for 30 s of a 60 s dish
     startCooking(s, ctxAt(s), 'vegetable_soup');
-    // 30 s at ×1.6 = 48 s of work, the last 12 s at ×1.
+    // 30 s at ×1.78 = 53.4 s of work, the last 6.6 s at ×1.
     step(s, ctxAt(s), 30_000);
-    expect(s.kitchen.queue[0]!.remainingMs).toBe(12_000);
+    expect(s.kitchen.queue[0]!.remainingMs).toBe(6_600);
     expect(s.buffs.active).toEqual([]);
-    step(s, ctxAt(s), 11_999);
+    step(s, ctxAt(s), 6_599);
     expect(countItem(s.inventory, 'vegetable_soup')).toBe(0);
     step(s, ctxAt(s), 1);
     expect(countItem(s.inventory, 'vegetable_soup')).toBe(1);

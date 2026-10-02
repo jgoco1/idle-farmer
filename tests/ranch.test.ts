@@ -917,9 +917,10 @@ describe('recipes (BALANCE.md §13.8)', () => {
     expect(row('fried_egg')).toEqual([1, 225, 'cookSpeed', 30, 'milestone']);
     expect(row('soft_cheese')).toEqual([2, 672, 'automationSpeed', 60, 'milestone']);
     expect(row('garden_omelette')).toEqual([2, 374, 'fishingSpeed', 45, 'experiment']);
-    expect(row('apricot_custard')).toEqual([3, 1344, 'xp', 90, 'experiment']);
-    expect(row('lemon_meringue_pie')).toEqual([3, 944, 'cookSpeed', 90, 'card']);
-    expect(row('persimmon_pudding')).toEqual([3, 1104, 'sellPrice', 90, 'card']);
+    // v2-05: the fruit in the custard, the pie and the pudding is worth more, so the dishes are too (same tiers)
+    expect(row('apricot_custard')).toEqual([3, 1536, 'xp', 90, 'experiment']);
+    expect(row('lemon_meringue_pie')).toEqual([3, 1552, 'cookSpeed', 90, 'card']);
+    expect(row('persimmon_pudding')).toEqual([3, 1672, 'sellPrice', 90, 'card']);
     for (const id of [
       'fried_egg',
       'soft_cheese',

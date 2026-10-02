@@ -369,7 +369,7 @@ describe('level perks (BALANCE.md §8)', () => {
     const m = computeModifiers(s, GAME_DATA);
     expect(m.cookSpeedModifier).toBeCloseTo(1.1, 10);
     const buff = dishBuff(GAME_DATA, 'vegetable_soup', false, m.buffDurationBonus);
-    expect(buff.durationMs).toBe(Math.round(45 * MIN * 1.1));
+    expect(buff.durationMs).toBe(Math.round(75 * MIN * 1.1)); // a T2 lasts 75 min (v2-05)
   });
 
   it('Cooking level 7: a fourth buff slot; the Cozy Dinner bundle a fifth; never more than 5', () => {
