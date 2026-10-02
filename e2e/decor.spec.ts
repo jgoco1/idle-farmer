@@ -129,9 +129,11 @@ test('donating a town project stage changes the world and adds charm', async ({ 
   await page.locator('[data-donate="old_bridge:all"]').click();
   await page.locator('[data-give="old_bridge:driftwood"]').click();
   await expect.poll(() => game(page, (g) => g.state.town.projects.old_bridge?.stagesDone)).toBe(1);
-  const after = await page.evaluate(() => (window as unknown as Win).__view.sceneSprites());
-  expect(after).toContain('obj_old_bridge_1');
-  expect(after).not.toContain('obj_old_bridge_0');
+  // The layout is rebuilt on the next animation frame, not at the donation: wait for it.
+  const sprites = (): Promise<string[]> =>
+    page.evaluate(() => (window as unknown as Win).__view.sceneSprites());
+  await expect.poll(sprites).toContain('obj_old_bridge_1');
+  expect(await sprites()).not.toContain('obj_old_bridge_0');
   await page.getByRole('tab', { name: 'Goals' }).click();
   await expect(page.getByTestId('charm')).toContainText('Charm 10');
   expect(await game(page, (g) => g.state.progression.milestones.done)).toContain('m19_first_project');
