@@ -53,6 +53,7 @@ Reusable templates you can run at any point after phase 01:
 | `templates/phase-review.md` | Opus 5.5 | Before you merge any phase PR, as a second opinion |
 | `templates/bugfix.md` | Sonnet 5.5 | You found a bug while playtesting |
 | `templates/add-content.md` | Haiku 4.5 (or Sonnet) | You want more crops, fish or recipes that follow the existing schema |
+| `fixes/fishing-result-pause.md` | Sonnet 5.5 (Haiku 4.5 possible) | Ready to run: fishing results vanish when the player keeps tapping after a catch |
 
 ### Why these models
 - **Opus 5.5 handles the phases that set things every later phase inherits.** Phase 00 fixes the design and schemas. Phase 01 fixes the architecture: the save format, the tick model and the renderer. Phases 03 and 09 are numerical: price curves, idle pacing and offline gains. A mistake in any of these spreads into every later phase, so the stronger reasoning model is worth what it costs.
