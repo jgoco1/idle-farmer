@@ -839,3 +839,11 @@ A small owner-requested pass between v2-04 and v2-05 (no phase prompt).
 - **Panels:** set `wide: true` on a `PanelDef` for the 480 px box; never size a zoomed element with `calc(… / var(--ui-scale))` percentages (CLAUDE.md, code conventions).
 - **The path and fence** come from `pathFor` and `fenceRect`; anything new in the home region must stay off every tile `pathFor` returns at any size (they are all in `DECOR_BLOCKED`).
 
+
+## Fixes
+
+### Fishing results vanished when the player cast again quickly
+- **Root cause:** in `src/ui/fishingPanel.ts`, `frame()` cast again as soon as there was no session, `holding` and `armed` were true, and `armed` came back on any release. A fast release-and-press after a catch started a cast, and a successful `fishStart` set `lastResult = null`, which emptied `.fish-result`.
+- **Fix (UI only):** `RESULT_PAUSE_MS` (1200 ms) after `caught` (not via trap) or `escaped`: the button reads "Nice!" or "It got away" with `aria-disabled="true"` (still focusable) and the status line keeps the result. `armed` now also requires that a press began with no cast under way and after the pause, so a held or early press never casts (Space, mouse and touch alike). A new cast keeps the result as a dimmed "Last catch:" line (`.is-last`, no transition under reduced motion); the next result replaces it, and "Put the rod away" clears it.
+- **Tests:** `e2e/fishing.spec.ts`: "tapping Space right after a catch neither casts nor clears the result" and "holding Space through the pause does not cast until pressed again". The fishing spec passed 25 of 25 with `--repeat-each 5`.
+- No change to `src/systems/fishing.ts`, the reel numbers, the save or the trap path.
