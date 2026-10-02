@@ -385,21 +385,23 @@ cookMs         = cookSec * 1000 / mods.cookSpeedModifier
 ### Buff magnitude and duration
 
 ```ts
-magnitude  = 0.10 * tier * buffs[type].magnitudeScale
-durationMs = 900_000 * 3 ** (tier - 1) * (1 + buffDurationPerk + (dish.hearty ? HEARTY_DURATION_BONUS : 0))
-// T1: 15 min · T2: 45 min · T3: 2 h 15 · T4: 6 h 45 of simulated time (before perks and the hearty bonus)
-// (phase 09; was 6 min × 2^(tier − 1): see "Phase 09 balance report")
+magnitude  = 0.13 * tier * buffs[type].magnitudeScale                     // BUFF_MAGNITUDE_PER_TIER (v2-05; was 0.10)
+durationMs = 1_500_000 * 3 ** (tier - 1) * (1 + buffDurationPerk + (dish.hearty ? HEARTY_DURATION_BONUS : 0))
+// T1: 25 min · T2: 75 min · T3: 3 h 45 · T4: 11 h 15 of simulated time (before perks and the hearty bonus)
+// (v2-05: BUFF_BASE_DURATION_MS 25 min, was 15; phase 09 had replaced 6 min × 2^(tier − 1): see "Phase 09 balance report")
 ```
 
 | Buff type | Name | Seam | magnitudeScale | T1 | T2 | T3 | T4 |
 |---|---|---|---|---|---|---|---|
-| `growth` | Green Thumb | `growthModifier` | 1.0 | +10% | +20% | +30% | +40% |
-| `sellPrice` | Silver Tongue | `sellPriceModifier` | 0.5 | +5% | +10% | +15% | +20% |
-| `fishingLuck` | Angler's Luck | `fishingLuckModifier` (additive luck) | 1.0 | +0.10 | +0.20 | +0.30 | +0.40 |
-| `fishingSpeed` | Quick Bite | `fishingSpeedModifier` | 1.0 | +10% | +20% | +30% | +40% |
-| `cookSpeed` | Quick Hands | `cookSpeedModifier` | 1.5 | +15% | +30% | +45% | +60% |
-| `automationSpeed` | Busy Bees | `automationSpeedModifier` | 1.0 | +10% | +20% | +30% | +40% |
-| `xp` | Scholar's Snack | `xpModifier` | 1.5 | +15% | +30% | +45% | +60% |
+| `growth` | Green Thumb | `growthModifier` | 1.0 | +13% | +26% | +39% | +52% |
+| `sellPrice` | Silver Tongue | `sellPriceModifier` | 0.5 | +6.5% | +13% | +19.5% | +26% |
+| `fishingLuck` | Angler's Luck | `fishingLuckModifier` (additive luck) | 1.0 | +0.13 | +0.26 | +0.39 | +0.52 |
+| `fishingSpeed` | Quick Bite | `fishingSpeedModifier` | 1.0 | +13% | +26% | +39% | +52% |
+| `cookSpeed` | Quick Hands | `cookSpeedModifier` | 1.5 | +19.5% | +39% | +58.5% | +78% |
+| `automationSpeed` | Busy Bees | `automationSpeedModifier` and (v2-05) `animalSpeedModifier` | 1.0 | +13% | +26% | +39% | +52% |
+| `xp` | Scholar's Snack | `xpModifier` | 1.5 | +19.5% | +39% | +58.5% | +78% |
+
+The numbers above are v2-05's (see "v2-05 balance report" in §13.14). Busy Bees also shortens the animals' production cycle (§13.6).
 
 ### Stacking
 
@@ -1041,7 +1043,7 @@ for d in (tree.lastFruitDay, calendar.dayIndex]:
 tree.lastFruitDay = calendar.dayIndex
 cap              = FRUIT_CAP_DAYS (4) × fruitPerDay
 V                = fruitPerDay × fruitPrice                         // gold per bearing day at base price
-saplingPrice     = roundNice(4 × V × seasons.length)                // repays in ~4 bearing days of its first season
+saplingPrice     = roundNice(SAPLING_PRICE_FACTOR × V × seasons.length) // SAPLING_PRICE_FACTOR = 4: repays in ~4 bearing days
 fruitXp          = max(1, round(fruitPrice ** 0.6 / 2))             // the crop formula (§8); ×0.25 when the farmhand picks
 ```
 
@@ -1051,13 +1053,15 @@ fruitXp          = max(1, round(fruitPrice ** 0.6 / 2))             // the crop 
 
 | Tree id | Fruit id | Name | Seasons | Sapling | Days to mature | Fruit / bearing day | Cap | Fruit price | Farming XP / fruit | V (g / day) | Market depth |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `cherry_tree` | `cherry` | Cherry | spring | 6,000 | 3 | 10 | 40 | 150 | 10 | 1,500 | 55 |
-| `apricot_tree` | `apricot` | Apricot | spring, summer | 13,000 | 4 | 8 | 32 | 210 | 12 | 1,680 | 46 |
-| `peach_tree` | `peach` | Peach | summer | 8,300 | 4 | 8 | 32 | 260 | 14 | 2,080 | 42 |
-| `apple_tree` | `apple` | Apple | summer, autumn | 14,000 | 5 | 10 | 40 | 180 | 11 | 1,800 | 50 |
-| `pear_tree` | `pear` | Pear | autumn | 9,000 | 5 | 8 | 32 | 280 | 15 | 2,240 | 40 |
-| `persimmon_tree` | `persimmon` | Persimmon | autumn, winter | 20,000 | 6 | 7 | 28 | 360 | 17 | 2,520 | 35 |
-| `lemon_tree` | `lemon` | Lemon | winter, spring | 20,000 | 7 | 8 | 32 | 320 | 16 | 2,560 | 38 |
+| `cherry_tree` | `cherry` | Cherry | spring | 26,000 | 3 | 40 | 160 | 165 | 11 | 6,600 | 52 |
+| `apricot_tree` | `apricot` | Apricot | spring, summer | 69,000 | 4 | 32 | 128 | 270 | 14 | 8,640 | 41 |
+| `peach_tree` | `peach` | Peach | summer | 64,000 | 4 | 32 | 128 | 500 | 21 | 16,000 | 30 |
+| `apple_tree` | `apple` | Apple | summer, autumn | 100,000 | 5 | 44 | 176 | 295 | 15 | 12,980 | 39 |
+| `pear_tree` | `pear` | Pear | autumn | 68,000 | 5 | 36 | 144 | 470 | 20 | 16,920 | 31 |
+| `persimmon_tree` | `persimmon` | Persimmon | autumn, winter | 180,000 | 6 | 32 | 128 | 715 | 26 | 22,880 | 25 |
+| `lemon_tree` | `lemon` | Lemon | winter, spring | 180,000 | 7 | 32 | 128 | 700 | 25 | 22,400 | 25 |
+
+v2-05 table (the v2-03 one had 7–10 fruit a day at 150–360 gold, saplings 6,000–20,000): fruit per day ×4–4.5, and prices raised only as far as each fruit recipe keeps its tier (cherry and apricot have almost no room: Cherry Jam stays under 15 points at 165, Apricot Custard under 28 at 270). Days to mature and seasons are the owner's and did not change. Sapling prices come from the formula, so they rose with V (4–9×).
 
 Every season has trees: spring 3 (cherry, apricot, lemon), summer 3 (apricot, peach, apple), autumn 3 (apple, pear, persimmon), winter 2 (persimmon, lemon). Stages (sapling → young → mature) by age: cherry 0–1 / 2 / 3+, apricot and peach 0–1 / 2–3 / 4+, apple and pear 0–2 / 3–4 / 5+, persimmon 0–2 / 3–5 / 6+, lemon 0–3 / 4–6 / 7+.
 
@@ -1120,7 +1124,9 @@ repeat cycles times:
     // else: nothing happens to this animal this cycle; nothing is lost or reduced
 ```
 
-`msToNextSimEvent` need not split at cycles (they are batched in order, like trap rolls); the only mid-step rate changes are trough refills, which happen on actions or at bin pickups, and those are already step boundaries. No modifier changes cycle length or output in v2 (Busy Bees does not apply; see §13.12).
+`msToNextSimEvent` need not split at cycles (they are batched in order, like trap rolls); the only mid-step rate changes are trough refills, which happen on actions or at bin pickups, and those are already step boundaries.
+
+**Busy Bees (v2-05).** The cycle is `cycleMs = round(intervalSec × 1000 / mods.animalSpeedModifier)` whole simulated ms; the modifier is 1 + the Busy Bees buff (the only source). It changes only when a buff starts or ends, and buff expiry is already a step boundary (`msToNextBuffExpiry`), so the interval is fixed inside a step and one big step still equals many small ones (`tests/ranch.test.ts`). A T2 Soft Cheese (+26%) makes a hen lay every 23.8 minutes instead of 30.
 
 ### 13.7 Feed (v2-04)
 
@@ -1128,6 +1134,8 @@ repeat cycles times:
 |---|---|---|---|---|---|
 | `hay` | `wheat` | 2 (`FEED_PER_WHEAT`) | 40 (`FEED_BUY_PRICE.hay`) | 13 | no |
 | `corn_feed` | `corn` | 3 (`FEED_PER_CORN`) | 40 (`FEED_BUY_PRICE.corn_feed`) | 13 | no |
+
+**The feed store (v2-05, save 13).** Hay and corn feed live in the ranch's feed store (`state.ranch.feedStore`), not in the bag: making, buying, the silo's milling and filling troughs all use it, and the Barnyard bundle takes its hay from it. It holds `FEED_STORE_CAPACITY = 600` portions of each (two fills of the biggest trough with the Barnyard bonus); making or buying more than fits is refused with "The feed store only has room for N more hay." and nothing is used. Feed an older save kept in the bag beyond the store's room stays there and is used after the store's.
 
 Making feed is instant and free (the crop is the cost). Wheat and corn are summer and autumn crops, so spring and winter feed comes from stock, the greenhouse or the Ranch's shelf; bought feed roughly halves a hen's profit and leaves a cow's almost untouched, so it is a fallback, never a trap.
 
@@ -1138,15 +1146,17 @@ Scores use §7's formula (`units + value / 50 + cookSec / 30`, thresholds 8 / 15
 | id | Name | Ingredients | Cook (s) | Units | Value | Score | Tier | Base price | Buff | Magnitude | Duration (min) | Cookable in | Discovery | Phase |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | `fried_egg` | Fried Egg | egg ×2 | 30 | 2 | 180 | 6.60 | T1 | 225 | `cookSpeed` | +15% | 15 | all | milestone `m21_first_egg` | 04 |
-| `baked_apple` | Baked Apple | apple ×1 | 30 | 1 | 180 | 5.60 | T1 | 225 | `xp` | +15% | 15 | summer, autumn | milestone `m20_first_fruit` | 03 |
-| `cherry_jam` | Cherry Jam | cherry ×3 | 60 | 3 | 450 | 14.00 | T2 | 630 | `sellPrice` | +10% | 45 | spring | card 3,000 · parcel `orchard` | 03 |
+| `baked_apple` | Baked Apple | apple ×1 | 30 | 1 | 295 | 7.90 | T1 | 369 | `xp` | +15% | 15 | summer, autumn | milestone `m20_first_fruit` | 03 |
+| `cherry_jam` | Cherry Jam | cherry ×3 | 60 | 3 | 495 | 14.90 | T2 | 693 | `sellPrice` | +10% | 45 | spring | card 3,000 · parcel `orchard` | 03 |
 | `soft_cheese` | Soft Cheese | milk ×2 | 60 | 2 | 480 | 13.60 | T2 | 672 | `automationSpeed` | +20% | 45 | all | milestone `m22_first_milk` | 04 |
-| `pear_crumble` | Pear Crumble | pear ×1, wheat ×2 | 45 | 3 | 330 | 11.10 | T2 | 462 | `growth` | +20% | 45 | autumn | card 4,000 · parcel `orchard` | 03 |
+| `pear_crumble` | Pear Crumble | pear ×1, wheat ×2 | 45 | 3 | 520 | 14.90 | T2 | 728 | `growth` | +20% | 45 | autumn | card 4,000 · parcel `orchard` | 03 |
 | `garden_omelette` | Garden Omelette | egg ×2, kale ×1 | 45 | 3 | 267 | 9.84 | T2 | 374 | `fishingSpeed` | +20% | 45 | autumn, winter | experiment | 04 |
-| `peach_cobbler` | Peach Cobbler | peach ×2, wheat ×2 | 60 | 4 | 570 | 17.40 | T3 | 912 | `sellPrice` | +15% | 135 | summer | card 8,000 · parcel `orchard` | 03 |
-| `apricot_custard` | Apricot Custard | apricot ×2, egg ×2, milk ×1 | 90 | 5 | 840 | 24.80 | T3 | 1,344 | `xp` | +45% | 135 | spring, summer | experiment | 04 |
-| `lemon_meringue_pie` | Lemon Meringue Pie | lemon ×1, egg ×3 | 90 | 4 | 590 | 18.80 | T3 | 944 | `cookSpeed` | +45% | 135 | winter, spring | card 12,000 · building `coop` L1 | 04 |
-| `persimmon_pudding` | Persimmon Pudding | persimmon ×1, milk ×1, egg ×1 | 90 | 3 | 690 | 19.80 | T3 | 1,104 | `sellPrice` | +15% | 135 | autumn, winter | card 15,000 · building `barn` L1 | 04 |
+| `peach_cobbler` | Peach Cobbler | peach ×2, wheat ×2 | 60 | 4 | 1050 | 27.00 | T3 | 1,680 | `sellPrice` | +15% | 135 | summer | card 8,000 · parcel `orchard` | 03 |
+| `apricot_custard` | Apricot Custard | apricot ×2, egg ×2, milk ×1 | 90 | 5 | 960 | 27.20 | T3 | 1,536 | `xp` | +45% | 135 | spring, summer | experiment | 04 |
+| `lemon_meringue_pie` | Lemon Meringue Pie | lemon ×1, egg ×3 | 90 | 4 | 970 | 26.40 | T3 | 1,552 | `cookSpeed` | +45% | 135 | winter, spring | card 12,000 · building `coop` L1 | 04 |
+| `persimmon_pudding` | Persimmon Pudding | persimmon ×1, milk ×1, egg ×1 | 90 | 3 | 1045 | 26.90 | T3 | 1,672 | `sellPrice` | +15% | 135 | autumn, winter | card 15,000 · building `barn` L1 | 04 |
+
+v2-05: the value, score and price columns use the v2-05 fruit prices (§13.5); every tier is unchanged (`tests/orchard.test.ts`). The magnitude and duration columns are the v2-04 buff numbers; v2-05's (13% × tier, 25 min × 3^(tier − 1)) are in §7.
 
 **One line per buff choice:**
 - Fried Egg → Quick Hands: a quick comfort breakfast for the cook (GDD §7: comfort food helps the cook).
@@ -1212,7 +1222,7 @@ Read as §11 does: "day n" is the n-th real day of the simulator's schedule (the
 | First town project complete | day 7–12 | day 5–9 | usually `old_bridge` |
 | All town projects complete | after day 30 | day 21–30 | §13.4 |
 | Charm 100 | day 10–18 | day 8–14 | |
-| Orchard income (full orchard, in season) | 5–15% of gold per day at day 7–14 (measured **1%**, §13.12 v2-03) | ≤ 5% at day 14 (measured 1%) | side income |
+| Orchard income (full orchard, in season) | ≤ 15% of gold per day at day 7–14 | **5–8% on days 14–21** (v2-05; measured 1% before) | side income worth planting |
 | Animal income (full ranch) | ≤ 15% of gold per simulated hour | ≤ 15% | side income |
 | Longest wait with nothing to do, first 30 min | ≤ 2 min | ≤ 2 min | v2 adds nothing to the first session |
 
@@ -1233,7 +1243,7 @@ Every v2 phase also keeps `tests/simulate.test.ts` green (determinism, speed: on
 
 ### 13.12 v2 constants and tuning notes
 
-Constants that are formula parameters go in `src/data/balance.ts`: `DECOR_BASE_SLOTS = 100`, `DECOR_SLOTS_PER_PROJECT = 40`, `CHARM_PER_PROJECT_STAGE = 10`, `TOWN_PROJECT_SCALE = 0.7` (set to 1 by the design, tuned to 0.8 in v2 phase 02 and to 0.7 in v2 phase 04: see their notes below), `FRUIT_CAP_DAYS = 4`, `SAPLING_PRICE_FACTOR = 4`, `LARGE_EGG_CHANCE = 0.1` (also `AUTO_COLLECT_XP_SHARE = 0.25` and `FEED_AMOUNTS = [1, 10]`), `FEED_PER_WHEAT = 2`, `FEED_PER_CORN = 3`, `FEED_BUY_PRICE = { hay: 40, corn_feed: 40 }`, `SILO_RESERVE = 10`, `BARNYARD_TROUGH_BONUS = 0.5`, `ORCHARD_BONUS_SPOTS = 2`, `GOAL_SLOTS_HALL_BONUS = 1`. Content tables (parcels, decorations, projects, trees, animals, buildings) live in their data files. Camera numbers (drag threshold 6 CSS px, zoom limits) are UI constants in `src/render/camera.ts`, not balance.
+Constants that are formula parameters go in `src/data/balance.ts`: `DECOR_BASE_SLOTS = 100`, `DECOR_SLOTS_PER_PROJECT = 40`, `CHARM_PER_PROJECT_STAGE = 10`, `TOWN_PROJECT_SCALE = 0.6` (set to 1 by the design, tuned to 0.8 in v2 phase 02, 0.7 in v2 phase 04 and 0.6 in v2 phase 05: see their notes below), `FRUIT_CAP_DAYS = 4`, `SAPLING_PRICE_FACTOR = 4`, `FEED_STORE_CAPACITY = 600` (v2-05), `LARGE_EGG_CHANCE = 0.1` (also `AUTO_COLLECT_XP_SHARE = 0.25` and `FEED_AMOUNTS = [1, 10]`), `FEED_PER_WHEAT = 2`, `FEED_PER_CORN = 3`, `FEED_BUY_PRICE = { hay: 40, corn_feed: 40 }`, `SILO_RESERVE = 10`, `BARNYARD_TROUGH_BONUS = 0.5`, `ORCHARD_BONUS_SPOTS = 2`, `GOAL_SLOTS_HALL_BONUS = 1`. Content tables (parcels, decorations, projects, trees, animals, buildings) live in their data files. Camera numbers (drag threshold 6 CSS px, zoom limits) are UI constants in `src/render/camera.ts`, not balance.
 
 **v2 phase 00 notes.**
 - Decoration and project prices were set from the phase 09 report's lifetime-gold curve, less roughly 40% spent on seeds. They are a first cut: v2 phase 02's simulator run sets `TOWN_PROJECT_SCALE` so the §13.4 curve holds, and phases 03–04 recheck it after the orchard and animals add income.
@@ -1353,3 +1363,122 @@ Every check, as the simulator prints them:
 
 - **Phase 09 checks and §13.4 checks: all pass except two:** (1) **buffs kept up +28%** at day 7 on 8 seeds (day 3 +22%, day 14 +14%; target +10–25%): the same 2–3 points over as v2-03's +27%, from the gold dishes (Persimmon Pudding, Peach Cobbler) the Chef cooks; the unit test's four seeds pair at +17%. (2) The **Active Player's share still to spend on day 14 is 86%** (limit 85% with the tolerance); its income is a third of the Farmer's and it plays one hour an evening, so its ranch and town come a week behind. Strategy spread 1.18× (d3), 1.22× (d7), 1.09× (d30); Casual Idler 160% of the Active Player on day 3; early waits ≤ 2.0 min; no runaway growth (worst 2.26×); no hoard (worst 1.9 days' income); animal income 7% and 4% (Farmer and Active, days 14–30).
 - **Performance** (`e2e/perf.spec.ts`, now with a full ranch of 12 hens and 6 cows wandering in the world scenario): 4.4 KB allocated a frame in the world (3.7 KB without the ranch; budget 11 KB), 2.9 KB on the farm, 60 fps; 8 hours away on a full farm with a full ranch 75 ms (budget 100 ms); 8 hours of a full ranch alone and 30 days in `tests/ranch.test.ts` are well inside 100 ms and 300 ms.
+
+
+### 13.14 v2-05 balance report
+
+`npm run simulate -- --seeds 1,2,3,4,5,6,7,8` (30 real days, medians), before any v2-05 change (the v2-04 code; the same as §13.13) and after. **Every check passes on 8 seeds** (37 of 37; before: 35 of 37).
+
+**Every check, before and after:**
+
+| Check | Target | Before (v2-04 code) | After (v2-05) |
+|---|---|---|---|
+| No strategy dominates (day 3) | ≤ 1.5× lifetime gold | 1.18× (Greedy Farmer 403,789, Angler 454,801, Chef 386,700) ✅ | 1.28× (Greedy Farmer 425,275, Angler 466,640, Chef 365,741) ✅ |
+| No strategy dominates (day 7) | ≤ 1.5× lifetime gold | 1.22× (Greedy Farmer 2,744,271, Angler 2,949,595, Chef 2,409,256) ✅ | 1.25× (Greedy Farmer 2,766,056, Angler 3,173,760, Chef 2,535,985) ✅ |
+| No strategy dominates (day 30) | ≤ 1.5× lifetime gold | 1.09× (Greedy Farmer 23,915,153, Angler 26,128,122, Chef 25,806,618) ✅ | 1.11× (Greedy Farmer 25,200,358, Angler 27,266,947, Chef 28,002,354) ✅ |
+| Casual Idler vs Active Player (day 3) | ≥ 40% of the lifetime gold | 160% ✅ | 160% ✅ |
+| Buffs kept up: Chef vs the same Chef selling its dishes (day 7, paired by seed) | +10% to +25% (worth it, not mandatory) | +28% (day 3 +22%, day 14 +14%) ❌ | +17% (day 3 +8%, day 14 +6%) ✅ |
+| Greedy Farmer: early dead time | no wait over 2 min in the first 30 min of play | 2.0 min (dead-time share 3%) ✅ | 2.0 min (dead-time share 3%) ✅ |
+| Angler: early dead time | no wait over 2 min in the first 30 min of play | 0.5 min (dead-time share 0%) ✅ | 0.5 min (dead-time share 0%) ✅ |
+| Chef: early dead time | no wait over 2 min in the first 30 min of play | 1.2 min (dead-time share 0%) ✅ | 1.2 min (dead-time share 0%) ✅ |
+| Active Player: early dead time | no wait over 2 min in the first 30 min of play | 0.7 min (dead-time share 0%) ✅ | 0.7 min (dead-time share 0%) ✅ |
+| Greedy Farmer: no runaway growth after day 3 | gold/hour at most ~3× the day before; week 4 not far above week 2 | worst day-over-day 2.26×, day 28 / day 14 1.03× ✅ | worst day-over-day 2.02×, day 28 / day 14 0.77× ✅ |
+| Angler: no runaway growth after day 3 | gold/hour at most ~3× the day before; week 4 not far above week 2 | worst day-over-day 1.98×, day 28 / day 14 0.93× ✅ | worst day-over-day 1.98×, day 28 / day 14 0.90× ✅ |
+| Chef: no runaway growth after day 3 | gold/hour at most ~3× the day before; week 4 not far above week 2 | worst day-over-day 1.74×, day 28 / day 14 0.86× ✅ | worst day-over-day 1.94×, day 28 / day 14 0.75× ✅ |
+| Greedy Farmer: orchard income (days 14–21, a full orchard) | 5%–8% of gold (a side income worth planting) | 1% (7,685 gold a day; the old check was days 7–14, ≤ 5%) ✅ | 5.2% (58,554 gold a day) ✅ |
+| Active Player: orchard income (days 7–14) | ≤ 15% of gold (side income) | 1% (3,128 gold a day) ✅ | 1% (3,644 gold a day) ✅ |
+| Greedy Farmer: animal income (days 14–30) | ≤ 15% of gold (side income) | 7% (67,886 gold a day) ✅ | 7% (68,700 gold a day) ✅ |
+| Active Player: animal income (days 14–30) | ≤ 15% of gold (side income) | 4% (21,362 gold a day) ✅ | 4% (26,987 gold a day) ✅ |
+| Greedy Farmer: gold stays meaningful (day 21) | gold still to spend > 0 | 2,157,728 ✅ | 1,359,885 ✅ |
+| Greedy Farmer: share still to spend, day 1 | 99%–100% (±10 points) | 100% ✅ | 100% ✅ |
+| Greedy Farmer: share still to spend, day 3 | 90%–97% (±10 points) | 98% ✅ | 97% ✅ |
+| Greedy Farmer: share still to spend, day 7 | 65%–85% (±10 points) | 90% ✅ | 88% ✅ |
+| Greedy Farmer: share still to spend, day 14 | 30%–55% (±10 points) | 59% ✅ | 58% ✅ |
+| Greedy Farmer: share still to spend, day 21 | 5%–30% (±10 points) | 19% ✅ | 12% ✅ |
+| Greedy Farmer: share still to spend, day 30 | 0%–10% (±10 points) | 2% ✅ | 2% ✅ |
+| Greedy Farmer: no hoard after day 7 | gold in hand ≤ 3 days’ income while there is still something to buy | 1.40 days’ income at worst (median over seeds) ✅ | 1.34 days’ income at worst (median over seeds) ✅ |
+| Angler: gold stays meaningful (day 21) | gold still to spend > 0 | 1,069,885 ✅ | 564,560 ✅ |
+| Angler: no hoard after day 7 | gold in hand ≤ 3 days’ income while there is still something to buy | 1.49 days’ income at worst (median over seeds) ✅ | 1.92 days’ income at worst (median over seeds) ✅ |
+| Chef: gold stays meaningful (day 21) | gold still to spend > 0 | 1,051,450 ✅ | 305,950 ✅ |
+| Chef: no hoard after day 7 | gold in hand ≤ 3 days’ income while there is still something to buy | 1.58 days’ income at worst (median over seeds) ✅ | 1.62 days’ income at worst (median over seeds) ✅ |
+| Active Player: gold stays meaningful (day 21) | gold still to spend > 0 | 7,119,950 ✅ | 6,647,113 ✅ |
+| Active Player: gold still to spend on day 30 | > 0 and more than the gold in hand | 3,870,950 to spend vs 910,463 in hand ✅ | 2,785,978 to spend vs 820,846 in hand ✅ |
+| Active Player: share still to spend, day 1 | 99%–100% (±10 points) | 100% ✅ | 100% ✅ |
+| Active Player: share still to spend, day 3 | 97%–100% (±10 points) | 99% ✅ | 99% ✅ |
+| Active Player: share still to spend, day 7 | 85%–95% (±10 points) | 96% ✅ | 95% ✅ |
+| Active Player: share still to spend, day 14 | 55%–75% (±10 points) | 86% ❌ | 83% ✅ |
+| Active Player: share still to spend, day 21 | 30%–55% (±10 points) | 63% ✅ | 59% ✅ |
+| Active Player: share still to spend, day 30 | 5%–30% (±10 points) | 35% ✅ | 25% ✅ |
+| Active Player: no hoard after day 7 | gold in hand ≤ 3 days’ income while there is still something to buy | 1.87 days’ income at worst (median over seeds) ✅ | 1.72 days’ income at worst (median over seeds) ✅ |
+
+
+**New and changed constants** (`src/data/balance.ts` unless named):
+
+| Constant | Before | After | Why |
+|---|---|---|---|
+| `BUFF_MAGNITUDE_PER_TIER` | 0.10 | **0.13** | buffs kept up back to about +20% (see below) |
+| `BUFF_BASE_DURATION_MS` | 15 min | **25 min** | the same; `BUFF_DURATION_GROWTH` stays 3, so T1–T4 last 25 min, 75 min, 3 h 45, 11 h 15 |
+| `BUFF_DURATION_GROWTH` | 3 | 3 | unchanged |
+| `SAPLING_PRICE_FACTOR` | (4, in the doc only) | 4 | now a constant; `src/data/trees.ts` computes every sapling price from it |
+| fruit per bearing day (`src/data/trees.ts`) | 7–10 | **32–44** | orchard income (§13.5 table) |
+| fruit prices (`src/data/trees.ts`) | 150–360 | **165–715** | the same, as far as each fruit recipe keeps its tier |
+| `TOWN_PROJECT_SCALE` | 0.7 | **0.6** | the saplings added 899,000 to the catalogue; 0.6 takes 850,000 off the projects (catalogue 11,267,030, was 11,218,330) |
+| `FEED_STORE_CAPACITY` | – | **600** | the feed store (§13.7) |
+| `animalSpeedModifier` (`src/systems/modifiers.ts`) | – | 1 + Busy Bees | §13.6 |
+| `SPEND_FLOOR` (`scripts/sim/report.ts`) | 2% | **4%** | what the bots never buy: the v1 items their lists skip (140–180k) and the cherry and lemon saplings that only fit with the Orchard Basket's spots (206,000) |
+
+**Gold by day (after):**
+
+| Bot | Play (h) | Gold d1 | Gold d3 | Gold d7 | Gold d14 | Gold d30 | FL d3 · d30 | Recipes | Dead time | Longest early wait | Buff uptime (play · all) | Gold from offline |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| Greedy Farmer | 59.7 | 57,553 | 425,275 | 2,766,056 | 9,656,395 | 25,200,358 | 7 · 8 | 12 | 3% | 2.0 min | 0% · 0% | 81% |
+| Angler | 59.7 | 67,810 | 466,640 | 3,173,760 | 10,630,656 | 27,266,947 | 8 · 8 | 11 | 0% | 0.5 min | 0% · 0% | 76% |
+| Chef | 59.7 | 61,605 | 365,741 | 2,535,985 | 9,206,495 | 28,002,354 | 9 · 10 | 31 | 0% | 1.2 min | 100% · 55% | 77% |
+| Chef who sells (control) | 59.7 | 62,280 | 375,636 | 2,520,915 | 9,225,687 | 25,809,954 | 9 · 10 | 31 | 0% | 1.2 min | 1% · 0% | 78% |
+| Casual Idler | 6.0 | 2,095 | 224,307 | 3,139,670 | 11,668,802 | 30,480,707 | 6 · 8 | 11 | 0% | 0.9 min | 0% · 0% | 91% |
+| Active Player | 30.0 | 22,433 | 139,775 | 837,136 | 4,395,978 | 14,799,136 | 8 · 10 | 31 | 0% | 0.7 min | 1% · 0% | 80% |
+
+**Moments (real day; Greedy Farmer · Active Player, before → after; targets §13.10):** Hilltop Orchard 3.0 · 5.0 → 3.0 · **4.0** (2–3 · 2–4); Old Paddock 4.5 · 9.0 → 4.0 · **5.0** (3–5 · 4–7); coop 6.1 · 12 → 4.3 · 7.0; first egg 7.0 · 13.5 → 4.8 · 8.0; **first milk 9.0 · 16 → 5.0 · 8.5** (4–7 · 5–9); first fruit 6.5 · 9.0 → 8.5 · 10.0 (5–8 · 5–9: a day later, see the notes); Seaside Meadow 6.0 · 12 → 7.5 · 11 (5–8 · 7–12); first project stage 6.8 · 13 → 7.1 · 11; first project complete 7.5 · 14 → 9.3 · 15; charm 100 9.1 · 16 → 10.8 · 17.
+
+**Orchard income (after)**, gold per day · share of the gold earned in the window:
+
+| Bot | days 7–14 | days 14–21 (a full orchard) | days 14–30 |
+|---|---|---|---|
+| Greedy Farmer | 24,859 · 2% | 58,554 · 5% | 47,177 · 5% |
+| Angler | 27,337 · 3% | 63,053 · 6% | 49,043 · 5% |
+| Chef | 27,114 · 3% | 64,766 · 5% | 48,241 · 4% |
+| Chef who sells (control) | 20,400 · 2% | 56,631 · 5% | 42,958 · 4% |
+| Casual Idler | 38,650 · 3% | 54,298 · 4% | 41,719 · 3% |
+| Active Player | 3,644 · 1% | 26,691 · 4% | 43,340 · 7% |
+
+**Animal income (after):**
+
+| Bot | days 7–14 | days 14–30 | hungry hours |
+|---|---|---|---|
+| Greedy Farmer | 37,201 · 4% | 68,700 · 7% | 0.0 |
+| Angler | 43,356 · 4% | 69,025 · 7% | 0.0 |
+| Chef | 33,420 · 3% | 65,002 · 6% | 0.0 |
+| Chef who sells (control) | 30,293 · 3% | 58,054 · 6% | 0.0 |
+| Casual Idler | 88,136 · 8% | 106,382 · 9% | 0.0 |
+| Active Player | 6,910 · 1% | 26,987 · 4% | 0.0 |
+
+**Gold still to spend (after)**, share of the catalogue (11,267,030: v1 538,030 + land 680,000 + saplings 1,036,000 + ranch 1,140,000 + decorations 2,773,000 + town projects 5,100,000):
+
+| Bot | d1 | d3 | d7 | d14 | d21 | d30 | Spent out |
+|---|---|---|---|---|---|---|---|
+| Greedy Farmer | 11,227,930 · 100% | 10,982,945 · 97% | 9,936,512 · 88% | 6,537,737 · 58% | 1,359,885 · 12% | 275,135 · 2% | – |
+| Angler | 11,217,630 · 100% | 10,933,415 · 97% | 9,651,216 · 86% | 5,398,754 · 48% | 564,560 · 5% | 216,150 · 2% | – |
+| Chef | 11,220,780 · 100% | 11,060,070 · 98% | 10,027,810 · 89% | 6,298,781 · 56% | 305,950 · 3% | 194,950 · 2% | – |
+| Chef who sells (control) | 11,220,780 · 100% | 11,060,070 · 98% | 10,086,221 · 90% | 6,492,515 · 58% | 1,267,950 · 11% | 194,950 · 2% | – |
+| Casual Idler | 11,266,330 · 100% | 11,120,690 · 99% | 9,679,428 · 86% | 5,097,260 · 45% | 2,973,785 · 26% | 331,710 · 3% | – |
+| Active Player | 11,252,150 · 100% | 11,187,310 · 99% | 10,690,885 · 95% | 9,331,192 · 83% | 6,647,113 · 59% | 2,785,978 · 25% | – |
+
+**v2-05 notes.**
+- **Buffs.** The phase began at +28% on 8 seeds, but the paired day-7 median is very noisy: on 16 seeds the same code measured +15%, and moving the base duration from 15 to 14 minutes swung the 8-seed figure from +28% to −7%. The two Chefs make the same purchases half a day apart and that compounds; per-seed ratios at day 7 run from −30% to +70%. After the orchard and brain changes below the buff value fell to about +1% (16 seeds), mostly because the control now sells fruit dishes worth 1.5–2× more. The new constants were chosen on 16 and 24 seeds and then checked on the report's 8: **+17% on seeds 1–8** (day 3 +8%, day 14 +6%), +12–20% on 24 seeds depending on the brain version, +17% on the unit test's seeds 1–4. Raising the magnitude to 0.14 measured lower (+11%), so 0.13 / 25 min was kept. The formula is still driven by tier, the stacking rules and the 3 base slots are unchanged.
+- **Orchard.** Fruit value is 4–7× v2-03's (fruit per day ×4–4.5, prices up to the recipe-tier limits), saplings by the formula. A full orchard of 8 trees is worth **5.2% of the Farmer's gold on days 14–21** (58,554 a day; 5–6% for the Angler and the Chef). The check moved from days 7–14 (the Farmer's trees only mature on day 8–9, so that window held about three days of fruit) to days 14–21 with the 5–8% band. Bigger daily sales hit the market's depth (a 715-gold persimmon has a depth of 25), so the income grows less than the value does. Recipe tiers are unchanged (a test lists them). Town stages still ask for 30 apples and 20 persimmons: now about one day of one tree, which keeps those stages easy but no longer a wait for a season.
+- **First milk** (day 9 · 16 → 5.0 · 8.5): the brain buys a **starter yard** (coop, 2 hens, barn, a cow: 106,000) as soon as the Old Paddock is owned, ahead of the next v1 purchase, but only with gold the planter's seeds for the coming absence will not need (`starters`, `seedGold`), and again when leaving after the seeds. The Active Player has its own wish list (`ACTIVE_SHOPPING`): the Orchard and Old Paddock right after the first greenhouse level instead of after the late comforts. No price changed.
+- **The Active Player's day-14 share** (86% → 83%) comes from the same changes: its ranch and orchard now start on days 4–5.
+- **Brain fixes the new numbers exposed** (`scripts/sim/brain.ts`): saplings are bought when leaving, after the seeds (bought mid-session they emptied the planter's seed money and the farm stalled overnight: day-7 gold fell from 2.7M to 1.6M); the keep list holds the whole amount a later stage needs, not just the missing part (the bots sold the pumpkins they had grown); the stove no longer cooks a project's crops; every item a project asks for is kept from the Auto-Seller (it shipped the lighthouse's driftwood); errand fishing takes turns between waters (a rare koi hogged every catch); seasonal fish for an open project's later stages are caught in season (`fishErrands`: the fountain's koi, the lighthouse's tuna); a big crop amount (the bakery's 100 wheat) is grown once its project is open; the Seaside Meadow no longer holds back v2 spending. Without these the no-hoard check failed at 5–8 days' income on half the seeds.
+- **Busy Bees** now also shortens animal cycles. The bots value the buff when they own animals as well as a farmhand.
+- **Unit test guard:** the Casual Idler's offline share in the first week is 89–92% (eggs, milk and fruit it picks by hand on its 2-minute visits are sold online); the test's floor moved from 90% to 85%.
+- **Performance** (`e2e/perf.spec.ts`, median of three): 4.7 KB allocated a frame in the world pan with a full ranch (budget 11 KB; 4.4 KB before), 3.5 KB on the farm, 60 fps; 8 hours away on a full farm 76.9 ms (budget 100 ms).

@@ -45,7 +45,7 @@ Ideas that came up during a phase but were outside its scope. Add one line per i
 
 Phase 09 (simulator findings, for v2):
 - *Absorbed by v2 (v2-01 parcels, v2-02 decorations and town projects, v2-03/04 saplings and the ranch; BALANCE §13.4 "Gold still to spend"). The "gift to the market" that raises price floors was not taken: it would be an income bonus.* **A late-game gold sink**: by day 7 a keen player has earned 3 million gold and every upgrade, expansion and card together costs about 523k, so gold means nothing for the last three weeks of a 30-day run. Farmhouse rooms, decorations, town projects on the Community Board, or a "gift to the market" that raises every price floor. v2 content.
-- **Busy Bees that matters late**: once the farmhand is Level 3+, it is never the bottleneck, so `automationSpeed` is worth ~0 gold. Let it also shorten the Shipping Bin interval or speed regrowth of automated plots. v2 balance.
+- *Done in v2-05: Busy Bees also shortens animal production cycles (`animalSpeedModifier`).* **Busy Bees that matters late**: once the farmhand is Level 3+, it is never the bottleneck, so `automationSpeed` is worth ~0 gold. Let it also shorten the Shipping Bin interval or speed regrowth of automated plots. v2 balance.
 - *Absorbed by v2-03/04: Persimmon Pudding (winter, T3 Silver Tongue) and Peach Cobbler (summer, T3 Silver Tongue), BALANCE §13.8.* **A gold-buff dish for winter** (and a second one for summer): today's winter dishes boost XP, fishing and cooking, so keeping buffs up in winter is about XP, not gold. Could ride the "winter-only recipes" idea above. v2 content.
 - **Goal draws that do not depend on how an offline walk is split**: goals are redrawn with the seeded RNG at the end of a step, so the same absence walked in different step sizes can draw different goals (and seed or card rewards). A separate RNG stream for goals, or drawing only at the end of a catch-up, would make an absence fully reproducible. v2 engine.
 - **A "Pull up" hint and confirm**: phase 09 lets the Hoe pull up a regrower that has given a harvest; a tooltip on such plots ("Hoe: pull up") and a one-time confirmation would make the rule discoverable. Later polish.
@@ -57,13 +57,13 @@ v2 phase 00 (design update; ideas kept out of v2 on purpose):
 - **A world minimap** in a corner, with the edge pips' targets on it. Could follow v2-01 if the world grows again.
 - **More animal kinds** (ducks, goats, sheep) and **more tree kinds** (cherry blossom that bears nothing, a golden apple): out of scope for v2 (GDD §9); a later content phase.
 - **Grafting and tree quality, animal affection and breeding**: out of scope (GDD §9). Not planned.
-- **Busy Bees that also shortens animal cycles** (see "Busy Bees that matters late" above): v2 keeps animal cycles fixed; a later balance phase could use this seam.
+- *Done in v2-05.* **Busy Bees that also shortens animal cycles** (see "Busy Bees that matters late" above): v2 keeps animal cycles fixed; a later balance phase could use this seam.
 - **A town-square noticeboard of townsfolk requests** (deliver 10 eggs by Sunday): would need NPCs or a new quest kind; out of v2 scope.
 
 v2 phase 01 (world and camera):
-- **Drag-painting a tool across plots with a modifier** (for example Alt-drag): v2 made every drag a pan, so on desktop a tool now goes plot by plot or Shift-click for the whole field. A held modifier could bring painting back without breaking the "a drag never runs a tool" rule for touch. Later polish.
+- *Done in v2-05: the Paint toggle (a per-device pref) and Alt-drag on desktop.* **Drag-painting a tool across plots with a modifier** (for example Alt-drag): v2 made every drag a pan, so on desktop a tool now goes plot by plot or Shift-click for the whole field. A held modifier could bring painting back without breaking the "a drag never runs a tool" rule for touch. Later polish.
 - **Region-aware toasts for more events**: v2-01 adds the "→ Region" suffix and click-to-pan to the bin, trap, cooking and parcel toasts; v2-02–04 should route decoration, tree and animal toasts through `toastAt` in `src/main.ts` too. v2-02–04.
-- **Start the phone view on the field**: on a narrow phone the default view (the home region's centre at the height-fitting zoom) shows the field and market but not the farmhouse. Centring on the field's middle, or remembering the last view per orientation, could read better. Later polish.
+- *Done in v2-05: a phone's default view and Home centre on the plot grid.* **Start the phone view on the field**: on a narrow phone the default view (the home region's centre at the height-fitting zoom) shows the field and market but not the farmhouse. Centring on the field's middle, or remembering the last view per orientation, could read better. Later polish.
 
 
 v2 phase 02 (decorations, charm and town projects):
@@ -75,16 +75,22 @@ v2 phase 02 (decorations, charm and town projects):
 - **Festival lights and the band across the whole square**: v2-02 hangs one string between two poles and puts four musicians on the bandstand; a fuller square (bunting between all the buildings, dancing townsfolk) would be pure art work. Later polish.
 
 v2 phase 03 (the orchard):
-- **Orchard income is about 1% of gold, not the 5–15% BALANCE §13.10 expected** (6–8k a day against bots earning 0.5–1M a day by day 7–14). Raising fruit prices or fruit per day by about 5× would reach the band; a later balance phase should decide whether the orchard should matter more (the owner fixed the tree table). Later balance.
-- **A tree tooltip on touch screens**: the label shows under a mouse pointer; on a phone a tap picks the fruit and nothing names the tree. A first tap that shows the label and a second that picks would be gentler. Later polish.
+- *Done in v2-05: fruit value ×4–7, a full orchard is 5–6% of gold on days 14–21 (BALANCE §13.14).* **Orchard income is about 1% of gold, not the 5–15% BALANCE §13.10 expected** (6–8k a day against bots earning 0.5–1M a day by day 7–14). Raising fruit prices or fruit per day by about 5× would reach the band; a later balance phase should decide whether the orchard should matter more (the owner fixed the tree table). Later balance.
+- *Done in v2-05: the first tap shows the label, the second picks.* **A tree tooltip on touch screens**: the label shows under a mouse pointer; on a phone a tap picks the fruit and nothing names the tree. A first tap that shows the label and a second that picks would be gentler. Later polish.
 - **A farmhand that walks the orchard**: the sprite walks to the tile below a tree it picked from, one trip per tree; a proper route (a short loop along the rows) would read better. Later polish.
 - **Sway for mature canopies** (ART_STYLE §6.2 lists a 2-frame sway as optional): not drawn. Later polish.
 - **Fruit waiting on a bare winter tree** stays drawn on the branches until picked (nothing is lost, GDD §12.1); falling leaves and a "ripe" glint would tell the player it is waiting. Later polish.
 - **Move a tree by dragging it**: Move in the Trees tab enters a spot-picking mode; dragging a tree between spots in the scene would be quicker, but a drag is a pan (GDD §12.1). Later polish.
 
 v2 phase 04 (animals):
-- **Tell the player which hen is which**: a hover label with an animal's name, trough and next product (like the tree tooltip); on a phone a long press. Names exist and can be changed in the Ranch panel, but nothing in the scene shows them. Later polish.
+- *Done in v2-05: an animal label on hover and on the first tap (name, building, trough, store, next product).* **Tell the player which hen is which**: a hover label with an animal's name, trough and next product (like the tree tooltip); on a phone a long press. Names exist and can be changed in the Ranch panel, but nothing in the scene shows them. Later polish.
 - **Plant a little wheat and corn for the animals**: the bots buy feed when a trough is nearly dry and make it from the wheat and corn they happen to keep; a "keep N spare" hint in the Auto-Seller for wheat and corn would make the loop smoother for players.
 - **The farmhand also collecting eggs** (GDD §9 decision 10 chose not to); a later balance phase could use it for a second automation tier.
 - **A sleeping "z" over the animals at night** and a rooster at dawn (audio): cosmetic, render-only.
-- **Bag pressure from feed and products:** hay, corn feed, eggs and milk take bag slots (the bots keep stage items too); a "Feed store" tab in the silo or an overflow into the bin could ease it if players feel it.
+- *Partly done in v2-05: hay and corn feed live in the ranch's feed store (600 of each); eggs and milk still take bag slots.* **Bag pressure from feed and products:** hay, corn feed, eggs and milk take bag slots (the bots keep stage items too); a "Feed store" tab in the silo or an overflow into the bin could ease it if players feel it.
+
+v2 phase 05 (balance and polish):
+- **A steadier buff check**: the paired Chef-versus-control median at day 7 swings ±15 points between nearby settings and seed sets (the two bots make the same purchases half a day apart and that compounds). Averaging days 5–9, or 16+ seeds for this one pair, would make the check judge the buffs rather than the dice. Tooling.
+- **Bigger town stage asks for fruit**: with v2-05's fruit yields the bakery's 30 apples and the hall's 20 persimmons are about one day of one tree; 100 or more would keep them a real orchard errand. Later balance (needs the owner: GDD §12.2 lists the stages).
+- **A label for buildings on touch** (trough, store, next product) like the animal label, before a tap collects. Later polish.
+- **Paint strokes that start off the field**: a Paint drag that begins on grass pans, so a stroke must start on a plot; starting anywhere and painting only plots would suit a phone better if players ask. Later polish.

@@ -206,7 +206,7 @@ The owner's key idea: **each dish gives a different benefit, and its strength an
 | `fishingLuck` | Angler's Luck | rarer fish bite | `fishingLuckModifier` |
 | `fishingSpeed` | Quick Bite | faster bites and trap rolls | `fishingSpeedModifier` |
 | `cookSpeed` | Quick Hands | dishes cook faster | `cookSpeedModifier` |
-| `automationSpeed` | Busy Bees | farmhand and planter work faster | `automationSpeedModifier` |
+| `automationSpeed` | Busy Bees | farmhand and planter work faster, and (v2-05) the animals' production cycles are shorter | `automationSpeedModifier`, `animalSpeedModifier` |
 | `xp` | Scholar's Snack | more XP from everything | `xpModifier` |
 
 (`fishingSpeed` / Quick Bite is a seventh type beyond the six in the phase-06 prompt; it gives fish dishes a second theme. Phase 06 should add it.)
@@ -392,7 +392,8 @@ The camera holds a **world position** and a **zoom**. Zoom levels are **integer 
 
 | Input | Does |
 |---|---|
-| Mouse drag, one-finger drag | pans. A press that moves more than **6 CSS px** becomes a pan and never runs a farm tool; a shorter press is a click. This replaces the phase 08 pan switch. |
+| Mouse drag, one-finger drag | pans. A press that moves more than **6 CSS px** becomes a pan and never runs a farm tool; a shorter press is a click. This replaces the phase 08 pan switch. **v2-05:** with the **Paint** toggle on (next to the farm tools; a per-device pref, off by default), or with **Alt** held on desktop, a drag that starts on a plot uses the tool on every plot along the stroke instead; two fingers, the arrow keys and Home still move the view. |
+| Tap (touch) on a tree or an animal | **v2-05:** the first tap shows its label (a tree's stage and fruit; an animal's name, building, trough, store and next product), the second picks or pets. A pan or a tap elsewhere hides the label. On desktop the label follows the mouse. |
 | Wheel or trackpad | zooms one level around the cursor (trackpad deltas are accumulated so one gesture is one step) |
 | Pinch | zooms around the pinch centre, one level at a time |
 | Double-click, double-tap | zooms in one level around that point |
@@ -413,7 +414,7 @@ The camera holds a **world position** and a **zoom**. Zoom levels are **integer 
 
 #### Phones
 
-On narrow screens the scene fills the space between the HUD and the toolbar. The zoom is the largest integer at which the home region's **height** (12 tiles) fits that space, and at least **2×** (32 CSS px tiles, near the 44 px touch target at 3× on taller phones). One finger pans, two fingers pinch. This replaces the phase 08 zoom button and pan switch and closes the IDEAS.md entry "a bigger scene on narrow phones".
+On narrow screens the scene fills the space between the HUD and the toolbar. The zoom is the largest integer at which the home region's **height** (12 tiles) fits that space, and at least **2×** (32 CSS px tiles, near the 44 px touch target at 3× on taller phones). One finger pans, two fingers pinch. This replaces the phase 08 zoom button and pan switch and closes the IDEAS.md entry "a bigger scene on narrow phones". **v2-05:** the default view (and Home) on a phone centres on the **plot grid** rather than the home region's centre, and follows the field as it grows.
 
 ### 12.2 Decorations, charm and town projects (v2 phase 02)
 
@@ -515,15 +516,15 @@ Animals live in the **Old Paddock**. They are fed from what you grow and give eg
 **Buildings** (bought and upgraded in the new **Ranch** panel (`ranch`), then placed in the yard with placement mode; each can be moved later):
 - **Coop** (3 × 2 tiles): houses hens. Levels 1–3 raise capacity (4 → 8 → 12 hens), the trough and the egg store. The building looks bigger at each level.
 - **Barn** (4 × 3 tiles): houses cows. Levels 1–3: 2 → 4 → 6 cows, trough and milk store. Needs a Level 1 coop.
-- **Silo** (2 × 2 tiles, a tall sprite): the **auto-feeder**. Level 1: at every shipping-bin pickup it tops up every trough from the feed in your bag. Level 2: it also turns wheat and corn from your bag into feed as needed, keeping 10 of each back for cooking.
+- **Silo** (2 × 2 tiles, a tall sprite): the **auto-feeder**. Level 1: at every shipping-bin pickup it tops up every trough from the feed store. Level 2: it also turns wheat and corn from your bag into feed as needed, keeping 10 of each back for cooking.
 - One of each building. Each has a **trough** (portions of feed) and a **store** (products waiting to be collected).
 
 **Animals** are bought in the Ranch panel for a building with room: **hens** (`chicken`: eat `corn_feed`, lay an `egg`, sometimes a `large_egg`) and **cows** (`cow`: eat `hay`, give `milk`). Buildings are `coop`, `barn` and `silo`; the collector upgrade is `ranch_collector`. Each gets a name from a gentle list, which the player can change (names are state, not randomness). Petting is cosmetic (below).
 
 **Feed** connects animals to farming:
-- **Hay** is made from **wheat** (1 wheat → 2 hay) and **corn feed** from **corn** (1 corn → 3 corn feed), with one click in the Ranch panel ("Make hay ×1 / ×10 / all"). Both are bag items and cannot be sold.
+- **Hay** is made from **wheat** (1 wheat → 2 hay) and **corn feed** from **corn** (1 corn → 3 corn feed), with one click in the Ranch panel ("Make hay ×1 / ×10 / all"). Both cannot be sold. **v2-05:** they live in the ranch's **feed store** (600 of each, shown in the Ranch panel), not in the bag.
 - The Ranch also **sells** both at a fair price, so a player with no wheat or corn (spring and winter have neither in the field) is never stuck; making your own is about three times cheaper.
-- **Fill trough** moves feed from the bag into a building's trough, up to its size.
+- **Fill trough** moves feed from the feed store into a building's trough, up to its size.
 
 **Production, on simulated time (decided).** Each building runs one **cycle** timer (hens every 30 minutes, cows every 40, simulated time). At the end of each cycle, each animal in turn that has room in the store **eats one portion** from the trough and **produces one product** into the store. No portion, or no room: that animal skips the cycle and nothing else happens. *Why simulated time:* animals are a timer like crops, traps and cooking, so they follow the same offline cap and batching, and a full trough covers a normal night; a real-day clock would make them either trivial or a daily chore. Offline, cycles are processed one by one in order (like trap rolls), so one big step gives exactly what many small ones do. No quality tiers: a large egg is a separate item rolled with the seeded RNG.
 

@@ -470,6 +470,7 @@ export interface Modifiers {
   fishingSpeedModifier: number;     // × bite and trap speed        (phase 05 seam; source: buff 06)
   cookSpeedModifier: number;        // × cooking speed              (phase 06 seam; sources: kitchen 06, buff 06, perks 07)
   automationSpeedModifier: number;  // × farmhand/planter speed     (phase 04 seam; source: buff 06)
+  animalSpeedModifier: number;      // × animal production speed    (v2-05 seam; source: the Busy Bees buff, via BuffDef.alsoSeam)
   xpModifier: number;               // × XP gained                  (phase 06 buff; read by 07)
   dishSellBonus: number;            // additive on dish prices      (season effect 06, Cooking perks 07)
   cookingXpBonus: number;           // additive on Cooking XP       (season effect; read by 07)
@@ -484,7 +485,7 @@ export interface Modifiers {
 
 export const NO_MODIFIERS: Modifiers = {
   growthModifier: 1, sellPriceModifier: 1, fishingLuckModifier: 0, fishingSpeedModifier: 1,
-  cookSpeedModifier: 1, automationSpeedModifier: 1, xpModifier: 1, dishSellBonus: 0, cookingXpBonus: 0,
+  cookSpeedModifier: 1, automationSpeedModifier: 1, animalSpeedModifier: 1, xpModifier: 1, dishSellBonus: 0, cookingXpBonus: 0,
   cropSellBonus: 0, fishSellBonus: 0, doubleHarvestChance: 0, reelZoneBonus: 0, trapCapacityBonus: 0,
   buffDurationBonus: 0, ingredientSaveChance: 0,
 };
@@ -1230,6 +1231,7 @@ Each v2 phase bumps the version once, adds `migrations[n]`, adds `tests/fixtures
 | **10** | v2-03 | `orchard`, `calendar.dayZeroKey`, `calendar.maxDayIndex` | 9 → 10: `orchard: { trees: [] }`, `calendar: { ...old.calendar, dayZeroKey: old.calendar.lastDayKey, maxDayIndex: 0 }`, `stats.fruitPicked: 0`. |
 | **11** | v2-04 | `ranch` | 10 → 11: `ranch: { buildings: [], animals: [] }`, `stats.productsCollected: 0`. `autoSell` needs no entries (missing means off for animal products). |
 | **12** | v2 polish | `cats` | 11 → 12: `cats: { adopted: ['cat_tabby'], active: 'cat_tabby' }` (the old orange cat becomes the brown tabby; the orange one is now adopted). |
+| **13** | v2-05 | `ranch.feedStore` | 12 → 13: `ranch: { ...old.ranch, feedStore: { hay, corn_feed } }`, moving each bag stack of `hay` and `corn_feed` into the store up to 600 of each (the capacity written out in the migration); what does not fit stays in the bag. |
 
 Rules that carry over from §8: migrations take raw JSON and do not import current types; a save newer than the code or one that fails to load is never overwritten (show the error and offer an export); adding content (new decorations, trees, recipes) needs no migration unless the state shape changes. The camera is not in the save, so no migration ever touches it.
 
@@ -1261,3 +1263,12 @@ Rules that carry over from §8: migrations take raw JSON and do not import curre
 - **State:** `cats: { adopted: CatId[]; active: CatId }`. `adopted` always holds `cat_tabby`, has no repeats, and holds `active` (`validateState`: `bad cats`). Save 12 (`migrations[11]`, `tests/fixtures/save-v12.json` has a Siamese napping).
 - **Actions:** `{ type: 'adoptCat'; cat: CatId }` (pays `price`, adds the cat, makes it the active one, emits `purchased` with `what: CatId`) and `{ type: 'chooseCat'; cat: CatId }` (free, adopted cats only), in `src/systems/cats.ts`.
 - **Drawing:** `SceneView.cat` is the active cat's sprite id; the renderer draws it at `PET_TILE` as before.
+
+
+### 9.14 As built in v2 phase 05
+
+- **State (save 13):** `ranch.feedStore: Record<FeedId, number>` (hay and corn feed portions, each an integer 0 … `FEED_STORE_CAPACITY`; `validateState`: `bad feed store` for a negative or fractional count, a missing store or another key). `migrations[12]` moves bag feed into it (§9.10); `tests/fixtures/save-v13.json`.
+- **Systems:** `src/systems/feedStore.ts` (`feedInStore`, `feedRoom`, `feedAvailable`, `storeFeed`, `takeFeed`: the store first, then any feed an old save left in the bag). `makeFeed`, `buyFeed`, `fillTrough`, the silo (`topUp`, `mill`) and bundle donations (`donate`, `donatable`, `haveForBundle` for feed items) use it. A full store refuses politely and nothing is used.
+- **Modifiers:** `animalSpeedModifier` (above). `BuffDef.alsoSeam?: 'animalSpeedModifier'` lets one buff drive a second seam; only Busy Bees has it. `tickRanch` reads it through `cycleMsOf(def, speed)` (whole ms); `msToNextProduct(data, building, speed)` is the countdown the Ranch panel and the animal label show.
+- **Prefs:** `paint: boolean` (Paint mode; default false). Not in the save.
+- **Render input:** `src/render/sceneInput.ts` (pure: `tapActs`, `paintArmed`, `PaintStroke`, `Inspected`); the renderer's `inspected`, `paintMode`, `hoverAnimal()` and the options `onPaintStart` / `onPaintPlot` / `onPaintEnd`. `defaultCamera(view, out, phoneFocus)` and `fieldCentre(grid)` give a phone's default view.
