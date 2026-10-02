@@ -167,8 +167,8 @@ export const TIER_SELL_MULT: Readonly<Record<RecipeTier, number>> = { 1: 1.25, 2
  * of simulated time (phase 09: 10 / 30 / 90 / 270 minutes, so a T3 or T4 dish eaten before leaving
  * lasts into the absence; was 6 min × 2^(tier − 1)).
  */
-export const BUFF_MAGNITUDE_PER_TIER = 0.1;
-export const BUFF_BASE_DURATION_MS = 15 * 60_000;
+export const BUFF_MAGNITUDE_PER_TIER = 0.13;
+export const BUFF_BASE_DURATION_MS = 25 * 60_000;
 export const BUFF_DURATION_GROWTH = 3;
 /** A hearty (winter-cooked) dish's buff lasts this much longer. */
 export const HEARTY_DURATION_BONUS = 0.5;
@@ -251,7 +251,7 @@ export const DECOR_SLOTS_PER_PROJECT = 40;
 /** Each completed town-project stage adds this much charm. */
 export const CHARM_PER_PROJECT_STAGE = 10;
 /** Multiplies every town-project gold figure: the one lever for the gold-still-to-spend check (BALANCE.md §13.4). */
-export const TOWN_PROJECT_SCALE = 0.7;
+export const TOWN_PROJECT_SCALE = 0.6;
 /** The Community Hall's reward: one more goal on the board. */
 export const GOAL_SLOTS_HALL_BONUS = 1;
 /** The shares of a stage's gold the donate buttons give (and "all I can"). */
@@ -268,6 +268,8 @@ export const GOAL_CHARM_MIN = 3;
 export const FRUIT_CAP_DAYS = 4;
 /** The farmhand's picking XP is this share of a hand-picked fruit's. */
 export const FARMHAND_FRUIT_XP_SHARE = 0.25;
+/** `saplingPrice = roundNice(SAPLING_PRICE_FACTOR × fruitPerDay × fruitPrice × seasons)`: repays in ~4 bearing days a season. */
+export const SAPLING_PRICE_FACTOR = 4;
 /** Tree spots open with the parcel; the rest come with the Orchard Basket bundle. */
 export const BASE_TREE_SPOTS = 8;
 
@@ -280,6 +282,8 @@ export const FEED_PER_WHEAT = 2;
 export const FEED_PER_CORN = 3;
 /** The Ranch's shelf price for one unit of feed. */
 export const FEED_BUY_PRICE = { hay: 40, corn_feed: 40 } as const;
+/** v2-05: the ranch's feed store holds up to this many portions of each feed (two fills of the biggest trough). */
+export const FEED_STORE_CAPACITY = 600;
 /** The silo (level 2) keeps this many wheat and corn back for cooking when it makes feed. */
 export const SILO_RESERVE = 10;
 /** The Barnyard bundle: every trough holds this much more. */

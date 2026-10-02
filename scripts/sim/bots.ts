@@ -8,7 +8,7 @@ import { daysFromCivil, localDay, localTimeToEpoch, zoneClock, type LocalClock }
 import { areaOf, areaOffsets, occupiedPlots } from '../../src/systems/placement';
 import { upgradeLevel } from '../../src/systems/upgrades';
 import type { GameState } from '../../src/core/state';
-import { Brain, CHEF_SHOPPING, FARM_SHOPPING, FISH_SHOPPING, type Style } from './brain';
+import { ACTIVE_SHOPPING, Brain, CHEF_SHOPPING, FARM_SHOPPING, FISH_SHOPPING, type Style } from './brain';
 import { DAY, HOUR, MIN, SimRun } from './driver';
 
 export type BotId = 'farmer' | 'angler' | 'chef' | 'idler' | 'active' | 'chef_sells';
@@ -142,7 +142,7 @@ export const BOTS: Record<BotId, BotDef> = {
       bundles: true,
       cardThrift: 5,
       experiments: true,
-      shopping: FARM_SHOPPING,
+      shopping: ACTIVE_SHOPPING,
     },
     reactionMs: 10_000,
     sessions: daily([{ h: 19, m: 0, min: 60 }]),

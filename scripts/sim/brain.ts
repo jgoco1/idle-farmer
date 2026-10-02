@@ -15,7 +15,7 @@ import type { GameEvent } from '../../src/core/events';
 import { makeContext } from '../../src/core/sim';
 import type { GameState, PlacedKind } from '../../src/core/state';
 import type { GameData } from '../../src/data';
-import type { CropDef } from '../../src/data/types';
+import type { CropDef, FishDef } from '../../src/data/types';
 import {
   GREENHOUSE_BASE,
   MARKET_CHANNEL,
@@ -52,9 +52,17 @@ import {
 import { WORLD_COLS, WORLD_ROWS, WORLD_LAYOUT } from '../../src/data/world';
 import { dishBuff, planEat } from '../../src/systems/buffs';
 import { freeSpots, ripeTrees, saplingsInBag } from '../../src/systems/orchard';
-import { animalCount, buildingOfKind, feedOf, storeCount, troughSize } from '../../src/systems/ranch';
+import { feedAvailable, feedRoom } from '../../src/systems/feedStore';
+import {
+  animalCount,
+  buildingOfKind,
+  feedOf,
+  feedUnitsThatFit,
+  storeCount,
+  troughSize,
+} from '../../src/systems/ranch';
 import { SILO_RESERVE } from '../../src/data/balance';
-import type { AnimalId, BuildingId } from '../../src/data/ids';
+import type { AnimalId, BuildingId, SeasonId } from '../../src/data/ids';
 import { seasonOfDay } from '../../src/core/time';
 import { bundleSlots, isBundleDone } from '../../src/systems/bundles';
 import { canCook, ingredientValue, kitchenSlots, recipeCards } from '../../src/systems/cooking';
@@ -155,6 +163,17 @@ export const FARM_SHOPPING: readonly Want[] = [
   pa('meadow'),
 ];
 
+/**
+ * v2-05: the Active Player's order. It plays an hour an evening for variety, so it buys the Hilltop Orchard and the Old
+ * Paddock once the farm runs itself (after the greenhouse) and leaves the late comforts (the kitchen, a better rod,
+ * the last sprinklers) for later; on the farm-first list its first milk came on day 16 (BALANCE.md §13.10: 5–9).
+ */
+export const ACTIVE_SHOPPING: readonly Want[] = (() => {
+  const v1 = FARM_SHOPPING.filter((w) => w.kind !== 'parcel');
+  const at = v1.findIndex((w) => w.kind === 'upgrade' && w.id === 'greenhouse' && w.level === 1) + 1;
+  return [...v1.slice(0, at), pa('orchard'), pa('yard'), ...v1.slice(at), pa('meadow')];
+})();
+
 /** The water-first order: rods, the river, traps and the dock early, then the farm list. */
 export const FISH_SHOPPING: readonly Want[] = [
   up('fishing_rod', 1),
@@ -208,17 +227,23 @@ const RANCH_SPOTS: Readonly<Record<BuildingId, { col: number; row: number }>> = 
   silo: { col: 33, row: 9 },
 };
 
-/** What the ranch buys, in order (BALANCE.md §13.11): coop → hens → silo → barn → cows → Collecting Basket → levels. */
+/** What the ranch buys, in order (BALANCE.md §13.11): the starter yard → hens → silo → cows → Collecting Basket → levels. */
 type RanchStep =
   | { kind: 'build'; id: BuildingId }
   | { kind: 'animals'; animal: AnimalId; count: number }
   | { kind: 'upgrade'; id: BuildingId; level: number }
   | { kind: 'basket' };
+/** The first RANCH_PLAN steps (the starter yard) are bought before anything else `spendV2` spends on. */
+const RANCH_STARTER_STEPS = 4;
 const RANCH_PLAN: readonly RanchStep[] = [
+  // v2-05: a starter yard first (a coop, two hens, the barn and a cow: 106,000), bought as soon as the Old Paddock is,
+  // so the first milk comes in the paddock's first days rather than a week later.
   { kind: 'build', id: 'coop' },
+  { kind: 'animals', animal: 'chicken', count: 2 },
+  { kind: 'build', id: 'barn' },
+  { kind: 'animals', animal: 'cow', count: 1 },
   { kind: 'animals', animal: 'chicken', count: 4 },
   { kind: 'build', id: 'silo' },
-  { kind: 'build', id: 'barn' },
   { kind: 'animals', animal: 'cow', count: 2 },
   { kind: 'basket' },
   { kind: 'upgrade', id: 'coop', level: 2 },
@@ -245,7 +270,7 @@ function buffPriority(style: Style, s: GameState, type: BuffType): number {
     case 'growth':
       return 5;
     case 'automationSpeed':
-      return upgradeLevel(s, 'farmhand') > 0 ? 4 : 0;
+      return upgradeLevel(s, 'farmhand') > 0 || s.ranch.animals.length > 0 ? 4 : 0;
     case 'xp':
       return 2;
     case 'fishingLuck':
@@ -274,6 +299,9 @@ export class Brain {
   private decorCursor = 0;
   private spiral: { col: number; row: number }[] | null = null;
   private errandBudget = 0;
+  private errandTurn = 0;
+  /** The season at the latest look (for the seasonal errands). */
+  private season: SeasonId = 'spring';
   /** Crops the Auto-Seller is told to keep (a town project asks for them). */
   private kept = new Set<ItemId>();
 
@@ -293,6 +321,7 @@ export class Brain {
   look = (run: SimRun): boolean => {
     const s = run.state;
     const game = run.game;
+    this.season = game.calendar().season;
     const data = this.data;
     const dt = run.playMs - this.lastPlayMs;
     this.sessionLeftMs -= dt;
@@ -358,10 +387,11 @@ export class Brain {
     if (this.style.cook === 'eat') useful = this.eat(run, false) || useful;
     else if (s.stats.dishesEaten === 0) useful = this.eatAny(run) || useful; // the "eat a dish" milestone
     useful = this.sell(run, keep, false) || useful;
+    useful = this.starters(run) || useful;
     useful = this.shop(run) || useful;
     this.keepProjectCrops(run);
     useful = this.errands(run, dt) || useful;
-    useful = this.orchard(run) || useful;
+    useful = this.orchard(run, false) || useful;
     useful = this.ranch(run) || useful;
     useful = this.place(run) || useful;
     useful = this.farm(run) || useful;
@@ -371,9 +401,12 @@ export class Brain {
   /** Before an absence: stock seeds for the planter, ship everything that would be sold, eat. */
   leave(run: SimRun): void {
     const s = run.state;
+    this.season = run.game.calendar().season;
     this.stockSeeds(run);
     if (this.style.cook === 'eat') this.eat(run, true);
     this.sell(run, this.keepList(s), true);
+    this.starterYard(run); // v2-05: the coop, two hens, the barn and a cow come before saplings and the town
+    this.orchard(run, true); // v2-05: saplings out of what is left after the seeds the planter will need
     this.spendV2(run); // last: what is left after the seeds the planter will need
   }
 
@@ -393,7 +426,8 @@ export class Brain {
       }
     }
     for (const w of this.projectWants(s)) add(w.item, w.qty);
-    for (const w of this.cropErrands(s)) add(w.item, w.qty);
+    for (const w of this.cropErrands(s, true)) add(w.item, w.qty);
+    for (const w of this.fishErrands(s, true)) add(w.item, w.qty);
     for (const [item, qty] of this.fruitStock(s)) add(item, qty);
     // Wheat and corn for the animals' feed (and the silo's reserve) stay in the bag.
     if (s.ranch.animals.some((a) => a.kind === 'cow')) add('wheat', FEED_CROP_KEEP);
@@ -435,6 +469,9 @@ export class Brain {
       }
     }
     for (const [item, qty] of this.fruitStock(s)) reserved.set(item, (reserved.get(item) ?? 0) + qty); // for the town's later stages
+    // v2-05: and the crops a project asks for (the bandstand's pumpkins), which the stove used to take, stalling it a year.
+    for (const w of [...this.projectWants(s), ...this.cropErrands(s, true)])
+      if (w.item in this.data.crops) reserved.set(w.item, (reserved.get(w.item) ?? 0) + w.qty);
     const spare = (item: ItemId): number => countItem(s.inventory, item, false) - (reserved.get(item) ?? 0);
     while (s.kitchen.queue.length < kitchenSlots(s, this.data)) {
       let best: RecipeId | null = null;
@@ -591,15 +628,18 @@ export class Brain {
    * tree that bears in the season it will mature in (one of each kind, cheapest first: the quickest payback),
    * then the two-season trees until the spots are full.
    */
-  private orchard(run: SimRun): boolean {
+  private orchard(run: SimRun, buy: boolean, most = Infinity, keep = 0): boolean {
     const s = run.state;
     if (!s.land.parcels.includes('orchard')) return false;
     const game = run.game;
     let useful = false;
     for (const t of ripeTrees(s)) useful = game.dispatch({ type: 'pickTree', id: t.id }).ok || useful;
+    // v2-05: saplings cost about four bearing days of fruit (4–9 times what they did), so they are bought when
+    // leaving, after the planter's seeds are stocked; bought mid-session they left the planter without seed overnight.
+    if (!buy) return useful;
     const restock = upgradeLevel(s, 'auto_seller') > 0 ? SEED_STOCK_CYCLES : 1;
-    const reserve = SEED_RESERVE_PER_PLOT * s.farm.plots.length * restock;
-    for (let guard = 0; guard < 10; guard++) {
+    const reserve = Math.max(keep, SEED_RESERVE_PER_PLOT * s.farm.plots.length * restock);
+    for (let guard = 0; guard < Math.min(10, most); guard++) {
       const spots = freeSpots(s, this.data);
       if (spots.length === 0) break;
       const cal = game.calendar();
@@ -679,15 +719,23 @@ export class Brain {
     const need = size - b.trough;
     if (need <= 0) return false;
     const def = this.data.feeds[feed];
-    let have = countItem(s.inventory, feed);
+    let have = feedAvailable(s, feed);
     if (have < need) {
       const spare = countItem(s.inventory, def.from) - FEED_CROP_KEEP;
-      const units = Math.min(spare, Math.ceil((need - have) / def.perUnit));
+      const units = Math.min(
+        spare,
+        Math.ceil((need - have) / def.perUnit),
+        feedUnitsThatFit(s, feed, def.perUnit),
+      );
       if (units > 0) run.game.dispatch({ type: 'makeFeed', feed, qty: units });
-      have = countItem(s.inventory, feed);
+      have = feedAvailable(s, feed);
     }
     if (have < need && b.trough * 4 < size) {
-      const buy = Math.min(need - have, Math.floor(Math.max(0, s.gold - reserve) / (def.buyPrice * 4)));
+      const buy = Math.min(
+        need - have,
+        feedRoom(s, feed),
+        Math.floor(Math.max(0, s.gold - reserve) / (def.buyPrice * 4)),
+      );
       if (buy > 0) run.game.dispatch({ type: 'buyFeed', feed, qty: buy });
     }
     return run.game.dispatch({ type: 'fillTrough', building: buildingId }).ok;
@@ -707,6 +755,58 @@ export class Brain {
       if (animalCount(s, b.id) > 0 && this.feed(run, b.id, reserve)) useful = true;
     }
     return useful;
+  }
+
+  /**
+   * v2-05: buys the starter yard (the first RANCH_STARTER_STEPS of the plan, about 106,000) as soon as the Old Paddock is
+   * owned, out of the gold above the seed reserve, ahead of saplings, the next parcel's saving and the town.
+   */
+  private starterYard(run: SimRun): boolean {
+    const s = run.state;
+    if (!s.land.parcels.includes('yard')) return false;
+    const restock = upgradeLevel(s, 'auto_seller') > 0 ? SEED_STOCK_CYCLES : 1;
+    const reserve = SEED_RESERVE_PER_PLOT * s.farm.plots.length * restock;
+    let useful = false;
+    for (let guard = 0; guard < RANCH_STARTER_STEPS && !this.starterYardDone(s); guard++) {
+      if (this.ranchOne(run, reserve) === 0) break;
+      useful = true;
+    }
+    return useful;
+  }
+
+  /**
+   * v2-05: mid-session, the starter yard and the first tree are bought straight after the land, with gold the planter's
+   * seeds for the coming absence will not need (they are also bought when leaving, after the seeds).
+   */
+  private starters(run: SimRun): boolean {
+    const s = run.state;
+    const yard = s.land.parcels.includes('yard') && !this.starterYardDone(s);
+    const tree = s.land.parcels.includes('orchard') && s.orchard.trees.length === 0;
+    if (!yard && !tree) return false;
+    const spare = s.gold - this.seedGold(run);
+    if (spare <= 0) return false;
+    let useful = false;
+    if (yard) {
+      for (let guard = 0; guard < RANCH_STARTER_STEPS && !this.starterYardDone(s); guard++) {
+        if (this.ranchOne(run, s.gold - spare) === 0) break;
+        useful = true;
+      }
+    }
+    if (tree && s.gold > this.seedGold(run))
+      useful = this.orchard(run, true, 1, this.seedGold(run)) || useful;
+    return useful;
+  }
+
+  /** Whether the starter yard (the first RANCH_STARTER_STEPS of the plan) stands. */
+  private starterYardDone(s: GameState): boolean {
+    for (const step of RANCH_PLAN.slice(0, RANCH_STARTER_STEPS)) {
+      if (step.kind === 'build' && !buildingOfKind(s, step.id)) return false;
+      if (step.kind === 'animals') {
+        const home = buildingOfKind(s, this.data.animals[step.animal].building);
+        if (!home || animalCount(s, home.id) < step.count) return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -743,18 +843,47 @@ export class Brain {
    * plants and keeps these before the stage's gold is in, because the crop only grows in its season and the stage
    * would otherwise wait a year for it.
    */
-  private cropErrands(s: GameState): { item: ItemId; qty: number }[] {
+  private cropErrands(s: GameState, hold = false): { item: ItemId; qty: number }[] {
     const out: { item: ItemId; qty: number }[] = [];
     for (const id of TOWN_PROJECT_IDS) {
       const def = this.data.townProjects[id];
       for (let i = projectStagesDone(s, this.data, id); i < def.stages.length; i++) {
         for (const it of def.stages[i]!.items) {
           const crop = this.data.crops[it.item as CropId] as CropDef | undefined;
-          if (!crop || it.qty > 20 || crop.seasons.some((x) => x === 'spring' || x === 'winter')) continue;
+          // v2-05: a bigger amount (the bakery's 100 wheat) too, once the project is open
+          const big = it.qty > 20 && projectStatus(s, this.data, id) !== 'open';
+          if (!crop || big || crop.seasons.some((x) => x === 'spring' || x === 'winter')) continue;
           if (!out.some((w) => w.item === it.item)) out.push({ item: it.item, qty: it.qty });
         }
       }
     }
+    // `hold`: the whole amount to keep (v2-05: keeping only the missing part sold the pumpkins already grown).
+    if (hold) return out;
+    return out
+      .filter((w) => countItem(s.inventory, w.item) < w.qty)
+      .map((w) => ({ ...w, qty: w.qty - countItem(s.inventory, w.item) }));
+  }
+
+  /**
+   * v2-05: seasonal fish a later stage will ask for (the fountain's koi, the lighthouse's tuna). Like the pumpkins, a
+   * player catches these while they are in season; reaching the stage a season late used to stall it for months.
+   */
+  private fishErrands(s: GameState, hold = false): { item: ItemId; qty: number }[] {
+    const season = this.season;
+    const out: { item: ItemId; qty: number }[] = [];
+    for (const id of TOWN_PROJECT_IDS) {
+      if (projectStatus(s, this.data, id) !== 'open') continue; // only once the project has opened
+      const def = this.data.townProjects[id];
+      for (let i = projectStagesDone(s, this.data, id); i < def.stages.length; i++) {
+        for (const it of def.stages[i]!.items) {
+          const fish = (this.data.fish as Partial<Record<string, FishDef>>)[it.item];
+          if (!fish || fish.seasons.length === 4) continue;
+          if (!hold && !fish.seasons.includes(season)) continue; // what is caught is kept out of season too
+          if (!out.some((w) => w.item === it.item)) out.push({ item: it.item, qty: it.qty });
+        }
+      }
+    }
+    if (hold) return out;
     return out
       .filter((w) => countItem(s.inventory, w.item) < w.qty)
       .map((w) => ({ ...w, qty: w.qty - countItem(s.inventory, w.item) }));
@@ -778,10 +907,11 @@ export class Brain {
 
   /** Switches the Auto-Seller off for the crops a project asks for, and back on when it no longer does. */
   private keepProjectCrops(run: SimRun): void {
+    // v2-05: every item a project asks for, not only crops (the Auto-Seller shipped the lighthouse's driftwood).
     const need = new Set<ItemId>([
-      ...[...this.projectWants(run.state), ...this.cropErrands(run.state)]
-        .filter((w) => w.item in this.data.crops)
-        .map((w) => w.item),
+      ...this.projectWants(run.state).map((w) => w.item),
+      ...this.cropErrands(run.state).map((w) => w.item),
+      ...this.fishErrands(run.state, true).map((w) => w.item),
       ...this.fruitStock(run.state).keys(),
     ]);
     for (const item of need) {
@@ -885,7 +1015,9 @@ export class Brain {
       const price = this.offer(s, want);
       if (price === null) continue;
       if (want.kind !== 'parcel') return false; // still saving for the v1 list
-      hold = price;
+      // v2-05: the Seaside Meadow is only room for decorations, so saving for it no longer holds the ranch and the
+      // town back (the Active Player held 500k for five days); the shop still buys it once the gold is there.
+      if (want.id !== 'meadow') hold = price;
       break;
     }
     const restock = upgradeLevel(s, 'auto_seller') > 0 ? SEED_STOCK_CYCLES : 1;
@@ -893,6 +1025,7 @@ export class Brain {
     let budget = Math.floor(Math.max(0, s.gold - reserve - hold) * V2_SPEND_SHARE);
     let useful = this.placeDecor(run);
     this.styleHouse(run);
+
     // Items the bag holds go to the project at once (they are not gold).
     for (const id of TOWN_PROJECT_IDS) {
       if (projectStatus(s, this.data, id) !== 'open') continue;
@@ -951,10 +1084,11 @@ export class Brain {
   /** Goes fishing, and cooks, for the items a town project asks for that the bag does not hold. */
   private errands(run: SimRun, dtMs: number): boolean {
     const s = run.state;
-    const wants = this.projectWants(s);
+    const wants = [...this.projectWants(s), ...this.fishErrands(s)];
     if (wants.length === 0) return false;
     let useful = false;
     this.errandBudget += (ERRAND_FISH_PER_MIN * dtMs) / MIN;
+    const trips: FishLocationId[] = [];
     for (const w of wants) {
       const def = this.data.items[w.item];
       if (def?.category === 'dish') {
@@ -971,20 +1105,23 @@ export class Brain {
       ];
       const places = fish ? [fish.location] : (junk?.locations ?? []);
       const where = unlockedLocations(s).find((l) => places.includes(l));
-      if (!where) continue;
-      while (this.errandBudget >= 1) {
-        this.errandBudget -= 1;
-        const events: GameEvent[] = [];
-        // A deliberate fishing trip goes out at midday (some fish only bite in the day); the season is the real one.
-        const noon = { ...run.game.calendar(), hour: 12, minute: 0, isNight: false };
-        const ctx = makeContext(s, this.data, noon, events);
-        const pick = chooseCatch(s, ctx, where, 'active', 0.6);
-        landCatch(s, ctx, pick.id, pick.sizeCm, where);
-        runProgression(s, ctx);
-        run.game.bus.emitAll(events);
-        run.metrics.fished += 1;
-        useful = true;
-      }
+      if (where && !trips.includes(where)) trips.push(where);
+    }
+    // v2-05: the trips take turns between the waters the wants need; the first want used to take every catch,
+    // so a rare koi for the fountain kept the lighthouse's driftwood waiting for weeks.
+    while (trips.length > 0 && this.errandBudget >= 1) {
+      this.errandBudget -= 1;
+      const where = trips[this.errandTurn++ % trips.length]!;
+      const events: GameEvent[] = [];
+      // A deliberate fishing trip goes out at midday (some fish only bite in the day); the season is the real one.
+      const noon = { ...run.game.calendar(), hour: 12, minute: 0, isNight: false };
+      const ctx = makeContext(s, this.data, noon, events);
+      const pick = chooseCatch(s, ctx, where, 'active', 0.6);
+      landCatch(s, ctx, pick.id, pick.sizeCm, where);
+      runProgression(s, ctx);
+      run.game.bus.emitAll(events);
+      run.metrics.fished += 1;
+      useful = true;
     }
     if (this.errandBudget > 3) this.errandBudget = 3;
     return useful;
@@ -1184,13 +1321,13 @@ export class Brain {
   }
 
   /**
-   * Stocks the seeds the planter will need while the player is away (as far as gold and bag allow):
-   * each open plot's last crop, or the best single-harvest crop in season for plots whose last crop
-   * was a regrower (it may wither) or none.
+   * The seeds the planter will need while the player is away, per crop, less what the bag holds: each open plot's
+   * last crop, or the best single-harvest crop in season for plots whose last crop was a regrower (it may wither) or
+   * none.
    */
-  private stockSeeds(run: SimRun): void {
+  private seedPlan(run: SimRun): Map<CropId, number> {
     const s = run.state;
-    if (upgradeLevel(s, 'seed_planter') === 0) return;
+    if (upgradeLevel(s, 'seed_planter') === 0) return new Map();
     const data = this.data;
     const season = run.game.calendar().season;
     let fallback: CropId | null = null;
@@ -1218,12 +1355,30 @@ export class Brain {
       if (crop) counts.set(crop, (counts.get(crop) ?? 0) + 1);
     }
     const awayMin = this.awayMinutes();
-    let budget = Math.floor(s.gold * 0.8);
+    const plan = new Map<CropId, number>();
     for (const [crop, plots] of counts) {
       const def = data.crops[crop];
       if (!def.seasons.includes(season)) continue; // greenhouse-only crops out of season: cannot be bought now
       const cycles = Math.ceil(awayMin / (def.growSec / 60));
-      const want = plots * cycles - countItem(s.inventory, seedOf(crop));
+      plan.set(crop, plots * cycles - countItem(s.inventory, seedOf(crop)));
+    }
+    return plan;
+  }
+
+  /** v2-05: the gold the seeds for the coming absence will cost; mid-session v2 purchases leave at least this. */
+  private seedGold(run: SimRun): number {
+    let gold = 0;
+    for (const [crop, want] of this.seedPlan(run))
+      if (want > 0) gold += want * this.data.crops[crop].seedPrice;
+    return Math.ceil(gold / 0.8); // stockSeeds spends at most 80% of the gold in hand
+  }
+
+  /** Stocks the seeds of `seedPlan` (as far as gold and bag allow). */
+  private stockSeeds(run: SimRun): void {
+    const s = run.state;
+    let budget = Math.floor(s.gold * 0.8);
+    for (const [crop, want] of this.seedPlan(run)) {
+      const def = this.data.crops[crop];
       const qty = Math.min(want, Math.floor(budget / def.seedPrice), spaceFor(s.inventory, seedOf(crop)));
       if (qty <= 0) continue;
       if (run.game.dispatch({ type: 'buySeeds', crop, qty }).ok) budget -= qty * def.seedPrice;

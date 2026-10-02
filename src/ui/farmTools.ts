@@ -35,6 +35,12 @@ export interface FarmToolsDeps {
   mods(): Modifiers;
 }
 
+/** The Paint toggle's link to the per-device prefs (v2-05). */
+export interface PaintPref {
+  get(): boolean;
+  set(on: boolean): void;
+}
+
 /** Seed advice for the picker and the shop: in season, and whether it finishes in time. */
 export function seedNote(
   data: GameData,
@@ -65,10 +71,13 @@ export class FarmTools {
   private readonly pickerList: HTMLElement;
   private lastSeed: CropId | null | undefined = undefined;
   private lastCount = -1;
+  /** The Paint toggle (v2-05), when the page has prefs to keep it in. */
+  paintButton: HTMLButtonElement | null = null;
 
   constructor(
     root: HTMLElement,
     private readonly deps: FarmToolsDeps,
+    private readonly paint?: PaintPref,
   ) {
     const group = h('div', { class: 'tool-group', role: 'group', 'aria-label': 'Farming tools' });
     this.seedIcon = h('img', { class: 'pixel tool-img', alt: '', width: 32, height: 32 });
@@ -99,6 +108,32 @@ export class FarmTools {
       this.buttons.set(t.tool, btn);
       group.append(btn);
     }
+    if (paint) {
+      // v2-05: off, a drag pans and never runs a tool; on, a drag that starts on a plot paints the tool along it.
+      const btn = h(
+        'button',
+        {
+          type: 'button',
+          class: 'tool-btn paint-toggle',
+          'data-testid': 'paint-toggle',
+          'aria-pressed': String(paint.get()),
+          'aria-label': 'Paint',
+          title:
+            'Paint (P): drag across plots to use the tool on each one. Off, a drag moves the view. Two fingers always move it; on a computer, Alt-drag paints too.',
+        },
+        h('img', {
+          class: 'pixel tool-img',
+          alt: '',
+          width: 32,
+          height: 32,
+          src: spriteDataUrl('ui_tool_paint'),
+        }),
+        h('span', { class: 'tool-label farm-tool-label', text: 'Paint' }),
+      );
+      btn.addEventListener('click', () => this.setPaint(!paint.get()));
+      this.paintButton = btn;
+      group.append(btn);
+    }
     root.append(group);
 
     this.pickerList = h('div', { class: 'seed-list' });
@@ -117,8 +152,10 @@ export class FarmTools {
         this.closePicker();
         return;
       }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const t = TOOLS.find((d) => d.key === e.key);
-      if (t && !e.ctrlKey && !e.metaKey && !e.altKey) this.select(t.tool);
+      if (t) this.select(t.tool);
+      else if ((e.key === 'p' || e.key === 'P') && this.paint) this.setPaint(!this.paint.get());
     });
     document.addEventListener('pointerdown', (e) => {
       const target = e.target as Node;
@@ -130,6 +167,13 @@ export class FarmTools {
         this.closePicker();
     });
     this.select('auto');
+  }
+
+  /** Turns Paint mode on or off (the pref, then the button). */
+  setPaint(on: boolean): void {
+    if (!this.paint) return;
+    this.paint.set(on);
+    this.paintButton?.setAttribute('aria-pressed', String(this.paint.get()));
   }
 
   select(tool: FarmTool): void {

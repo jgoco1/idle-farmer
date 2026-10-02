@@ -1,9 +1,9 @@
 // v2 phase 04: the Ranch. Build a coop in the Old Paddock, buy two hens, fill the trough, let time pass, collect the
 // eggs by clicking the coop, cook an egg recipe, pet a hen, and look at the yard by day and by night and at the
-// Ranch panel (screenshots in docs/screenshots).
+// Ranch panel (screenshots in docs/screenshots with UPDATE_SCREENSHOTS=1).
 
 import { expect, test, type Page } from '@playwright/test';
-import { clickTile, type WithView } from './helpers';
+import { clickTile, type WithView, shot } from './helpers';
 
 type Game = {
   state: {
@@ -94,7 +94,7 @@ test('build a coop, buy two hens, fill the trough, wait, collect the eggs and co
   await page.locator('[data-buy-feed="corn_feed:10"]').click();
   await page.locator(`[data-fill-trough="${coop!.id}"]`).click();
   expect(await game(page, (g) => g.state.ranch.buildings[0]!.trough)).toBe(10);
-  await page.screenshot({ path: 'docs/screenshots/v2-04-ranch-panel.png' });
+  await page.screenshot({ path: shot('v2-04-ranch-panel.png') });
 
   // Name a hen.
   await page.locator('[data-animal-name="1"]').fill('Mabel');
@@ -144,7 +144,7 @@ test('hens wander by day, sleep by the coop at night, and can be petted without 
   await setLocalTime(page, 12);
   await page.evaluate(() => (window as unknown as Win).__view.showTile(28, 11));
   await page.waitForTimeout(900);
-  await page.screenshot({ path: 'docs/screenshots/v2-04-yard-day.png' });
+  await page.screenshot({ path: shot('v2-04-yard-day.png') });
 
   // Petting is cosmetic: the whole state is the same afterwards.
   await page.waitForTimeout(500);
@@ -157,7 +157,7 @@ test('hens wander by day, sleep by the coop at night, and can be petted without 
 
   await setLocalTime(page, 23);
   await page.waitForTimeout(6000); // they walk to bed
-  await page.screenshot({ path: 'docs/screenshots/v2-04-yard-night.png' });
+  await page.screenshot({ path: shot('v2-04-yard-night.png') });
   await expect
     .poll(() =>
       page.evaluate(() => (window as unknown as { __view: { lightsLit(): number } }).__view.lightsLit()),

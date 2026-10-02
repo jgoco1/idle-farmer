@@ -10,9 +10,8 @@ import { BUNDLE_IDS } from '../data/quests';
 import { SKILL_BLURB, SKILL_ICONS, SKILL_IDS, SKILL_NAMES } from '../data/skills';
 import type { ItemId } from '../data/ids';
 import { spriteDataUrl } from '../render/spriteCache';
-import { bundleProgress, bundleSlots, donatable, isBundleDone } from '../systems/bundles';
+import { bundleProgress, bundleSlots, donatable, haveForBundle, isBundleDone } from '../systems/bundles';
 import type { ActionResult } from '../systems/context';
-import { countItem } from '../systems/inventory';
 import { stockOf } from '../systems/placement';
 import { goalTarget, goalText, rewardsText } from '../systems/progression';
 import { farmPoints, pointsForFarmLevel, skillLevel, skillProgress } from '../systems/skills';
@@ -272,7 +271,7 @@ export function goalsPanel(hooks: GoalsHooks): { def: PanelDef; showTown(): void
           const give = donatable(st, hooks.data, id);
           const slots = bundleSlots(st, hooks.data, id).map((s) => {
             const name = hooks.data.items[s.item]?.name ?? s.item;
-            const bag = countItem(st.inventory, s.item);
+            const bag = haveForBundle(st, s.item);
             const btn =
               !done && !s.done && bag > 0
                 ? h('button', {

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { clickTile } from './helpers';
+import { clickTile, shot } from './helpers';
 
 type Win = {
   __game: {
@@ -47,7 +47,7 @@ test('cook a T1 dish in the Kitchen, eat it and see the buff in the HUD', async 
   await expect(turnip).toContainText('Green Thumb');
   await expect(turnip).toContainText('6/2');
   await expect(kitchen.locator('[data-recipe]')).toHaveCount(3);
-  await page.screenshot({ path: 'docs/screenshots/phase06-kitchen.png' });
+  await page.screenshot({ path: shot('phase06-kitchen.png') });
 
   // Cook it: the stove shows the job, the chimney puffs, and 30 s later a dish is in the bag.
   await turnip.getByRole('button', { name: 'Cook Roasted Turnip' }).click();
@@ -80,7 +80,7 @@ test('cook a T1 dish in the Kitchen, eat it and see the buff in the HUD', async 
   await expect(growth).toBeVisible();
   await expect(growth).toHaveAttribute(
     'title',
-    /Green Thumb \(tier 1\)\nCrops grow 10% faster\.\n1[45]:\d\d left/,
+    /Green Thumb \(tier 1\)\nCrops grow 13% faster\.\n2[45]:\d\d left/,
   );
   expect(await dishes()).toBe(0);
 
@@ -89,17 +89,17 @@ test('cook a T1 dish in the Kitchen, eat it and see the buff in the HUD', async 
   await expect(page.locator('#hud [data-buff]')).toHaveCount(2);
   await expect(page.locator('#hud [data-buff="cookSpeed"]')).toHaveAttribute(
     'title',
-    /Quick Hands.*15% faster/s,
+    /Quick Hands.*20% faster/s,
   );
   await page.waitForTimeout(200);
   await page.mouse.move(0, 400);
   await page.screenshot({
-    path: 'docs/screenshots/phase06-hud-buffs.png',
+    path: shot('phase06-hud-buffs.png'),
     clip: { x: 0, y: 0, width: 1280, height: 64 },
   });
 
-  // The buff really counts down (15 minutes for a T1 dish since phase 09), and expires on its own.
-  await advance(page, 16 * 60_000);
+  // The buff really counts down (25 minutes for a T1 dish since v2-05), and expires on its own.
+  await advance(page, 26 * 60_000);
   await expect(page.locator('#hud [data-buff="growth"]')).toHaveCount(0);
   expect(errors).toEqual([]);
 });

@@ -87,10 +87,19 @@ export function clampCamera(cam: Camera, view: Viewport): Camera {
   return cam;
 }
 
-/** The default view: centred on the home region at the default zoom, clamped. */
-export function defaultCamera(view: Viewport, out: Camera = { x: 0, y: 0, zoom: 1 }): Camera {
-  out.x = (HOME_RECT.col + HOME_RECT.cols / 2) * TILE;
-  out.y = (HOME_RECT.row + HOME_RECT.rows / 2) * TILE;
+/**
+ * The default view: centred on the home region at the default zoom, clamped. On a phone (v2-05) it centres on
+ * `phoneFocus` instead when one is given: the renderer passes the plot grid's centre, so a narrow screen starts on
+ * the field rather than between the field and the market.
+ */
+export function defaultCamera(
+  view: Viewport,
+  out: Camera = { x: 0, y: 0, zoom: 1 },
+  phoneFocus?: { x: number; y: number },
+): Camera {
+  const focus = phoneFocus && isPhone(view) ? phoneFocus : null;
+  out.x = focus ? focus.x : (HOME_RECT.col + HOME_RECT.cols / 2) * TILE;
+  out.y = focus ? focus.y : (HOME_RECT.row + HOME_RECT.rows / 2) * TILE;
   out.zoom = defaultZoom(view);
   return clampCamera(out, view);
 }

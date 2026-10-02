@@ -13,6 +13,7 @@ import {
   FEED_BUY_PRICE,
   FEED_PER_CORN,
   FEED_PER_WHEAT,
+  FEED_STORE_CAPACITY,
   LARGE_EGG_CHANCE,
   SILO_RESERVE,
 } from '../src/data/balance';
@@ -25,7 +26,7 @@ import { NO_MORE, RanchLife, type RanchView } from '../src/render/ranchLife';
 import { SPRITES } from '../src/render/sprites';
 import { awayRows } from '../src/ui/awaySummary';
 import { bundleBonuses } from '../src/systems/bundles';
-import { donate, isBundleDone } from '../src/systems/bundles';
+import { donatable, donate, isBundleDone } from '../src/systems/bundles';
 import { addItem, countItem } from '../src/systems/inventory';
 import { specialCandidates } from '../src/systems/market';
 import {
@@ -37,6 +38,9 @@ import {
   buildBuilding,
   buyAnimal,
   collectBuilding,
+  cycleMsOf,
+  feedUnitsThatFit,
+  msToNextProduct,
   levelDef,
   productXp,
   ranchPickup,
@@ -382,49 +386,94 @@ describe('animals: buying, naming and feeding', () => {
     expect(s.ranch.animals[0]!.name).toBe('Tab and newline');
   });
 
-  it('makes hay from wheat and corn feed from corn, free and instant, and refuses without the crop', () => {
+  it('makes hay from wheat and corn feed from corn into the feed store, free and instant, and refuses without the crop', () => {
     const s = farm();
     s.inventory.stackSize = 99;
     expect(why(act(s, { type: 'makeFeed', feed: 'hay', qty: 1 }))).toMatch(/wheat/);
     addItem(s.inventory, 'wheat', 12);
     addItem(s.inventory, 'corn', 5);
+    const slots = s.inventory.slots.filter(Boolean).length;
     expect(act(s, { type: 'makeFeed', feed: 'hay', qty: 10 })).toEqual({ ok: true });
-    expect([countItem(s.inventory, 'wheat'), countItem(s.inventory, 'hay')]).toEqual([2, 20]);
+    expect([countItem(s.inventory, 'wheat'), s.ranch.feedStore.hay]).toEqual([2, 20]);
     expect(act(s, { type: 'makeFeed', feed: 'corn_feed', qty: 5 })).toEqual({ ok: true });
-    expect([countItem(s.inventory, 'corn'), countItem(s.inventory, 'corn_feed')]).toEqual([0, 15]);
+    expect([countItem(s.inventory, 'corn'), s.ranch.feedStore.corn_feed]).toEqual([0, 15]);
+    // feed takes no bag slot (v2-05): the corn's slot emptied and nothing new arrived
+    expect(countItem(s.inventory, 'hay') + countItem(s.inventory, 'corn_feed')).toBe(0);
+    expect(s.inventory.slots.filter(Boolean).length).toBe(slots - 1);
     expect(why(act(s, { type: 'makeFeed', feed: 'hay', qty: 3 }))).toMatch(/wheat/);
     expect(why(act(s, { type: 'makeFeed', feed: 'hay', qty: 0 }))).toMatch(/how much/);
-    // the bag stays as it was when it cannot hold the result
-    s.inventory.slots = s.inventory.slots.slice(0, 1);
-    s.inventory.slots[0] = { item: 'wheat', qty: 99 };
-    s.inventory.stackSize = 99;
-    expect(why(act(s, { type: 'makeFeed', feed: 'hay', qty: 99 }))).toMatch(/too full/);
-    expect(countItem(s.inventory, 'wheat')).toBe(99);
   });
 
-  it('buys feed at the Ranch for 40g a portion', () => {
+  it('a full bag does not matter: feed goes to the store', () => {
+    const s = farm();
+    s.inventory.slots = [{ item: 'wheat', qty: 99 }];
+    s.inventory.stackSize = 99;
+    expect(act(s, { type: 'makeFeed', feed: 'hay', qty: 99 })).toEqual({ ok: true });
+    expect(s.ranch.feedStore.hay).toBe(198);
+  });
+
+  it('the store has a capacity: making or buying more says so politely, and nothing is used or lost', () => {
+    const s = farm();
+    s.inventory.stackSize = 999;
+    addItem(s.inventory, 'wheat', 400);
+    s.ranch.feedStore.hay = FEED_STORE_CAPACITY - 5;
+    const gold = s.gold;
+    // 3 wheat would make 6 hay: one more than fits
+    expect(why(act(s, { type: 'makeFeed', feed: 'hay', qty: 3 }))).toBe(
+      'The feed store only has room for 5 more hay.',
+    );
+    expect([countItem(s.inventory, 'wheat'), s.ranch.feedStore.hay]).toEqual([400, FEED_STORE_CAPACITY - 5]);
+    expect(act(s, { type: 'makeFeed', feed: 'hay', qty: 2 }).ok).toBe(true);
+    expect(why(act(s, { type: 'buyFeed', feed: 'hay', qty: 10 }))).toBe(
+      'The feed store only has room for 1 more hay.',
+    );
+    expect(act(s, { type: 'buyFeed', feed: 'hay', qty: 1 }).ok).toBe(true);
+    expect(s.ranch.feedStore.hay).toBe(FEED_STORE_CAPACITY);
+    expect(why(act(s, { type: 'makeFeed', feed: 'hay', qty: 1 }))).toBe(
+      'The feed store is full of hay. Fill a trough first.',
+    );
+    expect(why(act(s, { type: 'buyFeed', feed: 'hay', qty: 1 }))).toMatch(/full of hay/);
+    expect(countItem(s.inventory, 'wheat')).toBe(398);
+    expect(s.gold).toBe(gold - FEED_BUY_PRICE.hay);
+    // the other feed has its own room
+    s.inventory.slots.push({ item: 'corn', qty: 10 });
+    expect(act(s, { type: 'makeFeed', feed: 'corn_feed', qty: 10 }).ok).toBe(true);
+    expect(feedUnitsThatFit(s, 'hay', FEED_PER_WHEAT)).toBe(0);
+    expect(feedUnitsThatFit(s, 'corn_feed', FEED_PER_CORN)).toBe(Math.floor((FEED_STORE_CAPACITY - 30) / 3));
+  });
+
+  it('buys feed at the Ranch for 40g a portion, into the store', () => {
     const s = farm();
     s.gold = 500;
     expect(act(s, { type: 'buyFeed', feed: 'hay', qty: 10 })).toEqual({ ok: true });
-    expect([s.gold, countItem(s.inventory, 'hay')]).toEqual([100, 10]);
+    expect([s.gold, s.ranch.feedStore.hay, countItem(s.inventory, 'hay')]).toEqual([100, 10, 0]);
     expect(why(act(s, { type: 'buyFeed', feed: 'corn_feed', qty: 3 }))).toBe('You need 120g for that.');
   });
 
-  it('fills a trough from the bag, as much as fits', () => {
+  it('fills a trough from the store, as much as fits', () => {
     const s = farm();
     const barn = build(s, 'barn');
-    s.inventory.stackSize = 99;
-    expect(why(act(s, { type: 'fillTrough', building: barn.id }))).toMatch(/no hay/);
-    addItem(s.inventory, 'hay', 30);
+    expect(why(act(s, { type: 'fillTrough', building: barn.id }))).toMatch(/feed store has no hay/);
+    s.ranch.feedStore.hay = 30;
     expect(act(s, { type: 'fillTrough', building: barn.id })).toEqual({ ok: true });
-    expect([barn.trough, countItem(s.inventory, 'hay')]).toEqual([24, 6]);
+    expect([barn.trough, s.ranch.feedStore.hay]).toEqual([24, 6]);
     expect(why(act(s, { type: 'fillTrough', building: barn.id }))).toMatch(/already full/);
     barn.trough = 20;
     expect(act(s, { type: 'fillTrough', building: barn.id }).ok).toBe(true);
-    expect([barn.trough, countItem(s.inventory, 'hay')]).toEqual([24, 2]);
+    expect([barn.trough, s.ranch.feedStore.hay]).toEqual([24, 2]);
     expect(why(act(s, { type: 'fillTrough', building: 99 }))).toMatch(/no such/);
     const silo = build(s, 'silo');
     expect(why(act(s, { type: 'fillTrough', building: silo.id }))).toMatch(/silo/i);
+  });
+
+  it('feed an old save left in the bag is used after the store’s, so nothing is stranded', () => {
+    const s = farm();
+    const barn = build(s, 'barn');
+    s.inventory.stackSize = 99;
+    s.ranch.feedStore.hay = 10;
+    addItem(s.inventory, 'hay', 30);
+    expect(act(s, { type: 'fillTrough', building: barn.id }).ok).toBe(true);
+    expect([barn.trough, s.ranch.feedStore.hay, countItem(s.inventory, 'hay')]).toEqual([24, 0, 16]);
   });
 });
 
@@ -683,22 +732,21 @@ describe('collecting', () => {
 });
 
 describe('the silo (auto-feeder)', () => {
-  it('level 1 tops up every trough from the bag’s feed at each bin pickup', () => {
+  it('level 1 tops up every trough from the feed store at each bin pickup', () => {
     const s = farm();
     const coop = coopWith(s, 2);
     coop.trough = 10;
     const barn = build(s, 'barn');
     addAnimals(s, 'cow', 1);
     build(s, 'silo');
-    s.inventory.stackSize = 99;
-    addItem(s.inventory, 'corn_feed', 40);
-    addItem(s.inventory, 'hay', 100);
+    s.ranch.feedStore.corn_feed = 40;
+    s.ranch.feedStore.hay = 100;
     ranchPickup(s, ctxFor(s));
-    expect([coop.trough, countItem(s.inventory, 'corn_feed')]).toEqual([50, 0]); // all it had
-    expect([barn.trough, countItem(s.inventory, 'hay')]).toEqual([24, 76]);
+    expect([coop.trough, s.ranch.feedStore.corn_feed]).toEqual([50, 0]); // all it had
+    expect([barn.trough, s.ranch.feedStore.hay]).toEqual([24, 76]);
     // no silo, no feeding
     s.ranch.buildings = s.ranch.buildings.filter((b) => b.kind !== 'silo');
-    addItem(s.inventory, 'corn_feed', 10);
+    s.ranch.feedStore.corn_feed = 10;
     ranchPickup(s, ctxFor(s));
     expect(coop.trough).toBe(50);
   });
@@ -724,7 +772,7 @@ describe('the silo (auto-feeder)', () => {
     // wheat: 18 − 10 = 8 spare → 16 hay, the barn needs 24
     expect(barn.trough).toBe(16);
     expect(countItem(s.inventory, 'wheat')).toBe(SILO_RESERVE);
-    expect(countItem(s.inventory, 'hay')).toBe(0);
+    expect(s.ranch.feedStore.hay).toBe(0);
   });
 
   it('level 2 uses existing feed first and makes only what is needed', () => {
@@ -734,21 +782,20 @@ describe('the silo (auto-feeder)', () => {
     addAnimals(s, 'cow', 1);
     build(s, 'silo', 2);
     s.inventory.stackSize = 99;
-    addItem(s.inventory, 'hay', 20);
+    s.ranch.feedStore.hay = 20;
     addItem(s.inventory, 'wheat', 40);
     ranchPickup(s, ctxFor(s));
     expect(barn.trough).toBe(24);
-    // needed 24: 20 hay in the bag, so 4 more portions = 2 wheat; the 30 spare wheat are not all turned into hay
+    // needed 24: 20 hay in the store, so 4 more portions = 2 wheat; the 30 spare wheat are not all turned into hay
     expect(countItem(s.inventory, 'wheat')).toBe(38);
-    expect(countItem(s.inventory, 'hay')).toBe(0);
+    expect(s.ranch.feedStore.hay).toBe(0);
   });
 
   it('acts at the pickups inside a long step (the core stops at each one)', () => {
     const s = farm();
     const coop = coopWith(s, 4);
     build(s, 'silo');
-    s.inventory.stackSize = 99;
-    addItem(s.inventory, 'corn_feed', 99);
+    s.ranch.feedStore.corn_feed = 99;
     coop.trough = 0;
     // the first pickup refills the trough, the hens then lay for the rest of the 3 hours
     step(s, ctxFor(s), 3 * HOUR);
@@ -778,7 +825,7 @@ describe('offline correctness (the same in one big step as in many small ones)',
     s.upgrades.auto_seller = 1;
     setAutoSell(s, GAME_DATA, 'milk', true);
     s.inventory.stackSize = 99;
-    addItem(s.inventory, 'corn_feed', 50);
+    s.ranch.feedStore.corn_feed = 50;
     addItem(s.inventory, 'wheat', 30);
     addItem(s.inventory, 'corn', 25);
     return s;
@@ -870,9 +917,10 @@ describe('recipes (BALANCE.md §13.8)', () => {
     expect(row('fried_egg')).toEqual([1, 225, 'cookSpeed', 30, 'milestone']);
     expect(row('soft_cheese')).toEqual([2, 672, 'automationSpeed', 60, 'milestone']);
     expect(row('garden_omelette')).toEqual([2, 374, 'fishingSpeed', 45, 'experiment']);
-    expect(row('apricot_custard')).toEqual([3, 1344, 'xp', 90, 'experiment']);
-    expect(row('lemon_meringue_pie')).toEqual([3, 944, 'cookSpeed', 90, 'card']);
-    expect(row('persimmon_pudding')).toEqual([3, 1104, 'sellPrice', 90, 'card']);
+    // v2-05: the fruit in the custard, the pie and the pudding is worth more, so the dishes are too (same tiers)
+    expect(row('apricot_custard')).toEqual([3, 1536, 'xp', 90, 'experiment']);
+    expect(row('lemon_meringue_pie')).toEqual([3, 1552, 'cookSpeed', 90, 'card']);
+    expect(row('persimmon_pudding')).toEqual([3, 1672, 'sellPrice', 90, 'card']);
     for (const id of [
       'fried_egg',
       'soft_cheese',
@@ -951,7 +999,11 @@ describe('bundle, goals, town projects and unlocks', () => {
     addItem(s.inventory, 'egg', 20);
     addItem(s.inventory, 'large_egg', 3);
     addItem(s.inventory, 'milk', 10);
-    addItem(s.inventory, 'hay', 20);
+    s.ranch.feedStore.hay = 25; // hay is given from the feed store (v2-05)
+    expect(donatable(s, GAME_DATA, 'barnyard').find((d) => d.item === 'hay')).toEqual({
+      item: 'hay',
+      qty: 20,
+    });
     for (const [item, qty] of [
       ['egg', 20],
       ['large_egg', 3],
@@ -960,6 +1012,7 @@ describe('bundle, goals, town projects and unlocks', () => {
     ] as const)
       expect(donate(s, ctxFor(s), 'barnyard', item, qty)).toEqual({ ok: true });
     expect(isBundleDone(s, 'barnyard')).toBe(true);
+    expect(s.ranch.feedStore.hay).toBe(5);
     expect(bundleBonuses(s, GAME_DATA).troughBonus).toBe(0.5);
   });
 
@@ -1027,6 +1080,75 @@ describe('bundle, goals, town projects and unlocks', () => {
 function buildBuildingOk(s: GameState): boolean {
   return buildBuilding(s, ctxFor(s), 'barn', SPOTS.barn.col, SPOTS.barn.row).ok;
 }
+
+describe('Busy Bees speeds the animals (v2-05, the animalSpeedModifier seam)', () => {
+  function bees(s: GameState, tier: 1 | 2 | 3 | 4, remainingMs: number): void {
+    s.buffs.active.push({
+      type: 'automationSpeed',
+      magnitude: 0.1 * tier,
+      tier,
+      remainingMs,
+      source: 'soft_cheese',
+    });
+  }
+
+  it('the buff drives both the farmhand and the animal seam; nothing else does', async () => {
+    const { computeModifiers } = await import('../src/systems/modifiers');
+    const s = farm();
+    expect(computeModifiers(s, GAME_DATA).animalSpeedModifier).toBe(1);
+    bees(s, 2, HOUR);
+    const m = computeModifiers(s, GAME_DATA);
+    expect(m.automationSpeedModifier).toBeCloseTo(1.2);
+    expect(m.animalSpeedModifier).toBeCloseTo(1.2);
+  });
+
+  it('cycles are whole ms, shortened by the modifier', () => {
+    expect(cycleMsOf(ANIMALS.chicken, 1)).toBe(1_800_000);
+    expect(cycleMsOf(ANIMALS.chicken, 1.2)).toBe(1_500_000);
+    expect(cycleMsOf(ANIMALS.cow, 1.3)).toBe(Math.round(2_400_000 / 1.3));
+    expect(Number.isInteger(cycleMsOf(ANIMALS.cow, 1.3))).toBe(true);
+  });
+
+  it('a T2 Busy Bees buff lays a fifth more eggs in the same time', () => {
+    const plain = farm();
+    coopWith(plain, 4, 2);
+    const fast = structuredClone(plain);
+    bees(fast, 2, 10 * HOUR);
+    step(plain, ctxFor(plain, NOON, [], QUIET), 3 * HOUR);
+    step(fast, ctxFor(fast, NOON, [], QUIET), 3 * HOUR);
+    expect(storeCount(plain.ranch.buildings[0]!)).toBe(4 * 6);
+    expect(storeCount(fast.ranch.buildings[0]!)).toBe(4 * 7); // 3 h / 25 min = 7.2 cycles
+  });
+
+  it('offline equivalence holds while the buff runs out part-way: one big step equals many small ones', () => {
+    const big = farm();
+    coopWith(big, 6, 2);
+    build(big, 'barn', 2);
+    addAnimals(big, 'cow', 3);
+    big.ranch.buildings[1]!.trough = 40;
+    bees(big, 3, 95 * MIN + 7_777); // expires mid-cycle
+    const small = structuredClone(big);
+    step(big, ctxFor(big, NOON, [], QUIET), 7 * HOUR);
+    const ctx = ctxFor(small, NOON, [], QUIET);
+    const steps = [1, 13 * MIN, 1_499_999, 77, 31 * MIN + 3];
+    let left = 7 * HOUR;
+    for (let i = 0; left > 0; i++) {
+      const d = Math.min(left, steps[i % steps.length]!);
+      step(small, ctx, d);
+      left -= d;
+    }
+    expect(settled(big)).toEqual(settled(small));
+    expect(big.buffs.active).toHaveLength(0);
+  });
+
+  it('the panel and labels count down to the next product at the buffed speed', () => {
+    const s = farm();
+    const coop = coopWith(s, 1);
+    coop.cycleMs = 10 * MIN;
+    expect(msToNextProduct(GAME_DATA, coop, 1)).toBe(20 * MIN);
+    expect(msToNextProduct(GAME_DATA, coop, 1.2)).toBe(15 * MIN);
+  });
+});
 
 describe('the ranch does not touch anything else', () => {
   it('feeds no modifier: computeModifiers is the same with a full ranch', async () => {

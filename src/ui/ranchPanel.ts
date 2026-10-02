@@ -6,10 +6,11 @@
 import type { Action } from '../core/actions';
 import { formatDuration } from '../core/time';
 import type { BuildingState } from '../core/state';
-import { FEED_AMOUNTS } from '../data/balance';
+import { FEED_AMOUNTS, FEED_STORE_CAPACITY } from '../data/balance';
 import { ANIMAL_IDS, FEED_IDS, type BuildingId } from '../data/ids';
 import { spriteDataUrl } from '../render/spriteCache';
 import type { ActionResult } from '../systems/context';
+import { feedAvailable, feedInStore } from '../systems/feedStore';
 import { countItem } from '../systems/inventory';
 import { ownsParcel } from '../systems/parcels';
 import {
@@ -18,9 +19,11 @@ import {
   animalsIn,
   buildingOfKind,
   capacityOf,
+  feedUnitsThatFit,
   hasCollector,
   levelDef,
   MAX_NAME_LENGTH,
+  msToNextProduct,
   storeCount,
   storeSize,
   troughSize,
@@ -56,7 +59,7 @@ function productionLine(hooks: RanchHooks, b: BuildingState): string {
   if (b.trough <= 0) {
     return `The ${animal.plural.toLowerCase()} would love some feed. Fill the trough and they will get going.`;
   }
-  const left = animal.intervalSec * 1000 - b.cycleMs;
+  const left = msToNextProduct(hooks.data, b, hooks.mods().animalSpeedModifier);
   return `Next ${noun} in ${formatDuration(left)} · ${n} ${n === 1 ? animal.name.toLowerCase() : animal.plural.toLowerCase()} fed from the trough (${def.name.toLowerCase()})`;
 }
 
@@ -170,19 +173,19 @@ export function ranchPanel(hooks: RanchHooks): PanelDef {
           stats.push(
             lvl.flags?.includes('autoMill')
               ? 'tops up every trough at each bin pickup, and makes feed from spare wheat and corn'
-              : 'tops up every trough from your bag at each bin pickup',
+              : 'tops up every trough from the feed store at each bin pickup',
           );
         }
         const buttons: HTMLElement[] = [];
         if (animal) {
           const feed = hooks.data.feeds[animal.feed];
           const room = troughSize(state, hooks.data, b) - b.trough;
-          const inBag = countItem(state.inventory, feed.id);
+          const have = feedAvailable(state, feed.id);
           buttons.push(
             button(
-              `Fill trough (${inBag} ${feed.name.toLowerCase()})`,
+              `Fill trough (${have} ${feed.name.toLowerCase()})`,
               { 'data-fill-trough': String(b.id) },
-              room > 0 && inBag > 0,
+              room > 0 && have > 0,
               () => act({ type: 'fillTrough', building: b.id }, 'The trough is topped up.'),
             ),
             button(
@@ -283,14 +286,25 @@ export function ranchPanel(hooks: RanchHooks): PanelDef {
 
       const feedShop = (): HTMLElement => {
         const state = hooks.state();
-        const box = h('div', { class: 'ranch-feed' }, h('h3', { text: 'Feed' }));
+        const box = h(
+          'div',
+          { class: 'ranch-feed', 'data-testid': 'feed-store' },
+          h('h3', { text: 'Feed store' }),
+          h('p', {
+            class: 'seed-note',
+            text: `Hay and corn feed wait here for the troughs, not in your bag. The store holds ${num(FEED_STORE_CAPACITY)} of each.`,
+          }),
+        );
         for (const id of FEED_IDS) {
           const feed = hooks.data.feeds[id];
           const crop = hooks.data.crops[feed.from];
           const haveCrop = countItem(state.inventory, feed.from);
-          const haveFeed = countItem(state.inventory, id);
+          const stored = feedInStore(state, id);
+          const inBag = countItem(state.inventory, id);
+          const fit = feedUnitsThatFit(state, id, feed.perUnit);
           const make = [...FEED_AMOUNTS, 'all' as const].map((n) => {
-            const qty = n === 'all' ? haveCrop : n;
+            // "Make all" makes what fits; with a full store it still answers, politely, when pressed.
+            const qty = n === 'all' ? (fit > 0 ? Math.min(haveCrop, fit) : haveCrop) : n;
             return button(
               n === 'all' ? `Make all (${qty})` : `Make ×${n}`,
               { 'data-make-feed': `${id}:${n}` },
@@ -310,6 +324,7 @@ export function ranchPanel(hooks: RanchHooks): PanelDef {
               () => act({ type: 'buyFeed', feed: id, qty: n }, `Bought ${n} ${feed.name.toLowerCase()}.`),
             ),
           );
+          const full = stored >= FEED_STORE_CAPACITY;
           box.append(
             h(
               'div',
@@ -318,7 +333,17 @@ export function ranchPanel(hooks: RanchHooks): PanelDef {
               h(
                 'div',
                 { class: 'crate-text' },
-                h('span', { text: `${feed.name} · ${haveFeed} in your bag` }),
+                h('span', {
+                  'data-feed-stored': id,
+                  text: `${feed.name} · ${num(stored)} / ${num(FEED_STORE_CAPACITY)} in the store${full ? ' (full)' : ''}${inBag > 0 ? ` · ${inBag} still in your bag` : ''}`,
+                }),
+                h('meter', {
+                  class: 'feed-meter',
+                  min: '0',
+                  max: String(FEED_STORE_CAPACITY),
+                  value: String(stored),
+                  'aria-label': `${feed.name} in the feed store`,
+                }),
                 h('span', {
                   class: 'seed-note',
                   text: `1 ${crop.name.toLowerCase()} makes ${feed.perUnit} (you have ${haveCrop}). Cannot be sold; buying costs ${feed.buyPrice}g each, about three times more.`,

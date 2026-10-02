@@ -122,8 +122,10 @@ describe('pacing on a real-world schedule (BALANCE.md §11, phase 09)', { timeou
     const idler = median(week('idler').map((r) => lifetimeAtDay(r, 3)));
     const active = median(week('active').map((r) => lifetimeAtDay(r, 3)));
     expect(idler / active).toBeGreaterThanOrEqual(0.4);
+    // Mostly offline. v2-05: eggs, milk and fruit picked by hand on its 2-minute visits are sold online, so the
+    // share is 89–92% in the first week (it was over 90%).
     for (const r of week('idler'))
-      expect(r.metrics.offlineGold / r.state.stats.lifetimeGold).toBeGreaterThan(0.9);
+      expect(r.metrics.offlineGold / r.state.stats.lifetimeGold).toBeGreaterThan(0.85);
   });
 
   it('food buffs kept up are worth it but not mandatory: +10% to +25% over the first week', () => {

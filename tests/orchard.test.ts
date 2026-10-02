@@ -8,7 +8,7 @@ import { makeContext, processCalendar, step } from '../src/core/sim';
 import { createInitialState, emptyPlot, type GameState } from '../src/core/state';
 import { buildCalendar } from '../src/core/time';
 import { GAME_DATA } from '../src/data';
-import { FRUIT_CAP_DAYS, roundNice } from '../src/data/balance';
+import { FRUIT_CAP_DAYS, roundNice, SAPLING_PRICE_FACTOR } from '../src/data/balance';
 import { FRUIT_IDS, saplingOf, treeOfFruit, type FruitId } from '../src/data/ids';
 import { TREES } from '../src/data/trees';
 import { WORLD_LAYOUT } from '../src/data/world';
@@ -35,6 +35,7 @@ import {
   treeStage,
 } from '../src/systems/orchard';
 import { goalAchievable, goalText } from '../src/systems/progression';
+import { recipeTier } from '../src/systems/cooking';
 import { at, HOUR, NY } from './helpers';
 
 // Wednesday 7 January 2026, 10:00. Spring until Sunday 11 January 00:00 (day 4 is the first summer day),
@@ -93,11 +94,44 @@ describe('tree data (BALANCE.md §13.5)', () => {
     ).toEqual(['persimmon_tree', 'lemon_tree']);
   });
 
+  it('has the v2-05 fruit table: about four to seven times the fruit value of v2-03, same days and seasons', () => {
+    // [fruit per bearing day, fruit price, sapling price, days to mature]
+    const table: Record<string, [number, number, number, number]> = {
+      cherry_tree: [40, 165, 26_000, 3],
+      apricot_tree: [32, 270, 69_000, 4],
+      peach_tree: [32, 500, 64_000, 4],
+      apple_tree: [44, 295, 100_000, 5],
+      pear_tree: [36, 470, 68_000, 5],
+      persimmon_tree: [32, 715, 180_000, 6],
+      lemon_tree: [32, 700, 180_000, 7],
+    };
+    for (const t of Object.values(TREES))
+      expect([t.fruitPerDay, t.fruitPrice, t.saplingPrice, t.matureDays], t.id).toEqual(table[t.id]);
+    expect(SAPLING_PRICE_FACTOR).toBe(4);
+  });
+
+  it('the fruit recipes keep their v2-03 and v2-04 tiers with the v2-05 prices', () => {
+    const tiers = {
+      baked_apple: 1,
+      cherry_jam: 2,
+      pear_crumble: 2,
+      peach_cobbler: 3,
+      apricot_custard: 3,
+      lemon_meringue_pie: 3,
+      persimmon_pudding: 3,
+    } as const;
+    for (const [id, tier] of Object.entries(tiers)) {
+      const r = GAME_DATA.recipes[id as keyof typeof tiers];
+      expect(recipeTier(r, GAME_DATA.items), id).toBe(tier);
+      expect(r.tier, id).toBe(tier);
+    }
+  });
+
   it('declares the cap, the sapling price and the XP the formulas give', () => {
     for (const t of Object.values(TREES)) {
       expect(t.fruitCap, t.id).toBe(FRUIT_CAP_DAYS * t.fruitPerDay);
       const v = t.fruitPerDay * t.fruitPrice; // gold per bearing day at base price
-      expect(t.saplingPrice, t.id).toBe(roundNice(4 * v * t.seasons.length));
+      expect(t.saplingPrice, t.id).toBe(roundNice(SAPLING_PRICE_FACTOR * v * t.seasons.length));
       expect(t.xp, t.id).toBe(Math.max(1, Math.round(t.fruitPrice ** 0.6 / 2)));
       expect(t.id).toBe(treeOfFruit(t.fruit));
     }
@@ -166,44 +200,44 @@ describe('growth stages are derived from age', () => {
 describe('fruit at the daily refresh', () => {
   it('appears only on mature days, in season, one day’s worth at a time', () => {
     const s = farm();
-    const cherry = plant(s, 'cherry', 0, 0); // spring only, 10 a day, mature on day 3
+    const cherry = plant(s, 'cherry', 0, 0); // spring only, 40 a day, mature on day 3
     daily(s, 2);
     expect(cherry.fruit).toBe(0); // still growing
     daily(s, 3); // Saturday 10 Jan, spring
-    expect(cherry.fruit).toBe(10);
+    expect(cherry.fruit).toBe(40);
     daily(s, 4); // Sunday 11 Jan: summer, the cherry rests
-    expect(cherry.fruit).toBe(10);
+    expect(cherry.fruit).toBe(40);
     expect(cherry.lastFruitDay).toBe(4);
   });
 
   it('stops at the cap, loses nothing it was holding, and starts again after picking', () => {
     const s = farm();
-    const peach = plant(s, 'peach', 0, 0); // summer, 8 a day, cap 32, mature day 4
+    const peach = plant(s, 'peach', 0, 0); // summer, 32 a day, cap 128, mature day 4
     daily(s, 4);
-    expect(peach.fruit).toBe(8);
-    daily(s, 6);
-    expect(peach.fruit).toBe(24);
-    daily(s, 7);
     expect(peach.fruit).toBe(32);
+    daily(s, 6);
+    expect(peach.fruit).toBe(96);
+    daily(s, 7);
+    expect(peach.fruit).toBe(128);
     daily(s, 9);
-    expect(peach.fruit).toBe(32); // full: it just stops adding
+    expect(peach.fruit).toBe(128); // full: it just stops adding
     s.orchard.trees[0]!.fruit = 0;
     daily(s, 10);
-    expect(peach.fruit).toBe(8);
+    expect(peach.fruit).toBe(32);
   });
 
   it('bears in both seasons of a two-season tree and rests between', () => {
     const s = farm();
-    const lemon = plant(s, 'lemon', 0, 0); // winter and spring, 8 a day, cap 32, mature day 7
+    const lemon = plant(s, 'lemon', 0, 0); // winter and spring, 32 a day, cap 128, mature day 7
     daily(s, 17); // days 7–17 are summer and autumn
     expect(lemon.fruit).toBe(0);
     daily(s, 18); // winter
-    expect(lemon.fruit).toBe(8);
-    daily(s, 24);
     expect(lemon.fruit).toBe(32);
+    daily(s, 24);
+    expect(lemon.fruit).toBe(128);
     lemon.fruit = 0;
     daily(s, 25); // spring
-    expect(lemon.fruit).toBe(8);
+    expect(lemon.fruit).toBe(32);
   });
 
   it('a tree planted today with age 0 bears on the refresh of the day its age reaches the days to mature', () => {
@@ -212,7 +246,7 @@ describe('fruit at the daily refresh', () => {
     daily(s, 5);
     expect(apricot.fruit).toBe(0);
     daily(s, 6);
-    expect(apricot.fruit).toBe(8);
+    expect(apricot.fruit).toBe(32);
   });
 
   it('reports a tree turning mature once, and the fruit that grew', () => {
@@ -224,7 +258,7 @@ describe('fruit at the daily refresh', () => {
       { type: 'treeMatured', tree: 'peach_tree', id: 1 },
     ]);
     const grown = events.filter((e) => e.type === 'fruitGrown');
-    expect(grown.map((e) => (e.type === 'fruitGrown' ? e.qty : 0))).toEqual([8, 8]);
+    expect(grown.map((e) => (e.type === 'fruitGrown' ? e.qty : 0))).toEqual([32, 32]);
   });
 
   it('is the same after one big jump as after every day, including through a season change', () => {
@@ -241,13 +275,13 @@ describe('fruit at the daily refresh', () => {
 
   it('is not affected by simulated time or the offline cap: 30 days away is 30 days older', () => {
     const s = farm();
-    const apple = plant(s, 'apple', 0, 0); // summer and autumn, 10 a day, cap 40
+    const apple = plant(s, 'apple', 0, 0); // summer and autumn, 44 a day, cap 176
     const from = at(NY, 2026, 1, 7, 12);
     const to = from + 30 * 24 * HOUR;
     const report = runOffline(s, GAME_DATA, NY, from, to);
     expect(report.simulatedMs).toBeLessThanOrEqual(12 * HOUR); // the cap limits timers, not trees
     expect(s.calendar.maxDayIndex).toBe(30);
-    expect(apple.fruit).toBe(40); // the summer and autumn fruit filled the tree to its cap and nothing was lost
+    expect(apple.fruit).toBe(176); // the summer and autumn fruit filled the tree to its cap and nothing was lost
     expect(s.orchard.trees[0]!.lastFruitDay).toBe(30);
     expect(treeStage(GAME_DATA, apple, 30)).toBe('mature');
   });
@@ -256,24 +290,24 @@ describe('fruit at the daily refresh', () => {
     const s = farm();
     plant(s, 'peach', 0, 0);
     const report = runOffline(s, GAME_DATA, NY, at(NY, 2026, 1, 7, 12), at(NY, 2026, 1, 12, 12)); // days 1–5
-    expect(s.orchard.trees[0]!.fruit).toBe(16); // refreshes on day 4 and day 5
+    expect(s.orchard.trees[0]!.fruit).toBe(64); // refreshes on day 4 and day 5
     expect(report.events.some((e) => e.type === 'treeMatured')).toBe(true);
     const rows = awayRows(report, { readyPlots: 0, dryPlots: 0 }).map((r) => r.text);
     expect(rows).toContain('Your peach tree is ready to bear.');
-    expect(rows.some((r) => /^\+16 fruit grew on the trees \(16 Peach\)/.test(r))).toBe(true);
+    expect(rows.some((r) => /^\+64 fruit grew on the trees \(64 Peach\)/.test(r))).toBe(true);
   });
 
   it('never shrinks when the clock is set back', () => {
     const s = farm();
     const peach = plant(s, 'peach', 0, 0);
     daily(s, 5);
-    expect(peach.fruit).toBe(16);
+    expect(peach.fruit).toBe(64);
     processCalendar(s, GAME_DATA, NY, dayTime(1), []);
-    expect(peach.fruit).toBe(16);
+    expect(peach.fruit).toBe(64);
     expect(peach.lastFruitDay).toBe(5);
     const ctx = ctxFor(s, dayTime(2));
     growOrchard(s, ctx); // a refresh while the clock is back adds nothing
-    expect(peach.fruit).toBe(16);
+    expect(peach.fruit).toBe(64);
   });
 });
 
@@ -282,7 +316,7 @@ describe('buying, planting, moving and removing', () => {
     const s = farm();
     const before = s.gold;
     expect(act(s, CREATED, { type: 'buySapling', fruit: 'cherry', qty: 2 }).ok).toBe(true);
-    expect(s.gold).toBe(before - 12_000);
+    expect(s.gold).toBe(before - 52_000); // 2 × 26,000 (v2-05)
     expect(countItem(s.inventory, 'sapling_cherry')).toBe(2);
     const bare = createInitialState(CREATED, NY, 1);
     bare.gold = 99_999;
@@ -476,8 +510,8 @@ describe('the farmhand and the orchard', () => {
     const picks = events.filter((e) => e.type === 'fruitPicked');
     expect(picks).toHaveLength(4);
     expect(picks.every((e) => e.type === 'fruitPicked' && e.auto)).toBe(true);
-    // a quarter of the hand-picked XP: 64 × 14 × 0.25
-    expect(s.progression.skills.farming.xp).toBe(Math.round(64 * 14 * 0.25));
+    // a quarter of the hand-picked XP: 64 × 21 × 0.25
+    expect(s.progression.skills.farming.xp).toBe(Math.round(64 * 21 * 0.25));
   });
 
   it('shares its capacity with the plots: trees first, then crops with what is left', () => {

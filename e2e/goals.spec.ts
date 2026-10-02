@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { clickTile } from './helpers';
+import { clickTile, shot } from './helpers';
 
 type Win = {
   __game: {
@@ -106,7 +106,7 @@ test('milestones, a goal and a level-up: toasts, confetti, and the Goals panel t
   await panel.getByRole('tab', { name: 'Goals' }).click(); // the panel reopens on the tab it was left on
   await expect(panel.locator('.goal-card')).toHaveCount(3);
   await expect(panel.locator('[role="progressbar"]').first()).toBeVisible();
-  await page.screenshot({ path: 'docs/screenshots/phase07-goals.png' });
+  await page.screenshot({ path: shot('phase07-goals.png') });
   await panel.getByRole('tab', { name: 'Skills' }).click();
   await expect(panel.locator('[data-skill="farming"]')).toContainText('Level 2');
   await expect(panel.locator('[data-skill="farming"] .perk.is-got')).toHaveCount(1);
@@ -151,7 +151,7 @@ test('the Community Board: give what the bag has, finish Spring Crops, place the
   await expect(spring).toContainText('Reward earned');
   const done = await page.evaluate(() => (window as unknown as Win).__game.state.progression.milestones.done);
   expect(done).toContain('m14_first_bundle');
-  await page.screenshot({ path: 'docs/screenshots/phase07-community-board.png' });
+  await page.screenshot({ path: shot('phase07-community-board.png') });
 
   await spring.getByRole('button', { name: 'Place the golden scarecrow' }).click();
   await expect(page.getByTestId('placement-banner')).toContainText(/golden scarecrow/);

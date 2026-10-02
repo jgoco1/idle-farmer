@@ -29,7 +29,8 @@ import { bundleBonuses } from './bundles';
 import { fail, OK, type ActionResult, type SimContext } from './context';
 import { decorAt } from './decor';
 import { canAfford, spend } from './economy';
-import { addItem, countItem, removeItem, spaceFor } from './inventory';
+import { feedAvailable, feedRoom, storeFeed, takeFeed } from './feedStore';
+import { countItem, removeItem, spaceFor } from './inventory';
 import { ownsParcel } from './parcels';
 import { isUnlocked, unlockHint } from './unlocks';
 import { hasFlag } from './upgrades';
@@ -360,7 +361,7 @@ export function renameAnimal(state: GameState, id: number, name: string): Action
 
 // ---- feed
 
-/** Makes feed from crops: `qty` units of the crop become `qty × perUnit` portions in the bag. */
+/** Makes feed from crops: `qty` units of the crop become `qty × perUnit` portions in the feed store. */
 export function makeFeed(state: GameState, ctx: SimContext, feed: FeedId, qty: number): ActionResult {
   if (!isFeedId(feed)) return fail('There is no such feed.');
   const def = ctx.data.feeds[feed];
@@ -369,11 +370,26 @@ export function makeFeed(state: GameState, ctx: SimContext, feed: FeedId, qty: n
   if (!Number.isInteger(qty) || qty <= 0) return fail('Choose how much to make.');
   if (countItem(state.inventory, def.from) < qty)
     return fail(`You need ${qty} ${crop.name.toLowerCase()} for that.`);
-  const scratch = structuredClone(state.inventory);
-  removeItem(scratch, def.from, qty);
-  if (!addItem(scratch, feed, qty * def.perUnit)) return fail('Your bag is too full to hold that much feed.');
-  state.inventory = scratch;
+  const problem = storeRoomProblem(state, def.name, feed, qty * def.perUnit);
+  if (problem) return fail(problem);
+  removeItem(state.inventory, def.from, qty);
+  storeFeed(state, feed, qty * def.perUnit);
   return OK;
+}
+
+/** The polite refusal when `portions` of feed would not fit in the store, or null (the action then changes nothing). */
+function storeRoomProblem(state: GameState, name: string, feed: FeedId, portions: number): string | null {
+  const room = feedRoom(state, feed);
+  if (portions <= room) return null;
+  const what = name.toLowerCase();
+  return room === 0
+    ? `The feed store is full of ${what}. Fill a trough first.`
+    : `The feed store only has room for ${room} more ${what}.`;
+}
+
+/** How many units of crop (or of bought feed) fit in the store now, at `perUnit` portions each. */
+export function feedUnitsThatFit(state: GameState, feed: FeedId, perUnit: number): number {
+  return Math.floor(feedRoom(state, feed) / perUnit);
 }
 
 export function buyFeed(state: GameState, ctx: SimContext, feed: FeedId, qty: number): ActionResult {
@@ -382,22 +398,22 @@ export function buyFeed(state: GameState, ctx: SimContext, feed: FeedId, qty: nu
   if (!ranchOpen(state)) return fail('Buy the Old Paddock first.');
   if (!Number.isInteger(qty) || qty <= 0) return fail('Choose how much to buy.');
   const cost = def.buyPrice * qty;
+  const problem = storeRoomProblem(state, def.name, feed, qty);
+  if (problem) return fail(problem);
   if (!canAfford(state, cost)) return fail(`You need ${cost.toLocaleString('en-US')}g for that.`);
-  if (spaceFor(state.inventory, feed) < qty) return fail('Your bag is too full to hold that much feed.');
   spend(state, cost);
-  addItem(state.inventory, feed, qty);
+  storeFeed(state, feed, qty);
   ctx.events.push({ type: 'purchased', what: feed, gold: cost });
   return OK;
 }
 
-/** Moves feed from the bag into a trough, as much as fits. Returns the portions moved. */
+/** Moves feed from the feed store (then any left in the bag) into a trough, as much as fits. Returns the portions moved. */
 export function topUp(state: GameState, ctx: Pick<SimContext, 'data'>, b: BuildingState): number {
   const feed = feedOf(ctx.data, b);
   if (!feed) return 0;
   const room = troughSize(state, ctx.data, b) - b.trough;
-  const moved = Math.min(room, countItem(state.inventory, feed));
-  if (moved <= 0) return 0;
-  removeItem(state.inventory, feed, moved);
+  if (room <= 0) return 0;
+  const moved = takeFeed(state, feed, room);
   b.trough += moved;
   return moved;
 }
@@ -410,13 +426,29 @@ export function fillTrough(state: GameState, ctx: SimContext, buildingId: number
   if (b.trough >= troughSize(state, ctx.data, b)) return fail('The trough is already full.');
   if (topUp(state, ctx, b) <= 0) {
     return fail(
-      `You have no ${ctx.data.feeds[feed].name.toLowerCase()}. Make some, or buy it, in the Ranch panel.`,
+      `The feed store has no ${ctx.data.feeds[feed].name.toLowerCase()}. Make some, or buy it, in the Ranch panel.`,
     );
   }
   return OK;
 }
 
 // ---- production
+
+/**
+ * One production cycle in whole simulated ms: the animal's interval, shortened by Busy Bees
+ * (`animalSpeedModifier`, v2-05). The modifier only changes when a buff starts or ends, and buff
+ * expiry is a step boundary, so the interval is fixed within a step and big steps equal small ones.
+ */
+export function cycleMsOf(def: AnimalDef, speed: number): number {
+  const base = def.intervalSec * 1000;
+  return speed > 1 ? Math.max(1, Math.round(base / speed)) : base;
+}
+
+/** Simulated ms until a housing building's next production cycle, at today's speed (for the panel and labels). */
+export function msToNextProduct(data: GameData, b: BuildingState, speed: number): number {
+  const def = animalDefOf(data, b);
+  return def ? Math.max(0, cycleMsOf(def, speed) - b.cycleMs) : 0;
+}
 
 /**
  * Advances every housing building by `dtMs` of simulated time: whole cycles are run in order (see the
@@ -434,7 +466,7 @@ export function tickRanch(state: GameState, ctx: SimContext, dtMs: number): void
       b.cycleMs = 0;
       continue;
     }
-    const interval = animalDef.intervalSec * 1000;
+    const interval = cycleMsOf(animalDef, ctx.mods.animalSpeedModifier);
     const total = b.cycleMs + dtMs;
     const cycles = Math.floor(total / interval);
     b.cycleMs = total % interval;
@@ -530,25 +562,16 @@ export function collectBuilding(state: GameState, ctx: SimContext, id: number): 
 
 // ---- the shipping-bin pickup: the silo and the Collecting Basket
 
-/** Level 2 silo: makes feed from the bag's wheat and corn (keeping 10 of each back) where a trough needs it. */
+/** Level 2 silo: makes feed from the bag's wheat and corn (keeping 10 of each back) where a trough needs it, into the store. */
 function mill(state: GameState, ctx: SimContext, b: BuildingState, feed: FeedId): void {
   const def = ctx.data.feeds[feed];
-  const need = troughSize(state, ctx.data, b) - b.trough - countItem(state.inventory, feed);
+  const need = troughSize(state, ctx.data, b) - b.trough - feedAvailable(state, feed);
   if (need <= 0) return;
   const spare = Math.max(0, countItem(state.inventory, def.from) - SILO_RESERVE);
-  let units = Math.min(spare, Math.ceil(need / def.perUnit));
+  const units = Math.min(spare, Math.ceil(need / def.perUnit), feedUnitsThatFit(state, feed, def.perUnit));
   if (units <= 0) return;
-  // The bag may be tight: make only what fits once the crop has left it.
-  const scratch = structuredClone(state.inventory);
-  while (units > 0) {
-    const trial = structuredClone(scratch);
-    removeItem(trial, def.from, units);
-    if (addItem(trial, feed, units * def.perUnit)) {
-      state.inventory = trial;
-      return;
-    }
-    units -= 1;
-  }
+  removeItem(state.inventory, def.from, units);
+  storeFeed(state, feed, units * def.perUnit);
 }
 
 /** The silo's visit: top up every trough from the bag, making feed first with a level 2 silo. */

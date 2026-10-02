@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { clickTile } from './helpers';
+import { clickTile, shot } from './helpers';
 
 type Session = {
   phase: string;
@@ -104,7 +104,7 @@ test('cast, wait for the bite and reel a fish in with scripted input', async ({ 
 
     // Hold to reel; keep the marker inside the zone by holding when it is below the zone's centre.
     let down = false;
-    let shot = false;
+    let shotTaken = false;
     await page.mouse.move(centre.x, centre.y); // reeling is held on the button
     for (let i = 0; i < 900; i++) {
       const s = await session(page);
@@ -117,9 +117,9 @@ test('cast, wait for the bite and reel a fish in with scripted input', async ({ 
         else await page.mouse.up();
         down = want;
       }
-      if (!shot && r && r.meter > 0.5) {
-        shot = true;
-        await page.screenshot({ path: 'docs/screenshots/phase05-fishing-minigame.png' });
+      if (!shotTaken && r && r.meter > 0.5) {
+        shotTaken = true;
+        await page.screenshot({ path: shot('phase05-fishing-minigame.png') });
       }
       await page.waitForTimeout(25);
     }
@@ -231,7 +231,7 @@ test('River Access opens the river in the scene and the Fishing panel', async ({
   await page.evaluate(() => (document.getElementById('toasts')!.style.display = 'none'));
   await page.mouse.move(0, 0);
   await page.waitForTimeout(300);
-  await canvas.screenshot({ path: 'docs/screenshots/phase05-waters.png' });
+  await canvas.screenshot({ path: shot('phase05-waters.png') });
   expect(errors).toEqual([]);
 });
 

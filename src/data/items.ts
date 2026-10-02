@@ -159,7 +159,7 @@ function feedItem(id: FeedId): ItemDef {
   return {
     id,
     name: f.name,
-    description: `Fills a trough for the ${eater.plural.toLowerCase()}: one portion per animal each cycle. Made from ${f.from}, or bought at the Ranch.`,
+    description: `Fills a trough for the ${eater.plural.toLowerCase()}: one portion per animal each cycle. Made from ${f.from}, or bought at the Ranch; kept in the ranch's feed store.`,
     category: 'feed',
     basePrice: 13,
     sellable: false,

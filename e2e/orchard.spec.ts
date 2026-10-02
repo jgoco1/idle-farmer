@@ -1,9 +1,9 @@
 // v2 phase 03: the Trees tab, planting on a tree spot, trees growing over real days (the debug calendar
 // offset), ripe fruit with its tooltip and edge pip, picking by click, removing with a confirmation, and
-// the orchard in each season (screenshots in docs/screenshots).
+// the orchard in each season (screenshots in docs/screenshots with UPDATE_SCREENSHOTS=1).
 
 import { expect, test, type Page } from '@playwright/test';
-import { clickTile, hoverTile, type WithView } from './helpers';
+import { clickTile, hoverTile, type WithView, shot } from './helpers';
 
 type Tree = { id: number; tree: string; spot: number; plantedDay: number; fruit: number };
 type Game = {
@@ -111,7 +111,7 @@ test('trees grow over real days: fast-forward, see fruit ripen, read the tooltip
   await expect(page.getByTestId('tree-tip')).toContainText(/Mature/);
   await expect(page.getByTestId('tree-tip')).toContainText(/Fruit \d+ \/ \d+/);
   await page.evaluate(() => document.getElementById('toasts')?.replaceChildren());
-  await page.screenshot({ path: 'docs/screenshots/v2-03-tree-tooltip.png' });
+  await page.screenshot({ path: shot('v2-03-tree-tooltip.png') });
   await clickTile(page, spot[0] + 1, spot[1]);
   await expect.poll(() => game(page, (g) => g.state.stats.fruitPicked)).toBeGreaterThan(0);
   const picked = ripe!.id;
@@ -177,7 +177,7 @@ test('the orchard in each season', async ({ page }) => {
       seen.push(season);
       await page.evaluate(() => document.getElementById('toasts')?.replaceChildren()); // keep the picture clear of toasts
       await page.waitForTimeout(500);
-      await page.screenshot({ path: `docs/screenshots/v2-03-orchard-${season}.png` });
+      await page.screenshot({ path: shot(`v2-03-orchard-${season}.png`) });
     }
     // the next season is at most a week of real days away
     await game(page, (g) => g.debugFakeOffline(3 * 24 * 3_600_000));

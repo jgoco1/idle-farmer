@@ -84,6 +84,16 @@ export function plotRect(grid: Grid): TileRect {
   return { col: PLOT_ORIGIN.col, row: PLOT_ORIGIN.row, cols: grid.cols, rows: grid.rows };
 }
 
+/** The centre of the plot grid in world pixels (v2-05: where a phone's default view looks). */
+export function fieldCentre(
+  grid: Grid,
+  out: { x: number; y: number } = { x: 0, y: 0 },
+): { x: number; y: number } {
+  out.x = (PLOT_ORIGIN.col + grid.cols / 2) * TILE;
+  out.y = (PLOT_ORIGIN.row + grid.rows / 2) * TILE;
+  return out;
+}
+
 /** Clickable zones, in hit-test priority order. */
 /** Where the farm cat sleeps, beside the farmhouse door. */
 export const PET_TILE = { col: 5, row: 3 } as const;

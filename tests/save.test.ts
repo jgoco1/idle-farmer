@@ -36,12 +36,14 @@ import {
   trapTile,
   zoneAt,
 } from '../src/render/scene';
-import fixture from './fixtures/save-v12.json';
+import fixture from './fixtures/save-v13.json';
+import fixtureV12 from './fixtures/save-v12.json';
 import fixtureV11 from './fixtures/save-v11.json';
 import fixtureV10 from './fixtures/save-v10.json';
 import fixtureV9 from './fixtures/save-v9.json';
 import fixtureV8 from './fixtures/save-v8.json';
 import { farmLevel } from '../src/systems/unlocks';
+import { countItem } from '../src/systems/inventory';
 import { at, NY } from './helpers';
 
 const FIXTURE_TEXT = JSON.stringify(fixture);
@@ -70,13 +72,13 @@ function memoryStorage(initial: Record<string, string> = {}): SaveStorage & { da
 }
 
 describe('save file', () => {
-  it('is at version 12 (the farm cats) with one migration per older version', () => {
-    expect(SAVE_VERSION).toBe(12);
-    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11']);
+  it('is at version 13 (the feed store) with one migration per older version', () => {
+    expect(SAVE_VERSION).toBe(13);
+    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']);
     expect(SAVE_KEY).toBe('hearthfield-idle/save');
   });
 
-  it('the v12 fixture loads unchanged', () => {
+  it('the v13 fixture loads unchanged', () => {
     const file = parseSave(FIXTURE_TEXT);
     expect(file).toEqual(fixture);
   });
@@ -582,7 +584,7 @@ describe('migrations', () => {
     expect(file.version).toBe(SAVE_VERSION);
     expect(validateState(file.state)).toBeNull();
     const s = file.state;
-    expect(s.ranch).toEqual({ buildings: [], animals: [] });
+    expect(s.ranch).toEqual({ buildings: [], animals: [], feedStore: { hay: 0, corn_feed: 0 } });
     expect(s.stats.productsCollected).toBe(0);
     expect(s.orchard).toEqual(fixtureV10.state.orchard);
     expect(s.land).toEqual(fixtureV10.state.land);
@@ -602,7 +604,52 @@ describe('migrations', () => {
     expect(file.state.cats).toEqual({ adopted: ['cat_tabby'], active: 'cat_tabby' });
     const rest: Record<string, unknown> = JSON.parse(JSON.stringify(file.state));
     delete rest.cats;
+    delete (rest.ranch as Record<string, unknown>).feedStore;
     expect(rest).toEqual(fixtureV11.state);
+  });
+
+  it('migrates a v12 save (v13): an empty feed store when the bag holds no feed, nothing else changes', () => {
+    const file = parseSave(JSON.stringify(fixtureV12));
+    expect(file.version).toBe(SAVE_VERSION);
+    expect(validateState(file.state)).toBeNull();
+    expect(file.state.ranch.feedStore).toEqual({ hay: 0, corn_feed: 0 });
+    const rest = JSON.parse(JSON.stringify(file.state)) as typeof fixtureV12.state & {
+      ranch: { feedStore?: unknown };
+    };
+    delete rest.ranch.feedStore;
+    expect(rest).toEqual(fixtureV12.state);
+  });
+
+  it('migrates a v12 save (v13): hay and corn feed move from the bag into the store, up to its capacity, the rest stays', () => {
+    const old = structuredClone(fixtureV12) as {
+      version: number;
+      state: { inventory: { slots: unknown[] } };
+    };
+    old.state.inventory.slots[1] = { item: 'hay', qty: 99 };
+    old.state.inventory.slots[2] = { item: 'corn_feed', qty: 99 };
+    for (let i = 5; i < 12; i++) old.state.inventory.slots[i] = { item: 'corn_feed', qty: 99 }; // 8 × 99 = 792
+    const file = parseSave(JSON.stringify(old));
+    expect(validateState(file.state)).toBeNull();
+    const s = file.state;
+    expect(s.ranch.feedStore).toEqual({ hay: 99, corn_feed: 600 });
+    expect(countItem(s.inventory, 'hay')).toBe(0);
+    expect(countItem(s.inventory, 'corn_feed')).toBe(792 - 600); // nothing lost: the remainder waits in the bag
+    expect(s.inventory.slots).toHaveLength(old.state.inventory.slots.length);
+    expect(countItem(s.inventory, 'seed_turnip')).toBe(3); // other stacks untouched
+    expect(countItem(s.inventory, 'roasted_turnip', true)).toBe(2);
+  });
+
+  it('refuses a damaged feed store', () => {
+    const bad = (mutate: (c: typeof fixture.state) => void): string | null => {
+      const c = structuredClone(fixture.state);
+      mutate(c);
+      return validateState(c);
+    };
+    expect(bad(() => undefined)).toBeNull();
+    expect(bad((c) => (c.ranch.feedStore.hay = -1))).toBe('bad feed store');
+    expect(bad((c) => (c.ranch.feedStore.corn_feed = 1.5))).toBe('bad feed store');
+    expect(bad((c) => ((c.ranch.feedStore as Record<string, number>).oats = 3))).toBe('bad feed store');
+    expect(bad((c) => delete (c.ranch as Partial<typeof c.ranch>).feedStore)).toBe('bad feed store');
   });
 
   it('refuses damaged cats', () => {
