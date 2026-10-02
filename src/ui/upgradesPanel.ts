@@ -73,8 +73,9 @@ const CARD_ICON: Partial<Record<UpgradeId, string>> = {
 export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
   return {
     id: 'upgrades',
+    wide: true,
     title: 'Upgrades',
-    icon: '⚙',
+    icon: '🔨',
     live: true,
     build(body) {
       const gold = h('p', { class: 'shop-gold' });

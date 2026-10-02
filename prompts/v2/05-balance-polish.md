@@ -39,7 +39,7 @@ Run `npm run simulate` (8 seeds, 30 days) **before changing anything** and keep 
    - Making, buying, the silo's milling and filling troughs all use it.
    - Wheat and corn as crops still live in the bag.
    - Give the store a capacity; when it's full, making or buying feed says so politely. Nothing is ever lost.
-   - **Save change:** `SAVE_VERSION` 12. The migration moves existing hay and corn feed from the bag into the store, up to its capacity, leaving any remainder in the bag so nothing is lost. Add a fixture and a migration test.
+   - **Save change:** `SAVE_VERSION` 13 (12 is the farm cats, from the polish pass after v2-04). The migration moves existing hay and corn feed from the bag into the store, up to its capacity, leaving any remainder in the bag so nothing is lost. Add a fixture and a migration test.
 9. **Start the phone view on the field** (IDEAS.md). On a narrow phone, the default view centres on the plot grid rather than the home region's centre. Home goes to the same place.
 
 ### C. Test hygiene
@@ -49,13 +49,13 @@ Run `npm run simulate` (8 seeds, 30 days) **before changing anything** and keep 
 New crops, fish, recipes, trees, animals, decorations or projects. New buff types. The Fullness meter (phase 10, on hold). Casino or chance mechanics. Changing tree maturity days or seasons.
 
 ## Save
-`SAVE_VERSION` 12, for the feed store only (requirement 8). Paint mode and the camera live in prefs.
+`SAVE_VERSION` 13, for the feed store only (requirement 8). Save 12 already exists (the farm cats); start from `tests/fixtures/save-v12.json`. Paint mode and the camera live in prefs.
 
 ## Tests (minimum)
 - Buff numbers at each tier after tuning.
 - The fruit price and yield table against the new formula, and recipe tiers still matching.
 - The Busy Bees seam shortening animal cycles, with offline equivalence.
-- The feed store: making, buying, the silo, troughs, capacity, nothing lost, and the v11 → v12 migration.
+- The feed store: making, buying, the silo, troughs, capacity, nothing lost, and the v12 → v13 migration.
 - Tap-to-inspect: the first tap shows the label and the second acts; on desktop, hovering shows it.
 - Paint mode: a drag with the toggle on tills along the stroke, with it off it pans, Alt-drag paints, and two fingers pan in paint mode.
 - The phone default view.

@@ -212,18 +212,57 @@ export function tileHash(col: number, row: number): number {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-const PATH_TILES: readonly [number, number][] = [
-  [2, 4],
-  [2, 5],
-  ...Array.from({ length: 12 }, (_, i): [number, number] => [3 + i, 5]),
-  [14, 6],
-  [14, 7],
-  [14, 8],
-  [14, 9],
-  [15, 9],
-  [16, 9],
-  [17, 9],
-];
+/** The fence ring around the plot grid: one tile wider than the field on every side. */
+export function fenceRect(grid: Grid): TileRect {
+  const plots = plotRect(grid);
+  return { col: plots.col - 1, row: plots.row - 1, cols: plots.cols + 2, rows: plots.rows + 2 };
+}
+
+/** A gate in the field fence: `v` on a side, `h` in the bottom rail. */
+export interface FenceGate {
+  col: number;
+  row: number;
+  sprite: 'obj_fence_gate_v' | 'obj_fence_gate_h';
+}
+
+/**
+ * The home path for this field size: from the farmhouse door to the field, the market and the
+ * Shipping Bin (where the lane carries on). While the field is small the path runs below its fence;
+ * once the field reaches the path's row, the path leads to a gate on each side of the fence instead of
+ * running under it, and from the fourth expansion (the fence reaches column 14) it leaves through a gate
+ * in the bottom rail. `DECOR_BLOCKED` in `src/data/world.ts` covers every tile of every size.
+ */
+export function pathFor(grid: Grid): { tiles: [number, number][]; gates: FenceGate[] } {
+  const f = fenceRect(grid);
+  const right = f.col + f.cols - 1;
+  const bottom = f.row + f.rows - 1;
+  const tiles: [number, number][] = [];
+  const run = (c0: number, r0: number, c1: number, r1: number): void => {
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) tiles.push([c, r]);
+  };
+  const toBin = (row: number): void => run(14, row, 17, row);
+  if (bottom < 5) {
+    // The first field: along row 5 under the fence, down beside the market, across to the bin.
+    run(2, 4, 2, 5);
+    run(3, 5, 14, 5);
+    run(14, 6, 14, 8);
+    toBin(9);
+    return { tiles, gates: [] };
+  }
+  const gates: FenceGate[] = [{ col: f.col, row: 4, sprite: 'obj_fence_gate_v' }];
+  run(2, 4, 4, 4); // the door to the west gate
+  if (right < 14) {
+    gates.push({ col: right, row: 4, sprite: 'obj_fence_gate_v' });
+    run(right + 1, 4, 14, 4);
+    run(14, 5, 14, 8);
+    toBin(9);
+  } else {
+    gates.push({ col: 13, row: bottom, sprite: 'obj_fence_gate_h' });
+    run(13, bottom + 1, 13, 9);
+    toBin(9);
+  }
+  return { tiles, gates };
+}
 
 /**
  * Base tiles of the forest trees (bottom-centre anchored), kept clear of every zone and the largest
@@ -256,12 +295,12 @@ const SCENERY: readonly Scenery[] = [
   { sprite: 'obj_weeds', col: 6, row: 6, until: 'farm_1' },
   { sprite: 'obj_stump', col: 8, row: 6, until: 'farm_1' },
   { sprite: 'obj_weeds', col: 10, row: 6, until: 'farm_1' },
-  // farm_2 "Mend the Fence": stepping stones on the paths.
+  // farm_2 "Mend the Fence": stepping stones on the paths (by the door and the bin; both are path from
+  // farm_1 on, see `pathFor`).
   ...[
     [2, 4],
-    [2, 5],
-    [3, 5],
-    [4, 5],
+    [3, 4],
+    [4, 4],
     [15, 9],
     [16, 9],
     [17, 9],
@@ -402,13 +441,10 @@ export function buildLayout(
   look: SceneLook = DEFAULT_LOOK,
 ): SceneLayout {
   const plots = plotRect(grid);
-  const fence: TileRect = {
-    col: plots.col - 1,
-    row: plots.row - 1,
-    cols: plots.cols + 2,
-    rows: plots.rows + 2,
-  };
-  const paths = new Set(PATH_TILES.map(([c, r]) => `${c},${r}`));
+  const fence = fenceRect(grid);
+  const path = pathFor(grid);
+  const paths = new Set(path.tiles.map(([c, r]) => `${c},${r}`));
+  for (const g of path.gates) paths.add(`${g.col},${g.row}`); // the path runs through its gates
   const zones = buildZones(grid);
   const scenery = sceneryFor(expansions, parcels);
   const sceneryTiles = new Set(scenery.map((d) => `${d.col},${d.row}`));
@@ -450,15 +486,29 @@ export function buildLayout(
     ground.push(line);
   }
 
-  // Fence around the plot grid: rails along the top and bottom rows, posts down the sides.
-  for (let col = fence.col; col < fence.col + fence.cols; col++) {
-    objects.push(placed('obj_fence_h', col * TILE, fence.row * TILE));
-    objects.push(placed('obj_fence_h', col * TILE, (fence.row + fence.rows - 1) * TILE));
-  }
-  for (let row = fence.row + 1; row < fence.row + fence.rows - 1; row++) {
-    objects.push(placed('obj_fence_v', fence.col * TILE, row * TILE));
-    objects.push(placed('obj_fence_v', (fence.col + fence.cols - 1) * TILE, row * TILE));
-  }
+  // Fence around the plot grid: corner posts, rails along the top and bottom, a rail with posts down
+  // each side, and a gate wherever the path meets it.
+  const right = fence.col + fence.cols - 1;
+  const bottom = fence.row + fence.rows - 1;
+  const gateAt = (col: number, row: number): FenceGate | undefined =>
+    path.gates.find((g) => g.col === col && g.row === row);
+  for (let row = fence.row; row <= bottom; row++)
+    for (let col = fence.col; col <= right; col++) {
+      const top = row === fence.row;
+      const low = row === bottom;
+      const side = col === fence.col || col === right;
+      if (!top && !low && !side) continue;
+      let sprite: string;
+      const gate = gateAt(col, row);
+      if (gate) sprite = gate.sprite;
+      else if (top && col === fence.col) sprite = 'obj_fence_nw';
+      else if (top && col === right) sprite = 'obj_fence_ne';
+      else if (low && col === fence.col) sprite = 'obj_fence_sw';
+      else if (low && col === right) sprite = 'obj_fence_se';
+      else if (top || low) sprite = 'obj_fence_h';
+      else sprite = 'obj_fence_v';
+      objects.push(placed(sprite, col * TILE, row * TILE));
+    }
 
   // A loft rises one tile above the farmhouse's usual spot; its bottom stays where it was.
   const house = placed(look.farmhouse, 1 * TILE, 1 * TILE);

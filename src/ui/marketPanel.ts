@@ -54,6 +54,7 @@ interface Row {
 export function marketPanel(hooks: MarketHooks): PanelDef {
   return {
     id: 'market',
+    wide: true,
     title: 'Market',
     icon: '⚖',
     live: true,

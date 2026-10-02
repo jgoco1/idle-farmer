@@ -219,24 +219,26 @@ describe('the scene look', () => {
 });
 
 describe('where decorations may not go', () => {
-  it('blocks every home zone, path and fixed scenery tile of the scene, and the fence ring at full field size', () => {
-    const layout = buildLayout({ cols: 8, rows: 6 }, [
-      'farm_1',
-      'farm_2',
-      'farm_3',
-      'farm_4',
-      'river',
-      'ocean',
-    ]);
-    const zones = buildZones({ cols: 8, rows: 6 });
-    for (let row = 0; row < 12; row++)
-      for (let col = 0; col < 20; col++) {
-        const tile = layout.ground[row]![col]!;
-        const zone = zoneAt(zones, col, row);
-        const blocked = fixedBlockReason(col, row) !== null;
-        if (zone || !tile.startsWith('tile_grass'))
-          expect(blocked, `${col},${row} ${tile} ${zone?.id}`).toBe(true);
-      }
+  it('blocks every home zone, path and fixed scenery tile of the scene at every field size, and the fence ring at full size', () => {
+    const sizes = [
+      { grid: { cols: 4, rows: 2 }, ex: [] },
+      { grid: { cols: 4, rows: 3 }, ex: ['farm_1'] },
+      { grid: { cols: 5, rows: 4 }, ex: ['farm_1', 'farm_2'] },
+      { grid: { cols: 6, rows: 5 }, ex: ['farm_1', 'farm_2', 'farm_3'] },
+      { grid: { cols: 8, rows: 6 }, ex: ['farm_1', 'farm_2', 'farm_3', 'farm_4'] },
+    ] as const;
+    for (const { grid, ex } of sizes) {
+      const layout = buildLayout(grid, [...ex, 'river', 'ocean']);
+      const zones = buildZones(grid);
+      for (let row = 0; row < 12; row++)
+        for (let col = 0; col < 20; col++) {
+          const tile = layout.ground[row]![col]!;
+          const zone = zoneAt(zones, col, row);
+          const blocked = fixedBlockReason(col, row) !== null;
+          if (zone || !tile.startsWith('tile_grass'))
+            expect(blocked, `${grid.cols}×${grid.rows} ${col},${row} ${tile} ${zone?.id}`).toBe(true);
+        }
+    }
     // The fence ring (one tile around the 8 × 6 field).
     for (let col = 5; col <= 14; col++)
       for (const row of [1, 8]) expect(fixedBlockReason(col, row), `${col},${row}`).not.toBeNull();

@@ -27,6 +27,13 @@ export function buildToolbar(
     buttons.set(def.id, btn);
     root.append(btn);
   }
+  // When the buttons would not fit (a narrow window, or a large interface size), drop their text labels
+  // instead of scrolling the bar; the icons keep their names (aria-label and title).
+  const fit = (): void => {
+    root.classList.remove('is-compact');
+    if (root.scrollWidth > root.clientWidth + 1) root.classList.add('is-compact');
+  };
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fit).observe(root);
   panels.onChange((open) => {
     buttons.forEach((b, id) => b.setAttribute('aria-pressed', String(id === open)));
     if (open) buttons.get(open)?.classList.remove('is-nudged');
@@ -38,7 +45,10 @@ export function buildToolbar(
     /** Shows or hides one button (the Ranch's appears once the Old Paddock is bought). */
     setVisible(id, visible) {
       const b = buttons.get(id);
-      if (b && b.hidden === visible) b.hidden = !visible;
+      if (b && b.hidden === visible) {
+        b.hidden = !visible;
+        fit();
+      }
     },
   };
 }

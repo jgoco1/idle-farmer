@@ -147,3 +147,26 @@ test('donating a town project stage changes the world and adds charm', async ({ 
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'docs/screenshots/v2-02-town-project.png' });
 });
+
+test('adopt a Siamese in the Decor tab: it naps by the door, and the brown tabby can come back', async ({
+  page,
+}) => {
+  const cats = (): Promise<{ adopted: string[]; active: string }> =>
+    page.evaluate(
+      () =>
+        (window as unknown as { __game: { state: { cats: { adopted: string[]; active: string } } } }).__game
+          .state.cats,
+    );
+  expect(await cats()).toEqual({ adopted: ['cat_tabby'], active: 'cat_tabby' });
+  await game(page, (g) => (g.state.gold = 50_000));
+  await page.getByRole('button', { name: /^Shop/ }).first().click();
+  await page.getByRole('tab', { name: 'Decor' }).click();
+  const list = page.getByTestId('farm-cats');
+  await expect(list.locator('[data-cat="cat_tabby"]')).toHaveText('Napping');
+  await list.locator('[data-cat="cat_siamese"]').click();
+  await expect(list.locator('[data-cat="cat_siamese"]')).toHaveText('Napping');
+  await expect(list.locator('[data-cat="cat_tabby"]')).toHaveText('Choose');
+  expect(await cats()).toEqual({ adopted: ['cat_tabby', 'cat_siamese'], active: 'cat_siamese' });
+  await list.locator('[data-cat="cat_tabby"]').click();
+  expect(await cats()).toEqual({ adopted: ['cat_tabby', 'cat_siamese'], active: 'cat_tabby' });
+});

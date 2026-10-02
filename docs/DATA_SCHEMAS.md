@@ -1229,6 +1229,7 @@ Each v2 phase bumps the version once, adds `migrations[n]`, adds `tests/fixtures
 | **9** | v2-02 | `decor`, `town` | 8 → 9: `decor: { owned: {}, placed: [], farmhouse: { paint: null, roof: null, loft: false } }`, `town: { projects: {} }`. Milestones `m16`–`m19`, `m23` are checked on the next step (a v8 player who owns a parcel gets `m16` at once). |
 | **10** | v2-03 | `orchard`, `calendar.dayZeroKey`, `calendar.maxDayIndex` | 9 → 10: `orchard: { trees: [] }`, `calendar: { ...old.calendar, dayZeroKey: old.calendar.lastDayKey, maxDayIndex: 0 }`, `stats.fruitPicked: 0`. |
 | **11** | v2-04 | `ranch` | 10 → 11: `ranch: { buildings: [], animals: [] }`, `stats.productsCollected: 0`. `autoSell` needs no entries (missing means off for animal products). |
+| **12** | v2 polish | `cats` | 11 → 12: `cats: { adopted: ['cat_tabby'], active: 'cat_tabby' }` (the old orange cat becomes the brown tabby; the orange one is now adopted). |
 
 Rules that carry over from §8: migrations take raw JSON and do not import current types; a save newer than the code or one that fails to load is never overwritten (show the error and offer an export); adding content (new decorations, trees, recipes) needs no migration unless the state shape changes. The camera is not in the save, so no migration ever touches it.
 
@@ -1253,3 +1254,10 @@ Rules that carry over from §8: migrations take raw JSON and do not import curre
 - **Systems:** `src/systems/ranch.ts` (`tickRanch`, `ranchPickup`, `collectBuilding`, `buildBuilding`, the derived `troughSize`, `storeSize`, `capacityOf`, placement rules and tile lookups). `tickRanch` is the first system in `tickSystems`; the silo and the basket run just before the bin pickup; `msToNextSimEvent` is unchanged and `msToNextPickup` reports pickups while a silo or the basket exists.
 - **Derived, never stored:** capacity, trough size (with the Barnyard bonus) and store size, a building's footprint and trough tile, an animal's default name (by order), the Ranch pips.
 - **Auto-Seller:** `autoSellOn` is off for eggs and milk (only crops and fruit default on); the toggles are under the Auto-Seller card.
+
+### 9.13 As built in the v2 polish pass (farm cats, save 12)
+
+- **Content:** `CatId` (`cat_tabby`, `cat_orange`, `cat_black`, `cat_silver`, `cat_tuxedo`, `cat_siamese`, `cat_calico`), `CAT_IDS` and `isCatId` in `src/data/ids.ts`; `CatDef { id, name, description, price, sprite }` in `src/data/types.ts`; `CATS` in `src/data/cats.ts`, read as `GameData.cats`. Each sprite is `obj_<id>_sleep` (two breathing frames, `src/render/sprites/ambient.ts`); the old `obj_cat_sleep` is gone.
+- **State:** `cats: { adopted: CatId[]; active: CatId }`. `adopted` always holds `cat_tabby`, has no repeats, and holds `active` (`validateState`: `bad cats`). Save 12 (`migrations[11]`, `tests/fixtures/save-v12.json` has a Siamese napping).
+- **Actions:** `{ type: 'adoptCat'; cat: CatId }` (pays `price`, adds the cat, makes it the active one, emits `purchased` with `what: CatId`) and `{ type: 'chooseCat'; cat: CatId }` (free, adopted cats only), in `src/systems/cats.ts`.
+- **Drawing:** `SceneView.cat` is the active cat's sprite id; the renderer draws it at `PET_TILE` as before.

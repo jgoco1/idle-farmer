@@ -106,6 +106,7 @@ export function fishingPanel(hooks: FishingHooks): FishingPanel {
 
   const def: PanelDef = {
     id: 'fishing',
+    wide: true,
     title: 'Fishing',
     icon: '🎣',
     live: true,

@@ -420,6 +420,24 @@ export function isDecorId(id: string): id is DecorId {
   return (DECOR_IDS as readonly string[]).includes(id);
 }
 
+/** The farm cats (cosmetic): the brown tabby everyone starts with, and the ones adopted in the Shop's Decor tab. */
+export type CatId =
+  'cat_tabby' | 'cat_orange' | 'cat_black' | 'cat_silver' | 'cat_tuxedo' | 'cat_siamese' | 'cat_calico';
+
+export const CAT_IDS: readonly CatId[] = [
+  'cat_tabby',
+  'cat_orange',
+  'cat_black',
+  'cat_silver',
+  'cat_tuxedo',
+  'cat_siamese',
+  'cat_calico',
+];
+
+export function isCatId(id: string): id is CatId {
+  return (CAT_IDS as readonly string[]).includes(id);
+}
+
 export function isTownProjectId(id: string): id is TownProjectId {
   return (TOWN_PROJECT_IDS as readonly string[]).includes(id);
 }

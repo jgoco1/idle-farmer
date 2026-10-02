@@ -1,6 +1,7 @@
 import { START_GRID } from './balance';
 import { ANIMALS, BUILDINGS, FEEDS } from './animals';
 import { BUFFS } from './buffs';
+import { CATS } from './cats';
 import { BUNDLES, GOAL_TEMPLATES, MILESTONES } from './quests';
 import { SKILL_PERKS } from './skills';
 import { CROPS } from './crops';
@@ -11,6 +12,7 @@ import type {
   AnimalId,
   BuffType,
   BuildingId,
+  CatId,
   FeedId,
   BundleId,
   CropId,
@@ -36,6 +38,7 @@ import type {
   AnimalDef,
   BuffDef,
   BuildingDef,
+  CatDef,
   FeedDef,
   BundleDef,
   CropDef,
@@ -97,6 +100,8 @@ export interface GameData {
   animals: Readonly<Record<AnimalId, AnimalDef>>;
   buildings: Readonly<Record<BuildingId, BuildingDef>>;
   feeds: Readonly<Record<FeedId, FeedDef>>;
+  /** The farm cats: the starting tabby and the ones to adopt (cosmetic). */
+  cats: Readonly<Record<CatId, CatDef>>;
 }
 
 export const GAME_DATA: GameData = Object.freeze({
@@ -123,4 +128,5 @@ export const GAME_DATA: GameData = Object.freeze({
   animals: ANIMALS,
   buildings: BUILDINGS,
   feeds: FEEDS,
+  cats: CATS,
 });

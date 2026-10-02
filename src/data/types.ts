@@ -3,6 +3,7 @@
 
 import type {
   AnimalId,
+  CatId,
   AnimalProductId,
   BuffType,
   BuildingId,
@@ -366,6 +367,17 @@ export type DecorKind =
   | 'paint'
   | 'roof'
   | 'loft'; // restyle the farmhouse; never placed, never use a slot
+
+/** A farm cat (cosmetic: it only changes who naps by the farmhouse door). */
+export interface CatDef {
+  id: CatId;
+  name: string;
+  description: string;
+  /** Gold to adopt; 0 for the tabby everyone starts with. */
+  price: number;
+  /** The sleeping sprite, two breathing frames. */
+  sprite: string;
+}
 
 export interface DecorDef {
   id: DecorId;

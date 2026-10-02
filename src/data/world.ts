@@ -143,7 +143,11 @@ export const DECOR_BLOCKED: readonly { rect: TileRect; why: string }[] = [
   { rect: { col: 18, row: 7, cols: 1, rows: 1 }, why: 'The Shipping Bin stands there.' },
   { rect: { col: 15, row: 1, cols: 4, rows: 4 }, why: 'That lot is kept for the greenhouse.' },
   { rect: { col: 15, row: 5, cols: 1, rows: 1 }, why: 'The scarecrow post stands there.' },
+  // The home path at every field size (`pathFor` in src/render/scene.ts): row 5 while the field is
+  // small, then row 4 to the fence's gates and, at full size, out through the bottom rail at column 13.
   { rect: { col: 2, row: 4, cols: 1, rows: 2 }, why: 'That is a path.' },
+  { rect: { col: 3, row: 4, cols: 2, rows: 1 }, why: 'That is a path.' },
+  { rect: { col: 13, row: 9, cols: 1, rows: 1 }, why: 'That is a path.' },
   { rect: { col: 3, row: 5, cols: 12, rows: 1 }, why: 'That is a path.' },
   { rect: { col: 14, row: 6, cols: 1, rows: 4 }, why: 'That is a path.' },
   { rect: { col: 15, row: 9, cols: 3, rows: 1 }, why: 'That is a path.' },
