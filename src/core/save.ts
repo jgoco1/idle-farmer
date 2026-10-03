@@ -24,6 +24,16 @@ import { WORLD_COLS, WORLD_ROWS, WORLD_LAYOUT } from '../data/world';
 export const SAVE_VERSION = 13;
 export const SAVE_KEY = 'hearthfield-idle/save';
 export const AUTOSAVE_MS = 15_000;
+/** Where the previous good save is kept (v3 phase 00). Same format as the main save. */
+export const BACKUP_KEY = `${SAVE_KEY}.bak`;
+/** Where "Start a new farm" and "Load the backup" keep a save that failed to load. */
+export const CORRUPT_KEY = `${SAVE_KEY}-corrupt-backup`;
+/** When the older backups last moved along (the `savedAt` of the save that moved them). */
+export const OLDER_BACKUP_STAMP_KEY = `${SAVE_KEY}.bak-at`;
+/** Native platforms keep up to this many backups older than `save.bak` (`save.bak2` …). */
+export const MAX_OLDER_BACKUPS = 3;
+/** The older backups move along at most once an hour, so they reach back further than the last few autosaves. */
+export const OLDER_BACKUP_SPACING_MS = 60 * 60 * 1000;
 
 export interface SaveFile {
   version: number; // SAVE_VERSION at the time of saving
@@ -711,4 +721,92 @@ export function writeSave(storage: SaveStorage, file: SaveFile): void {
 
 export function clearSave(storage: SaveStorage): void {
   storage.removeItem(SAVE_KEY);
+}
+
+/** `save.bak`, then the older backups (`save.bak2` …) newest first. */
+export function backupKeys(olderBackups: number): string[] {
+  const n = Math.max(0, Math.min(MAX_OLDER_BACKUPS, Math.floor(olderBackups)));
+  return [BACKUP_KEY, ...Array.from({ length: n }, (_, i) => `${SAVE_KEY}.bak${i + 2}`)];
+}
+
+/** Every key the save code reads, for a boot that loads storage up front (src/platform/store.ts). */
+export function saveKeys(olderBackups: number): string[] {
+  return [SAVE_KEY, ...backupKeys(olderBackups), OLDER_BACKUP_STAMP_KEY];
+}
+
+/**
+ * The save slot and its rotating backups (v3 phase 00). Each save that validates moves the save it
+ * replaces into `save.bak`, provided that one was good too (it loaded, or was written after
+ * validating); with `olderBackups` > 0 the previous `save.bak` moves on to `save.bak2` and so on,
+ * at most once per OLDER_BACKUP_SPACING_MS. A save that fails to load is never rotated or
+ * overwritten here: the caller blocks saving until the player chooses.
+ */
+export class SaveSlots {
+  private mainGood = false;
+
+  constructor(
+    private readonly storage: SaveStorage,
+    readonly olderBackups = 0,
+  ) {}
+
+  load(now: number, lc: LocalClock): LoadResult {
+    const r = loadGame(this.storage, now, lc);
+    this.mainGood = r.kind === 'loaded';
+    return r;
+  }
+
+  write(file: SaveFile): void {
+    const text = JSON.stringify(file);
+    const valid = validateState(file.state) === null;
+    if (valid && this.mainGood) {
+      const prev = this.storage.getItem(SAVE_KEY);
+      if (prev !== null && prev !== text) this.rotate(prev, file.savedAt);
+    }
+    this.storage.setItem(SAVE_KEY, text);
+    this.mainGood = valid;
+  }
+
+  /** The newest backup that loads, or null. Never changes storage. */
+  loadBackup(): { key: string; file: SaveFile } | null {
+    for (const key of backupKeys(this.olderBackups)) {
+      let raw: string | null = null;
+      try {
+        raw = this.storage.getItem(key);
+      } catch {
+        continue;
+      }
+      if (raw === null) continue;
+      try {
+        return { key, file: parseSave(raw) };
+      } catch {
+        // A damaged backup: try the next older one.
+      }
+    }
+    return null;
+  }
+
+  /** Hard reset: the save and every backup go. */
+  clear(): void {
+    clearSave(this.storage);
+    for (const key of backupKeys(this.olderBackups)) this.storage.removeItem(key);
+    this.storage.removeItem(OLDER_BACKUP_STAMP_KEY);
+    this.mainGood = false;
+  }
+
+  private rotate(prev: string, at: number): void {
+    const keys = backupKeys(this.olderBackups);
+    if (keys.length > 1) {
+      const bak = this.storage.getItem(BACKUP_KEY);
+      const stamp = Number(this.storage.getItem(OLDER_BACKUP_STAMP_KEY) ?? 0) || 0;
+      if (bak !== null && at - stamp >= OLDER_BACKUP_SPACING_MS) {
+        for (let i = keys.length - 1; i >= 2; i--) {
+          const older = this.storage.getItem(keys[i - 1]!);
+          if (older !== null) this.storage.setItem(keys[i]!, older);
+        }
+        this.storage.setItem(keys[1]!, bak);
+        this.storage.setItem(OLDER_BACKUP_STAMP_KEY, String(at));
+      }
+    }
+    this.storage.setItem(BACKUP_KEY, prev);
+  }
 }

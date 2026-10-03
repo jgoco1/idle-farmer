@@ -21,12 +21,6 @@ export class PlacementMode {
       done,
     );
     document.body.append(this.banner);
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.kind) {
-        e.preventDefault();
-        this.stop();
-      }
-    });
   }
 
   start(kind: PlacedKind): void {

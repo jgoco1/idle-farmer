@@ -94,3 +94,8 @@ v2 phase 05 (balance and polish):
 - **Bigger town stage asks for fruit**: with v2-05's fruit yields the bakery's 30 apples and the hall's 20 persimmons are about one day of one tree; 100 or more would keep them a real orchard errand. Later balance (needs the owner: GDD §12.2 lists the stages).
 - **A label for buildings on touch** (trough, store, next product) like the animal label, before a tap collects. Later polish.
 - **Paint strokes that start off the field**: a Paint drag that begins on grass pans, so a stroke must start on a plot; starting anywhere and painting only plots would suit a phone better if players ask. Later polish.
+
+v3 phase 00 (platform shell):
+- **Check for a new version while the game stays open**: the service worker looks for an update only when the page loads, so a tab left open for days never sees one; `registration.update()` once a day would. Later polish (Pages only).
+- **Steam achievements from milestones**: `Platform.achievements.unlock(id)` exists as a seam; mapping milestones to achievement ids belongs to v3-02.
+- **A toast that waits on the update offer**: the "new version" toast fades after a few seconds like any other; a small persistent "Update" chip by the Settings button would be easier to find. Later polish.

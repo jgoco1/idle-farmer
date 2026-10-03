@@ -1,5 +1,6 @@
-// Browser entry point: load the save, catch up offline time, and wire the game to the renderer,
-// the UI, the loop and autosave.
+// Entry point: pick the platform (src/platform/), read the save and prefs from its storage, catch
+// up offline time, and wire the game to the renderer, the UI, the loop, autosave and the platform's
+// lifecycle (pause, resume, back). The web build and the app shells (`npm run build:app`) share it.
 
 import { PurchaseGuard } from './ui/purchaseGuard';
 import './styles.css';
@@ -12,17 +13,20 @@ import { startLoop } from './core/loop';
 import type { OfflineReport } from './core/offline';
 import {
   AUTOSAVE_MS,
-  clearSave,
+  CORRUPT_KEY,
   exportSave,
   importSave,
-  loadGame,
-  SAVE_KEY,
   SaveError,
+  SaveSlots,
+  saveKeys,
   toSaveFile,
-  writeSave,
-  type SaveStorage,
 } from './core/save';
-import { PrefsStore } from './core/prefs';
+import { PREFS_KEY, PrefsStore } from './core/prefs';
+import { loadPlatform } from './platform';
+import { SyncStore } from './platform/store';
+import { goBack, type BackUi } from './ui/back';
+import { INSPECT_NONE } from './render/sceneInput';
+import { applyFakeInsets } from './ui/safeArea';
 import { createInitialState, type Plot } from './core/state';
 import { systemLocalClock } from './core/time';
 import { GAME_DATA } from './data';
@@ -67,7 +71,7 @@ import { showAwaySummary, type AwayFarm } from './ui/awaySummary';
 import { byId, h } from './ui/dom';
 import { FarmTools } from './ui/farmTools';
 import { Hud } from './ui/hud';
-import { showModal } from './ui/modal';
+import { closeTopModal, showModal } from './ui/modal';
 import { PanelManager } from './ui/panel';
 import { goldPopupAt } from './ui/goldFx';
 import { marketPanel } from './ui/marketPanel';
@@ -118,24 +122,29 @@ function dismissSplash(): void {
 const lc = systemLocalClock;
 const now = (): number => Date.now();
 
-function safeStorage(): SaveStorage {
-  try {
-    const s = window.localStorage;
-    s.getItem('probe');
-    return s;
-  } catch {
-    const mem = new Map<string, string>();
-    return {
-      getItem: (k) => mem.get(k) ?? null,
-      setItem: (k, v) => void mem.set(k, v),
-      removeItem: (k) => void mem.delete(k),
-    };
-  }
-}
-const storage = safeStorage();
+// ---- build flags. `npm run build:app` (mode "app") is the build the native shells load: no debug
+// overlay, no service worker, and no e2e hooks unless VITE_E2E=1. Written inline so the bundler drops the dead code.
+const params = new URLSearchParams(location.search);
+const debugHooks = import.meta.env.DEV || (import.meta.env.MODE !== 'app' && params.has('debug'));
+const e2eHooks = import.meta.env.MODE !== 'app' || import.meta.env.VITE_E2E === '1';
+// Fake notch insets for checking safe areas in a plain browser (`?debug&insets` or `?debug&insets=44,0,34,0`).
+if (debugHooks && params.has('insets')) applyFakeInsets(document.documentElement, params.get('insets'));
 
-// ---- preferences (their own key: they belong to the browser, not the farm)
-const prefs = new PrefsStore(storage);
+// ---- the platform and its storage. Storage is asynchronous on native platforms, the game saves
+// synchronously: boot waits here until the save and the prefs are in memory (src/platform/store.ts).
+const platform = await loadPlatform();
+/** Replaced once the toasts exist; a failed write is reported once, then retried quietly until it works. */
+let storageTrouble = (e: unknown, recovered: boolean): void => {
+  if (!recovered) console.warn('Saving failed', e);
+};
+const store = await SyncStore.open(platform.storage, [...saveKeys(platform.olderBackups), PREFS_KEY], {
+  onError: (e) => storageTrouble(e, false),
+  onRecover: () => storageTrouble(null, true),
+});
+const slots = new SaveSlots(store, platform.olderBackups);
+
+// ---- preferences (their own key: they belong to the device, not the farm)
+const prefs = new PrefsStore(store);
 function applyPrefs(): void {
   const p = prefs.value;
   applyMotionPrefs(p, document.documentElement);
@@ -152,23 +161,38 @@ unlockOnFirstGesture(engine, document);
 music.start();
 
 // ---- load
-const loaded = loadGame(storage, now(), lc);
+const loaded = slots.load(now(), lc);
 /** While a broken save is on disk, never autosave over it until the player chooses. */
 let saveBlocked = loaded.kind === 'error';
 const initialFile = loaded.kind === 'error' ? null : loaded.file;
 const game = new Game(initialFile?.state ?? createInitialState(now(), lc), { data: GAME_DATA, lc, now });
 
+/** Writes the save to memory at once; the store persists it in the background (and rotates the backups). */
 function save(): void {
   if (saveBlocked) return;
   try {
-    writeSave(storage, toSaveFile(game.state, now()));
+    slots.write(toSaveFile(game.state, now()));
   } catch (e) {
     console.warn('Save failed', e);
   }
 }
 
+/** Saves and resolves once it is on the device (pause, the autosave interval, quitting). */
+function saveAndFlush(): Promise<boolean> {
+  save();
+  return store.flush();
+}
+
 // ---- UI
 const toasts = new Toasts(byId('toasts'));
+storageTrouble = (e, recovered) => {
+  if (recovered) return toasts.show('Saving works again.', 'good');
+  console.warn('Saving failed', e);
+  toasts.showKept(
+    'Your farm could not be saved on this device. The game keeps trying; export your save in Settings to be safe.',
+    'warn',
+  );
+};
 const hud = new Hud(byId('hud'));
 applyPrefs();
 prefs.onChange(applyPrefs);
@@ -316,6 +340,14 @@ panels.register(
     getRelaxedFishing: () => game.state.settings.relaxedFishing,
     setRelaxedFishing: (on) => void game.dispatch({ type: 'setRelaxedFishing', on }),
     exportSave: () => exportSave(toSaveFile(game.state, now())),
+    downloadSave: () =>
+      void platform.exportFile('hearthfield-idle-save.txt', exportSave(toSaveFile(game.state, now()))),
+    quit: platform.quit
+      ? () => {
+          const quit = platform.quit!;
+          void saveAndFlush().then(() => quit());
+        }
+      : null,
     importSave(text) {
       try {
         const file = importSave(text);
@@ -333,7 +365,7 @@ panels.register(
       townTuneNow = on;
     },
     hardReset() {
-      clearSave(storage);
+      slots.clear();
       game.replaceState(createInitialState(now(), lc));
       saveBlocked = false;
       save();
@@ -1121,15 +1153,19 @@ maybeStartTutorial();
 if (loaded.kind === 'error') {
   const box = h('textarea', { class: 'save-text', readonly: true, rows: 4, 'aria-label': 'Raw save' });
   box.value = loaded.raw;
-  /** Saves the raw text as a file, so even a broken save can be kept or repaired by hand. */
-  const download = (): void => {
-    const url = URL.createObjectURL(new Blob([loaded.raw], { type: 'text/plain' }));
-    const a = h('a', { href: url, download: 'hearthfield-idle-save-backup.txt' });
-    document.body.append(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+  /** The previous good save (save.bak, then older ones on native platforms), if one loads. */
+  const backup = slots.loadBackup();
+  /** Keep the broken text under another key before anything takes the slot. */
+  const keepBroken = (): void => {
+    try {
+      store.setItem(CORRUPT_KEY, loaded.raw);
+    } catch {
+      // Storage full: the download button was the other way out.
+    }
   };
+  const backupText = backup
+    ? `A backup from ${new Date(backup.file.savedAt).toLocaleString()} opens fine: load it to carry on from there.`
+    : 'Download or copy the text below to keep a backup, then start a new farm.';
   showModal({
     title: 'Oh no, your save would not open',
     dismissible: false,
@@ -1138,22 +1174,35 @@ if (loaded.kind === 'error') {
       {},
       h('p', { text: loaded.message }),
       h('p', {
-        text: 'Nothing has been changed or deleted. Download or copy the text below to keep a backup, then start a new farm. The old save stays in place until you do.',
+        text: `Nothing has been changed or deleted. ${backupText} The old save stays in place until you choose.`,
       }),
       box,
     ),
     buttons: [
-      { label: 'Download the raw save', onClick: () => (download(), false) },
+      {
+        label: 'Download the raw save',
+        // Saves the raw text as a file, so even a broken save can be kept or repaired by hand.
+        onClick: () => (void platform.exportFile('hearthfield-idle-save-backup.txt', loaded.raw), false),
+      },
+      ...(backup
+        ? [
+            {
+              label: 'Load the backup',
+              primary: true,
+              onClick() {
+                keepBroken();
+                saveBlocked = false;
+                game.replaceState(backup.file.state);
+                onResume(game.catchUp(backup.file.savedAt, now()));
+              },
+            },
+          ]
+        : []),
       {
         label: 'Start a new farm',
-        primary: true,
+        primary: !backup,
         onClick() {
-          // Keep the broken text under another key before the new farm takes the slot.
-          try {
-            storage.setItem(`${SAVE_KEY}-corrupt-backup`, loaded.raw);
-          } catch {
-            // Storage full: the download button above was the other way out.
-          }
+          keepBroken();
           saveBlocked = false;
           game.replaceState(createInitialState(now(), lc));
           save();
@@ -1289,48 +1338,125 @@ const loop = startLoop(game, {
       dismissSplash();
     }
   },
-  onHide: save,
   onResume,
 });
-window.setInterval(save, AUTOSAVE_MS);
+window.setInterval(() => void saveAndFlush(), AUTOSAVE_MS);
 window.addEventListener('beforeunload', save);
 
-// ---- dev helpers: `?debug` in production, always in dev
-if (import.meta.env.DEV || new URLSearchParams(location.search).has('debug')) {
-  void import('./ui/debug').then(({ installDebugOverlay }) =>
-    installDebugOverlay({ game, fps: () => loop.fps, onOffline: onResume }),
+// ---- lifecycle (v3 phase 00). Pause: save and flush, stop the loop, suspend audio. Resume: the
+// offline catch-up (the loop calls onResume, as returning to a tab always did), then audio, at
+// once where the platform allows it and otherwise on the next tap or key (mobile rules).
+platform.onPause(() => {
+  loop.pause();
+  void saveAndFlush();
+  engine.suspend();
+});
+platform.onResume(() => {
+  loop.resume();
+  engine.tryResume();
+  unlockOnFirstGesture(engine, document);
+});
+
+// ---- back: Escape on the web, the Android back button or a gamepad B in the shells, all in one order
+// (src/ui/back.ts): a modal (or the seed picker), then Decorate / plant / build / placement mode (or a Paint
+// stroke), then the panel, then a tap-to-inspect label.
+const backUi: BackUi = {
+  closeModal: () => closeTopModal() || tools.closePickerIfOpen(),
+  leaveMode() {
+    if (stroke) {
+      endStroke(); // the rest of the drag does nothing (usePlotTool needs a stroke); the release ends it again
+      return true;
+    }
+    if (decorate.back()) return true;
+    for (const mode of [plant, build]) {
+      if (mode.on) {
+        mode.stop();
+        return true;
+      }
+    }
+    if (!placement.kind) return false;
+    placement.stop();
+    return true;
+  },
+  closePanel() {
+    if (!panels.current) return false;
+    panels.close();
+    return true;
+  },
+  clearLabel() {
+    if (renderer.inspected.kind === INSPECT_NONE) return false;
+    renderer.clearInspect();
+    return true;
+  },
+};
+const back = (): boolean => goBack(backUi);
+document.addEventListener(
+  'keydown',
+  (e) => {
+    if (e.key !== 'Escape' || e.defaultPrevented || !back()) return;
+    e.preventDefault();
+    e.stopPropagation();
+  },
+  true,
+);
+platform.onBack(back);
+
+// ---- the installable web app: a service worker on the Pages build only (never in the shells or dev)
+if (import.meta.env.PROD && import.meta.env.MODE !== 'app') {
+  void import('./ui/serviceWorker').then(({ registerServiceWorker }) =>
+    registerServiceWorker(`${import.meta.env.BASE_URL}sw.js`, (reload) =>
+      toasts.show('A new version is ready, reload to update.', 'info', () => {
+        void saveAndFlush().then(reload);
+      }),
+    ),
   );
 }
 
-// Exposed for the e2e smoke test and manual poking in the console.
-(window as unknown as { __game: Game }).__game = game;
-/**
- * e2e hook for the camera: the client position of a world tile (after panning it into view if it
- * is not), so specs never depend on where the camera starts.
- */
-(window as unknown as { __view: unknown }).__view = {
-  tileClient(col: number, row: number): { x: number; y: number; visible: boolean } {
-    const at = renderer.tileClientCenter(col, row);
-    return { ...at, visible: renderer.isTileVisible(col, row) };
-  },
-  showTile(col: number, row: number): void {
-    renderer.panToTile(col, row, true);
-  },
-  camera: () => ({ ...renderer.cam, default: prefs.value.camera === null }),
-  chunksDrawn: () => renderer.chunksDrawn,
-  objectsDrawn: () => renderer.objectsDrawn,
-  home: () => renderer.home(),
-  /** Lamps and lights the last frame lit (night halos). */
-  lightsLit: () => renderer.lightsLit,
-  decorMode: () => decorate.on,
-  sceneSprites: () => renderer.layoutSpriteIds(),
-  /** Where an animal's feet are in world px (e2e: click an animal). */
-  animalAt: (id: number) => renderer.ranch.positionOf(id),
-  /** Building mode (e2e). */
-  buildMode: () => build.on,
-  /** What a touch tap is inspecting, and whether a paint stroke is under way (v2-05, e2e). */
-  inspected: () => ({ ...renderer.inspected }),
-  painting: () => renderer.isPainting,
-  /** World px → client point (e2e: tap an animal where it stands now). */
-  worldClient: (x: number, y: number) => renderer.worldToClient(x, y),
-};
+// ---- dev helpers: `?debug` on the Pages build, always in dev, never in the app build
+if (debugHooks) {
+  void import('./ui/debug').then(({ installDebugOverlay }) =>
+    installDebugOverlay({
+      game,
+      fps: () => loop.fps,
+      onOffline: onResume,
+      toggleInsets: () => applyFakeInsets(document.documentElement, undefined),
+    }),
+  );
+}
+
+if (e2eHooks) exposeHooks();
+
+/** Exposed for the e2e tests and manual poking in the console (never in the app build unless VITE_E2E=1). */
+function exposeHooks(): void {
+  (window as unknown as { __game: Game }).__game = game;
+  /**
+   * e2e hook for the camera: the client position of a world tile (after panning it into view if it
+   * is not), so specs never depend on where the camera starts.
+   */
+  (window as unknown as { __view: unknown }).__view = {
+    tileClient(col: number, row: number): { x: number; y: number; visible: boolean } {
+      const at = renderer.tileClientCenter(col, row);
+      return { ...at, visible: renderer.isTileVisible(col, row) };
+    },
+    showTile(col: number, row: number): void {
+      renderer.panToTile(col, row, true);
+    },
+    camera: () => ({ ...renderer.cam, default: prefs.value.camera === null }),
+    chunksDrawn: () => renderer.chunksDrawn,
+    objectsDrawn: () => renderer.objectsDrawn,
+    home: () => renderer.home(),
+    /** Lamps and lights the last frame lit (night halos). */
+    lightsLit: () => renderer.lightsLit,
+    decorMode: () => decorate.on,
+    sceneSprites: () => renderer.layoutSpriteIds(),
+    /** Where an animal's feet are in world px (e2e: click an animal). */
+    animalAt: (id: number) => renderer.ranch.positionOf(id),
+    /** Building mode (e2e). */
+    buildMode: () => build.on,
+    /** What a touch tap is inspecting, and whether a paint stroke is under way (v2-05, e2e). */
+    inspected: () => ({ ...renderer.inspected }),
+    painting: () => renderer.isPainting,
+    /** World px → client point (e2e: tap an animal where it stands now). */
+    worldClient: (x: number, y: number) => renderer.worldToClient(x, y),
+  };
+}

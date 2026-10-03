@@ -44,12 +44,6 @@ export class PlantMode {
       done,
     );
     document.body.append(this.banner);
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.on) {
-        e.preventDefault();
-        this.stop();
-      }
-    });
   }
 
   /** Plant a sapling of `fruit` on a free spot. */

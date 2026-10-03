@@ -10,6 +10,11 @@
   --toolbar-h: 60px;
   --panel-w: 360px;
   --panel-w-wide: 480px;
+  /* Notch, home indicator and rounded corners (v3 phase 00); real pixels, faked by ?debug&insets. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
 }
 
 * {
@@ -1777,4 +1782,66 @@ body.tutorial-on .toasts {
   width: 100%;
   height: 10px;
   margin: 2px 0;
+}
+
+/* ---------- safe areas (v3 phase 00): nothing sits under a notch, the home indicator or rounded corners.
+   The wood bars grow into the insets, so --hud-h and --toolbar-h (measured) include them and everything
+   placed from those heights follows. The insets are real pixels: inside a zoomed element (the HUD, the
+   toolbar) they are divided by --ui-scale so the zoom gives them back; outside one they are used as they are. */
+.hud {
+  padding-top: calc(4px + var(--safe-top) / var(--ui-scale));
+  padding-left: calc(10px + var(--safe-left) / var(--ui-scale));
+  padding-right: calc(10px + var(--safe-right) / var(--ui-scale));
+}
+.toolbar {
+  padding-bottom: calc(6px + var(--safe-bottom) / var(--ui-scale));
+  padding-left: calc(8px + var(--safe-left) / var(--ui-scale));
+  padding-right: calc(8px + var(--safe-right) / var(--ui-scale));
+}
+.panel-host {
+  right: calc(8px + var(--safe-right));
+  width: min(
+    calc(var(--panel-w) * var(--ui-scale)),
+    calc(100vw - 16px - var(--safe-left) - var(--safe-right))
+  );
+}
+.seed-picker,
+.scene-controls {
+  right: calc(8px + var(--safe-right));
+}
+.edge-pips {
+  left: var(--safe-left);
+  right: var(--safe-right);
+}
+.placement-banner {
+  top: calc(60px + var(--safe-top));
+}
+.debug {
+  left: calc(8px + var(--safe-left));
+}
+.modal-backdrop {
+  padding: calc(16px + var(--safe-top)) calc(16px + var(--safe-right)) calc(16px + var(--safe-bottom))
+    calc(16px + var(--safe-left));
+}
+@media (max-width: 600px) {
+  .hud {
+    padding-left: calc(8px + var(--safe-left) / var(--ui-scale));
+    padding-right: calc(8px + var(--safe-right) / var(--ui-scale));
+  }
+  .toolbar {
+    padding-bottom: calc(4px + var(--safe-bottom) / var(--ui-scale));
+    padding-left: calc(4px + var(--safe-left) / var(--ui-scale));
+    padding-right: calc(4px + var(--safe-right) / var(--ui-scale));
+  }
+  /* The bottom sheet: clear of rounded corners at the sides, and never taller than the room between the bars. */
+  .panel-host {
+    left: var(--safe-left);
+    right: var(--safe-right);
+    width: auto;
+    --sheet-max: min(72dvh, calc(100dvh - (var(--hud-h) + var(--toolbar-h)) * var(--ui-scale) - 8px));
+    max-height: var(--sheet-max);
+  }
+  .panel-host .panel {
+    max-height: calc(var(--sheet-max) / var(--ui-scale));
+  }
 }

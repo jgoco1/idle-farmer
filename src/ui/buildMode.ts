@@ -45,12 +45,6 @@ export class BuildMode {
       done,
     );
     document.body.append(this.banner);
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && this.on) {
-        e.preventDefault();
-        this.stop();
-      }
-    });
   }
 
   /** Buy and place a new building. */

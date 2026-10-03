@@ -1,0 +1,738 @@
+{
+  "version": 13,
+  "savedAt": 1773273600000,
+  "state": {
+    "clock": { "simMs": 642600000, "speed": 1 },
+    "calendar": {
+      "createdAt": 1772064000000,
+      "seasonEpoch": 1772341200000,
+      "maxWeekIndex": 2,
+      "lastDayKey": "2026-03-11",
+      "debugOffsetMs": 0,
+      "dayZeroKey": "2026-02-25",
+      "maxDayIndex": 14
+    },
+    "rngState": 1407583345,
+    "gold": 592747,
+    "settings": { "masterVolume": 0.8, "relaxedFishing": false },
+    "meta": { "createdAt": 1772064000000, "lastSavedAt": 1773273600000, "playTimeMs": 50400000 },
+    "farm": {
+      "grid": { "cols": 8, "rows": 6 },
+      "plots": [
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "untilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "planted", "crop": "corn", "growthMs": 229500, "harvests": 43, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "untilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "planted", "crop": "corn", "growthMs": 229500, "harvests": 43, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "planted", "crop": "corn", "growthMs": 229500, "harvests": 43, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "planted", "crop": "corn", "growthMs": 22950, "harvests": 45, "waterMsLeft": 0 },
+        { "state": "planted", "crop": "corn", "growthMs": 22950, "harvests": 45, "waterMsLeft": 0 },
+        { "state": "untilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 }
+      ],
+      "greenhouse": [
+        { "state": "planted", "crop": "blueberry", "growthMs": 40250, "harvests": 424, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "planted", "crop": "blueberry", "growthMs": 154100, "harvests": 423, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "planted", "crop": "corn", "growthMs": 299000, "harvests": 137, "waterMsLeft": 0 },
+        { "state": "planted", "crop": "corn", "growthMs": 299000, "harvests": 137, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "tilled", "crop": null, "growthMs": 0, "harvests": 0, "waterMsLeft": 0 },
+        { "state": "planted", "crop": "blueberry", "growthMs": 40250, "harvests": 424, "waterMsLeft": 0 },
+        { "state": "planted", "crop": "blueberry", "growthMs": 40250, "harvests": 424, "waterMsLeft": 0 },
+        { "state": "planted", "crop": "blueberry", "growthMs": 40250, "harvests": 426, "waterMsLeft": 0 }
+      ]
+    },
+    "inventory": {
+      "slots": [
+        { "item": "garlic", "qty": 8 },
+        { "item": "egg", "qty": 30 },
+        { "item": "blueberry_muffin", "qty": 2 },
+        { "item": "cauliflower", "qty": 4 },
+        { "item": "corn", "qty": 10 },
+        { "item": "koi", "qty": 1 },
+        { "item": "large_egg", "qty": 10 },
+        { "item": "milk", "qty": 30 },
+        { "item": "pear", "qty": 10 },
+        { "item": "yam", "qty": 6 },
+        { "item": "wheat", "qty": 10 },
+        { "item": "pumpkin", "qty": 10 },
+        { "item": "blueberry", "qty": 10 },
+        null,
+        { "item": "apple", "qty": 44 },
+        null,
+        null,
+        null,
+        null,
+        null,
+        { "item": "kale", "qty": 10 },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "stackSize": 999
+    },
+    "market": {
+      "items": {
+        "turnip": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 596390000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "potato": {
+          "demand": 1.3,
+          "lastSoldSimMs": 144000000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "garlic": {
+          "demand": 1.3,
+          "lastSoldSimMs": 144000000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "strawberry": {
+          "demand": 1.3,
+          "lastSoldSimMs": 49450000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "cauliflower": {
+          "demand": 1.3,
+          "lastSoldSimMs": 144000000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "wheat": {
+          "demand": 1.2333228962318323,
+          "lastSoldSimMs": 633600000,
+          "history": [0.994, 0.975, 0.888, 1.3, 1.3, 1.3, 0.5]
+        },
+        "tomato": {
+          "demand": 1.3,
+          "lastSoldSimMs": 277200000,
+          "history": [1.95, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "blueberry": {
+          "demand": 0.9751064658160681,
+          "lastSoldSimMs": 640800000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 0.888, 0.5]
+        },
+        "corn": {
+          "demand": 0.9751064658160681,
+          "lastSoldSimMs": 640800000,
+          "history": [1.3, 1.82, 1.3, 1.3, 1.3, 1.3, 0.839]
+        },
+        "melon": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 597480000,
+          "history": [1.3, 0.975, 0.888, 1.3, 1.3, 1.3, 1.3]
+        },
+        "yam": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 601200000,
+          "history": [1, 1, 1, 1, 1.3, 1.3, 1.3]
+        },
+        "kale": {
+          "demand": 1.2991701898974952,
+          "lastSoldSimMs": 630000000,
+          "history": [1, 1, 1, 1, 1.69, 1.3, 0.818]
+        },
+        "cranberry": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1, 1, 1] },
+        "pumpkin": {
+          "demand": 1.2333228962318323,
+          "lastSoldSimMs": 633600000,
+          "history": [1, 1, 1, 1, 1.3, 1.3, 0.5]
+        },
+        "leek": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1, 1, 1] },
+        "bluegill": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 599320000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "carp": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 599200000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "catfish": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 598960000,
+          "history": [1.69, 1.3, 1.3, 1.755, 1.3, 1.3, 1.3]
+        },
+        "koi": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1, 1, 1] },
+        "trout": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 601200000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "perch": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 599320000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "salmon": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 599360000,
+          "history": [1, 1, 1, 1, 1.3, 1.3, 1.3]
+        },
+        "sturgeon": {
+          "demand": 1.3,
+          "lastSoldSimMs": 460880000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "sardine": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 599160000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "mackerel": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 599040000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "tuna": { "demand": 1.3, "lastSoldSimMs": 462480000, "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3] },
+        "pufferfish": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1, 1, 1] },
+        "petal_koi": {
+          "demand": 1.3,
+          "lastSoldSimMs": 138540000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "ember_salmon": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 599220000,
+          "history": [1, 1, 1, 1, 1, 1.3, 1.3]
+        },
+        "sun_marlin": {
+          "demand": 1.3,
+          "lastSoldSimMs": 369600000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "moonfin": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1, 1, 1] },
+        "old_boot": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 599300000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "seaweed": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 599280000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "driftwood": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 599260000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "roasted_turnip": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 596310000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "baked_potato": {
+          "demand": 1.3,
+          "lastSoldSimMs": 47280000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "grilled_bluegill": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 596830000,
+          "history": [1.3, 1.56, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "berry_bowl": {
+          "demand": 1.3,
+          "lastSoldSimMs": 91940000,
+          "history": [1.3, 1.3, 1.3, 1.755, 1.3, 1.56, 1.3]
+        },
+        "scholars_stew": {
+          "demand": 1.3,
+          "lastSoldSimMs": 50400000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "seaweed_salad": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1, 1, 1] },
+        "wheat_flatbread": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 599370000,
+          "history": [1.3, 1.3, 1.625, 1.3, 1.3, 1.3, 1.3]
+        },
+        "vegetable_soup": {
+          "demand": 1.3,
+          "lastSoldSimMs": 91860000,
+          "history": [1.3, 1.755, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "tomato_pasta": {
+          "demand": 1.3,
+          "lastSoldSimMs": 276530000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "blueberry_muffin": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 599210000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "garlic_trout": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1, 1, 1] },
+        "garden_banquet": {
+          "demand": 1.3,
+          "lastSoldSimMs": 49220000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "pumpkin_soup": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1, 1, 1] },
+        "catfish_gumbo": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1, 1, 1] },
+        "harvest_feast": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1, 1, 1] },
+        "cherry_jam": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1.2, 1, 1, 1] },
+        "pear_crumble": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1, 1, 1] },
+        "peach_cobbler": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1, 1, 1] },
+        "corn_chowder": {
+          "demand": 1.3,
+          "lastSoldSimMs": 277220000,
+          "history": [1.3, 1.3, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "peach": { "demand": 1.3, "lastSoldSimMs": 450000000, "history": [1, 1, 1, 1.3, 1.3, 1.3, 1.3] },
+        "fish_tacos": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1, 1, 1] },
+        "seafood_stew": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1, 1, 1] },
+        "egg": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 597610000,
+          "history": [1, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "large_egg": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 595810000,
+          "history": [1, 1, 1.3, 1.3, 1.3, 1.3]
+        },
+        "milk": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 597610000,
+          "history": [1, 1, 1, 1.3, 1.3, 1.3]
+        },
+        "fried_egg": {
+          "demand": 1.2999999999999996,
+          "lastSoldSimMs": 597640000,
+          "history": [1, 1.3, 1.3, 1.3, 1.3, 1.3]
+        },
+        "soft_cheese": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1, 1] },
+        "lemon_meringue_pie": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1, 1] },
+        "persimmon_pudding": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1, 1] },
+        "apple": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1, 1.5] },
+        "pear": { "demand": 1.2333229209013745, "lastSoldSimMs": 633600000, "history": [1, 1, 1, 1, 1] },
+        "baked_apple": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1, 1] },
+        "cranberry_pie": { "demand": 1.3, "lastSoldSimMs": 504510000, "history": [1.3, 1.3, 1.3] },
+        "glazed_yams": { "demand": 1, "lastSoldSimMs": -1, "history": [1, 1, 1] },
+        "garden_omelette": { "demand": 1, "lastSoldSimMs": -1, "history": [1.35, 1, 1] }
+      },
+      "specials": [{ "item": "apple", "bonus": 0.5 }]
+    },
+    "shippingBin": {
+      "items": [
+        { "item": "corn", "qty": 76 },
+        { "item": "blueberry", "qty": 123 }
+      ],
+      "msToPickup": 1800000
+    },
+    "expansions": ["farm_1", "farm_2", "river", "farm_3", "farm_4", "ocean"],
+    "stats": {
+      "lifetimeGold": 3519172,
+      "goldToday": 55338,
+      "cropsHarvested": 106948,
+      "itemsShipped": 99121,
+      "daysPassed": 14,
+      "fishCaught": 1399,
+      "dishesCooked": 1401,
+      "dishesEaten": 1,
+      "bestDishTier": 4,
+      "fruitPicked": 112,
+      "productsCollected": 420
+    },
+    "upgrades": {
+      "sprinkler": 9,
+      "farmhand": 5,
+      "seed_planter": 3,
+      "backpack": 4,
+      "sprinkler_tech": 2,
+      "barn_storage": 4,
+      "auto_seller": 2,
+      "scarecrow": 4,
+      "kitchen": 1,
+      "fishing_rod": 1,
+      "fish_trap": 2,
+      "greenhouse": 2
+    },
+    "placed": [
+      { "id": 1, "kind": "sprinkler", "at": { "col": 1, "row": 2 } },
+      { "id": 2, "kind": "golden_scarecrow", "at": { "col": 0, "row": 2 } },
+      { "id": 3, "kind": "sprinkler", "at": { "col": 3, "row": 1 } },
+      { "id": 4, "kind": "sprinkler", "at": { "col": 5, "row": 2 } },
+      { "id": 5, "kind": "sprinkler", "at": { "col": 3, "row": 3 } },
+      { "id": 6, "kind": "sprinkler", "at": { "col": 6, "row": 4 } },
+      { "id": 7, "kind": "sprinkler", "at": { "col": 6, "row": 1 } },
+      { "id": 8, "kind": "sprinkler", "at": { "col": 1, "row": 4 } },
+      { "id": 9, "kind": "scarecrow", "at": { "col": 5, "row": 3 } }
+    ],
+    "autoSell": {
+      "pumpkin": true,
+      "egg": false,
+      "apple": false,
+      "milk": false,
+      "persimmon": false,
+      "large_egg": false,
+      "koi": false,
+      "driftwood": false
+    },
+    "automation": { "farmhandCooldownMs": 1000 },
+    "lastPlantedCrop": [
+      "wheat",
+      "wheat",
+      "wheat",
+      "wheat",
+      "wheat",
+      "wheat",
+      "wheat",
+      "wheat",
+      "wheat",
+      "wheat",
+      "wheat",
+      "garlic",
+      "wheat",
+      "wheat",
+      null,
+      "corn",
+      "cauliflower",
+      null,
+      "wheat",
+      "wheat",
+      "corn",
+      "garlic",
+      "corn",
+      "wheat",
+      "wheat",
+      "wheat",
+      "wheat",
+      "cauliflower",
+      "wheat",
+      "cauliflower",
+      "wheat",
+      "wheat",
+      "wheat",
+      "turnip",
+      "wheat",
+      "wheat",
+      "corn",
+      "corn",
+      null,
+      "wheat",
+      "wheat",
+      "wheat",
+      "wheat",
+      "wheat",
+      "wheat",
+      "wheat",
+      "wheat",
+      "wheat",
+      "blueberry",
+      "garlic",
+      "blueberry",
+      "garlic",
+      "corn",
+      "corn",
+      "garlic",
+      "garlic",
+      "garlic",
+      "blueberry",
+      "blueberry",
+      "blueberry"
+    ],
+    "fishing": {
+      "traps": [
+        {
+          "id": 1,
+          "location": "pond",
+          "slot": 0,
+          "progressMs": 180000,
+          "contents": [
+            { "item": "bluegill", "qty": 4 },
+            { "item": "carp", "qty": 3 }
+          ]
+        },
+        {
+          "id": 2,
+          "location": "pond",
+          "slot": 1,
+          "progressMs": 180000,
+          "contents": [
+            { "item": "bluegill", "qty": 4 },
+            { "item": "carp", "qty": 3 }
+          ]
+        }
+      ],
+      "collection": {
+        "bluegill": { "firstCaughtAt": "2026-02-25", "bestSizeCm": 25, "count": 260 },
+        "catfish": { "firstCaughtAt": "2026-02-25", "bestSizeCm": 109.2, "count": 126 },
+        "carp": { "firstCaughtAt": "2026-02-25", "bestSizeCm": 69.7, "count": 254 },
+        "petal_koi": { "firstCaughtAt": "2026-02-25", "bestSizeCm": 74.7, "count": 4 },
+        "trout": { "firstCaughtAt": "2026-02-25", "bestSizeCm": 59.8, "count": 257 },
+        "perch": { "firstCaughtAt": "2026-02-25", "bestSizeCm": 34.6, "count": 240 },
+        "koi": { "firstCaughtAt": "2026-02-25", "bestSizeCm": 35.1, "count": 2 },
+        "sturgeon": { "firstCaughtAt": "2026-03-02", "bestSizeCm": 191.1, "count": 8 },
+        "mackerel": { "firstCaughtAt": "2026-03-03", "bestSizeCm": 44.3, "count": 78 },
+        "sardine": { "firstCaughtAt": "2026-03-03", "bestSizeCm": 19.3, "count": 80 },
+        "tuna": { "firstCaughtAt": "2026-03-03", "bestSizeCm": 164.6, "count": 20 },
+        "sun_marlin": { "firstCaughtAt": "2026-03-03", "bestSizeCm": 280, "count": 3 },
+        "salmon": { "firstCaughtAt": "2026-03-08", "bestSizeCm": 99.5, "count": 61 },
+        "ember_salmon": { "firstCaughtAt": "2026-03-09", "bestSizeCm": 99.6, "count": 6 }
+      },
+      "session": null
+    },
+    "kitchen": {
+      "known": [
+        "roasted_turnip",
+        "baked_potato",
+        "grilled_bluegill",
+        "seaweed_salad",
+        "vegetable_soup",
+        "wheat_flatbread",
+        "scholars_stew",
+        "berry_bowl",
+        "garlic_trout",
+        "blueberry_muffin",
+        "tomato_pasta",
+        "garden_banquet",
+        "catfish_gumbo",
+        "pumpkin_soup",
+        "harvest_feast",
+        "cherry_jam",
+        "pear_crumble",
+        "peach_cobbler",
+        "fish_tacos",
+        "seafood_stew",
+        "corn_chowder",
+        "lemon_meringue_pie",
+        "persimmon_pudding",
+        "fried_egg",
+        "soft_cheese",
+        "baked_apple",
+        "glazed_yams",
+        "cranberry_pie",
+        "garden_omelette"
+      ],
+      "queue": []
+    },
+    "buffs": { "active": [], "baseSlots": 3 },
+    "progression": {
+      "skills": { "farming": { "xp": 132947 }, "fishing": { "xp": 14766 }, "cooking": { "xp": 12561 } },
+      "milestones": {
+        "done": [
+          "m01_first_seed",
+          "m06_first_catch",
+          "m02_first_harvest",
+          "m07_first_dish",
+          "m08_first_buff",
+          "m03_first_sale",
+          "m04_first_expansion",
+          "m05_first_sprinkler",
+          "m14_first_bundle",
+          "m11_farm_level_5",
+          "m09_hire_farmhand",
+          "m10_unlock_river",
+          "m12_cook_t3",
+          "m16_first_parcel",
+          "m17_first_decor",
+          "m13_unlock_ocean",
+          "m21_first_egg",
+          "m22_first_milk",
+          "m20_first_fruit",
+          "m15_greenhouse",
+          "m18_charm_25",
+          "m19_first_project"
+        ]
+      },
+      "goals": [
+        {
+          "template": "eat_dish",
+          "objective": { "kind": "eat", "count": 2 },
+          "progress": 0,
+          "rewards": [{ "kind": "gold", "amount": 35 }]
+        },
+        {
+          "template": "cook_tier",
+          "objective": { "kind": "cook", "tier": 3, "count": 2 },
+          "progress": 1,
+          "rewards": [{ "kind": "gold", "amount": 400 }]
+        },
+        {
+          "template": "catch_rarity",
+          "objective": { "kind": "catch", "rarity": "uncommon", "count": 1 },
+          "progress": 0,
+          "rewards": [{ "kind": "gold", "amount": 520 }]
+        }
+      ],
+      "goalsDone": 36,
+      "bundles": {
+        "spring_crops": [
+          { "item": "turnip", "qty": 10 },
+          { "item": "potato", "qty": 10 },
+          { "item": "strawberry", "qty": 5 },
+          { "item": "cauliflower", "qty": 2 }
+        ],
+        "pond_fish": [
+          { "item": "bluegill", "qty": 5 },
+          { "item": "carp", "qty": 5 },
+          { "item": "catfish", "qty": 2 },
+          { "item": "koi", "qty": 1 }
+        ],
+        "cozy_dinner": [
+          { "item": "vegetable_soup", "qty": 1 },
+          { "item": "roasted_turnip", "qty": 2 }
+        ],
+        "river_and_sea": [
+          { "item": "trout", "qty": 3 },
+          { "item": "sardine", "qty": 5 },
+          { "item": "tuna", "qty": 1 },
+          { "item": "salmon", "qty": 2 }
+        ],
+        "summer_crops": [
+          { "item": "blueberry", "qty": 10 },
+          { "item": "tomato", "qty": 10 },
+          { "item": "corn", "qty": 5 },
+          { "item": "melon", "qty": 1 }
+        ],
+        "autumn_harvest": [
+          { "item": "wheat", "qty": 20 },
+          { "item": "yam", "qty": 5 },
+          { "item": "cranberry", "qty": 10 },
+          { "item": "pumpkin", "qty": 2 }
+        ],
+        "barnyard": [
+          { "item": "egg", "qty": 20 },
+          { "item": "milk", "qty": 10 },
+          { "item": "large_egg", "qty": 3 }
+        ],
+        "orchard_basket": [{ "item": "peach", "qty": 10 }]
+      },
+      "completedBundles": ["spring_crops", "pond_fish", "summer_crops", "autumn_harvest", "river_and_sea"],
+      "farmLevelFloor": 1
+    },
+    "land": { "parcels": ["orchard", "yard", "meadow"] },
+    "decor": {
+      "owned": { "cobble_path": 10, "flower_bed": 3, "garden_lamp": 1, "wooden_bench": 1, "birdbath": 1 },
+      "placed": [
+        { "id": 1, "decor": "cobble_path", "at": { "col": 0, "row": 2 } },
+        { "id": 2, "decor": "cobble_path", "at": { "col": 1, "row": 4 } },
+        { "id": 3, "decor": "cobble_path", "at": { "col": 0, "row": 3 } },
+        { "id": 4, "decor": "cobble_path", "at": { "col": 0, "row": 0 } },
+        { "id": 5, "decor": "cobble_path", "at": { "col": 5, "row": 0 } },
+        { "id": 6, "decor": "cobble_path", "at": { "col": 0, "row": 4 } },
+        { "id": 7, "decor": "cobble_path", "at": { "col": 1, "row": 5 } },
+        { "id": 8, "decor": "cobble_path", "at": { "col": 0, "row": 5 } },
+        { "id": 9, "decor": "cobble_path", "at": { "col": 6, "row": 0 } },
+        { "id": 10, "decor": "cobble_path", "at": { "col": 2, "row": 6 } },
+        { "id": 11, "decor": "flower_bed", "at": { "col": 3, "row": 6 } },
+        { "id": 12, "decor": "garden_lamp", "at": { "col": 1, "row": 6 } },
+        { "id": 13, "decor": "wooden_bench", "at": { "col": 7, "row": 0 } },
+        { "id": 14, "decor": "flower_bed", "at": { "col": 9, "row": 0 } },
+        { "id": 15, "decor": "flower_bed", "at": { "col": 5, "row": 9 } },
+        { "id": 16, "decor": "birdbath", "at": { "col": 7, "row": 9 } }
+      ],
+      "farmhouse": { "paint": null, "roof": null, "loft": false }
+    },
+    "town": {
+      "projects": {
+        "old_bridge": { "stagesDone": 1, "gold": 0, "items": [] },
+        "fountain": { "stagesDone": 0, "gold": 237, "items": [] }
+      }
+    },
+    "orchard": {
+      "trees": [
+        { "id": 1, "tree": "peach_tree", "spot": 0, "plantedDay": 6, "fruit": 0, "lastFruitDay": 14 },
+        { "id": 2, "tree": "pear_tree", "spot": 1, "plantedDay": 9, "fruit": 0, "lastFruitDay": 14 },
+        { "id": 3, "tree": "apple_tree", "spot": 2, "plantedDay": 9, "fruit": 0, "lastFruitDay": 14 }
+      ]
+    },
+    "ranch": {
+      "buildings": [
+        {
+          "id": 1,
+          "kind": "coop",
+          "level": 1,
+          "at": { "col": 22, "row": 9 },
+          "trough": 0,
+          "store": [
+            { "item": "egg", "qty": 55 },
+            { "item": "large_egg", "qty": 5 }
+          ],
+          "cycleMs": 0
+        },
+        {
+          "id": 2,
+          "kind": "barn",
+          "level": 1,
+          "at": { "col": 27, "row": 9 },
+          "trough": 5,
+          "store": [{ "item": "milk", "qty": 18 }],
+          "cycleMs": 1800000
+        },
+        {
+          "id": 3,
+          "kind": "silo",
+          "level": 1,
+          "at": { "col": 33, "row": 9 },
+          "trough": 0,
+          "store": [],
+          "cycleMs": 0
+        }
+      ],
+      "animals": [
+        { "id": 1, "kind": "chicken", "name": "Clover", "building": 1 },
+        { "id": 2, "kind": "chicken", "name": "Daisy", "building": 1 },
+        { "id": 3, "kind": "cow", "name": "Bluebell", "building": 2 },
+        { "id": 4, "kind": "chicken", "name": "Pebble", "building": 1 },
+        { "id": 5, "kind": "chicken", "name": "Honey", "building": 1 }
+      ],
+      "feedStore": { "hay": 0, "corn_feed": 0 }
+    },
+    "cats": { "adopted": ["cat_tabby"], "active": "cat_tabby" }
+  }
+}
