@@ -20,6 +20,7 @@ This phase builds the **platform layer** those shells plug into, and makes the w
 - `src/core/save.ts` (`SaveStorage`, `loadGame`, `writeSave`, `exportSave`, `importSave`) and `src/core/prefs.ts`.
 - `src/core/offline.ts` (the catch-up after time away).
 - `src/audio/engine.ts` (`resume()` of the `AudioContext`).
+- `src/core/prefs.ts` (v2-05 added `paint`) and `src/render/sceneInput.ts` / `src/ui/inspectLabel.ts` (Paint strokes and tap-to-inspect), which the back order must respect.
 - `vite.config.ts` (`base`), `index.html`, `public/manifest.webmanifest`, `.github/workflows/`.
 
 ## Requirements
@@ -57,9 +58,10 @@ Native storage is asynchronous, but the game saves synchronously today.
 - **Resume:** run the offline catch-up exactly as returning to the tab does today (`onResume` in `main.ts`), then resume audio after the next user gesture (mobile rules).
 - **Back** (`onBack`), in order:
   1. close an open modal
-  2. leave Decorate, plant or build mode
+  2. leave Decorate, plant or build mode (or end a Paint stroke)
   3. close the open panel
-  4. otherwise return `false`, so the shell can minimise the app (Android) or ask to quit (desktop)
+  4. clear a tap-to-inspect label (`renderer.inspected`, v2-05)
+  5. otherwise return `false`, so the shell can minimise the app (Android) or ask to quit (desktop)
 
   Escape keeps doing the same on the web. One function in `main.ts` implements the order, and both use it.
 
@@ -85,7 +87,7 @@ Native storage is asynchronous, but the game saves synchronously today.
   - the content rating answers (no violence, no chance-based items, no user content, no data collection)
   - a screenshot shot list per store (phone portrait, tablet, 16:9 desktop)
   - the **icon and art sizes** each store asks for, as a checklist for the owner
-- A script `npm run shots:store` that uses Playwright to capture those screenshots at the right sizes from a prepared demo save (`tests/fixtures/` style). Mark any size you couldn't verify as such.
+- A script `npm run shots:store` that uses Playwright, writing through the `shot()` helper in `e2e/helpers.ts` (v2-05), to capture those screenshots at the right sizes from a prepared demo save (`tests/fixtures/` style). Mark any size you couldn't verify as such.
 
 ## Save
 No `SAVE_VERSION` change: the save's shape does not change, only where it is stored. Backups use the same format.

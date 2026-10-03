@@ -65,7 +65,7 @@ There is probably no Android emulator or iOS simulator in the session's containe
   - the `localStorage` migration
   - pause and resume wiring
   - the back button minimising only when nothing is open
-- Keep the web e2e suite green (it is the same UI); add an e2e run of the `dist-app` build on the phone viewports.
+- Keep the web e2e suite green (it is the same UI); add an e2e run of the `dist-app` build on the phone viewports, including `e2e/touch.spec.ts` (real touch through CDP `Input.dispatchTouchEvent`: tap-to-inspect, Paint and two-finger pan).
 - Write **`docs/MOBILE_TESTING.md`**: a 15-minute manual checklist for the owner on a real device, covering:
   - install
   - first launch and the tutorial
@@ -73,6 +73,7 @@ There is probably no Android emulator or iOS simulator in the session's containe
   - background for 10 minutes, then come back (the away summary)
   - kill the app from the app switcher and relaunch (the save is intact)
   - the back button at every level
+  - tap-to-inspect on a tree and an animal, Paint mode on and off, and a two-finger pan
   - rotate
   - export a save
   - airplane mode (still plays)
