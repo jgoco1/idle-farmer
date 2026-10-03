@@ -9,13 +9,16 @@ export interface BackUi {
   leaveMode(): boolean;
   /** Closes the open panel; true if one was open. */
   closePanel(): boolean;
+  /** Hides a tap-to-inspect label (v2-05); true if one was showing. */
+  clearLabel(): boolean;
 }
 
 /**
- * One step back: close an open modal, else leave a mode, else close the open panel. Returns false
+ * One step back: close an open modal, else leave a mode (or end a Paint stroke), else close the open panel, else
+ * hide a tap-to-inspect label. Returns false
  * when there was nothing to go back from, so the shell can minimise the app (Android) or ask to
  * quit (desktop); the web does nothing.
  */
 export function goBack(ui: BackUi): boolean {
-  return ui.closeModal() || ui.leaveMode() || ui.closePanel();
+  return ui.closeModal() || ui.leaveMode() || ui.closePanel() || ui.clearLabel();
 }

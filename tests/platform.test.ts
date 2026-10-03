@@ -469,7 +469,12 @@ describe('save backups', () => {
 
 describe('the back order', () => {
   /** A stand-in for the UI: a stack of what is open. */
-  function ui(open: { modal?: 'dismissible' | 'fixed'; mode?: boolean; panel?: boolean }): BackUi & {
+  function ui(open: {
+    modal?: 'dismissible' | 'fixed';
+    mode?: boolean;
+    panel?: boolean;
+    label?: boolean;
+  }): BackUi & {
     log: string[];
   } {
     const log: string[] = [];
@@ -496,13 +501,24 @@ describe('the back order', () => {
         s.panel = false;
         return true;
       },
+      clearLabel() {
+        if (!s.label) return false;
+        log.push('label');
+        s.label = false;
+        return true;
+      },
     };
   }
 
-  it('closes a modal, then leaves a mode, then closes the panel, then reports false', () => {
-    const u = ui({ modal: 'dismissible', mode: true, panel: true });
-    expect([goBack(u), goBack(u), goBack(u), goBack(u)]).toEqual([true, true, true, false]);
-    expect(u.log).toEqual(['modal', 'mode', 'panel']);
+  it('closes a modal, then leaves a mode, then closes the panel, then hides a label, then reports false', () => {
+    const u = ui({ modal: 'dismissible', mode: true, panel: true, label: true });
+    expect([goBack(u), goBack(u), goBack(u), goBack(u), goBack(u)]).toEqual([true, true, true, true, false]);
+    expect(u.log).toEqual(['modal', 'mode', 'panel', 'label']);
+  });
+
+  it('a tap-to-inspect label alone is one step back', () => {
+    const u = ui({ label: true });
+    expect([goBack(u), goBack(u)]).toEqual([true, false]);
   });
 
   it('a modal that must be answered keeps the back button', () => {

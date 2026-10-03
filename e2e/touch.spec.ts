@@ -147,6 +147,17 @@ test.describe('on a 390 × 844 touch phone', () => {
     const grass = await tilePoint(page, 26, 6);
     await page.touchscreen.tap(grass.x, grass.y);
     await expect(label).toBeHidden();
+    // Back (Escape here; the Android back button in the app) puts it away too: the last step of the back order.
+    const again = await tilePoint(page, 22, 2);
+    await page.waitForTimeout(400); // not a double tap with the grass tap
+    await page.touchscreen.tap(again.x, again.y);
+    await expect(label).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(label).toBeHidden();
+    expect(await page.evaluate(() => (window as unknown as Win).__view.inspected())).toEqual({
+      kind: 0,
+      id: -1,
+    });
   });
 
   test('the first tap on a hen shows her label, the second pets her', async ({ page }) => {

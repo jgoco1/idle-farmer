@@ -25,6 +25,7 @@ import { PREFS_KEY, PrefsStore } from './core/prefs';
 import { loadPlatform } from './platform';
 import { SyncStore } from './platform/store';
 import { goBack, type BackUi } from './ui/back';
+import { INSPECT_NONE } from './render/sceneInput';
 import { applyFakeInsets } from './ui/safeArea';
 import { createInitialState, type Plot } from './core/state';
 import { systemLocalClock } from './core/time';
@@ -1357,10 +1358,15 @@ platform.onResume(() => {
 });
 
 // ---- back: Escape on the web, the Android back button or a gamepad B in the shells, all in one order
-// (src/ui/back.ts): a modal (or the seed picker), then Decorate / plant / build / placement mode, then the panel.
+// (src/ui/back.ts): a modal (or the seed picker), then Decorate / plant / build / placement mode (or a Paint
+// stroke), then the panel, then a tap-to-inspect label.
 const backUi: BackUi = {
   closeModal: () => closeTopModal() || tools.closePickerIfOpen(),
   leaveMode() {
+    if (stroke) {
+      endStroke(); // the rest of the drag does nothing (usePlotTool needs a stroke); the release ends it again
+      return true;
+    }
     if (decorate.back()) return true;
     for (const mode of [plant, build]) {
       if (mode.on) {
@@ -1375,6 +1381,11 @@ const backUi: BackUi = {
   closePanel() {
     if (!panels.current) return false;
     panels.close();
+    return true;
+  },
+  clearLabel() {
+    if (renderer.inspected.kind === INSPECT_NONE) return false;
+    renderer.clearInspect();
     return true;
   },
 };
