@@ -10,6 +10,7 @@ import { harvestPlots, plantPlots, tillPlots, useTool, waterPlots, type FarmTool
 import { buyExpansion } from '../systems/expansions';
 import { buyParcel } from '../systems/parcels';
 import { sellItems } from '../systems/market';
+import { discardItem } from '../systems/inventory';
 import { shipItems, unshipItems } from '../systems/shippingBin';
 import { buySeeds } from '../systems/shop';
 import { setAutoSell } from '../systems/autoSeller';
@@ -66,6 +67,8 @@ export type Action =
   | { type: 'buySeeds'; crop: CropId; qty: number }
   /** Market panel: sell instantly at 90%. */
   | { type: 'sell'; item: ItemId; qty: number }
+  /** Throw items away for good (`hearty` picks hearty or plain dishes). */
+  | { type: 'discardItem'; item: ItemId; qty: number; hearty?: boolean }
   /** Shipping Bin: drop items in (paid at 100% at the next hourly pickup), or take them back out. */
   | { type: 'ship'; item: ItemId; qty: number }
   | { type: 'unship'; item: ItemId }
@@ -164,6 +167,8 @@ function handleAction(state: GameState, ctx: SimContext, action: Action): Action
       return buySeeds(state, ctx, action.crop, action.qty);
     case 'sell':
       return sellItems(state, ctx, action.item, action.qty);
+    case 'discardItem':
+      return discardItem(state, ctx, action.item, action.qty, action.hearty);
     case 'ship':
       return shipItems(state, ctx, action.item, action.qty);
     case 'unship':

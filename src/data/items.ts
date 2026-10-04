@@ -49,7 +49,11 @@ function seedItem(id: CropId): ItemDef {
   return {
     id: seedOf(id),
     name: `${c.name} Seeds`,
-    description: `Plant in ${seasons}. Ready in ${Math.round(c.growSec / 60)} min when watered.`,
+    description:
+      `Plant in ${seasons}. Ready in ${Math.round(c.growSec / 60)} min when watered.` +
+      (c.regrowSec === null
+        ? ''
+        : ` Keeps producing: harvest again every ${Math.round(c.regrowSec / 60)} min until its seasons end.`),
     category: 'seed',
     basePrice: c.seedPrice,
     sellable: false,

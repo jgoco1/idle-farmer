@@ -8,17 +8,21 @@ import type { ItemId } from '../data/ids';
 import type { RecipeDef } from '../data/types';
 import { spriteDataUrl } from '../render/spriteCache';
 import type { Action } from '../core/actions';
+import { KITCHEN_SORTS, type KitchenSort } from '../core/prefs';
 import type { ActionResult } from '../systems/context';
 import { buffDurationMs, buffMagnitude } from '../systems/buffs';
 import { canCook, cookMs, ingredientStatus, kitchenSlots, knownRecipes } from '../systems/cooking';
 import { countItem } from '../systems/inventory';
 import { buffEffectText, formatCountdown } from './buffBar';
+import { KITCHEN_SORT_LABELS, sortRecipes } from './recipeSort';
 import { h } from './dom';
 import type { PanelDef } from './panel';
 import type { GameViewHooks } from './panels';
 
 export interface KitchenHooks extends GameViewHooks {
   dispatch(action: Action): ActionResult;
+  /** The recipe book's order, kept in prefs (defaults to "can cook now" without them). */
+  sort?: { get(): KitchenSort; set(mode: KitchenSort): void };
 }
 
 type Tab = 'cook' | 'experiment';
@@ -61,7 +65,20 @@ export function kitchenPanel(hooks: KitchenHooks): PanelDef {
       const stove = h('div', { class: 'stove', 'data-testid': 'stove' });
       const speedNote = h('p', { class: 'muted' });
       const msg = h('p', { class: 'form-msg', role: 'status' });
-      const bookHead = h('h3', { text: 'Recipe book' });
+      const sortSelect = h('select', { id: 'kitchen-sort', 'data-testid': 'kitchen-sort' });
+      for (const mode of KITCHEN_SORTS)
+        sortSelect.append(h('option', { value: mode, text: KITCHEN_SORT_LABELS[mode] }));
+      sortSelect.value = hooks.sort?.get() ?? 'ready';
+      sortSelect.addEventListener('change', () => {
+        hooks.sort?.set(sortSelect.value as KitchenSort);
+        render(true);
+      });
+      const bookHead = h(
+        'div',
+        { class: 'kitchen-book-head' },
+        h('h3', { text: 'Recipe book' }),
+        h('label', { class: 'field', for: 'kitchen-sort' }, 'Sort by ', sortSelect),
+      );
       const book = h('div', { class: 'crate-list', 'data-testid': 'recipe-book' });
       const more = h('p', { class: 'muted' });
       const cookTab = h('div', {}, stoveHead, stove, speedNote, msg, bookHead, book, more);
@@ -238,9 +255,13 @@ export function kitchenPanel(hooks: KitchenHooks): PanelDef {
 
       const renderBook = (force: boolean): void => {
         const state = hooks.state();
-        const known = knownRecipes(state);
+        const mode = (KITCHEN_SORTS as readonly string[]).includes(sortSelect.value)
+          ? (sortSelect.value as KitchenSort)
+          : 'ready';
+        const known = sortRecipes(knownRecipes(state), state, hooks.data, mode);
         const free = kitchenSlots(state, hooks.data) - state.kitchen.queue.length;
         const sig = [
+          mode,
           known.join(','),
           free,
           hooks.calendar().season,
