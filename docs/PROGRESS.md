@@ -953,3 +953,32 @@ A small owner-requested pass between v2-04 and v2-05 (no phase prompt).
 - **Shells load `dist-app/`** (`npm run build:app`); build it with `VITE_E2E=1` to drive it with Playwright.
 - **Storage keys read at boot** must be listed in `main.ts`'s `SyncStore.open` call; a key not listed reads as empty.
 - **Store screenshots:** `npm run demo-save` then `npm run shots:store`; add sizes in `scripts/store/sizes.ts`.
+
+## v2 Phase 06: Seed orders & small comforts
+
+### Built
+- **Seed Order** (`seed_order`, save 14). A three-level farmhand upgrade after the Seed Planter (4,000 / 12,000 / 36,000). At each Shipping Bin pickup (`runSeedOrder` in `src/systems/seedOrder.ts`, called from `tickSystems` right after `tickShippingBin`, so it spends what the pickup just paid) it tops the bag up to 100 / 300 / 1,000 seeds of every crop the planter last planted that is in season and ripe before the season ends, at the Shop price plus a 10% fee. A gold reserve (none / 10 / 25 / 50% of the gold held when the pickup began, default 25%) is never crossed; each crop is all or nothing for bag space and reserve; a toggle per crop opts out. `msToNextPickup` reports pickups while it is owned. Event `seedsOrdered`, away-summary line ("Seed Order bought 40 strawberry seeds for 2,288g."), a toast online. Actions `setSeedOrderReserve`, `setSeedOrderCrop`; the card's controls are in `src/ui/upgradesPanel.ts`. State `seedOrder: { reservePct, off }`, `migrations[13]`, `tests/fixtures/save-v14.json`, validation `bad seed order`.
+- **Harvest all / Water all** buttons after the farm tools: `bulkPlots(state)` (the whole field) feeds both Shift-click and the buttons, which send the same `useTool` action (`useOnField` in `main.ts`).
+- **Cook ×N and favourites** in the Kitchen: a − / + stepper up to `maxBatch` (free stove slots, then ingredients), Cook sends N `cook` actions; a ☆ pin per recipe keeps it at the top in any sort order (`pinFavourites`, pref `kitchenFavourites`, per device).
+- **Farm Level chip** ("Lv 4") after the gold in the HUD, opening and closing the Goals panel.
+- **Simulator:** the brain buys Seed Order, drops the hand-stocking the order covers, and keeps stocking a new season's crop; two control bots and a new report table (BALANCE.md §13.15); `Metrics.aways`.
+- **Tests:** `tests/seedOrder.test.ts` (data, which crops, targets, fee, reserve, space, opt-outs, one big step = many small ones including across a season change, the away rows, the 8 h budget), `tests/comforts.test.ts`, the v13 → v14 migration and damaged settings in `tests/save.test.ts`, the v14 fixture in `tests/qa.test.ts`; `e2e/comforts.spec.ts` (buy Seed Order, set the reserve, advance an hour, the floor holds; Harvest all / Water all; Cook ×2 and a favourite that survives a reload; the HUD chip).
+- **Screenshots:** `docs/screenshots/v2-06-seed-order.png`, `v2-06-kitchen.png`, `v2-06-hud-chip.png`.
+
+### Deviations
+- **Targets are 100 / 300 / 1,000, not the prompt's example 20 / 50 / 100** (the prompt said "for example"): at 20 / 50 / 100 the order left a big farm idle most of each hour and the Greedy Farmer finished day 30 17% below the control (BALANCE.md §13.15).
+- **The orchard check's band is 4%–8%** (was 5%–8%): orchard income is unchanged (59,420 gold a day) but the farm now earns more, so its share fell to 4.5%.
+- **A reserve is a share of the gold at the start of the pickup**, not recomputed after each crop, so the order of the crops cannot change the outcome.
+- **Two control bots** (`farmer_plain`, `farmer_forgetful`) were added to `ALL_BOTS` for the report row, so every table has two more rows.
+- **`finishesBeforeSeasonEnds` uses the segment's calendar**, which the core fixes for a whole step (BALANCE.md §13.15).
+- The Seed Order buys only the planter's last crops; the bots hand-stock the new season's crop, a player must plant it once (IDEAS.md).
+
+### Known issues
+- The buff check (+14%) is noisy at 8 seeds (§13.14); it measured −1% to +14% on small changes of where the bots buy Seed Order.
+- Harvest all and Water all leave the greenhouse alone, as Shift-click always has (IDEAS.md).
+- The fishing cast e2e test can still be flaky (phase 08 note).
+
+### Next-phase notes
+- Order settings live in `state.seedOrder`; new settings need a save bump and a migration like `migrations[13]`.
+- A new bulk button goes next to the two in `FarmTools` (`onBulk`); a new Kitchen control follows the stepper in `recipeRow`.
+- Targets and fee are `seedTarget` in `src/data/upgrades.ts` and `SEED_ORDER_FEE` in `balance.ts`; re-run `npm run simulate` (the "Seed Order" table) after changing either.

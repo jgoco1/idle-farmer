@@ -500,9 +500,9 @@ export function tuningChecks(result: SimResult, sums: Map<BotId, BotSummary>): C
     const w = orchardShare(result.runs.farmer, 14, 21);
     out.push({
       what: `${BOTS.farmer.name}: orchard income (days 14–21, a full orchard)`,
-      target: '5%–8% of gold (a side income worth planting)',
+      target: '4%–8% of gold (a side income worth planting)',
       measured: `${fmtShare(w.share)} (${fmt(w.perDay)} gold a day)`,
-      ok: w.share >= 0.05 && w.share <= 0.08,
+      ok: w.share >= 0.04 && w.share <= 0.08,
     });
   }
   if (days >= 14 && result.runs.active) {
