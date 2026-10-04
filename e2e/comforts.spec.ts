@@ -66,18 +66,19 @@ test('Seed Order: buy it, set the reserve, and an hour later the seeds are bough
   expect(await seedsOf(page, 'seed_turnip')).toBe(before);
   await card.locator('[data-role="order-turnip"]').check();
 
-  // An hour later (one pickup), turnip seeds are topped up to 20 for 8g each plus the 10% fee.
+  // An hour later (one pickup), turnip seeds are topped up to 100 for 8g each plus the 10% fee.
   const goldBefore = await gold(page);
   await page.evaluate(() => (window as unknown as Win).__game.advance(61 * 60_000));
-  expect(await seedsOf(page, 'seed_turnip')).toBe(20);
+  expect(await seedsOf(page, 'seed_turnip')).toBe(100);
   const spent = goldBefore - (await gold(page));
-  expect(spent).toBe(Math.ceil(8 * (20 - before) * 1.1));
+  const base = 8 * (100 - before);
+  expect(spent).toBe(base + Math.ceil(base * 0.1));
 
-  // The gold floor holds: with 100g and a 50% reserve, the 20 seeds would cost more than is allowed, so nothing is bought.
+  // The gold floor holds: with 100g and a 50% reserve, the 100 seeds would cost more than is allowed, so nothing is bought.
   await page.evaluate(() => {
     const s = (window as unknown as Win).__game.state;
     s.inventory.slots = s.inventory.slots.map((x) => (x?.item === 'seed_turnip' ? null : x));
-    s.gold = 200; // reserve 100; the order costs 176
+    s.gold = 200; // reserve 100; the order costs 880
   });
   await page.evaluate(() => (window as unknown as Win).__game.advance(61 * 60_000));
   expect(await seedsOf(page, 'seed_turnip')).toBe(0);

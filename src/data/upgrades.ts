@@ -149,11 +149,11 @@ export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object
     cost: { base: 4000, ratio: 3 }, // 4000, 12000, 36000
     effectText: [
       'not ordered',
-      'keeps 20 seeds of each crop in the bag',
-      'keeps 50 seeds of each crop in the bag',
       'keeps 100 seeds of each crop in the bag',
+      'keeps 300 seeds of each crop in the bag',
+      'keeps 1,000 seeds of each crop in the bag',
     ],
-    effect: [{}, { seedTarget: 20 }, { seedTarget: 50 }, { seedTarget: 100 }],
+    effect: [{}, { seedTarget: 100 }, { seedTarget: 300 }, { seedTarget: 1000 }],
     requires: [{ kind: 'upgrade', id: 'seed_planter', level: 1 }],
   },
   watering_can: {

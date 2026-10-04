@@ -62,11 +62,11 @@ const ordered = (events: GameEvent[]) =>
   events.flatMap((e) => (e.type === 'seedsOrdered' ? [`${e.crop}:${e.qty}:${e.gold}`] : []));
 
 describe('Seed Order: the upgrade', () => {
-  it('is a three-level upgrade after the Seed Planter, with targets of 20, 50 and 100 seeds', () => {
+  it('is a three-level upgrade after the Seed Planter, with targets of 100, 300 and 1,000 seeds', () => {
     const def = UPGRADES.seed_order!;
     expect(def.max).toBe(3);
     expect([0, 1, 2].map((n) => upgradeCost(def, n))).toEqual([4000, 12000, 36000]);
-    expect(def.effect.map((e) => e.seedTarget ?? 0)).toEqual([0, 20, 50, 100]);
+    expect(def.effect.map((e) => e.seedTarget ?? 0)).toEqual([0, 100, 300, 1000]);
     expect(def.effectText).toHaveLength(4);
     expect(requirementsFor(def, 0)).toEqual([{ kind: 'upgrade', id: 'seed_planter', level: 1 }]);
   });
@@ -127,9 +127,9 @@ describe('Seed Order: what it buys', () => {
 
   it('tops the bag up to the level target, counting the seeds already there', () => {
     for (const [level, target] of [
-      [1, 20],
-      [2, 50],
-      [3, 100],
+      [1, 100],
+      [2, 300],
+      [3, 1000],
     ] as const) {
       const s = farmAt();
       own(s, { seed_order: level });
@@ -148,7 +148,7 @@ describe('Seed Order: what it buys', () => {
     own(s, { seed_order: 1 });
     s.gold = 5000;
     planterUses(s, 'turnip');
-    addItem(s.inventory, seedOf('turnip'), 20);
+    addItem(s.inventory, seedOf('turnip'), 100);
     expect(order(s)).toEqual([]);
     expect(s.gold).toBe(5000);
   });
@@ -163,7 +163,7 @@ describe('Seed Order: what it buys', () => {
     s.gold = 5000;
     planterUses(s, 'turnip');
     order(s);
-    expect(s.gold).toBe(5000 - 176);
+    expect(s.gold).toBe(5000 - 880);
   });
 });
 
@@ -181,34 +181,34 @@ describe('Seed Order: the gold reserve', () => {
     const s = farmAt();
     own(s, { seed_order: 1 });
     s.seedOrder.reservePct = 50;
-    s.gold = 300; // reserve 150; 20 turnip seeds cost 176 → 124 left
+    s.gold = 1000; // reserve 500; 100 turnip seeds cost 880 → 120 left
     planterUses(s, 'turnip');
     expect(order(s)).toEqual([]);
-    expect(s.gold).toBe(300);
+    expect(s.gold).toBe(1000);
     expect(countItem(s.inventory, seedOf('turnip'))).toBe(0);
-    s.gold = 352; // reserve 176, exactly what is left after the order
-    expect(ordered(order(s))).toEqual(['turnip:20:176']);
-    expect(s.gold).toBe(176);
+    s.gold = 1760; // reserve 880, exactly what is left after the order
+    expect(ordered(order(s))).toEqual(['turnip:100:880']);
+    expect(s.gold).toBe(880);
   });
 
   it('holds across crops: later crops see the gold the earlier ones left, against the reserve fixed at the start', () => {
     const s = farmAt();
     own(s, { seed_order: 1 });
     s.seedOrder.reservePct = 25;
-    s.gold = 2000; // reserve 500
-    planterUses(s, 'turnip', 'potato', 'strawberry'); // 176, 418, 1144 → turnip and potato fit (1406 left), strawberry would leave 262
+    s.gold = 10_000; // reserve 2,500
+    planterUses(s, 'turnip', 'potato', 'strawberry'); // 880, 2,090, 5,720 → turnip and potato fit (7,030 left), strawberry would leave 1,310
     const events = order(s);
-    expect(ordered(events)).toEqual(['turnip:20:176', 'potato:20:418']);
-    expect(s.gold).toBeGreaterThanOrEqual(500);
+    expect(ordered(events)).toEqual(['turnip:100:880', 'potato:100:2090']);
+    expect(s.gold).toBe(7030);
   });
 
   it('a reserve of none spends down to zero', () => {
     const s = farmAt();
     own(s, { seed_order: 1 });
     s.seedOrder.reservePct = 0;
-    s.gold = 176;
+    s.gold = 880;
     planterUses(s, 'turnip');
-    expect(ordered(order(s))).toEqual(['turnip:20:176']);
+    expect(ordered(order(s))).toEqual(['turnip:100:880']);
     expect(s.gold).toBe(0);
   });
 
@@ -227,14 +227,14 @@ describe('Seed Order: bag space and opt-outs', () => {
   it('is all or nothing per crop: a bag that cannot hold the whole order gets none of it', () => {
     const s = farmAt();
     own(s, { seed_order: 1 });
-    s.gold = 5000;
+    s.gold = 50_000;
     planterUses(s, 'turnip', 'potato');
-    s.inventory.stackSize = 99;
-    // Fill every slot but one with logs of junk; the last slot takes 99 of a seed, so the whole order fits...
+    s.inventory.stackSize = 150;
+    // Fill every slot but one with junk; the free slot holds 150, so the first crop's 100 fit and the second's do not.
     const filler = 'moss' as never;
     s.inventory.slots = s.inventory.slots.map((_, i) => (i === 0 ? null : { item: filler, qty: 1 }));
     expect(ordered(order(s)).length).toBe(1); // the only free slot goes to the first crop
-    expect(countItem(s.inventory, seedOf('turnip'))).toBe(20);
+    expect(countItem(s.inventory, seedOf('turnip'))).toBe(100);
     expect(countItem(s.inventory, seedOf('potato'))).toBe(0); // nothing half-bought
   });
 
@@ -243,7 +243,7 @@ describe('Seed Order: bag space and opt-outs', () => {
     own(s, { seed_order: 1 });
     s.gold = 5000;
     planterUses(s, 'turnip');
-    s.inventory.stackSize = 99;
+    s.inventory.stackSize = 150;
     s.inventory.slots = s.inventory.slots.map(() => ({ item: 'moss' as never, qty: 1 }));
     expect(order(s)).toEqual([]);
     expect(s.gold).toBe(5000);
