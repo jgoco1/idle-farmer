@@ -145,8 +145,8 @@ export const FARM_SHOPPING: readonly Want[] = [
   up('farmhand', 4),
   up('scarecrow', 2),
   up('greenhouse', 1),
-  up('auto_seller', 2),
   up('seed_order', 1), // v2-06: once the farm runs itself, it also buys its own seeds
+  up('auto_seller', 2),
   ex('ocean'),
   up('backpack', 2),
   up('barn_storage', 2),
