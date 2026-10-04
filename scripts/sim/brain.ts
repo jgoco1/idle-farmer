@@ -142,24 +142,24 @@ export const FARM_SHOPPING: readonly Want[] = [
   up('sprinkler_tech', 2),
   up('scarecrow', 1),
   up('seed_planter', 3),
-  up('seed_order', 1), // v2-06: once the farm runs itself, it also buys its own seeds
   up('farmhand', 4),
   up('scarecrow', 2),
   up('greenhouse', 1),
   up('auto_seller', 2),
-  up('seed_order', 2),
+  up('seed_order', 1), // v2-06: once the farm runs itself, it also buys its own seeds
   ex('ocean'),
   up('backpack', 2),
   up('barn_storage', 2),
   up('farmhand', 5),
-  up('seed_order', 3),
   up('greenhouse', 2),
+  up('seed_order', 2),
   up('kitchen', 1),
   up('fishing_rod', 1),
   up('fish_trap', 2),
   up('scarecrow', 4),
   up('barn_storage', 4),
   up('backpack', 4),
+  up('seed_order', 3),
   ...sprinklers(8, 9),
   // v2 (BALANCE.md §13.11): the land parcels in order, after the v1 wish list. Moving the orchard earlier
   // (after `farm_4`, or after the first scarecrow) puts it inside §13.10's day 2–4 but swings the phase 09
