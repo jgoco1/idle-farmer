@@ -75,6 +75,18 @@ export function canCook(state: GameState, recipe: RecipeDef): boolean {
   return hasItems(state.inventory, recipe.ingredients);
 }
 
+/**
+ * How many of `recipe` the stove and the bag allow cooking together (Cook ×N): the free stove slots, and as many
+ * as the ingredients in the bag cover. Without the ingredient-save perk this is exact; with it a batch can need a
+ * little less, never more.
+ */
+export function maxBatch(state: GameState, data: GameData, recipe: RecipeDef): number {
+  const free = Math.max(0, kitchenSlots(state, data) - state.kitchen.queue.length);
+  let n = free;
+  for (const i of recipe.ingredients) n = Math.min(n, Math.floor(countItem(state.inventory, i.item) / i.qty));
+  return Math.max(0, n);
+}
+
 /** How long `recipe` takes at the current cook speed, in simulated ms (whole ms, at least 1). */
 export function cookMs(recipe: RecipeDef, cookSpeedModifier: number): number {
   return Math.max(1, Math.ceil((recipe.cookSec * 1000) / Math.max(0.01, cookSpeedModifier)));

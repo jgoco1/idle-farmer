@@ -130,6 +130,7 @@ export interface UpgradeEffect {
   reelZoneMult?: number; // fishing rod: × the reel minigame's sweet zone
   luck?: number; // fishing rod: additive fishing luck
   cookSpeed?: number; // kitchen: added to cookSpeedModifier
+  seedTarget?: number; // seed order: seeds per crop the bag is topped up to at each pickup
 }
 
 export interface UpgradeDef {

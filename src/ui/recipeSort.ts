@@ -35,3 +35,14 @@ export function sortRecipes(
   };
   return [...known].sort(by[mode]);
 }
+
+/** `sorted` with the favourites first (in the book's order within each group), in any sort order. */
+export function pinFavourites(sorted: readonly RecipeId[], favourites: readonly RecipeId[]): RecipeId[] {
+  const pinned = sorted.filter((id) => favourites.includes(id));
+  return [...pinned, ...sorted.filter((id) => !favourites.includes(id))];
+}
+
+/** Adds or removes `id` from the favourites (a new list). */
+export function toggleFavourite(favourites: readonly RecipeId[], id: RecipeId): RecipeId[] {
+  return favourites.includes(id) ? favourites.filter((f) => f !== id) : [...favourites, id];
+}

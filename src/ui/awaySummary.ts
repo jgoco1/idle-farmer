@@ -39,6 +39,10 @@ export interface AwayTotals {
   collectedByBasket: Partial<Record<AnimalProductId, number>>;
   /** Animals whose trough ran dry while away (once each kind). */
   unfed: AnimalId[];
+  /** What the Seed Order bought at bin pickups while away (v2 phase 06): seeds and gold, by crop. */
+  ordered: Partial<Record<CropId, number>>;
+  orderedTotal: number;
+  orderedGold: number;
 }
 
 export function awayTotals(report: OfflineReport): AwayTotals {
@@ -62,6 +66,9 @@ export function awayTotals(report: OfflineReport): AwayTotals {
     produced: {},
     collectedByBasket: {},
     unfed: [],
+    ordered: {},
+    orderedTotal: 0,
+    orderedGold: 0,
   };
   for (const e of report.events) {
     if (e.type === 'harvested') {
@@ -69,6 +76,10 @@ export function awayTotals(report: OfflineReport): AwayTotals {
       t.harvestedTotal += e.qty;
     } else if (e.type === 'binCollected') {
       t.shipped += e.items;
+    } else if (e.type === 'seedsOrdered') {
+      t.ordered[e.crop] = (t.ordered[e.crop] ?? 0) + e.qty;
+      t.orderedTotal += e.qty;
+      t.orderedGold += e.gold;
     } else if (e.type === 'goldEarned') {
       t.gold += e.amount;
     } else if (e.type === 'seasonChanged') {
@@ -177,6 +188,18 @@ export function awayRows(report: OfflineReport, farm: AwayFarm): AwayRow[] {
     rows.push({
       icon: 'obj_trough_empty',
       text: animal === 'cow' ? 'The cows would love some hay.' : 'The hens would love some feed.',
+    });
+  }
+  if (t.orderedTotal > 0) {
+    const bought = (Object.entries(t.ordered) as [CropId, number][]).sort((a, b) => b[1] - a[1]);
+    const first = bought[0]!;
+    const what =
+      bought.length === 1
+        ? `${first[1]} ${GAME_DATA.crops[first[0]].name.toLowerCase()} seeds`
+        : `${t.orderedTotal} seeds (${first[1]} ${GAME_DATA.crops[first[0]].name.toLowerCase()} and ${bought.length - 1} other kind${bought.length > 2 ? 's' : ''})`;
+    rows.push({
+      icon: `item_seed_${first[0]}`,
+      text: `Seed Order bought ${what} for ${t.orderedGold.toLocaleString('en-US')}g.`,
     });
   }
   if (t.buffsExpired > 0) {

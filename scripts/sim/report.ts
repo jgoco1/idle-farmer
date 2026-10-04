@@ -155,6 +155,48 @@ export function animalShare(
   };
 }
 
+/**
+ * The idle stretches of a run after the Seed Order was bought (v2 phase 06): per seed, the gold earned while away in the
+ * first absence that began after the purchase ("the night after buying it") and the median per absence over every
+ * absence after it. The purchase day is the one in `ordered`'s run; the controls are read at the same absences, so the
+ * pairs differ only in the Seed Order. Seeds that never bought it are left out.
+ */
+export function seedOrderNights(
+  ordered: readonly RunResult[],
+  control: readonly RunResult[],
+): {
+  seeds: number;
+  firstOrdered: number;
+  firstControl: number;
+  allOrdered: number;
+  allControl: number;
+} | null {
+  const pairs: { first: [number, number]; all: [number, number] }[] = [];
+  ordered.forEach((run, i) => {
+    const bought = run.metrics.moments.bought_seed_order;
+    const other = control[i];
+    if (!bought || !other) return;
+    const after = (r: RunResult) =>
+      r.metrics.aways.filter((a) => a.startMs >= bought.realMs && a.ms >= 2 * HOUR);
+    const a = after(run);
+    const b = after(other);
+    const n = Math.min(a.length, b.length);
+    if (n === 0) return;
+    pairs.push({
+      first: [a[0]!.gold, b[0]!.gold],
+      all: [median(a.slice(0, n).map((x) => x.gold)), median(b.slice(0, n).map((x) => x.gold))],
+    });
+  });
+  if (pairs.length === 0) return null;
+  return {
+    seeds: pairs.length,
+    firstOrdered: median(pairs.map((p) => p.first[0])),
+    firstControl: median(pairs.map((p) => p.first[1])),
+    allOrdered: median(pairs.map((p) => p.all[0])),
+    allControl: median(pairs.map((p) => p.all[1])),
+  };
+}
+
 /** The milestones and moments shown in the time table, with a label. */
 export const MOMENTS: readonly [key: string, label: string][] = [
   ['first_harvest', 'First harvest'],
@@ -340,6 +382,24 @@ export function markdownReport(result: SimResult): string {
       const hungry = median(runs[b]!.map((r) => r.metrics.hungryMs / HOUR));
       lines.push(
         `| ${BOTS[b].name} | ${fmt(w1.perDay)} · ${pct(w1.share)} | ${days > 14 ? `${fmt(w2.perDay)} · ${pct(w2.share)}` : '–'} | ${fmt(hungry, 1)} |`,
+      );
+    }
+    lines.push('');
+  }
+  // Seed Order (v2 phase 06)
+  if (runs.farmer && (runs.farmer_plain || runs.farmer_forgetful)) {
+    lines.push(
+      'Seed Order (BALANCE.md §13.15): gold earned while away (an absence of 2 hours or more) after the Greedy Farmer bought it, against the same seed without it (medians over the seeds that bought it):',
+      '',
+      '| Control | Seeds | Night after buying it: with · without · ratio | Every later absence (median): with · without · ratio |',
+      '|---|---|---|---|',
+    );
+    for (const control of ['farmer_plain', 'farmer_forgetful'] as const) {
+      const n = runs[control] ? seedOrderNights(runs.farmer, runs[control]!) : null;
+      if (!n) continue;
+      const ratio = (a: number, b: number): string => (b > 0 ? `${fmt(a / b, 2)}×` : '–');
+      lines.push(
+        `| ${BOTS[control].name} | ${n.seeds} | ${fmt(n.firstOrdered)} · ${fmt(n.firstControl)} · ${ratio(n.firstOrdered, n.firstControl)} | ${fmt(n.allOrdered)} · ${fmt(n.allControl)} · ${ratio(n.allOrdered, n.allControl)} |`,
       );
     }
     lines.push('');

@@ -92,6 +92,10 @@ export function roundNice(x: number): number {
 export const GREENHOUSE_BASE = 1000;
 /** Auto-Seller level 2 keeps up to this many of each item in the bag for cooking and ships the rest. */
 export const AUTO_SELLER_RESERVE = 10;
+/** Seed Order (v2 phase 06): the delivery fee on top of the Shop price, and the gold reserves the player can choose (percent of current gold). */
+export const SEED_ORDER_FEE = 0.1;
+export const SEED_ORDER_RESERVES: readonly number[] = [0, 10, 25, 50];
+export const SEED_ORDER_DEFAULT_RESERVE = 25;
 
 // ---- fishing (BALANCE.md §6)
 

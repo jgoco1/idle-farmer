@@ -7,6 +7,7 @@ import {
   ANIMAL_PRODUCT_IDS,
   FRUIT_IDS,
   PARCEL_IDS,
+  type CropId,
   type ExpansionId,
   type ItemId,
   type ParcelId,
@@ -14,6 +15,7 @@ import {
 } from '../data/ids';
 import type { PlacedKind } from '../core/state';
 import type { UpgradeCategory } from '../data/types';
+import { SEED_ORDER_RESERVES } from '../data/balance';
 import { FARM_EXPANSIONS, FISHING_EXPANSIONS } from '../data/expansions';
 import { spriteDataUrl } from '../render/spriteCache';
 import type { ActionResult } from '../systems/context';
@@ -34,6 +36,9 @@ export interface UpgradesHooks extends GameViewHooks {
   /** Enters placement mode for a sprinkler or scarecrow. */
   place(kind: PlacedKind): void;
   setAutoSell(item: ItemId, on: boolean): ActionResult;
+  /** Seed Order: the gold reserve (percent of current gold) and a crop's opt-out. */
+  setSeedOrderReserve(pct: number): ActionResult;
+  setSeedOrderCrop(crop: CropId, on: boolean): ActionResult;
 }
 
 /** Upgrade cards by section, in panel order. */
@@ -47,6 +52,7 @@ const SECTIONS: readonly { title: string; category: UpgradeCategory; ids: readon
       'scarecrow',
       'farmhand',
       'seed_planter',
+      'seed_order',
       'auto_seller',
       'greenhouse',
     ],
@@ -62,6 +68,7 @@ const CARD_ICON: Partial<Record<UpgradeId, string>> = {
   sprinkler: 'obj_sprinkler',
   scarecrow: 'obj_scarecrow',
   farmhand: 'char_farmhand_idle',
+  seed_order: 'item_seed_strawberry',
   fish_trap: 'obj_fish_trap',
   fishing_rod: 'ui_tool_rod',
   watering_can: 'ui_tool_water',
@@ -269,7 +276,12 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
                 place.addEventListener('click', () => hooks.place(id as PlacedKind));
                 buttons.push(place);
               }
-              const extra = id === 'auto_seller' && level > 0 ? sellerToggles() : undefined;
+              const extra =
+                id === 'auto_seller' && level > 0
+                  ? sellerToggles()
+                  : id === 'seed_order' && level > 0
+                    ? orderControls()
+                    : undefined;
               const state2 = maxed ? 'owned' : unlocked ? 'available' : 'locked';
               return [card(id, title, text, state2, buttons, CARD_ICON[id], extra)];
             }),
@@ -283,6 +295,56 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
             body.querySelector<HTMLElement>(`[data-upgrade="${focusedKey}"] button:not([disabled])`)
           )?.focus();
         }
+      };
+
+      /** The Seed Order's gold reserve and its per-crop opt-outs (v2-06). */
+      const orderControls = (): HTMLElement => {
+        const state = hooks.state();
+        const select = h('select', { 'data-role': 'order-reserve', id: 'order-reserve' });
+        for (const pct of SEED_ORDER_RESERVES)
+          select.append(
+            h('option', {
+              value: String(pct),
+              text: pct === 0 ? 'None' : `${pct}% of my gold`,
+            }),
+          );
+        select.value = String(state.seedOrder.reservePct);
+        select.addEventListener('change', () => {
+          hooks.setSeedOrderReserve(Number(select.value));
+          render();
+        });
+        const toggles = CROP_IDS.map((crop) => {
+          const box = h('input', { type: 'checkbox', 'data-role': `order-${crop}` });
+          box.checked = !state.seedOrder.off.includes(crop);
+          box.addEventListener('change', () => {
+            hooks.setSeedOrderCrop(crop, box.checked);
+            render();
+          });
+          return h(
+            'label',
+            { class: 'seller-toggle', title: `${hooks.data.crops[crop].name} seeds` },
+            box,
+            h('img', {
+              class: 'pixel',
+              alt: `${hooks.data.crops[crop].name} seeds`,
+              width: 16,
+              height: 16,
+              src: spriteDataUrl(`item_seed_${crop}`),
+            }),
+          );
+        });
+        return h(
+          'div',
+          { class: 'seed-order-controls' },
+          h(
+            'label',
+            { class: 'field', for: 'order-reserve' },
+            'Keep a reserve of ',
+            select,
+            ' (the order never spends below it)',
+          ),
+          h('div', { class: 'seller-toggles', role: 'group', 'aria-label': 'Seeds to order' }, ...toggles),
+        );
       };
 
       /** Per-crop "ship it automatically" toggles under the Auto-Seller card. */

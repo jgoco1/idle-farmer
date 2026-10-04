@@ -1872,3 +1872,70 @@ body.tutorial-on .toasts {
     max-height: calc(var(--sheet-max) / var(--ui-scale));
   }
 }
+
+/* ---------- v2-06: the Farm Level chip, the bulk farm buttons, Cook ×N and favourites, the Seed Order card */
+.hud-level {
+  font: inherit;
+  font-size: 14px;
+  min-height: 28px;
+  padding: 2px 8px;
+  margin-left: -6px;
+  cursor: pointer;
+  color: var(--c-outline);
+  background: var(--c-wood_pale);
+  border: 2px solid var(--c-outline);
+  box-shadow: inset 0 -3px 0 var(--c-wood_light);
+}
+.hud-level:hover,
+.hud-level:focus-visible {
+  background: var(--c-gold);
+}
+.bulk-btn {
+  background: var(--c-wood_light);
+}
+.cook-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.cook-stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.cook-stepper .step-btn {
+  min-width: 28px;
+  padding: 2px 6px;
+}
+.cook-stepper .step-n {
+  min-width: 2ch;
+  text-align: center;
+}
+.fav-btn {
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 4px;
+  cursor: pointer;
+  color: var(--c-outline);
+  background: none;
+  border: none;
+}
+.fav-btn.is-fav {
+  color: var(--c-gold);
+  text-shadow:
+    1px 0 0 var(--c-outline),
+    -1px 0 0 var(--c-outline),
+    0 1px 0 var(--c-outline),
+    0 -1px 0 var(--c-outline);
+}
+.seed-order-controls {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+}
+.seed-order-controls label.field {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}

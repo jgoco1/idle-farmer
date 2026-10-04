@@ -1245,6 +1245,7 @@ Each v2 phase bumps the version once, adds `migrations[n]`, adds `tests/fixtures
 | **11** | v2-04 | `ranch` | 10 → 11: `ranch: { buildings: [], animals: [] }`, `stats.productsCollected: 0`. `autoSell` needs no entries (missing means off for animal products). |
 | **12** | v2 polish | `cats` | 11 → 12: `cats: { adopted: ['cat_tabby'], active: 'cat_tabby' }` (the old orange cat becomes the brown tabby; the orange one is now adopted). |
 | **13** | v2-05 | `ranch.feedStore` | 12 → 13: `ranch: { ...old.ranch, feedStore: { hay, corn_feed } }`, moving each bag stack of `hay` and `corn_feed` into the store up to 600 of each (the capacity written out in the migration); what does not fit stays in the bag. |
+| **14** | v2-06 | `seedOrder` | 13 → 14: `seedOrder: { reservePct: 25, off: [] }` (the defaults are written out in the migration). The upgrade itself is `upgrades.seed_order` and needs no entry. |
 
 Rules that carry over from §8: migrations take raw JSON and do not import current types; a save newer than the code or one that fails to load is never overwritten (show the error and offer an export); adding content (new decorations, trees, recipes) needs no migration unless the state shape changes. The camera is not in the save, so no migration ever touches it.
 
@@ -1291,3 +1292,14 @@ Rules that carry over from §8: migrations take raw JSON and do not import curre
 - **Action** `{ type: 'discardItem'; item: ItemId; qty: number; hearty?: boolean }` (`discardItem` in `src/systems/inventory.ts`): removes `qty` (all or nothing; `hearty` picks hearty or plain stacks, omitted means plain first) and emits **event** `{ type: 'discarded'; item; qty }`. Nothing else changes: no gold, no XP.
 - **Prefs** gained `kitchenSort: 'ready' | 'price' | 'tier' | 'buff' | 'name'` (default `ready`), the Kitchen recipe book's order (`sortRecipes` in `src/ui/recipeSort.ts`, stable over the learned order). Not in the save.
 - **Seed items** of regrowing crops end their description with "Keeps producing: harvest again every N min until its seasons end." (`seedItem` in `src/data/items.ts`); `regrowNote` in `src/ui/farmTools.ts` adds " · regrows every N min" to the Shop and seed-picker note. No `SAVE_VERSION` change.
+
+### 9.16 As built in v2 phase 06: Seed Order and small comforts
+
+- **State (save 14):** `seedOrder: { reservePct: number; off: CropId[] }` (`SeedOrderState` in `src/core/state.ts`). `reservePct` is one of `SEED_ORDER_RESERVES` (0, 10, 25, 50; default `SEED_ORDER_DEFAULT_RESERVE` 25), `off` lists the crops opted out, once each. `validateState`: `bad seed order`. `migrations[13]` adds the defaults; `tests/fixtures/save-v14.json`.
+- **Upgrade** `seed_order` (`src/data/upgrades.ts`): 3 levels, cost 4,000 × 3ⁿ (4,000, 12,000, 36,000), requires Seed Planter level 1, effect `{ seedTarget: 20 | 50 | 100 }` (`UpgradeEffect.seedTarget`: seeds per crop the bag is topped up to).
+- **System** `src/systems/seedOrder.ts`: `runSeedOrder(state, ctx)` runs from `tickSystems` right after `tickShippingBin` at a pickup (so it spends what the pickup just paid). `orderedCrops` is every crop in `state.lastPlantedCrop`, in table order, in season and `finishesBeforeSeasonEnds`, not in `seedOrder.off`; `orderCost` is the Shop price plus `SEED_ORDER_FEE` (10%, rounded up); the reserve is `floor(gold at the start of the pickup × reservePct / 100)`; each crop is all or nothing for space and for the reserve. No RNG. `msToNextPickup` reports pickups while the upgrade is owned, so a large step never skips one.
+- **Actions** `{ type: 'setSeedOrderReserve'; pct }` and `{ type: 'setSeedOrderCrop'; crop; on }`. **Event** `{ type: 'seedsOrdered'; crop; qty; gold }` (the fee is in `gold`); the away summary has a line for it (`AwayTotals.ordered`).
+- **Prefs** gained `kitchenFavourites: RecipeId[]` (default `[]`): recipes pinned to the top of the book in any sort order (`pinFavourites`, `toggleFavourite` in `src/ui/recipeSort.ts`). Not in the save.
+- **Cook ×N:** `maxBatch(state, data, recipe)` in `src/systems/cooking.ts` (free stove slots, then the ingredients in the bag); the stepper is UI state in `kitchenPanel.ts` and Cook sends N `cook` actions.
+- **Harvest all / Water all:** `bulkPlots(state)` in `src/ui/farmTools.ts` (the whole field, not the greenhouse) is used by Shift-click and the two buttons, which send the same `useTool` action (`useOnField` in `main.ts`).
+- **HUD chip:** `Hud.levelButton` shows `Lv ${farmLevel(state)}`; `main.ts` toggles the Goals panel from it.

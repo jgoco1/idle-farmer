@@ -118,7 +118,7 @@ One screen. The scene is a 320 × 192 logical-pixel canvas (20 × 12 tiles) scal
 Each section lists: player actions · idle behaviour · unlocks · the phase that builds it.
 
 ### 6.1 Farming (phase 02; automation hooks in 04)
-- **Actions:** select a tool (Auto, Hoe, Seeds, Watering Can, Hand) and click plots. (Until v2 a drag also painted the tool across plots; from v2 phase 01 a drag pans the camera and never runs a tool, §12.1.) Hoe tills or clears a dead crop, and can pull up an old regrowing crop (one that has already given a harvest) so a plot is never stuck with it for the rest of its seasons; Seeds plants the chosen seed; Can waters; Hand harvests. Shift-click applies to every plot of the field. Upgraded tools hit an area (BALANCE.md §4).
+- **Actions:** select a tool (Auto, Hoe, Seeds, Watering Can, Hand) and click plots. (Until v2 a drag also painted the tool across plots; from v2 phase 01 a drag pans the camera and never runs a tool, §12.1.) Hoe tills or clears a dead crop, and can pull up an old regrowing crop (one that has already given a harvest) so a plot is never stuck with it for the rest of its seasons; Seeds plants the chosen seed; Can waters; Hand harvests. Shift-click applies to every plot of the field; **Harvest all** and **Water all** buttons next to the tools do the same for touch players (v2-06). Upgraded tools hit an area (BALANCE.md §4).
 - **Plot states:** untilled → tilled → planted (stage 0–4) → ready → harvested (back to tilled, or back to stage 2 for regrowers). Plus `dead` after a season change.
 - **Watering:** a watered plot grows at full speed; a dry one at half speed. One watering lasts 2 hours of simulated time; sprinkler-covered plots are always watered. This is gentle on purpose: the farm still progresses offline without sprinklers, but sprinklers double it.
 - **Seasons:** seeds can only be planted in season. A crop still in the ground when its seasons end (at the weekly season change) withers into a clearable dead crop. The UI warns when a crop won't finish in time. Multi-season crops (garlic, wheat, tomato, corn, kale) carry over.
@@ -142,6 +142,7 @@ Each section lists: player actions · idle behaviour · unlocks · the phase tha
   - **Scarecrows** (placed on plots) boost growth nearby.
   - **Farmhand** visits every N seconds and harvests up to C ready plots. A small animated character that walks between plots; the animation follows the logic, never drives it.
   - **Seed Planter** replants after the farmhand (L1), fills empty tilled plots (L2), and tills/clears (L3). It never plants out of season.
+  - **Seed Order** (v2-06) tops up the seeds the planter uses at every Shipping Bin pickup (in season, ripe before the season ends), at the Shop price plus a 10% delivery fee, never spending below a gold reserve the player sets (BALANCE.md §13.15).
   - **Auto-Seller** sends harvests to the Shipping Bin, with per-item toggles and (L2) a reserve kept for cooking.
   - **Tools:** watering can and hoe areas (1 → 3 → 9 → 25 tiles).
   - **Barn Storage** (stack size) and the **Greenhouse** (6 then 12 plots that ignore seasons).

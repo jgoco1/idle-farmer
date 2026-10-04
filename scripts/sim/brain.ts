@@ -108,6 +108,8 @@ export interface Style {
   experiments: boolean;
   /** What to save for, in order: the first unlocked one not yet owned is the goal. */
   shopping: readonly Want[];
+  /** Stock the seeds the planter will need before each absence (default true; the forgetful control bot never does). Owning the Seed Order replaces it. */
+  stocksSeeds?: boolean;
 }
 
 const up = (id: UpgradeId, level: number): Want => ({ kind: 'upgrade', id, level });
@@ -139,14 +141,17 @@ export const FARM_SHOPPING: readonly Want[] = [
   up('sprinkler_tech', 2),
   up('scarecrow', 1),
   up('seed_planter', 3),
+  up('seed_order', 1), // v2-06: once the farm runs itself, it also buys its own seeds
   up('farmhand', 4),
   up('scarecrow', 2),
   up('greenhouse', 1),
   up('auto_seller', 2),
+  up('seed_order', 2),
   ex('ocean'),
   up('backpack', 2),
   up('barn_storage', 2),
   up('farmhand', 5),
+  up('seed_order', 3),
   up('greenhouse', 2),
   up('kitchen', 1),
   up('fishing_rod', 1),
@@ -162,6 +167,11 @@ export const FARM_SHOPPING: readonly Want[] = [
   pa('yard'),
   pa('meadow'),
 ];
+
+/** The farm-first order without the Seed Order: the control bots of the v2-06 report row never buy it. */
+export const FARM_SHOPPING_NO_ORDER: readonly Want[] = FARM_SHOPPING.filter(
+  (w) => !(w.kind === 'upgrade' && w.id === 'seed_order'),
+);
 
 /**
  * v2-05: the Active Player's order. It plays an hour an evening for variety, so it buys the Hilltop Orchard and the Old
@@ -402,7 +412,7 @@ export class Brain {
   leave(run: SimRun): void {
     const s = run.state;
     this.season = run.game.calendar().season;
-    this.stockSeeds(run);
+    if (this.style.stocksSeeds !== false && upgradeLevel(s, 'seed_order') === 0) this.stockSeeds(run); // the order buys them at each pickup
     if (this.style.cook === 'eat') this.eat(run, true);
     this.sell(run, this.keepList(s), true);
     this.starterYard(run); // v2-05: the coop, two hens, the barn and a cow come before saplings and the town

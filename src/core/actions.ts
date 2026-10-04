@@ -14,6 +14,7 @@ import { discardItem } from '../systems/inventory';
 import { shipItems, unshipItems } from '../systems/shippingBin';
 import { buySeeds } from '../systems/shop';
 import { setAutoSell } from '../systems/autoSeller';
+import { setSeedOrderCrop, setSeedOrderReserve } from '../systems/seedOrder';
 import { pickUpObject, placeObject } from '../systems/placement';
 import { buyUpgrade } from '../systems/upgrades';
 import { cancelCast, startCast, stepFishing } from '../systems/fishing';
@@ -81,6 +82,9 @@ export type Action =
   | { type: 'pickUp'; id: number }
   /** Auto-Seller: ship (or keep) one item's harvests. */
   | { type: 'setAutoSell'; item: ItemId; on: boolean }
+  /** Seed Order: the gold reserve it never spends below (0, 10, 25 or 50 percent of current gold), and a crop's opt-out. */
+  | { type: 'setSeedOrderReserve'; pct: number }
+  | { type: 'setSeedOrderCrop'; crop: CropId; on: boolean }
   /** Fishing: press to start charging a cast at a location, then `fishTick` every frame with the button state. */
   | { type: 'fishStart'; location: FishLocationId }
   | { type: 'fishTick'; holding: boolean; dtMs: number }
@@ -185,6 +189,10 @@ function handleAction(state: GameState, ctx: SimContext, action: Action): Action
       return pickUpObject(state, ctx, action.id);
     case 'setAutoSell':
       return setAutoSell(state, ctx.data, action.item, action.on);
+    case 'setSeedOrderReserve':
+      return setSeedOrderReserve(state, action.pct);
+    case 'setSeedOrderCrop':
+      return setSeedOrderCrop(state, action.crop, action.on);
     case 'fishStart':
       return startCast(state, ctx, action.location);
     case 'fishTick':

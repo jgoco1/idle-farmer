@@ -8,10 +8,19 @@ import { daysFromCivil, localDay, localTimeToEpoch, zoneClock, type LocalClock }
 import { areaOf, areaOffsets, occupiedPlots } from '../../src/systems/placement';
 import { upgradeLevel } from '../../src/systems/upgrades';
 import type { GameState } from '../../src/core/state';
-import { ACTIVE_SHOPPING, Brain, CHEF_SHOPPING, FARM_SHOPPING, FISH_SHOPPING, type Style } from './brain';
+import {
+  ACTIVE_SHOPPING,
+  Brain,
+  CHEF_SHOPPING,
+  FARM_SHOPPING,
+  FARM_SHOPPING_NO_ORDER,
+  FISH_SHOPPING,
+  type Style,
+} from './brain';
 import { DAY, HOUR, MIN, SimRun } from './driver';
 
-export type BotId = 'farmer' | 'angler' | 'chef' | 'idler' | 'active' | 'chef_sells';
+export type BotId =
+  'farmer' | 'angler' | 'chef' | 'idler' | 'active' | 'chef_sells' | 'farmer_plain' | 'farmer_forgetful';
 
 /** A session: starts `offsetMs` after the run starts, lasts `lengthMs`. */
 export interface Session {
@@ -122,6 +131,22 @@ export const BOTS: Record<BotId, BotDef> = {
     reactionMs: 10_000,
     sessions: daily(STRATEGY_TIMES),
   },
+  farmer_plain: {
+    id: 'farmer_plain',
+    name: 'Farmer without Seed Order (control)',
+    blurb: 'the Greedy Farmer, but never buys the Seed Order: stocks seeds by hand before every absence',
+    style: { ...farmerStyle, shopping: FARM_SHOPPING_NO_ORDER },
+    reactionMs: 10_000,
+    sessions: daily(STRATEGY_TIMES),
+  },
+  farmer_forgetful: {
+    id: 'farmer_forgetful',
+    name: 'Forgetful Farmer (control)',
+    blurb: 'the Greedy Farmer without the Seed Order, who also forgets to stock seeds before leaving',
+    style: { ...farmerStyle, shopping: FARM_SHOPPING_NO_ORDER, stocksSeeds: false },
+    reactionMs: 10_000,
+    sessions: daily(STRATEGY_TIMES),
+  },
   idler: {
     id: 'idler',
     name: 'Casual Idler',
@@ -150,7 +175,16 @@ export const BOTS: Record<BotId, BotDef> = {
 };
 
 export const STRATEGY_BOTS: readonly BotId[] = ['farmer', 'angler', 'chef'];
-export const ALL_BOTS: readonly BotId[] = ['farmer', 'angler', 'chef', 'chef_sells', 'idler', 'active'];
+export const ALL_BOTS: readonly BotId[] = [
+  'farmer',
+  'angler',
+  'chef',
+  'chef_sells',
+  'idler',
+  'active',
+  'farmer_plain',
+  'farmer_forgetful',
+];
 
 /** BALANCE.md §11: farmhand L3, planter L2, auto-seller, and every open field plot sprinkled. */
 export function fullyAutomated(s: GameState, data: GameData = GAME_DATA): boolean {

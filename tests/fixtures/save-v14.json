@@ -1,0 +1,617 @@
+{
+  "version": 14,
+  "savedAt": 1767835800000,
+  "state": {
+    "clock": {
+      "simMs": 5432100,
+      "speed": 1
+    },
+    "calendar": {
+      "createdAt": 1767798000000,
+      "seasonEpoch": 1768107600000,
+      "maxWeekIndex": 0,
+      "lastDayKey": "2026-01-07",
+      "debugOffsetMs": 0,
+      "dayZeroKey": "2026-01-03",
+      "maxDayIndex": 4
+    },
+    "rngState": 3735928559,
+    "gold": 412,
+    "settings": {
+      "masterVolume": 0.6,
+      "relaxedFishing": true
+    },
+    "meta": {
+      "createdAt": 1767798000000,
+      "lastSavedAt": 1767835800000,
+      "playTimeMs": 5432100
+    },
+    "farm": {
+      "grid": {
+        "cols": 4,
+        "rows": 3
+      },
+      "plots": [
+        {
+          "state": "planted",
+          "crop": "turnip",
+          "growthMs": 120000,
+          "harvests": 0,
+          "waterMsLeft": 3600000
+        },
+        {
+          "state": "planted",
+          "crop": "potato",
+          "growthMs": 90000,
+          "harvests": 0,
+          "waterMsLeft": 0
+        },
+        {
+          "state": "tilled",
+          "crop": null,
+          "growthMs": 0,
+          "harvests": 0,
+          "waterMsLeft": 1800000
+        },
+        {
+          "state": "untilled",
+          "crop": null,
+          "growthMs": 0,
+          "harvests": 0,
+          "waterMsLeft": 0
+        },
+        {
+          "state": "planted",
+          "crop": "turnip",
+          "growthMs": 30000,
+          "harvests": 0,
+          "waterMsLeft": 7200000
+        },
+        {
+          "state": "dead",
+          "crop": null,
+          "growthMs": 0,
+          "harvests": 0,
+          "waterMsLeft": 0
+        },
+        {
+          "state": "tilled",
+          "crop": null,
+          "growthMs": 0,
+          "harvests": 0,
+          "waterMsLeft": 0
+        },
+        {
+          "state": "untilled",
+          "crop": null,
+          "growthMs": 0,
+          "harvests": 0,
+          "waterMsLeft": 0
+        },
+        {
+          "state": "untilled",
+          "crop": null,
+          "growthMs": 0,
+          "harvests": 0,
+          "waterMsLeft": 0
+        },
+        {
+          "state": "untilled",
+          "crop": null,
+          "growthMs": 0,
+          "harvests": 0,
+          "waterMsLeft": 0
+        },
+        {
+          "state": "untilled",
+          "crop": null,
+          "growthMs": 0,
+          "harvests": 0,
+          "waterMsLeft": 0
+        },
+        {
+          "state": "untilled",
+          "crop": null,
+          "growthMs": 0,
+          "harvests": 0,
+          "waterMsLeft": 0
+        }
+      ],
+      "greenhouse": []
+    },
+    "inventory": {
+      "slots": [
+        {
+          "item": "seed_turnip",
+          "qty": 3
+        },
+        null,
+        null,
+        {
+          "item": "sapling_peach",
+          "qty": 1
+        },
+        {
+          "item": "roasted_turnip",
+          "qty": 2,
+          "hearty": true
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null
+      ],
+      "stackSize": 99
+    },
+    "market": {
+      "items": {
+        "turnip": {
+          "demand": 0.8732,
+          "lastSoldSimMs": 5100000,
+          "history": [1, 1.25, 0.94]
+        },
+        "potato": {
+          "demand": 1.12,
+          "lastSoldSimMs": 1200000,
+          "history": [1, 1, 1.02]
+        }
+      },
+      "specials": [
+        {
+          "item": "potato",
+          "bonus": 0.35
+        }
+      ]
+    },
+    "shippingBin": {
+      "items": [
+        {
+          "item": "turnip",
+          "qty": 5
+        }
+      ],
+      "msToPickup": 1234000
+    },
+    "expansions": ["farm_1", "river"],
+    "stats": {
+      "lifetimeGold": 2400,
+      "goldToday": 260,
+      "cropsHarvested": 57,
+      "itemsShipped": 12,
+      "daysPassed": 2,
+      "fishCaught": 3,
+      "dishesCooked": 3,
+      "dishesEaten": 2,
+      "bestDishTier": 2,
+      "fruitPicked": 7,
+      "productsCollected": 12
+    },
+    "upgrades": {
+      "backpack": 1,
+      "sprinkler": 2,
+      "scarecrow": 1,
+      "farmhand": 2,
+      "seed_planter": 1,
+      "auto_seller": 1,
+      "watering_can": 1,
+      "fishing_rod": 1,
+      "fish_trap": 1
+    },
+    "placed": [
+      {
+        "id": 1,
+        "kind": "sprinkler",
+        "at": {
+          "col": 3,
+          "row": 0
+        }
+      },
+      {
+        "id": 2,
+        "kind": "scarecrow",
+        "at": {
+          "col": 3,
+          "row": 2
+        }
+      },
+      {
+        "id": 3,
+        "kind": "golden_scarecrow",
+        "at": {
+          "col": 0,
+          "row": 2
+        }
+      }
+    ],
+    "autoSell": {
+      "turnip": false
+    },
+    "automation": {
+      "farmhandCooldownMs": 12000
+    },
+    "lastPlantedCrop": ["turnip", "potato", null, null, "turnip", null, null, null, null, null, null, null],
+    "fishing": {
+      "traps": [
+        {
+          "id": 1,
+          "location": "pond",
+          "slot": 0,
+          "progressMs": 75000,
+          "contents": [
+            {
+              "item": "bluegill",
+              "qty": 2
+            },
+            {
+              "item": "old_boot",
+              "qty": 1
+            }
+          ]
+        }
+      ],
+      "collection": {
+        "bluegill": {
+          "firstCaughtAt": "2026-01-07",
+          "bestSizeCm": 22.4,
+          "count": 2
+        },
+        "koi": {
+          "firstCaughtAt": "2026-01-08",
+          "bestSizeCm": 41.5,
+          "count": 1
+        }
+      },
+      "session": null
+    },
+    "kitchen": {
+      "known": [
+        "roasted_turnip",
+        "baked_potato",
+        "grilled_bluegill",
+        "wheat_flatbread",
+        "vegetable_soup",
+        "seaweed_salad",
+        "garlic_trout"
+      ],
+      "queue": [
+        {
+          "recipe": "vegetable_soup",
+          "remainingMs": 41000,
+          "saved": "turnip"
+        },
+        {
+          "recipe": "baked_potato",
+          "remainingMs": 0,
+          "hearty": true
+        }
+      ]
+    },
+    "buffs": {
+      "active": [
+        {
+          "type": "growth",
+          "magnitude": 0.2,
+          "tier": 2,
+          "remainingMs": 540000,
+          "source": "vegetable_soup"
+        },
+        {
+          "type": "cookSpeed",
+          "magnitude": 0.15,
+          "tier": 1,
+          "remainingMs": 125000,
+          "source": "baked_potato"
+        }
+      ],
+      "baseSlots": 3
+    },
+    "progression": {
+      "skills": {
+        "farming": {
+          "xp": 228
+        },
+        "fishing": {
+          "xp": 30
+        },
+        "cooking": {
+          "xp": 60
+        }
+      },
+      "milestones": {
+        "done": [
+          "m01_first_seed",
+          "m02_first_harvest",
+          "m03_first_sale",
+          "m04_first_expansion",
+          "m05_first_sprinkler",
+          "m06_first_catch",
+          "m07_first_dish",
+          "m08_first_buff",
+          "m09_hire_farmhand",
+          "m10_unlock_river"
+        ]
+      },
+      "goals": [
+        {
+          "template": "harvest_crop",
+          "objective": {
+            "kind": "harvest",
+            "crop": "potato",
+            "count": 15
+          },
+          "progress": 6,
+          "rewards": [
+            {
+              "kind": "gold",
+              "amount": 150
+            }
+          ]
+        },
+        {
+          "template": "cook_distinct",
+          "objective": {
+            "kind": "cook",
+            "distinct": true,
+            "count": 3
+          },
+          "progress": 2,
+          "seen": ["roasted_turnip", "baked_potato"],
+          "rewards": [
+            {
+              "kind": "gold",
+              "amount": 100
+            },
+            {
+              "kind": "items",
+              "items": [
+                {
+                  "item": "seed_wheat",
+                  "qty": 5
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "template": "earn_gold_day",
+          "objective": {
+            "kind": "earnGold",
+            "amount": 500,
+            "withinOneDay": true
+          },
+          "progress": 210,
+          "rewards": [
+            {
+              "kind": "gold",
+              "amount": 200
+            }
+          ]
+        }
+      ],
+      "goalsDone": 4,
+      "bundles": {
+        "spring_crops": [
+          {
+            "item": "turnip",
+            "qty": 10
+          },
+          {
+            "item": "potato",
+            "qty": 10
+          },
+          {
+            "item": "strawberry",
+            "qty": 5
+          },
+          {
+            "item": "cauliflower",
+            "qty": 2
+          }
+        ],
+        "pond_fish": [
+          {
+            "item": "bluegill",
+            "qty": 3
+          },
+          {
+            "item": "carp",
+            "qty": 5
+          }
+        ]
+      },
+      "completedBundles": ["spring_crops"],
+      "farmLevelFloor": 4
+    },
+    "land": {
+      "parcels": ["orchard", "yard"]
+    },
+    "decor": {
+      "owned": {
+        "cobble_path": 12,
+        "garden_lamp": 2,
+        "wooden_bench": 1,
+        "rose_arch": 1,
+        "paint_sage": 1,
+        "roof_thatch": 1
+      },
+      "placed": [
+        {
+          "id": 1,
+          "decor": "cobble_path",
+          "at": {
+            "col": 6,
+            "row": 9
+          }
+        },
+        {
+          "id": 2,
+          "decor": "cobble_path",
+          "at": {
+            "col": 7,
+            "row": 9
+          }
+        },
+        {
+          "id": 3,
+          "decor": "cobble_path",
+          "at": {
+            "col": 8,
+            "row": 9
+          }
+        },
+        {
+          "id": 4,
+          "decor": "garden_lamp",
+          "at": {
+            "col": 9,
+            "row": 9
+          }
+        },
+        {
+          "id": 5,
+          "decor": "wooden_bench",
+          "at": {
+            "col": 10,
+            "row": 9
+          },
+          "flipped": true
+        },
+        {
+          "id": 6,
+          "decor": "rose_arch",
+          "at": {
+            "col": 22,
+            "row": 3
+          }
+        }
+      ],
+      "farmhouse": {
+        "paint": "paint_sage",
+        "roof": null,
+        "loft": false
+      }
+    },
+    "town": {
+      "projects": {
+        "old_bridge": {
+          "stagesDone": 1,
+          "gold": 30000,
+          "items": []
+        }
+      }
+    },
+    "orchard": {
+      "trees": [
+        {
+          "id": 1,
+          "tree": "cherry_tree",
+          "spot": 0,
+          "plantedDay": 0,
+          "fruit": 10,
+          "lastFruitDay": 4
+        },
+        {
+          "id": 2,
+          "tree": "apple_tree",
+          "spot": 5,
+          "plantedDay": 3,
+          "fruit": 0,
+          "lastFruitDay": 4
+        }
+      ]
+    },
+    "ranch": {
+      "buildings": [
+        {
+          "id": 1,
+          "kind": "coop",
+          "level": 2,
+          "at": {
+            "col": 22,
+            "row": 9
+          },
+          "trough": 40,
+          "store": [
+            {
+              "item": "egg",
+              "qty": 5
+            },
+            {
+              "item": "large_egg",
+              "qty": 1
+            }
+          ],
+          "cycleMs": 600000
+        },
+        {
+          "id": 2,
+          "kind": "barn",
+          "level": 1,
+          "at": {
+            "col": 26,
+            "row": 9
+          },
+          "trough": 0,
+          "store": [
+            {
+              "item": "milk",
+              "qty": 2
+            }
+          ],
+          "cycleMs": 1200000
+        },
+        {
+          "id": 3,
+          "kind": "silo",
+          "level": 1,
+          "at": {
+            "col": 32,
+            "row": 9
+          },
+          "trough": 0,
+          "store": [],
+          "cycleMs": 0
+        }
+      ],
+      "animals": [
+        {
+          "id": 1,
+          "kind": "chicken",
+          "name": "Clover",
+          "building": 1
+        },
+        {
+          "id": 2,
+          "kind": "chicken",
+          "name": "Daisy",
+          "building": 1
+        },
+        {
+          "id": 3,
+          "kind": "cow",
+          "name": "Bluebell",
+          "building": 2
+        }
+      ],
+      "feedStore": {
+        "hay": 30,
+        "corn_feed": 150
+      }
+    },
+    "cats": {
+      "adopted": ["cat_tabby", "cat_siamese"],
+      "active": "cat_siamese"
+    },
+    "seedOrder": {
+      "reservePct": 25,
+      "off": []
+    }
+  }
+}
