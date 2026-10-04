@@ -1877,8 +1877,9 @@ body.tutorial-on .toasts {
 .hud-level {
   font: inherit;
   font-size: 14px;
-  min-height: 28px;
-  padding: 2px 8px;
+  min-height: 44px; /* a 44 px target on phones too */
+  min-width: 44px;
+  padding: 2px 10px;
   margin-left: -6px;
   cursor: pointer;
   color: var(--c-outline);

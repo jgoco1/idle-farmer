@@ -132,7 +132,7 @@ export class Hud {
     if (level !== this.levelShown) {
       this.levelShown = level;
       this.levelButton.textContent = `Lv ${level}`;
-      this.levelButton.setAttribute('aria-label', `Farm Level ${level}. Open Goals.`);
+      this.levelButton.setAttribute('aria-label', `Farm Level ${level}`);
     }
     this.buffBar.update(state);
     const key = `${cal.dayKey}|${cal.hour}:${cal.minute}|${cal.weekIndex}|${Math.floor(cal.msToSeasonChange / 60000)}`;
