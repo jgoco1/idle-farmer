@@ -971,7 +971,7 @@ A small owner-requested pass between v2-04 and v2-05 (no phase prompt).
 - **A reserve is a share of the gold at the start of the pickup**, not recomputed after each crop, so the order of the crops cannot change the outcome.
 - **Two control bots** (`farmer_plain`, `farmer_forgetful`) were added to `ALL_BOTS` for the report row, so every table has two more rows.
 - **`finishesBeforeSeasonEnds` uses the segment's calendar**, which the core fixes for a whole step (BALANCE.md §13.15).
-- **Two unit-test guards in `tests/simulate.test.ts` loosened:** the Casual Idler's offline share floor 85% → 80% (84–92% now), and the four-seed buff ratio floor 1.10 → 0.95 (the report's 8 seeds measure +12–14%; the four-seed proxy moved between 0.93 and 1.09 with where the bots buy Seed Order).
+- **Two unit-test guards in `tests/simulate.test.ts` loosened:** the Casual Idler's offline share floor 85% → 80% (84–92% now), and the four-seed buff ratio floor 1.10 → 0.95 (the report's 8 seeds measure +12–14%; the four-seed proxy moved between 0.93 and 1.09 with where the bots buy Seed Order). **Superseded in review:** on 16–24 seeds buffs measured +2–4% at day 7 (the control no longer stalls), so the buffs check now judges **day 10 on its own 24 seeds** (+18%), and the unit test checks day 10 between 1.10 and 1.40 (BALANCE §13.15). Harvest all and Water all carry an "ALL" badge.
 - The Seed Order buys only the planter's last crops; the bots hand-stock the new season's crop, a player must plant it once (IDEAS.md).
 
 ### Known issues

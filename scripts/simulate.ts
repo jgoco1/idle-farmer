@@ -4,6 +4,7 @@
 //
 //   npm run simulate                          # all bots, 30 days, seeds 1–5
 //   npm run simulate -- --days 7 --seeds 1,2 --bots farmer,idler
+//   npm run simulate -- --quick               # skip the buffs check's own 24 Chef seeds
 //
 // Deterministic: the same seeds and days always print the same report (apart from the timing line).
 
@@ -12,7 +13,14 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isMainThread, parentPort, Worker, workerData } from 'node:worker_threads';
 import { ALL_BOTS, runBot, type BotId } from './sim/bots';
-import { csvFiles, markdownReport, type RunResult, type SimResult } from './sim/report';
+import {
+  BUFF_DAYS,
+  BUFF_SEEDS,
+  csvFiles,
+  markdownReport,
+  type RunResult,
+  type SimResult,
+} from './sim/report';
 
 interface Job {
   bot: BotId;
@@ -42,19 +50,40 @@ async function main(): Promise<void> {
   }
   const t0 = performance.now();
   const self = fileURLToPath(import.meta.url);
-  const results = await Promise.all(
-    bots.map(
-      (bot) =>
-        new Promise<RunResult[]>((resolve, reject) => {
-          const worker = new Worker(self, { workerData: { bot, seeds, days } satisfies Job });
-          worker.once('message', resolve);
-          worker.once('error', reject);
-        }),
-    ),
-  );
+  const work = (job: Job): Promise<RunResult[]> =>
+    new Promise<RunResult[]>((resolve, reject) => {
+      const worker = new Worker(self, { workerData: job });
+      worker.once('message', resolve);
+      worker.once('error', reject);
+    });
+  // The buffs check runs the two Chefs on its own seeds (BUFF_SEEDS) unless the run already has as many;
+  // `--quick` skips it (the check then uses the run's own seeds). Split in halves so it adds little wall time.
+  const buffDays = Math.min(BUFF_DAYS, days);
+  const buffPair =
+    bots.includes('chef') &&
+    bots.includes('chef_sells') &&
+    seeds.length < BUFF_SEEDS.length &&
+    !process.argv.includes('--quick');
+  const halves = [BUFF_SEEDS.slice(0, BUFF_SEEDS.length / 2), BUFF_SEEDS.slice(BUFF_SEEDS.length / 2)];
+  const buffJobs: Job[] = buffPair
+    ? (['chef', 'chef_sells'] as const).flatMap((bot) =>
+        halves.map((s) => ({ bot, seeds: s, days: buffDays })),
+      )
+    : [];
+  const [results, buffResults] = await Promise.all([
+    Promise.all(bots.map((bot) => work({ bot, seeds, days }))),
+    Promise.all(buffJobs.map(work)),
+  ]);
   const runs: SimResult['runs'] = {};
   bots.forEach((bot, i) => (runs[bot] = results[i]));
   const result: SimResult = { seeds, days, runs, elapsedMs: performance.now() - t0 };
+  if (buffPair)
+    result.buffRuns = {
+      seeds: [...BUFF_SEEDS],
+      days: buffDays,
+      chef: [...buffResults[0]!, ...buffResults[1]!],
+      chef_sells: [...buffResults[2]!, ...buffResults[3]!],
+    };
 
   const report = markdownReport(result);
   console.log(report);

@@ -270,7 +270,16 @@ export interface SimResult {
   days: number;
   runs: Partial<Record<BotId, RunResult[]>>;
   elapsedMs: number;
+  /**
+   * The Chef and its selling control on more seeds (`BUFF_SEEDS`, `BUFF_DAYS`), for the buffs check only:
+   * per-seed ratios run from about −20% to +60%, so 5–8 seeds swing the median by ±7 points (v2-06).
+   */
+  buffRuns?: { seeds: number[]; days: number; chef: RunResult[]; chef_sells: RunResult[] };
 }
+
+/** The buffs check's own seeds and length (see `SimResult.buffRuns`). */
+export const BUFF_SEEDS: readonly number[] = Array.from({ length: 24 }, (_, i) => i + 1);
+export const BUFF_DAYS = 14;
 
 /** The markdown report. */
 export function markdownReport(result: SimResult): string {
@@ -453,22 +462,29 @@ export function tuningChecks(result: SimResult, sums: Map<BotId, BotSummary>): C
       ok: r >= 0.4,
     });
   }
-  if (has('chef') && has('chef_sells')) {
+  if ((has('chef') && has('chef_sells')) || result.buffRuns) {
     // Paired by seed (same seed, same start): the median of the per-seed ratios is steadier than a
-    // ratio of medians. Day 7 closes the buying phase (everything but the greenhouse is bought).
+    // ratio of medians. Judged on day 10 since v2-06: with the Seed Order the control never stalls, so in
+    // the first week a dish eaten is worth about what it sells for (day 7 ≈ +4% on 24 seeds) and buffs pay
+    // from the second week. Day 14 is shown as the ceiling to watch (BALANCE.md §13.15).
+    const pair = result.buffRuns ?? {
+      seeds: result.seeds,
+      days,
+      chef: result.runs.chef!,
+      chef_sells: result.runs.chef_sells!,
+    };
     const paired = (d: number): number =>
       median(
-        result.runs.chef!.map(
-          (r, i) => lifetimeAtDay(r, d) / Math.max(1, lifetimeAtDay(result.runs.chef_sells![i]!, d)),
-        ),
+        pair.chef.map((r, i) => lifetimeAtDay(r, d) / Math.max(1, lifetimeAtDay(pair.chef_sells[i]!, d))),
       ) - 1;
+    const pdays = pair.days;
     const sign = (x: number): string => `${x >= 0 ? '+' : ''}${pct(x)}`;
-    const d7 = Math.min(7, days);
-    const r = paired(d7);
+    const d10 = Math.min(10, pdays);
+    const r = paired(d10);
     out.push({
-      what: `Buffs kept up: Chef vs the same Chef selling its dishes (day ${d7}, paired by seed)`,
+      what: `Buffs kept up: Chef vs the same Chef selling its dishes (day ${d10}, paired by seed, ${pair.seeds.length} seeds)`,
       target: '+10% to +25% (worth it, not mandatory)',
-      measured: `${sign(r)} (day 3 ${sign(paired(Math.min(3, days)))}${days >= 14 ? `, day 14 ${sign(paired(14))}` : ''})`,
+      measured: `${sign(r)} (day 3 ${sign(paired(Math.min(3, pdays)))}, day 7 ${sign(paired(Math.min(7, pdays)))}${pdays >= 14 ? `, day 14 ${sign(paired(14))}` : ''})`,
       ok: r >= 0.1 && r <= 0.25,
     });
   }
