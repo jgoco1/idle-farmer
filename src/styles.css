@@ -1940,3 +1940,21 @@ body.tutorial-on .toasts {
   gap: 6px;
   align-items: center;
 }
+
+/* Harvest all / Water all reuse the Hand and Can icons: an "ALL" badge tells them apart from the single-plot tools. */
+.bulk-btn {
+  position: relative;
+}
+.bulk-btn::after {
+  content: 'ALL';
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  padding: 0 2px;
+  font-size: 9px;
+  line-height: 11px;
+  color: var(--c-white_warm);
+  background: var(--c-grass_dark);
+  border: 1px solid var(--c-outline);
+  pointer-events: none;
+}
