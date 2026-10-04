@@ -276,7 +276,13 @@ panels.register(
     unship: (item) => game.dispatch({ type: 'unship', item }),
   }),
 );
-panels.register(kitchenPanel({ ...view, dispatch }));
+panels.register(
+  kitchenPanel({
+    ...view,
+    dispatch,
+    sort: { get: () => prefs.value.kitchenSort, set: (mode) => prefs.set('kitchenSort', mode) },
+  }),
+);
 const fishing = fishingPanel({
   ...view,
   bus: game.bus,

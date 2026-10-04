@@ -1285,3 +1285,9 @@ Rules that carry over from §8: migrations take raw JSON and do not import curre
 - **Modifiers:** `animalSpeedModifier` (above). `BuffDef.alsoSeam?: 'animalSpeedModifier'` lets one buff drive a second seam; only Busy Bees has it. `tickRanch` reads it through `cycleMsOf(def, speed)` (whole ms); `msToNextProduct(data, building, speed)` is the countdown the Ranch panel and the animal label show.
 - **Prefs:** `paint: boolean` (Paint mode; default false). Not in the save.
 - **Render input:** `src/render/sceneInput.ts` (pure: `tapActs`, `paintArmed`, `PaintStroke`, `Inspected`); the renderer's `inspected`, `paintMode`, `hoverAnimal()` and the options `onPaintStart` / `onPaintPlot` / `onPaintEnd`. `defaultCamera(view, out, phoneFocus)` and `fieldCentre(grid)` give a phone's default view.
+
+### 9.15 As built in the bag and kitchen polish (after v3-00)
+
+- **Action** `{ type: 'discardItem'; item: ItemId; qty: number; hearty?: boolean }` (`discardItem` in `src/systems/inventory.ts`): removes `qty` (all or nothing; `hearty` picks hearty or plain stacks, omitted means plain first) and emits **event** `{ type: 'discarded'; item; qty }`. Nothing else changes: no gold, no XP.
+- **Prefs** gained `kitchenSort: 'ready' | 'price' | 'tier' | 'buff' | 'name'` (default `ready`), the Kitchen recipe book's order (`sortRecipes` in `src/ui/recipeSort.ts`, stable over the learned order). Not in the save.
+- **Seed items** of regrowing crops end their description with "Keeps producing: harvest again every N min until its seasons end." (`seedItem` in `src/data/items.ts`); `regrowNote` in `src/ui/farmTools.ts` adds " · regrows every N min" to the Shop and seed-picker note. No `SAVE_VERSION` change.

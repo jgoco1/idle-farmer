@@ -58,7 +58,13 @@ export function seedNote(
   if (!finishesBeforeSeasonEnds(def, cal, mods)) {
     return { ok: false, text: "Won't finish before the season changes" };
   }
-  return { ok: true, text: `In season · ${Math.round(def.growSec / 60)} min` };
+  return { ok: true, text: `In season · ${Math.round(def.growSec / 60)} min${regrowNote(data, crop)}` };
+}
+
+/** " · regrows every 4 min" for a crop that is harvested again and again, else "" (the Shop and the seed picker). */
+export function regrowNote(data: GameData, crop: CropId): string {
+  const s = data.crops[crop].regrowSec;
+  return s === null ? '' : ` · regrows every ${Math.round(s / 60)} min`;
 }
 
 export class FarmTools {

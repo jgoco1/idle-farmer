@@ -5,9 +5,10 @@
 // Capacity = slots.length (the backpack upgrade adds slots in phase 03); stack size = stackSize
 // (barn storage raises it in phase 04). Stacks merge only when `hearty` matches (phase 06).
 
-import type { Inventory } from '../core/state';
+import type { GameState, Inventory } from '../core/state';
 import type { ItemId } from '../data/ids';
 import type { ItemStack } from '../data/types';
+import { fail, OK, type ActionResult, type SimContext } from './context';
 
 function sameKind(s: ItemStack, item: ItemId, hearty: boolean): boolean {
   return s.item === item && Boolean(s.hearty) === hearty;
@@ -98,4 +99,24 @@ export function removeItem(inv: Inventory, item: ItemId, qty: number, hearty?: b
 /** Number of occupied slots. */
 export function usedSlots(inv: Inventory): number {
   return inv.slots.reduce((n, s) => n + (s ? 1 : 0), 0);
+}
+
+/**
+ * Throws `qty` of `item` away for good (the Inventory's Discard button: out-of-season seeds, junk). `hearty`
+ * picks hearty or plain stacks of a dish; omitted, plain ones go first. Nothing else changes.
+ */
+export function discardItem(
+  state: GameState,
+  ctx: SimContext,
+  item: ItemId,
+  qty: number,
+  hearty?: boolean,
+): ActionResult {
+  const def = ctx.data.items[item];
+  if (!def) return fail('There is no such item.');
+  if (!Number.isInteger(qty) || qty <= 0) return fail('Choose how many to discard.');
+  const kind = hearty ?? (countItem(state.inventory, item, false) >= qty ? false : undefined);
+  if (!removeItem(state.inventory, item, qty, kind)) return fail(`You don't have ${qty} ${def.name}.`);
+  ctx.events.push({ type: 'discarded', item, qty });
+  return OK;
 }

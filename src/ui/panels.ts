@@ -7,7 +7,7 @@ import type { DishId } from '../data/ids';
 import { capitalize, seasonOfWeek, type Calendar } from '../core/time';
 import type { GameData } from '../data';
 import { SHOP_BUY_AMOUNTS } from '../data/balance';
-import { CROP_IDS, type CropId, type RecipeId } from '../data/ids';
+import { CROP_IDS, isCropId, type CropId, type RecipeId } from '../data/ids';
 import type { ItemDef } from '../data/types';
 import { spriteDataUrl } from '../render/spriteCache';
 import type { ActionResult } from '../systems/context';
@@ -25,6 +25,7 @@ import { seedNote } from './farmTools';
 import type { PanelDef } from './panel';
 import { buffEffectText } from './buffBar';
 import { eatWithConfirm } from './eat';
+import { showModal } from './modal';
 import type { Action } from '../core/actions';
 import { buffDurationMs, buffMagnitude } from '../systems/buffs';
 import { formatDuration } from '../core/time';
@@ -339,6 +340,12 @@ export function inventoryPanel(hooks: InventoryHooks): PanelDef {
           h('p', { class: 'inv-name', text: `${def.name}${hearty ? ' ❄ hearty' : ''} ×${qty}` }),
           h('p', { text: def.description }),
         ];
+        // Seeds say whether they can go in the ground now (out-of-season ones wait for their season, or can be discarded).
+        const crop = def.category === 'seed' ? def.id.slice('seed_'.length) : '';
+        if (isCropId(crop)) {
+          const note = seedNote(hooks.data, crop, hooks.calendar(), hooks.mods());
+          parts.push(h('p', { class: note.ok ? 'inv-season' : 'inv-season is-warn', text: note.text }));
+        }
         if (def.edible) {
           parts.push(h('p', { class: 'inv-buff', text: eatText(hooks, def, hearty) }));
           const eat = h('button', {
@@ -357,7 +364,37 @@ export function inventoryPanel(hooks: InventoryHooks): PanelDef {
           parts.push(h('div', { class: 'btn-row' }, eat));
         }
         parts.push(h('p', { class: def.sellable ? 'inv-value' : 'muted', text: sellText(hooks, def) }));
+        const discard = h('button', {
+          type: 'button',
+          class: 'btn btn-small',
+          'data-discard': def.id,
+          text: 'Discard…',
+          'aria-label': `Discard ${def.name}`,
+        });
+        discard.addEventListener('click', () => confirmDiscard(def, qty, hearty));
+        parts.push(h('div', { class: 'btn-row' }, discard));
         detail.replaceChildren(...parts.filter((p): p is HTMLElement => p !== null), eatMsg);
+      };
+
+      /** Asks before throwing a stack away; selling is suggested for anything the Market buys. */
+      const confirmDiscard = (def: ItemDef, qty: number, hearty: boolean): void => {
+        const run = (n: number): void => {
+          const r = hooks.dispatch({ type: 'discardItem', item: def.id, qty: n, hearty });
+          eatMsg.textContent = r.ok ? `Discarded ${n} ${def.name}.` : r.reason;
+          eatMsg.className = r.ok ? 'form-msg form-ok' : 'form-msg form-error';
+          if (r.ok && hooks.state().inventory.slots[selected ?? -1]?.item !== def.id) selected = null;
+        };
+        showModal({
+          title: `Discard ${def.name}?`,
+          body: h('p', {
+            text: `${def.sellable ? 'The Market would buy these instead. ' : ''}Discarded items are gone for good.`,
+          }),
+          buttons: [
+            ...(qty > 1 ? [{ label: 'Discard 1', onClick: () => run(1) }] : []),
+            { label: qty > 1 ? `Discard all ${qty}` : 'Discard', primary: true, onClick: () => run(qty) },
+            { label: 'Keep' },
+          ],
+        });
       };
 
       return {
@@ -617,7 +654,17 @@ export function shopPanel(hooks: ShopHooks): PanelDef {
               h(
                 'div',
                 { class: 'crate-text' },
-                h('span', { text: `${def.name} · ${def.seedPrice}g` }),
+                h(
+                  'span',
+                  { text: `${def.name} · ${def.seedPrice}g` },
+                  def.regrowSec === null
+                    ? null
+                    : h('span', {
+                        class: 'regrow-badge',
+                        text: '↻ Regrows',
+                        title: `Plant once, harvest again every ${Math.round(def.regrowSec / 60)} min until its seasons end.`,
+                      }),
+                ),
                 h('span', { class: 'seed-note', text: note.text }),
               ),
               buttons.length > 0 ? h('div', { class: 'btn-row' }, ...buttons) : null,

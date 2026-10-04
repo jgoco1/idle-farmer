@@ -888,6 +888,24 @@ A small owner-requested pass between v2-04 and v2-05 (no phase prompt).
 - **Feed:** read and write it only through `src/systems/feedStore.ts`. A new feed needs a key in `RanchState.feedStore`, the migration default and the validation key list (`ranchProblem` in `src/core/save.ts`).
 - **Screenshots:** `shot('name.png')` from `e2e/helpers.ts`; run `UPDATE_SCREENSHOTS=1 npx playwright test e2e/<spec>` to refresh the committed ones.
 
+## Polish: discard, regrow notes and the Kitchen sort (after v3-00)
+
+### Built
+- **Discard from the bag:** a "Discard…" button in the Inventory panel's detail for any stack, with a confirmation ("Discard 1", "Discard all N", "Keep"; it mentions the Market for sellable items). Action `discardItem`, event `discarded`. Seeds in the detail now say whether they are in season ("Out of season (Autumn)").
+- **Regrowing seeds say so:** the seed's description (bag and tooltips) ends with "Keeps producing: harvest again every N min until its seasons end", the Shop row carries a "↻ Regrows" badge, and the in-season note in the Shop and seed picker adds "· regrows every N min".
+- **Kitchen sort:** a "Sort by" menu over the recipe book (Can cook now, Sell price, Tier, Buff, Name), kept per device in `prefs.kitchenSort`. "Can cook now" puts cookable recipes first, best sellers first.
+- **Tests:** `tests/bagPolish.test.ts` (discard rules and hearty stacks, regrow text for exactly the regrowing crops, every sort order, the pref) and `e2e/bag.spec.ts` (discard with Keep / Discard 1 / Discard all, the badge and the description, the sort and its reload).
+
+### Deviations
+- None from the request. Discard works for every item, not only seeds (junk and spare fish too); there is no buy-back, so nothing here touches balance.
+
+### Known issues
+- None known.
+
+### Next-phase notes
+- New bag actions go next to `discardItem` in `src/systems/inventory.ts`; confirmations use `showModal` from `src/ui/modal.ts`.
+- New Kitchen orders are a key in `KITCHEN_SORTS` (`src/core/prefs.ts`), a label in `KITCHEN_SORT_LABELS` and a comparator in `sortRecipes` (`src/ui/recipeSort.ts`).
+
 ## Fixes
 
 ### Fishing results vanished when the player cast again quickly

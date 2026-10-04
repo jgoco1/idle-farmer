@@ -153,6 +153,7 @@ The owner chose these features after playing v1. The prompts are in `prompts/v2/
 | v2-03 | `v2/03-orchard.md` | Sonnet 5.5 | v2-02 | Fruit trees in the orchard, real-day maturity, and fruit recipes |
 | v2-04 | `v2/04-animals.md` | Sonnet 5.5, then an Opus review | v2-03 | Coop, barn, chickens and cows, feed, eggs and milk, new recipes including a winter gold-buff dish |
 | v2-05 | `v2/05-balance-polish.md` | **Opus 5.5** | v2-04 | A balance pass (buffs back to 10–25%, an orchard worth planting, earlier first milk, Busy Bees for animals), tap-to-inspect labels on phones, an optional Paint toggle for drag-to-farm, a feed store, and opt-in screenshot updates |
+| v2-06 | `v2/06-seed-orders.md` | Sonnet 5.5 | v2-05, v3-00 | A Seed Order farmhand upgrade that restocks the planter's in-season seeds at each bin pickup (a delivery fee, a gold reserve, per-crop opt-outs), Harvest all / Water all buttons, Cook ×N with favourites, and a Farm Level chip in the HUD |
 
 **Why this order:** v2-01 changes the coordinate system that everything else sits on, so it goes first and on Opus. The decoration shop comes next because it fixes the biggest balance problem the phase 09 simulator found: gold stops mattering after about day 7. Trees and animals then fill the new land.
 
@@ -193,3 +194,27 @@ The sessions can build everything up to a signed file, but the stores need you. 
 - **Steam:** Steamworks and the per-app fee, the store page and capsule art, achievements entered from the generated CSV, uploads with SteamPipe.
 - **macOS desktop builds:** a Developer ID certificate for notarization (same Apple account).
 - Fees and rules change: check each store's current terms before you start.
+
+## v4: The North
+
+New land above today's map: more fields, a restaurant that buys your cooking, a drinks building and an apiary, and (if the design keeps them) foraging woods and a mountain lake. Run after v2-06. v3 (the store shells) is independent: run it before or after, since content reaches every platform through the one codebase.
+
+### Owner decisions for v4
+| Topic | Decision |
+|---|---|
+| Direction | The world grows **north**. No saved position moves; the recommended way is negative rows above today's row 0 |
+| Fields | 2–3 new field parcels in the north, each with its own plot grid, covered by every automation |
+| Restaurant | Buys dishes (and drinks) for more than the Market, on a fixed serving schedule (no randomness). It is a building you buy, not a town project, because town projects never give income |
+| Drinks | A new recipe family at its own station with long timers. **Recommended: non-alcoholic** (cider, lemonade, teas, cocoa) to keep the store age ratings; v4-00 asks you to confirm |
+| Still true | Decorations are cosmetic, animals are gentle, nothing spoils, no games of chance |
+
+### Order and models
+| # | Prompt file | Model | Depends on | What you get |
+|---|---|---|---|---|
+| v4-00 | `v4/00-design.md` | **Opus 5.5** | v2-06 | The design: how the world grows north, the map, restaurant and drink numbers checked against the simulator, the save plan, and open questions for you |
+| v4-01 | `v4/01-north-fields.md` | **Opus 5.5** | v4-00 | The northern band, its scenery and the new field parcels, farmed by hand and by every automation |
+| v4-02 | `v4/02-restaurant.md` | **Opus 5.5** | v4-01 | The restaurant: menu slots, guests on a schedule, a premium over the Market, retuned balance |
+| v4-03 | `v4/03-drinks-apiary.md` | Sonnet 5.5, then an Opus review | v4-02 | The drinks building and its recipes, beehives and honey, drinks on the menu |
+| v4-04 | `v4/04-woods-lake-balance.md` | **Opus 5.5** | v4-03 | Foraging in the North Woods, a mountain lake, and the v4 balance and polish pass |
+
+**After v4-00, answer its open questions** (alcohol, the restaurant's premium, how many fields, foraging automation) before starting v4-01, the same step as after v1 and v2 phase 00.

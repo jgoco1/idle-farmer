@@ -10,6 +10,9 @@ export type NumberFormat = 'full' | 'short';
 /** `auto` follows the `prefers-reduced-motion` media query. */
 export type MotionPref = 'auto' | 'reduce' | 'full';
 export type TutorialStatus = 'pending' | 'done' | 'skipped';
+/** How the Kitchen's recipe book is ordered (`src/ui/recipeSort.ts`). */
+export type KitchenSort = 'ready' | 'price' | 'tier' | 'buff' | 'name';
+export const KITCHEN_SORTS: readonly KitchenSort[] = ['ready', 'price', 'tier', 'buff', 'name'];
 
 export interface Prefs {
   master: number; // 0..1
@@ -26,6 +29,8 @@ export interface Prefs {
   camera: CameraPref | null;
   /** Paint mode (v2-05): a drag that starts on a plot uses the tool along the stroke instead of panning. */
   paint: boolean;
+  /** The recipe book's order in the Kitchen. */
+  kitchenSort: KitchenSort;
 }
 
 export interface CameraPref {
@@ -49,6 +54,7 @@ export const DEFAULT_PREFS: Prefs = {
   townTune: true,
   camera: null,
   paint: false,
+  kitchenSort: 'ready',
 };
 
 function sanitizeCamera(raw: unknown): CameraPref | null {
@@ -80,6 +86,9 @@ export function sanitizePrefs(raw: unknown): Prefs {
     townTune: typeof r.townTune === 'boolean' ? r.townTune : d.townTune,
     camera: sanitizeCamera(r.camera),
     paint: typeof r.paint === 'boolean' ? r.paint : d.paint,
+    kitchenSort: (KITCHEN_SORTS as readonly unknown[]).includes(r.kitchenSort)
+      ? (r.kitchenSort as KitchenSort)
+      : d.kitchenSort,
   };
 }
 
