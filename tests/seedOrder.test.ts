@@ -393,7 +393,7 @@ describe('Seed Order: offline correctness', () => {
 describe('Seed Order: performance', () => {
   it('8 hours away on a full farm with the order at its top level stays within the 100 ms budget', () => {
     const times: number[] = [];
-    for (let run = 0; run < 3; run++) {
+    for (let run = 0; run < 6; run++) {
       const s = farmAt(WED);
       s.farm.grid = { cols: 8, rows: 6 };
       s.farm.plots = Array.from({ length: 48 }, () => emptyPlot('tilled'));
@@ -411,9 +411,9 @@ describe('Seed Order: performance', () => {
       for (const p of s.farm.plots) p.waterMsLeft = 24 * HOUR;
       const t0 = performance.now();
       runOffline(s, GAME_DATA, NY, WED, WED + 8 * HOUR);
-      times.push(performance.now() - t0);
+      if (run > 0) times.push(performance.now() - t0); // the first run warms the JIT up
     }
     times.sort((a, b) => a - b);
-    expect(times[1]!).toBeLessThan(100);
+    expect(times[Math.floor(times.length / 2)]!).toBeLessThan(100);
   });
 });
