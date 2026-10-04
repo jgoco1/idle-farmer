@@ -153,6 +153,7 @@ The owner chose these features after playing v1. The prompts are in `prompts/v2/
 | v2-03 | `v2/03-orchard.md` | Sonnet 5.5 | v2-02 | Fruit trees in the orchard, real-day maturity, and fruit recipes |
 | v2-04 | `v2/04-animals.md` | Sonnet 5.5, then an Opus review | v2-03 | Coop, barn, chickens and cows, feed, eggs and milk, new recipes including a winter gold-buff dish |
 | v2-05 | `v2/05-balance-polish.md` | **Opus 5.5** | v2-04 | A balance pass (buffs back to 10–25%, an orchard worth planting, earlier first milk, Busy Bees for animals), tap-to-inspect labels on phones, an optional Paint toggle for drag-to-farm, a feed store, and opt-in screenshot updates |
+| v2-06 | `v2/06-fields-and-seed-orders.md` | **Opus 5.5** | v2-05, v3-00 | One or two expansions that make the field taller (with the fence, path and decorations handled), a Seed Order farmhand upgrade that restocks the planter's seeds at each bin pickup (with a gold reserve), Harvest all / Water all buttons, Cook ×N with favourites, and a Farm Level chip in the HUD |
 
 **Why this order:** v2-01 changes the coordinate system that everything else sits on, so it goes first and on Opus. The decoration shop comes next because it fixes the biggest balance problem the phase 09 simulator found: gold stops mattering after about day 7. Trees and animals then fill the new land.
 
