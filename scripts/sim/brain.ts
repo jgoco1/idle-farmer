@@ -83,6 +83,7 @@ import {
   stockOf,
 } from '../../src/systems/placement';
 import { runProgression } from '../../src/systems/progression';
+import { orderedCrops } from '../../src/systems/seedOrder';
 import { isUnlocked } from '../../src/systems/unlocks';
 import { purchaseBlock, requirementsFor, upgradeCost, upgradeLevel } from '../../src/systems/upgrades';
 import { MIN, type SimRun } from './driver';
@@ -412,7 +413,8 @@ export class Brain {
   leave(run: SimRun): void {
     const s = run.state;
     this.season = run.game.calendar().season;
-    if (this.style.stocksSeeds !== false && upgradeLevel(s, 'seed_order') === 0) this.stockSeeds(run); // the order buys them at each pickup
+    // The order buys what the planter last planted; seeds for a new season's crop (the fallback) are still stocked by hand.
+    if (this.style.stocksSeeds !== false) this.stockSeeds(run, upgradeLevel(s, 'seed_order') > 0);
     if (this.style.cook === 'eat') this.eat(run, true);
     this.sell(run, this.keepList(s), true);
     this.starterYard(run); // v2-05: the coop, two hens, the barn and a cow come before saplings and the town
@@ -1384,10 +1386,21 @@ export class Brain {
   }
 
   /** Stocks the seeds of `seedPlan` (as far as gold and bag allow). */
-  private stockSeeds(run: SimRun): void {
+  private stockSeeds(run: SimRun, ordered = false): void {
     const s = run.state;
     let budget = Math.floor(s.gold * 0.8);
+    const cal = run.game.calendar();
+    const covered = ordered
+      ? new Set(
+          orderedCrops(s, {
+            data: this.data,
+            calendar: cal,
+            mods: computeModifiers(s, this.data, cal.season),
+          }),
+        )
+      : new Set<CropId>();
     for (const [crop, want] of this.seedPlan(run)) {
+      if (covered.has(crop)) continue; // the Seed Order buys these at each pickup
       const def = this.data.crops[crop];
       const qty = Math.min(want, Math.floor(budget / def.seedPrice), spaceFor(s.inventory, seedOf(crop)));
       if (qty <= 0) continue;
