@@ -20,13 +20,13 @@ import { CROP_IDS, seedOf, type CropId } from '../data/ids';
 import { shipsAutomatically } from './autoSeller';
 import type { SimContext } from './context';
 import {
-  allPlotIndexes,
+  plotFields,
   envFor,
   harvestOne,
   inSeason,
   isGreenhouseIndex,
   isReady,
-  lastPlantedIndex,
+  lastPlanted,
   msUntilReady,
   plantOne,
   plotAt,
@@ -97,7 +97,7 @@ export function planPlanter(
   const usable = (c: CropId, index: number): boolean =>
     seedsLeft(c) > 0 && (isGreenhouseIndex(index) || inSeason(data.crops[c], season));
   const choose = (index: number, fallback: boolean): CropId | null => {
-    const last = state.lastPlantedCrop[lastPlantedIndex(state, index)];
+    const last = lastPlanted(state, index);
     let pick: CropId | null = last && usable(last, index) ? last : null;
     if (!pick && fallback) {
       let best = -1;
@@ -129,16 +129,19 @@ export function planPlanter(
   }
   if (fill || till) {
     const used = state.placed.length > 0 ? occupiedPlots(state) : null;
-    const indexes = allPlotIndexes(state);
-    for (let n = 0; n < indexes.length; n++) {
-      const index = indexes[n]!;
-      if (jobs.length >= capacity) break;
-      if (taken.has(index) || used?.has(index)) continue;
-      const plot = plotAt(state, index)!;
-      const bare = plot.state === 'untilled' || plot.state === 'dead';
-      if (plot.state === 'tilled' ? !fill : bare ? !till : true) continue;
-      const crop = choose(index, true);
-      if (crop) jobs.push({ index, crop, till: bare });
+    const fields = plotFields(state);
+    outer: for (let f = 0; f < fields.length; f++) {
+      const { plots, base } = fields[f]!;
+      for (let i = 0; i < plots.length; i++) {
+        if (jobs.length >= capacity) break outer;
+        const plot = plots[i]!;
+        const bare = plot.state === 'untilled' || plot.state === 'dead';
+        if (plot.state === 'tilled' ? !fill : bare ? !till : true) continue;
+        const index = base + i;
+        if (taken.has(index) || used?.has(index)) continue;
+        const crop = choose(index, true);
+        if (crop) jobs.push({ index, crop, till: bare });
+      }
     }
   }
   return jobs;
@@ -171,11 +174,15 @@ function runPlanter(state: GameState, ctx: SimContext, jobs: readonly PlantJob[]
 function visit(state: GameState, ctx: SimContext, stats: FarmhandStats): void {
   const picked = state.orchard.trees.length > 0 ? pickTreesFor(state, ctx, stats.capacity) : 0;
   const harvested: number[] = [];
-  for (const index of allPlotIndexes(state)) {
-    if (harvested.length + picked >= stats.capacity) break;
-    const plot = plotAt(state, index)!;
-    if (plot.state !== 'planted' || !isReady(plot, ctx.data)) continue;
-    if (harvestOne(state, ctx, index, true) === 'harvested') harvested.push(index);
+  const fields = plotFields(state);
+  outer: for (let f = 0; f < fields.length; f++) {
+    const { plots, base } = fields[f]!;
+    for (let i = 0; i < plots.length; i++) {
+      if (harvested.length + picked >= stats.capacity) break outer;
+      const plot = plots[i]!;
+      if (plot.state !== 'planted' || !isReady(plot, ctx.data)) continue;
+      if (harvestOne(state, ctx, base + i, true) === 'harvested') harvested.push(base + i);
+    }
   }
   const jobs = planPlanter(state, ctx, stats.capacity, harvested);
   if (jobs.length > 0) runPlanter(state, ctx, jobs);
@@ -200,20 +207,6 @@ export function tickAutomation(state: GameState, ctx: SimContext, dtMs: number):
   visit(state, ctx, stats);
 }
 
-/** Whether a visit right now would harvest something (a ready plot or a tree with fruit whose yield has somewhere to go). */
-function hasHarvestWork(state: GameState, ctx: SimContext): boolean {
-  if (state.orchard.trees.length > 0 && hasTreeWork(state, ctx.data)) return true;
-  const indexes = allPlotIndexes(state);
-  for (let n = 0; n < indexes.length; n++) {
-    const plot = plotAt(state, indexes[n]!)!;
-    if (plot.state !== 'planted' || plot.crop === null || !isReady(plot, ctx.data)) continue;
-    const crop = ctx.data.crops[plot.crop];
-    if (shipsAutomatically(state, ctx.data, crop.id)) return true;
-    if (canAdd(state.inventory, crop.id, crop.yield.min)) return true;
-  }
-  return false;
-}
-
 /**
  * Simulated ms until the next farmhand visit that has something to do, or Infinity. Visits happen
  * at `cooldown + k · interval`; with work waiting that is the very next visit, otherwise the first
@@ -223,17 +216,29 @@ export function msToNextAutomation(state: GameState, ctx: SimContext): number {
   const stats = farmhandStats(state, ctx);
   if (!stats) return Infinity;
   const cd = state.automation.farmhandCooldownMs > 0 ? state.automation.farmhandCooldownMs : stats.intervalMs;
-  if (hasHarvestWork(state, ctx) || planPlanter(state, ctx, stats.capacity, []).length > 0) return cd;
-
+  if (state.orchard.trees.length > 0 && hasTreeWork(state, ctx.data)) return cd;
+  // One pass over the plots: a ready crop with somewhere to go means the next visit has work; otherwise
+  // the soonest growing crop (a crop ready by the next visit also means the next visit).
   const cov = coverageOf(state, ctx.data);
   let soonest = Infinity;
-  const indexes = allPlotIndexes(state);
-  for (let n = 0; n < indexes.length; n++) {
-    const index = indexes[n]!;
-    const plot = plotAt(state, index)!;
-    if (plot.state !== 'planted' || plot.crop === null || isReady(plot, ctx.data)) continue;
-    soonest = Math.min(soonest, msUntilReady(plot, ctx.data.crops[plot.crop], ctx.mods, envFor(cov, index)));
+  const fields = plotFields(state);
+  for (let f = 0; f < fields.length; f++) {
+    const { plots, base } = fields[f]!;
+    for (let i = 0; i < plots.length; i++) {
+      const plot = plots[i]!;
+      if (plot.state !== 'planted' || plot.crop === null) continue;
+      const crop = ctx.data.crops[plot.crop];
+      if (isReady(plot, ctx.data)) {
+        if (shipsAutomatically(state, ctx.data, crop.id) || canAdd(state.inventory, crop.id, crop.yield.min))
+          return cd;
+        continue;
+      }
+      if (soonest > cd)
+        soonest = Math.min(soonest, msUntilReady(plot, crop, ctx.mods, envFor(cov, base + i)));
+    }
   }
+  // One planter job is enough to know the next visit has work (a full plan is wasted here).
+  if (planPlanter(state, ctx, 1, []).length > 0) return cd;
   if (!Number.isFinite(soonest)) return Infinity;
   if (soonest <= cd) return cd;
   return cd + Math.ceil((soonest - cd) / stats.intervalMs) * stats.intervalMs;

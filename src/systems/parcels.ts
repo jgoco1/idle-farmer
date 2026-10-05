@@ -1,11 +1,12 @@
-// Land parcels (GDD §12.1, BALANCE.md §13.1): regions of the world bought with gold, in order.
-// Owning one only makes space for now; v2 phases 02–04 give the space its uses.
+// Land parcels (GDD §12.1, §13.3; BALANCE.md §13.1, §14.1): regions of the world bought with gold.
+// The v2 parcels make space; a north parcel (v4-01) also brings its field's plots into the farm.
 
 import type { GameState } from '../core/state';
 import type { GameData } from '../data';
 import { PARCEL_IDS, type ParcelId } from '../data/ids';
 import { fail, OK, type ActionResult, type SimContext } from './context';
 import { canAfford, spend } from './economy';
+import { newNorthField } from './farming';
 import { isUnlocked, unlockHint } from './unlocks';
 
 export type ParcelStatus = 'owned' | 'available' | 'locked';
@@ -35,7 +36,10 @@ export function buyParcel(state: GameState, ctx: SimContext, id: ParcelId): Acti
   if (!canAfford(state, def.price)) return fail(`You need ${def.price.toLocaleString('en-US')}g for that.`);
   spend(state, def.price);
   state.land.parcels.push(id);
+  // A north parcel's field (v4-01): its plots start untilled and the overgrowth clears.
+  if (def.field && !state.farm.north[def.field]) state.farm.north[def.field] = newNorthField(def.field);
   ctx.events.push({ type: 'purchased', what: id, gold: def.price });
   ctx.events.push({ type: 'parcelBought', parcel: id });
+  if (def.field) ctx.events.push({ type: 'northFieldBought', field: def.field });
   return OK;
 }

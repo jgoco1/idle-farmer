@@ -311,6 +311,7 @@ export type QuestObjective =
   | { kind: 'completeBundle'; count: number }
   // v2 phase 02 (BALANCE.md §13.9)
   | { kind: 'ownParcel'; count: number } // checks state (like reachFarmLevel)
+  | { kind: 'ownNorthField'; count: number } // v4-01: checks state (north fields owned)
   | { kind: 'placeDecor'; count: number } // counts 'decorPlaced'
   | { kind: 'reachCharm'; amount: number } // checks derived charm
   | { kind: 'gainCharm'; amount: number } // sums positive 'charmChanged' deltas

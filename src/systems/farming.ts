@@ -12,8 +12,16 @@
 import type { GameState, Plot } from '../core/state';
 import { emptyPlot } from '../core/state';
 import { formatDuration, seasonOfWeek, type Calendar } from '../core/time';
-import { DRY_GROWTH_FACTOR, GREENHOUSE_BASE, WATER_DURATION_MS } from '../data/balance';
-import { seedOf, type CropId, type SeasonId } from '../data/ids';
+import { DRY_GROWTH_FACTOR, FIELD_BASE, GREENHOUSE_BASE, WATER_DURATION_MS } from '../data/balance';
+import {
+  NORTH_FIELD_IDS,
+  seedOf,
+  type CropId,
+  type FieldId,
+  type NorthFieldId,
+  type SeasonId,
+} from '../data/ids';
+import { WORLD_LAYOUT } from '../data/world';
 import type { CropDef } from '../data/types';
 import type { GameData } from '../data';
 import { stowHarvest } from './autoSeller';
@@ -47,47 +55,175 @@ export function isWatered(plot: Plot, env: PlotEnv = NO_ENV): boolean {
   return env.sprinkled || plot.waterMsLeft > 0;
 }
 
-// ---- plot addressing: field plots are 0..n-1, greenhouse plots start at GREENHOUSE_BASE
+// ---- plot addressing (DATA_SCHEMAS §10.3): home field plots are 0..n-1, greenhouse plots start at
+// GREENHOUSE_BASE (1000), and each north field's at FIELD_BASE[field] (2000, 3000), row-major.
+
+/** Which field plot `index` is in, from the index alone. */
+export function fieldOf(index: number): FieldId {
+  if (index < GREENHOUSE_BASE) return 'home';
+  if (index < FIELD_BASE.north_fields) return 'greenhouse';
+  if (index < FIELD_BASE.terraces) return 'north_fields';
+  return 'terraces';
+}
+
+/** The north field plot `index` is in, or null for the home field and the greenhouse. */
+export function northFieldOf(index: number): NorthFieldId | null {
+  const f = fieldOf(index);
+  return f === 'home' || f === 'greenhouse' ? null : f;
+}
 
 export function isGreenhouseIndex(index: number): boolean {
-  return index >= GREENHOUSE_BASE;
+  return index >= GREENHOUSE_BASE && index < FIELD_BASE.north_fields;
 }
 
 export function plotAt(state: GameState, index: number): Plot | undefined {
-  return isGreenhouseIndex(index) ? state.farm.greenhouse[index - GREENHOUSE_BASE] : state.farm.plots[index];
+  if (index < GREENHOUSE_BASE) return state.farm.plots[index];
+  if (index < FIELD_BASE.north_fields) return state.farm.greenhouse[index - GREENHOUSE_BASE];
+  const f = index < FIELD_BASE.terraces ? 'north_fields' : 'terraces';
+  return state.farm.north[f]?.plots[index - FIELD_BASE[f]];
+}
+
+/** The number of plots on the farm, every field included. */
+export function plotCount(state: GameState): number {
+  let n = state.farm.plots.length + state.farm.greenhouse.length;
+  for (const f of NORTH_FIELD_IDS) n += state.farm.north[f]?.plots.length ?? 0;
+  return n;
+}
+
+/** One field's plots and the index of its first plot (for loops that visit every plot without `plotAt`). */
+export interface PlotField {
+  plots: readonly Plot[];
+  base: number;
+  greenhouse: boolean;
+}
+
+interface FieldsEntry {
+  home: readonly Plot[];
+  greenhouse: readonly Plot[];
+  north: (readonly Plot[] | undefined)[];
+  list: PlotField[];
+}
+const fieldsCache = new WeakMap<GameState['farm'], FieldsEntry>();
+
+/**
+ * Every field's plots in `allPlotIndexes` order (home, greenhouse, the owned north fields). The hot
+ * loops of the farmhand, the planter and the step boundaries walk these arrays directly; the list is
+ * kept per farm and rebuilt only when one of its plot arrays is replaced. Never modify it.
+ */
+export function plotFields(state: GameState): readonly PlotField[] {
+  const farm = state.farm;
+  const e = fieldsCache.get(farm);
+  if (e && e.home === farm.plots && e.greenhouse === farm.greenhouse) {
+    let same = true;
+    for (let i = 0; i < NORTH_FIELD_IDS.length; i++)
+      if (e.north[i] !== farm.north[NORTH_FIELD_IDS[i]!]?.plots) same = false;
+    if (same) return e.list;
+  }
+  const list: PlotField[] = [
+    { plots: farm.plots, base: 0, greenhouse: false },
+    { plots: farm.greenhouse, base: GREENHOUSE_BASE, greenhouse: true },
+  ];
+  const north: (readonly Plot[] | undefined)[] = [];
+  for (const f of NORTH_FIELD_IDS) {
+    const plots = farm.north[f]?.plots;
+    north.push(plots);
+    if (plots) list.push({ plots, base: FIELD_BASE[f], greenhouse: false });
+  }
+  fieldsCache.set(farm, { home: farm.plots, greenhouse: farm.greenhouse, north, list });
+  return list;
 }
 
 const indexCache = new Map<number, readonly number[]>();
 
 /**
- * Every plot index: the field first, then the greenhouse. Asked several times per simulation step,
- * so the list is shared per farm size: never modify it.
+ * Every plot index: the home field first, then the greenhouse, then each owned north field in
+ * NORTH_FIELD_IDS order. Asked several times per simulation step, so the list is shared per farm
+ * shape: never modify it.
  */
 export function allPlotIndexes(state: GameState): readonly number[] {
   const f = state.farm.plots.length;
   const g = state.farm.greenhouse.length;
-  const key = f * 1024 + g;
+  let mask = 0;
+  for (let i = 0; i < NORTH_FIELD_IDS.length; i++) if (state.farm.north[NORTH_FIELD_IDS[i]!]) mask |= 1 << i;
+  const key = (mask * 1024 + f) * 1024 + g;
   let out = indexCache.get(key);
   if (!out) {
-    out = [
+    const list = [
       ...Array.from({ length: f }, (_, i) => i),
       ...Array.from({ length: g }, (_, i) => GREENHOUSE_BASE + i),
     ];
+    for (const field of NORTH_FIELD_IDS) {
+      const n = state.farm.north[field]?.plots.length ?? 0;
+      for (let i = 0; i < n; i++) list.push(FIELD_BASE[field] + i);
+    }
+    out = list;
     indexCache.set(key, out);
   }
   return out;
 }
 
-/** Index into `state.lastPlantedCrop` (field plots first, then the greenhouse). */
+/** The plot indexes of one field (home, or an owned north field); the greenhouse is not a field here. */
+export function fieldPlotIndexes(state: GameState, field: 'home' | NorthFieldId): number[] {
+  if (field === 'home') return state.farm.plots.map((_, i) => i);
+  const n = state.farm.north[field]?.plots.length ?? 0;
+  return Array.from({ length: n }, (_, i) => FIELD_BASE[field] + i);
+}
+
+/** Index into `state.lastPlantedCrop` (home field plots first, then the greenhouse); -1 for a north plot. */
 export function lastPlantedIndex(state: GameState, index: number): number {
-  return isGreenhouseIndex(index) ? state.farm.plots.length + (index - GREENHOUSE_BASE) : index;
+  if (index < GREENHOUSE_BASE) return index;
+  if (isGreenhouseIndex(index)) return state.farm.plots.length + (index - GREENHOUSE_BASE);
+  return -1;
+}
+
+/** The crop last planted on plot `index` (the seed planter's memory), in any field. */
+export function lastPlanted(state: GameState, index: number): CropId | null {
+  const f = northFieldOf(index);
+  if (f) return state.farm.north[f]?.lastPlantedCrop[index - FIELD_BASE[f]] ?? null;
+  return state.lastPlantedCrop[lastPlantedIndex(state, index)] ?? null;
+}
+
+export function setLastPlanted(state: GameState, index: number, crop: CropId | null): void {
+  const f = northFieldOf(index);
+  if (f) {
+    const field = state.farm.north[f];
+    if (field) field.lastPlantedCrop[index - FIELD_BASE[f]] = crop;
+    return;
+  }
+  state.lastPlantedCrop[lastPlantedIndex(state, index)] = crop;
+}
+
+/** Every crop the planter remembers, in any field (for Seed Order). */
+export function rememberedCrops(state: GameState): Set<CropId> {
+  const set = new Set<CropId>();
+  for (const c of state.lastPlantedCrop) if (c) set.add(c);
+  for (const f of NORTH_FIELD_IDS)
+    for (const c of state.farm.north[f]?.lastPlantedCrop ?? []) if (c) set.add(c);
+  return set;
+}
+
+/** A fresh north field: every plot untilled, nothing remembered (v4-01: the parcel's overgrowth is cleared). */
+export function newNorthField(field: NorthFieldId): { plots: Plot[]; lastPlantedCrop: (CropId | null)[] } {
+  const { cols, rows } = WORLD_LAYOUT.northFields[field].grid;
+  return {
+    plots: Array.from({ length: cols * rows }, () => emptyPlot('untilled')),
+    lastPlantedCrop: Array.from({ length: cols * rows }, () => null),
+  };
 }
 
 /** The surroundings of plot `index`, from a coverage map (null = nothing placed). */
 export function envFor(cov: Coverage | null, index: number): PlotEnv {
-  if (isGreenhouseIndex(index)) return GREENHOUSE_ENV;
+  if (index < GREENHOUSE_BASE) {
+    if (!cov) return NO_ENV;
+    return sharedEnv(cov.sprinkled[index] === 1, cov.bonus[index]!);
+  }
+  if (index < FIELD_BASE.north_fields) return GREENHOUSE_ENV;
   if (!cov) return NO_ENV;
-  return sharedEnv(cov.sprinkled[index] === 1, cov.bonus[index]!);
+  const f = index < FIELD_BASE.terraces ? 'north_fields' : 'terraces';
+  const fc = cov.byField[f];
+  if (!fc) return NO_ENV;
+  const i = index - FIELD_BASE[f];
+  return sharedEnv(fc.sprinkled[i] === 1, fc.bonus[i]!);
 }
 
 // A handful of distinct surroundings exist (sprinkled or not × a scarecrow bonus or none), so they
@@ -176,6 +312,13 @@ export function tickFarming(state: GameState, ctx: SimContext, dtMs: number): vo
   for (let i = 0; i < plots.length; i++) growPlot(plots[i]!, envFor(cov, i), ctx, dtMs);
   const greenhouse = state.farm.greenhouse;
   for (let i = 0; i < greenhouse.length; i++) growPlot(greenhouse[i]!, GREENHOUSE_ENV, ctx, dtMs);
+  for (let n = 0; n < NORTH_FIELD_IDS.length; n++) {
+    const f = NORTH_FIELD_IDS[n]!;
+    const north = state.farm.north[f]?.plots;
+    if (!north) continue;
+    const base = FIELD_BASE[f];
+    for (let i = 0; i < north.length; i++) growPlot(north[i]!, envFor(cov, base + i), ctx, dtMs);
+  }
 }
 
 function growPlot(plot: Plot, env: PlotEnv, ctx: SimContext, dtMs: number): void {
@@ -189,12 +332,18 @@ function growPlot(plot: Plot, env: PlotEnv, ctx: SimContext, dtMs: number): void
 export function msToNextWaterOut(state: GameState, ctx: SimContext): number {
   let soonest = Infinity;
   const cov = coverageOf(state, ctx.data);
-  state.farm.plots.forEach((plot, i) => {
-    if (plot.waterMsLeft > 0 && plot.state === 'planted' && !isReady(plot, ctx.data)) {
-      if (cov && cov.sprinkled[i] === 1) return; // always watered: no rate change
-      soonest = Math.min(soonest, plot.waterMsLeft);
+  const fields = plotFields(state);
+  for (let f = 0; f < fields.length; f++) {
+    const { plots, base, greenhouse } = fields[f]!;
+    if (greenhouse) continue; // always watered: no rate change
+    for (let i = 0; i < plots.length; i++) {
+      const plot = plots[i]!;
+      if (plot.waterMsLeft > 0 && plot.state === 'planted' && !isReady(plot, ctx.data)) {
+        if (cov && envFor(cov, base + i).sprinkled) continue; // always watered: no rate change
+        soonest = Math.min(soonest, plot.waterMsLeft);
+      }
     }
-  });
+  }
   return soonest;
 }
 
@@ -204,7 +353,8 @@ export function msToNextWaterOut(state: GameState, ctx: SimContext): number {
  */
 export function witherOutOfSeasonCrops(state: GameState, ctx: SimContext, season: SeasonId): number {
   let withered = 0;
-  for (const plot of state.farm.plots) {
+  const north = NORTH_FIELD_IDS.flatMap((f) => state.farm.north[f]?.plots ?? []);
+  for (const plot of [...state.farm.plots, ...north]) {
     if (plot.state !== 'planted' || plot.crop === null) continue;
     if (ctx.data.crops[plot.crop].seasons.includes(season)) continue;
     Object.assign(plot, emptyPlot('dead'), { waterMsLeft: plot.waterMsLeft });
@@ -272,7 +422,7 @@ export function tillPlots(
         if (plot.crop && ctx.data.crops[plot.crop].regrowSec !== null) young ??= plot.crop;
         continue;
       }
-      state.lastPlantedCrop[lastPlantedIndex(state, i)] = null; // pulled up: the planter should not bring it back
+      setLastPlanted(state, i, null); // pulled up: the planter should not bring it back
     } else if (plot.state !== 'untilled' && plot.state !== 'dead') continue;
     Object.assign(plot, emptyPlot('tilled'), { waterMsLeft: plot.waterMsLeft });
     done.push(i);
@@ -314,7 +464,7 @@ export function plantOne(state: GameState, index: number, crop: CropId): boolean
   if (!plot || plot.state !== 'tilled') return false;
   if (!removeItem(state.inventory, seedOf(crop), 1)) return false;
   Object.assign(plot, emptyPlot('planted'), { crop, waterMsLeft: plot.waterMsLeft });
-  state.lastPlantedCrop[lastPlantedIndex(state, index)] = crop;
+  setLastPlanted(state, index, crop);
   return true;
 }
 
@@ -460,26 +610,40 @@ export function toolArea(state: GameState, data: GameData, tool: 'hoe' | 'water'
 
 /**
  * The field plots an area tool reaches when used on `plots`: 3 = a row of three, 9 = 3 × 3,
- * 25 = 5 × 5, all centred on each plot and clipped to the grid. Greenhouse plots stay single.
+ * 25 = 5 × 5, all centred on each plot and clipped to that plot's field (it never jumps a fence).
+ * Greenhouse plots stay single.
  */
 export function expandToolArea(state: GameState, plots: readonly number[], area: 1 | 3 | 9 | 25): number[] {
   if (area === 1) return [...plots];
-  const { cols, rows } = state.farm.grid;
   const rx = area === 25 ? 2 : 1;
   const ry = area === 3 ? 0 : area === 9 ? 1 : 2;
   const out = new Set<number>();
   for (const i of plots) {
-    if (isGreenhouseIndex(i) || i < 0 || i >= cols * rows) {
+    const field = northFieldOf(i);
+    const base = field ? FIELD_BASE[field] : 0;
+    const { cols, rows } = field ? WORLD_LAYOUT.northFields[field].grid : state.farm.grid;
+    const local = i - base;
+    if (isGreenhouseIndex(i) || local < 0 || local >= cols * rows || (field && !state.farm.north[field])) {
       out.add(i);
       continue;
     }
-    const c0 = i % cols;
-    const r0 = Math.floor(i / cols);
+    const c0 = local % cols;
+    const r0 = Math.floor(local / cols);
     for (let r = Math.max(0, r0 - ry); r <= Math.min(rows - 1, r0 + ry); r++) {
-      for (let c = Math.max(0, c0 - rx); c <= Math.min(cols - 1, c0 + rx); c++) out.add(r * cols + c);
+      for (let c = Math.max(0, c0 - rx); c <= Math.min(cols - 1, c0 + rx); c++) out.add(base + r * cols + c);
     }
   }
   return [...out];
+}
+
+/** The placed object on plot `index` (any field), if one stands there. */
+export function objectOnPlot(state: GameState, index: number): ReturnType<typeof objectAt> {
+  if (index < 0 || isGreenhouseIndex(index)) return undefined;
+  const field = northFieldOf(index);
+  const base = field ? FIELD_BASE[field] : 0;
+  const cols = field ? WORLD_LAYOUT.northFields[field].grid.cols : state.farm.grid.cols;
+  const local = index - base;
+  return objectAt(state, local % cols, Math.floor(local / cols), field ?? undefined);
 }
 
 /** Runs a tool on some plots. `auto` resolves from the first plot and applies that tool to all. */
@@ -493,10 +657,7 @@ export function useTool(
   const valid = validPlots(state, plots);
   if (valid.length === 0) {
     const first = plots[0];
-    const here =
-      first !== undefined && first >= 0 && first < state.farm.plots.length
-        ? objectAt(state, first % state.farm.grid.cols, Math.floor(first / state.farm.grid.cols))
-        : undefined;
+    const here = first !== undefined && plotAt(state, first) ? objectOnPlot(state, first) : undefined;
     return fail(
       here
         ? `A ${here.kind} stands here. Pick it up from placement mode to use this plot.`

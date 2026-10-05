@@ -4,13 +4,14 @@
 // unit-tested.
 
 import type { Plot } from '../core/state';
-import { GREENHOUSE_BASE } from '../data/balance';
+import { FIELD_BASE, GREENHOUSE_BASE } from '../data/balance';
 import {
   NORTH_FIELD_IDS,
   PARCEL_IDS,
   TOWN_PROJECT_IDS,
   type ExpansionId,
   type FishLocationId,
+  type NorthFieldId,
   type ParcelId,
   type TownProjectId,
 } from '../data/ids';
@@ -176,15 +177,21 @@ export function greenhouseTile(i: number): { col: number; row: number } {
 }
 
 /**
- * Tile of any plot index (field row-major, or GREENHOUSE_BASE + n). `out` lets the renderer reuse
- * one object every frame instead of allocating one per plot.
+ * Tile of any plot index (home field row-major, GREENHOUSE_BASE + n, or a north field's
+ * FIELD_BASE[field] + row × cols + col, v4-01). `out` lets the renderer reuse one object every frame
+ * instead of allocating one per plot.
  */
 export function tileOfPlot(
   grid: Grid,
   index: number,
   out: { col: number; row: number } = { col: 0, row: 0 },
 ): { col: number; row: number } {
-  if (index >= GREENHOUSE_BASE) {
+  if (index >= FIELD_BASE.north_fields) {
+    const n = WORLD_LAYOUT.northFields[index >= FIELD_BASE.terraces ? 'terraces' : 'north_fields'];
+    const i = index - (index >= FIELD_BASE.terraces ? FIELD_BASE.terraces : FIELD_BASE.north_fields);
+    out.col = n.origin.col + (i % n.grid.cols);
+    out.row = n.origin.row + Math.floor(i / n.grid.cols);
+  } else if (index >= GREENHOUSE_BASE) {
     const at = GREENHOUSE_LAYOUT[index - GREENHOUSE_BASE];
     out.col = GREENHOUSE_ORIGIN.col + (at ? at[0] : 0);
     out.row = GREENHOUSE_ORIGIN.row + (at ? at[1] : 0);
@@ -195,11 +202,34 @@ export function tileOfPlot(
   return out;
 }
 
+/** The plot rectangle of a north field, in world tiles. */
+export function northPlotRect(field: NorthFieldId): TileRect {
+  const n = WORLD_LAYOUT.northFields[field];
+  return { col: n.origin.col, row: n.origin.row, cols: n.grid.cols, rows: n.grid.rows };
+}
+
 /**
- * Plot index of a tile: row-major inside the field, GREENHOUSE_BASE + n on a built greenhouse
- * plot, else -1.
+ * Plot index of a tile: row-major inside the home field, GREENHOUSE_BASE + n on a built greenhouse
+ * plot, FIELD_BASE[field] + n inside an owned north field (`north`: the owned ones), else -1.
  */
-export function plotIndexAt(grid: Grid, col: number, row: number, greenhousePlots = 0): number {
+export function plotIndexAt(
+  grid: Grid,
+  col: number,
+  row: number,
+  greenhousePlots = 0,
+  north: readonly string[] = [],
+): number {
+  if (row < 0) {
+    for (let k = 0; k < NORTH_FIELD_IDS.length; k++) {
+      const f = NORTH_FIELD_IDS[k]!;
+      if (!north.includes(f)) continue;
+      const n = WORLD_LAYOUT.northFields[f];
+      const c = col - n.origin.col;
+      const r = row - n.origin.row;
+      if (c >= 0 && r >= 0 && c < n.grid.cols && r < n.grid.rows) return FIELD_BASE[f] + r * n.grid.cols + c;
+    }
+    return -1;
+  }
   for (let i = 0; i < greenhousePlots; i++) {
     const t = greenhouseTile(i);
     if (t.col === col && t.row === row) return GREENHOUSE_BASE + i;

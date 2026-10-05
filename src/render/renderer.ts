@@ -681,7 +681,7 @@ export class Renderer {
   /** The plot under a client point, or -1. */
   private plotAtClient(clientX: number, clientY: number): number {
     const t = this.tileAtClient(clientX, clientY);
-    return t ? plotIndexAt(this.grid, t.col, t.row, this.greenhousePlots) : -1;
+    return t ? plotIndexAt(this.grid, t.col, t.row, this.greenhousePlots, this.owned) : -1;
   }
 
   /** A press on a plot with Paint on (or Alt): the stroke starts there, unless main declines (placing objects). */
@@ -760,7 +760,7 @@ export class Renderer {
       this.clearInspect();
       const building = this.ranch.buildingAt(t.col, t.row);
       if (building >= 0 && this.opts.onBuildingClick) return this.opts.onBuildingClick(building);
-      const plot = plotIndexAt(this.grid, t.col, t.row, this.greenhousePlots);
+      const plot = plotIndexAt(this.grid, t.col, t.row, this.greenhousePlots, this.owned);
       if (plot >= 0) return this.opts.onPlotClick({ plot, shiftKey });
       const zone = zoneAt(this.zones, t.col, t.row);
       if (zone && zone.id !== 'plots') return this.opts.onZoneClick({ zone, col: t.col, row: t.row });

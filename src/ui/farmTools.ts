@@ -5,9 +5,15 @@
 import type { GameState } from '../core/state';
 import { capitalize, type Calendar } from '../core/time';
 import type { GameData } from '../data';
-import { CROP_IDS, seedOf, type CropId } from '../data/ids';
+import { CROP_IDS, NORTH_FIELD_IDS, seedOf, type CropId } from '../data/ids';
 import { spriteDataUrl } from '../render/spriteCache';
-import { finishesBeforeSeasonEnds, inSeason, type FarmTool } from '../systems/farming';
+import {
+  fieldPlotIndexes,
+  finishesBeforeSeasonEnds,
+  inSeason,
+  northFieldOf,
+  type FarmTool,
+} from '../systems/farming';
 import { countItem } from '../systems/inventory';
 import type { Modifiers } from '../systems/modifiers';
 import { h } from './dom';
@@ -28,9 +34,17 @@ const TOOLS: readonly ToolDef[] = [
   { tool: 'hand', label: 'Hand', icon: 'ui_tool_hand', key: '5', hint: 'Harvest ready crops' },
 ];
 
-/** The plots Shift-click, Harvest all and Water all work on: the whole field (not the greenhouse), by index. */
-export function bulkPlots(state: GameState): number[] {
-  return state.farm.plots.map((_, i) => i);
+/**
+ * The plots Shift-click, Harvest all and Water all work on, by index (never the greenhouse). With a
+ * clicked plot (Shift-click) that plot's whole field; without one (the buttons) every open field:
+ * home and each owned north field (v4-01).
+ */
+export function bulkPlots(state: GameState, clicked?: number): number[] {
+  if (clicked !== undefined) {
+    const f = northFieldOf(clicked);
+    return fieldPlotIndexes(state, f ?? 'home');
+  }
+  return [...fieldPlotIndexes(state, 'home'), ...NORTH_FIELD_IDS.flatMap((f) => fieldPlotIndexes(state, f))];
 }
 
 /** The two bulk buttons next to the tools, for touch players without Shift-click (v2-06). */

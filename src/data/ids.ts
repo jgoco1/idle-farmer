@@ -217,7 +217,9 @@ export type MilestoneId =
   | 'm20_first_fruit'
   // v2-04
   | 'm21_first_egg'
-  | 'm22_first_milk';
+  | 'm22_first_milk'
+  // v4-01
+  | 'm24_north_field';
 
 export type BundleId =
   | 'spring_crops'
