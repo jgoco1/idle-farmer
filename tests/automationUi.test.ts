@@ -6,6 +6,7 @@ import { createInitialState, emptyPlot } from '../src/core/state';
 import { GAME_DATA } from '../src/data';
 import { GREENHOUSE_BASE } from '../src/data/balance';
 import { FarmhandVisual } from '../src/render/farmhand';
+import { northFenceRect, WORLD_LAYOUT } from '../src/data/world';
 import { GREENHOUSE_LAYOUT, greenhouseTile, plotIndexAt, plotSprites, tileOfPlot } from '../src/render/scene';
 import { SPRITES } from '../src/render/sprites';
 import { awayRows, awayTotals } from '../src/ui/awaySummary';
@@ -75,6 +76,55 @@ describe('the farmhand figure', () => {
     const v = new FarmhandVisual();
     for (let i = 0; i < 500; i++) v.enqueue({ col: 6 + (i % 8), row: 2 + (i % 5), sprite: null });
     expect(v.pending).toBeLessThanOrEqual(6);
+  });
+
+  it('walks between fields by the gates, the field paths and the north road, never through a fence (v4-01)', () => {
+    const v = new FarmhandVisual();
+    v.setGrid({ cols: 8, rows: 6 });
+    const done: unknown[] = [];
+    v.onWork = (j) => done.push(j);
+    v.enqueue({ col: 8, row: -4, sprite: 'item_turnip', area: 'north_fields' });
+    const fence = northFenceRect('north_fields');
+    const gate = WORLD_LAYOUT.northFields.north_fields.gate;
+    const crossed: string[] = [];
+    let travelled = false;
+    for (let t = 0; t <= 30_000; t += 16) {
+      v.update(t);
+      travelled ||= v.travelling;
+      const col = Math.floor(v.x / 16);
+      const row = Math.floor((v.y - 1) / 16);
+      const onRing =
+        col >= fence.col &&
+        col < fence.col + fence.cols &&
+        row >= fence.row &&
+        row < fence.row + fence.rows &&
+        (col === fence.col ||
+          col === fence.col + fence.cols - 1 ||
+          row === fence.row ||
+          row === fence.row + fence.rows - 1);
+      if (onRing && !(col === gate.col && row === gate.row)) crossed.push(`${col},${row}`);
+    }
+    expect(travelled).toBe(true);
+    expect(crossed).toEqual([]);
+    expect(done).toEqual([{ col: 8, row: -4, sprite: 'item_turnip', area: 'north_fields' }]);
+    // It rests by the gate of the field it worked last.
+    const rest = WORLD_LAYOUT.northFields.north_fields.rest;
+    expect(v.area).toBe('north_fields');
+    expect(Math.floor(v.x / 16)).toBe(rest.col);
+    expect(Math.floor((v.y - 1) / 16)).toBe(rest.row);
+    expect(v.pose).toBe('idle');
+  });
+
+  it('works the field it is in first, then the others', () => {
+    const v = new FarmhandVisual();
+    const order: string[] = [];
+    v.onWork = (j) => order.push(`${j.area ?? 'home'}`);
+    v.enqueue({ col: 8, row: -4, sprite: null, area: 'north_fields' });
+    v.enqueue({ col: 7, row: 3, sprite: null });
+    v.enqueue({ col: 9, row: -4, sprite: null, area: 'north_fields' });
+    v.enqueue({ col: 8, row: 2, sprite: null });
+    for (let t = 0; t <= 60_000; t += 16) v.update(t);
+    expect(order).toEqual(['home', 'home', 'north_fields', 'north_fields']);
   });
 
   it('ignores a repeat of a plot already queued', () => {

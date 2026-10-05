@@ -169,9 +169,9 @@ export class FarmTools {
         'hand',
         'Harvest all',
         'ui_tool_hand',
-        'Harvest every ready crop in the field (like Shift-click with the Hand)',
+        'Harvest every ready crop in your fields (Shift-click with the Hand does one field)',
       ],
-      ['water', 'Water all', 'ui_tool_water', 'Water the whole field (like Shift-click with the Can)'],
+      ['water', 'Water all', 'ui_tool_water', 'Water every field (Shift-click with the Can does one field)'],
     ] as const) {
       const btn = h(
         'button',

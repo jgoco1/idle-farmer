@@ -9,7 +9,8 @@ import { TREES } from '../data/trees';
 import { fruitLevel, TREE_SPRITE_IDS } from './sprites/trees';
 import { stageForAge } from '../systems/orchard';
 import { DECOR } from '../data/decor';
-import { TOWN_PROJECT_IDS, type TownProjectId } from '../data/ids';
+import { NORTH_FIELD_IDS, TOWN_PROJECT_IDS, type NorthFieldId, type TownProjectId } from '../data/ids';
+import { FIELD_BASE, GREENHOUSE_BASE } from '../data/balance';
 import { WORLD_LAYOUT } from '../data/world';
 import {
   buildDecorDraws,
@@ -158,6 +159,8 @@ const CHIMNEY_STEAM = { x: 56, y: 0 } as const;
 export interface SceneView {
   plots: readonly PlotSprites[];
   greenhouse: readonly PlotSprites[];
+  /** Each north field's plots (v4-01), in NORTH_FIELD_IDS order; empty while it is not owned. */
+  north: readonly (readonly PlotSprites[])[];
   placed: readonly PlacedObject[];
   farmhand: boolean;
   /** Fish traps floating at the water, with whether each one has something to collect. */
@@ -930,6 +933,7 @@ export class Renderer {
     this.sceneKey = key;
     const resized = grid.cols !== this.grid.cols || grid.rows !== this.grid.rows;
     this.grid = { cols: grid.cols, rows: grid.rows };
+    this.farmhand.setGrid(this.grid);
     if (resized && this.atDefault && isPhone(this.view)) {
       // A phone's default view follows the field as it grows (v2-05); elsewhere the view stays put.
       this.defaultView(this.cam);
@@ -1043,14 +1047,19 @@ export class Renderer {
       f.drawImage(spriteFrame(a.sprite, timeMs), a.col * TILE, a.row * TILE);
     }
     this.ambient.drawShadows(f, aclock);
-    this.drawPlots(view.plots, timeMs, false);
+    this.drawPlots(view.plots, timeMs, 0);
+    for (let k = 0; k < view.north.length; k++) {
+      const field = NORTH_FIELD_IDS[k]!;
+      if (view.north[k]!.length > 0 && this.northVisible(field, vis))
+        this.drawPlots(view.north[k]!, timeMs, FIELD_BASE[field]);
+    }
     if (view.greenhouse.length > 0) {
       f.drawImage(
         spriteFrame('obj_greenhouse_roof'),
         GREENHOUSE_ROOF_TILE.col * TILE,
         GREENHOUSE_ROOF_TILE.row * TILE,
       );
-      this.drawPlots(view.greenhouse, timeMs, true);
+      this.drawPlots(view.greenhouse, timeMs, GREENHOUSE_BASE);
     }
     // Objects and decorations, merged by their bottom edge so nearer things overlap farther ones.
     const dk = decorKey(view.decor);
@@ -1300,11 +1309,24 @@ export class Renderer {
   }
 
   /** Per-plot soil (dry, wet or untilled) and the crop growing on it. */
-  private drawPlots(plots: readonly PlotSprites[], timeMs: number, greenhouse: boolean): void {
+  /** Whether any of a north field (with its fence) is in view. */
+  private northVisible(field: NorthFieldId, vis: Rect): boolean {
+    const n = WORLD_LAYOUT.northFields[field];
+    return overlaps(
+      vis,
+      (n.origin.col - 1) * TILE,
+      (n.origin.row - 1) * TILE,
+      (n.grid.cols + 2) * TILE,
+      (n.grid.rows + 2) * TILE,
+    );
+  }
+
+  /** One field's plots; `base` is the index of its first plot (0 home, GREENHOUSE_BASE, FIELD_BASE[field]). */
+  private drawPlots(plots: readonly PlotSprites[], timeMs: number, base: number): void {
     const f = this.fctx;
     for (let i = 0; i < plots.length; i++) {
       const p = plots[i]!;
-      const { col, row } = tileOfPlot(this.grid, greenhouse ? 1000 + i : i, this.tileScratch);
+      const { col, row } = tileOfPlot(this.grid, base + i, this.tileScratch);
       f.drawImage(spriteFrame(p.soil), col * TILE, row * TILE);
       if (p.crop) {
         const pos = anchoredPosition(spriteDef(p.crop), col, row, TILE, this.posScratch);
@@ -1339,7 +1361,10 @@ export class Renderer {
           : o.kind === 'golden_scarecrow'
             ? 'obj_golden_scarecrow'
             : 'obj_scarecrow';
-      const { col, row } = tileOfPlot(this.grid, o.at.row * this.grid.cols + o.at.col, this.tileScratch);
+      const index = o.field
+        ? FIELD_BASE[o.field] + o.at.row * WORLD_LAYOUT.northFields[o.field].grid.cols + o.at.col
+        : o.at.row * this.grid.cols + o.at.col;
+      const { col, row } = tileOfPlot(this.grid, index, this.tileScratch);
       const pos = anchoredPosition(spriteDef(id), col, row, TILE, this.posScratch);
       // Offset each object's animation so a field of sprinklers doesn't spray in unison.
       f.drawImage(spriteFrame(id, timeMs + o.id * 331), pos.x, pos.y);

@@ -8,7 +8,7 @@ import type { GameState, PlacedKind, PlacedObject } from '../core/state';
 import type { GameData } from '../data';
 import { emptyPlot } from '../core/state';
 import { fail, OK, type ActionResult, type SimContext } from './context';
-import { FIELD_BASE, GOLDEN_SCARECROW } from '../data/balance';
+import { FIELD_BASE, GOLDEN_SCARECROW, GREENHOUSE_BASE } from '../data/balance';
 import { NORTH_FIELD_IDS, type NorthFieldId } from '../data/ids';
 import { WORLD_LAYOUT } from '../data/world';
 import { upgradeLevel } from './upgrades';
@@ -85,6 +85,38 @@ export function gridOf(state: GameState, field?: NorthFieldId): { cols: number; 
 /** The plot index of plot (col, row) of a field (home without `field`). */
 export function fieldPlotIndex(state: GameState, col: number, row: number, field?: NorthFieldId): number {
   return field ? FIELD_BASE[field] + row * gridOf(state, field).cols + col : row * state.farm.grid.cols + col;
+}
+
+/** A plot of the home field (`field` null) or a north field, by (col, row) inside that field. */
+export interface PlotCoords {
+  field: NorthFieldId | null;
+  col: number;
+  row: number;
+}
+
+/**
+ * The field and plot (col, row) of plot `index`, written into `out` (no allocation: the placement preview asks
+ * every frame). False for the greenhouse, a north field not owned, or no plot at all.
+ */
+export function plotCoordsOf(state: GameState, index: number, out: PlotCoords): boolean {
+  if (index < 0) return false;
+  if (index < GREENHOUSE_BASE) {
+    if (index >= state.farm.plots.length) return false;
+    out.field = null;
+    out.col = index % state.farm.grid.cols;
+    out.row = Math.floor(index / state.farm.grid.cols);
+    return true;
+  }
+  if (index < FIELD_BASE.north_fields) return false;
+  const field: NorthFieldId = index < FIELD_BASE.terraces ? 'north_fields' : 'terraces';
+  const plots = state.farm.north[field]?.plots;
+  const local = index - FIELD_BASE[field];
+  if (!plots || local >= plots.length) return false;
+  const cols = WORLD_LAYOUT.northFields[field].grid.cols;
+  out.field = field;
+  out.col = local % cols;
+  out.row = Math.floor(local / cols);
+  return true;
 }
 
 /** The object standing on plot (col, row) of a field (home without `field`). */
