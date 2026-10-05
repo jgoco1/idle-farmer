@@ -375,8 +375,8 @@ describe('gold still to spend (BALANCE §13.4, simulator)', () => {
     // v2-04: every building level (955,000), 12 hens and 6 cows (108,000), the Collecting Basket (50,000) and the two building cards (27,000).
     expect(parts.ranch).toBe(1_140_000);
     expect(parts.projects).toBe(Math.round(8_500_000 * TOWN_PROJECT_SCALE));
-    expect(parts.v1).toBeGreaterThan(500_000); // ≈ 523,000
-    expect(parts.v1).toBeLessThan(550_000);
+    expect(parts.v1).toBeGreaterThan(560_000); // ≈ 590,000: 538,000 before v2-06 plus the Seed Order's 4,000 + 12,000 + 36,000
+    expect(parts.v1).toBeLessThan(620_000);
     const s = createInitialState(CREATED, NY, 1);
     expect(toSpend(s, GAME_DATA)).toBe(catalogueTotal(GAME_DATA) - 0);
     s.land.parcels.push('orchard');

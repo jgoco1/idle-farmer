@@ -37,6 +37,8 @@ export type GameEvent =
   | { type: 'dayStarted'; dayKey: string }
   | { type: 'seasonChanged'; season: SeasonId; withered: number }
   | { type: 'binCollected'; gold: number; items: number }
+  /** Seed Order (v2 phase 06): `qty` seeds of `crop` bought at a pickup for `gold` (fee included). */
+  | { type: 'seedsOrdered'; crop: CropId; qty: number; gold: number }
   | { type: 'tilled' | 'watered'; plots: number[]; auto?: true }
   | { type: 'planted'; crop: CropId; plots: number[]; auto?: true }
   /** `shipped`: how many of the `qty` went straight to the Shipping Bin (Auto-Seller). */

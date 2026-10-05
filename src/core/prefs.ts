@@ -1,6 +1,7 @@
 // Player preferences that belong to the browser, not the farm: volumes, motion, UI scale, number
 // format and (v2) the camera and Paint mode. Stored under their own key so they survive a hard reset and never touch SAVE_VERSION.
 
+import { RECIPE_IDS, type RecipeId } from '../data/ids';
 import type { SaveStorage } from './save';
 
 export const PREFS_KEY = 'hearthfield-idle/prefs';
@@ -31,6 +32,8 @@ export interface Prefs {
   paint: boolean;
   /** The recipe book's order in the Kitchen. */
   kitchenSort: KitchenSort;
+  /** Recipes pinned to the top of the book in any sort order (v2-06), most recently pinned last. */
+  kitchenFavourites: RecipeId[];
 }
 
 export interface CameraPref {
@@ -55,7 +58,22 @@ export const DEFAULT_PREFS: Prefs = {
   camera: null,
   paint: false,
   kitchenSort: 'ready',
+  kitchenFavourites: [],
 };
+
+/** A list of known recipe ids, once each, in order; anything else is dropped. */
+function sanitizeFavourites(raw: unknown): RecipeId[] {
+  if (!Array.isArray(raw)) return [];
+  const out: RecipeId[] = [];
+  for (const id of raw)
+    if (
+      typeof id === 'string' &&
+      (RECIPE_IDS as readonly string[]).includes(id) &&
+      !out.includes(id as RecipeId)
+    )
+      out.push(id as RecipeId);
+  return out;
+}
 
 function sanitizeCamera(raw: unknown): CameraPref | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -89,6 +107,7 @@ export function sanitizePrefs(raw: unknown): Prefs {
     kitchenSort: (KITCHEN_SORTS as readonly unknown[]).includes(r.kitchenSort)
       ? (r.kitchenSort as KitchenSort)
       : d.kitchenSort,
+    kitchenFavourites: sanitizeFavourites(r.kitchenFavourites),
   };
 }
 

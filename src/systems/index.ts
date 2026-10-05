@@ -14,6 +14,7 @@ import { collectAllTraps, msToNextTrapRoll, tickTraps } from './traps';
 import { msToNextCookFinish, tickCooking } from './cooking';
 import { msToNextBuffExpiry, tickBuffs } from './buffs';
 import { growOrchard } from './orchard';
+import { runSeedOrder } from './seedOrder';
 import { ranchPickup, tickRanch } from './ranch';
 import { resetDailyGoals, revalidateGoals, runProgression } from './progression';
 
@@ -34,7 +35,9 @@ export function tickSystems(state: GameState, ctx: SimContext, dtMs: number): vo
   }
   // The silo tops up the troughs and the Collecting Basket empties the stores, again just before the pickup.
   if (dtMs >= state.shippingBin.msToPickup) ranchPickup(state, ctx);
-  tickShippingBin(state, ctx, dtMs); // last: a pickup lands at the end of the step, at that moment's prices
+  const pickup = dtMs >= state.shippingBin.msToPickup;
+  tickShippingBin(state, ctx, dtMs); // a pickup lands at the end of the step, at that moment's prices
+  if (pickup) runSeedOrder(state, ctx); // the Seed Order buys with what the pickup just paid (v2-06)
   tickCooking(state, ctx, dtMs); // dishes finish (hearty in winter) into the bag
   tickBuffs(state, ctx, dtMs); // this step's bonuses were applied through ctx.mods
   runProgression(state, ctx); // last: XP, milestones and goals from everything this step reported

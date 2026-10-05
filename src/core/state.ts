@@ -8,6 +8,7 @@ import { createCalendarState, type CalendarState, type LocalClock } from './time
 import { seedFrom } from './rng';
 import {
   BASE_BUFF_SLOTS,
+  SEED_ORDER_DEFAULT_RESERVE,
   START_GOLD,
   START_GRID,
   START_INVENTORY_SLOTS,
@@ -175,6 +176,15 @@ export interface GameState {
 
   // ---- the farm cats (save 12): cosmetic only
   cats: CatsState;
+
+  // ---- Seed Order settings (v2 phase 06, save 14); the upgrade level is in `upgrades`
+  seedOrder: SeedOrderState;
+}
+
+/** The Seed Order's settings: the gold reserve it never spends below (percent of current gold) and the crops opted out. */
+export interface SeedOrderState {
+  reservePct: number;
+  off: CropId[];
 }
 
 /** The farm cats: who has been adopted (the starting tabby always), and who naps by the farmhouse door. */
@@ -397,6 +407,7 @@ export function createInitialState(now: number, lc: LocalClock, seed: number = s
     orchard: { trees: [] },
     ranch: { buildings: [], animals: [], feedStore: { hay: 0, corn_feed: 0 } },
     cats: { adopted: ['cat_tabby'], active: 'cat_tabby' },
+    seedOrder: { reservePct: SEED_ORDER_DEFAULT_RESERVE, off: [] },
   };
   // A new farm opens with today's specials and the first sparkline point (every save starts in spring).
   openMarketDay(state, GAME_DATA, createRng(state), 'spring');

@@ -91,6 +91,8 @@ export interface Metrics {
   /** Gold from selling eggs and milk, and the simulated ms (while playing) an animal's trough was empty (v2 phase 04). */
   animalGold: number;
   hungryMs: number;
+  /** Every absence: when it began (real ms since the start), how long it was, and the gold earned during it (v2 phase 06). */
+  aways: { startMs: number; ms: number; gold: number }[];
 }
 
 /** A wait longer than this with nothing useful to do counts as dead time (GDD §2: "nobody waits more than ~2 minutes"). */
@@ -121,6 +123,7 @@ export class SimRun {
     orchardGold: 0,
     animalGold: 0,
     hungryMs: 0,
+    aways: [],
   };
   private lastUsefulPlayMs = 0;
   /** The next daily or weekly calendar boundary (calendar time), cached between looks. */
@@ -274,6 +277,11 @@ export class SimRun {
     this.metrics.simMs += report.simulatedMs - expected;
     this.metrics.offlineSimMs += report.simulatedMs;
     this.metrics.offlineGold += this.state.stats.lifetimeGold - goldBefore;
+    this.metrics.aways.push({
+      startMs: this.t - ms - this.start,
+      ms,
+      gold: this.state.stats.lifetimeGold - goldBefore,
+    });
     // Buffs only count down while away (nobody eats), so their uptime is exact.
     let any = 0;
     for (const b of buffsBefore) {

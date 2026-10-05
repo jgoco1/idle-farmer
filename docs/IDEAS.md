@@ -8,26 +8,26 @@ Ideas that came up during a phase but were outside its scope. Add one line per i
 - *Partly done in v2-01: locked parcels are overgrown with a "For sale" sign, and the old dock's shore has one until it is bought; reeds along the future river are still open.* **Decor on locked lots**: reeds along the future river, a "For sale" sign on the old dock, so locked zones read as clickable before they are bought. (Phase 03 put two old trees on the greenhouse lot until `farm_3`.) Phase 05 (river/ocean) or 08 (polish).
 - **A clearer "watered" cue**: wet and dry soil differ only by one shade, which is subtle at 1× on phones. A few droplet pixels or a darker rim on wet plots would read faster. Phase 08 (polish).
 - *Partly done after v3-00: any stack can be discarded from the Inventory panel, and out-of-season seeds are marked there; a buy-back or compost bin is still open.* **Selling or composting unplantable seeds** (out-of-season seeds sit in the bag until their season returns). Phase 03 kept seeds unsellable; a buy-back at a fraction of the price, or a compost bin that gives a small growth boost, could fit phase 04 or 08.
-- **"Harvest all ready" and "Water all" buttons** in addition to shift-click, for touch players who find shift-click unavailable and dragging fiddly. Phase 08 (mobile).
+- *Done in v2-06.* **"Harvest all ready" and "Water all" buttons** in addition to shift-click, for touch players who find shift-click unavailable and dragging fiddly. Phase 08 (mobile).
 - **Take part of a stack back out of the Shipping Bin**, and a "ship 10" button. Phase 03 ships and returns whole stacks; phase 04's per-item auto-sell toggles may want finer control. Phase 04 or 08.
 - **A market price history view** (a bigger sparkline with daily numbers on tap). The 7-day sparkline is tiny on phones. Phase 08 (mobile/polish).
 - **Coins flying from the bin to the HUD counter** instead of a "+N" popup at the bin. Phase 08 (juice).
 - **A "bag full" notice from the farmhand** (a speech bubble over the sprite and one toast per pickup) instead of skipping ready crops silently. Phase 04 only mentions waiting crops in the away summary. Phase 08 (polish).
 - **A visible sprinkler radius on hover** in normal play (not only in placement mode) and coloured soil for scarecrow-boosted plots. Phase 08 (polish).
-- **Buy seeds from the farmhand's route**: a planter that draws down gold to restock its last crop (opt-in, with a cap), so a lapsed seed supply does not stall the farm. Phase 09 if the idle pacing shows farms stalling.
+- *Done in v2-06 (the Seed Order upgrade).* **Buy seeds from the farmhand's route**: a planter that draws down gold to restock its last crop (opt-in, with a cap), so a lapsed seed supply does not stall the farm. Phase 09 if the idle pacing shows farms stalling.
 - **Choose where a trap goes** (drag it to any free water tile, or three traps in the river's wider water), and a trap "bait" item that skews its pool. Phase 05 sets traps out automatically at two fixed spots per water. Phase 08 (polish) or 09.
 - **A "line out" cooldown or minimum bite wait after each catch**, if phase 09 finds active fishing too strong (BALANCE.md "Phase 05 tuning notes"). Phase 09.
 - **Fish sounds and a rod-tug rumble on touch devices** (`navigator.vibrate`) during the reel. Phase 08.
 - **Show the fish behind the "!"**: a silhouette that peeks up when the bite lands, so a rare or legendary bite is exciting. Phase 08 (juice).
 - **A pause button and auto-cancel** when the Fishing panel is closed for a long time, so a forgotten cast does not hold a session for days. Phase 08.
 
-- **Cook ×N and a recipe favourites list**: a quantity stepper next to Cook and a pin for the dishes you cook most. Phase 08 (UI polish).
+- *Done in v2-06.* **Cook ×N and a recipe favourites list**: a quantity stepper next to Cook and a pin for the dishes you cook most. Phase 08 (UI polish).
 - **A dish on the windowsill**: a plated dish or a cat that appears at the farmhouse while something is on the stove. Phase 08 (juice).
 - **A sparkle when a buff starts and a soft chime when it ends**: hook `buffStarted` and `buffExpired`. Phase 08 (audio and juice).
 - **A "Running now" buff summary in the Kitchen** so phone players, whose HUD strip is hidden, still see what is active. Phase 08 (mobile).
 
 - **A goal reroll** ("Not today", once a day per goal) and a small badge on the Goals toolbar button when a goal is close to done or a new milestone is next. Phase 08 (UI polish).
-- **Farm Level and skill levels in the HUD** (a small "Lv 4" chip that opens the Goals panel), so the level the shop's "Reach Farm Level N" hints mention is always visible. Phase 08.
+- *Partly done in v2-06 (the Farm Level chip; skill levels are still open).* **Farm Level and skill levels in the HUD** (a small "Lv 4" chip that opens the Goals panel), so the level the shop's "Reach Farm Level N" hints mention is always visible. Phase 08.
 - **Bundle planning help**: mark which bundle slots can be filled this season, and show "in season again in 2 days" for the rest, so the seasonal bundles read as a plan and not a wall. Phase 08 or 09.
 - **Perk toasts with a preview** of the next perk ("Farming 4 gives a 5% double harvest"), and a tiny sparkle on the crop that doubled. Phase 08 (juice).
 - **A sound and a longer flourish for a bundle or a Farm Level** (the confetti is silent and short). Phase 08 (audio).
@@ -50,7 +50,7 @@ Phase 09 (simulator findings, for v2):
 - **Goal draws that do not depend on how an offline walk is split**: goals are redrawn with the seeded RNG at the end of a step, so the same absence walked in different step sizes can draw different goals (and seed or card rewards). A separate RNG stream for goals, or drawing only at the end of a catch-up, would make an absence fully reproducible. v2 engine.
 - **A "Pull up" hint and confirm**: phase 09 lets the Hoe pull up a regrower that has given a harvest; a tooltip on such plots ("Hoe: pull up") and a one-time confirmation would make the rule discoverable. Later polish.
 - **A human-like fisher in the simulator**: the bots model active fishing as catches per minute; replaying the real reel minigame with a reaction-time model would test the minigame's difficulty curve and Relaxed fishing. Tooling.
-- **Seed restocking for idle farms** (see "Buy seeds from the farmhand's route" above): the simulator confirms it: an automated farm of single-harvest crops stalls overnight without a big seed stock, which is the main thing a casual player must remember before leaving. v2.
+- *Done in v2-06 (the Seed Order upgrade).* **Seed restocking for idle farms** (see "Buy seeds from the farmhand's route" above): the simulator confirms it: an automated farm of single-harvest crops stalls overnight without a big seed stock, which is the main thing a casual player must remember before leaving. v2.
 
 v2 phase 00 (design update; ideas kept out of v2 on purpose):
 - **Rotating decorations** (only flipping in v2) and **seasonal decoration packs** sold for one season a year. Later v2 content via `templates/add-content.md`.
@@ -99,3 +99,8 @@ v3 phase 00 (platform shell):
 - **Check for a new version while the game stays open**: the service worker looks for an update only when the page loads, so a tab left open for days never sees one; `registration.update()` once a day would. Later polish (Pages only).
 - **Steam achievements from milestones**: `Platform.achievements.unlock(id)` exists as a seam; mapping milestones to achievement ids belongs to v3-02.
 - **A toast that waits on the update offer**: the "new version" toast fades after a few seconds like any other; a small persistent "Update" chip by the Settings button would be easier to find. Later polish.
+
+v2 phase 06 (ideas kept out of it on purpose):
+- **Seed Order for next season's crops.** The order buys only what the planter last planted, in season and ripe in time, so on the first Sunday of a new season it has nothing to buy until the player plants the new season's crop by hand once; an "also stock the best crop for next season" setting would close the gap. A later balance phase.
+- **Harvest all for the greenhouse** (it follows Shift-click and leaves the greenhouse plots alone, as Shift-click always has).
+- **Cook ×N for the Experiment tab** and a "keep favourites cooking" repeat. Later UI polish.

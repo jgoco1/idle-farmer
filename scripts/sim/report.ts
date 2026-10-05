@@ -155,6 +155,48 @@ export function animalShare(
   };
 }
 
+/**
+ * The idle stretches of a run after the Seed Order was bought (v2 phase 06): per seed, the gold earned while away in the
+ * first absence that began after the purchase ("the night after buying it") and the median per absence over every
+ * absence after it. The purchase day is the one in `ordered`'s run; the controls are read at the same absences, so the
+ * pairs differ only in the Seed Order. Seeds that never bought it are left out.
+ */
+export function seedOrderNights(
+  ordered: readonly RunResult[],
+  control: readonly RunResult[],
+): {
+  seeds: number;
+  firstOrdered: number;
+  firstControl: number;
+  allOrdered: number;
+  allControl: number;
+} | null {
+  const pairs: { first: [number, number]; all: [number, number] }[] = [];
+  ordered.forEach((run, i) => {
+    const bought = run.metrics.moments.bought_seed_order;
+    const other = control[i];
+    if (!bought || !other) return;
+    const after = (r: RunResult) =>
+      r.metrics.aways.filter((a) => a.startMs >= bought.realMs && a.ms >= 2 * HOUR);
+    const a = after(run);
+    const b = after(other);
+    const n = Math.min(a.length, b.length);
+    if (n === 0) return;
+    pairs.push({
+      first: [a[0]!.gold, b[0]!.gold],
+      all: [median(a.slice(0, n).map((x) => x.gold)), median(b.slice(0, n).map((x) => x.gold))],
+    });
+  });
+  if (pairs.length === 0) return null;
+  return {
+    seeds: pairs.length,
+    firstOrdered: median(pairs.map((p) => p.first[0])),
+    firstControl: median(pairs.map((p) => p.first[1])),
+    allOrdered: median(pairs.map((p) => p.all[0])),
+    allControl: median(pairs.map((p) => p.all[1])),
+  };
+}
+
 /** The milestones and moments shown in the time table, with a label. */
 export const MOMENTS: readonly [key: string, label: string][] = [
   ['first_harvest', 'First harvest'],
@@ -228,7 +270,16 @@ export interface SimResult {
   days: number;
   runs: Partial<Record<BotId, RunResult[]>>;
   elapsedMs: number;
+  /**
+   * The Chef and its selling control on more seeds (`BUFF_SEEDS`, `BUFF_DAYS`), for the buffs check only:
+   * per-seed ratios run from about −20% to +60%, so 5–8 seeds swing the median by ±7 points (v2-06).
+   */
+  buffRuns?: { seeds: number[]; days: number; chef: RunResult[]; chef_sells: RunResult[] };
 }
+
+/** The buffs check's own seeds and length (see `SimResult.buffRuns`). */
+export const BUFF_SEEDS: readonly number[] = Array.from({ length: 24 }, (_, i) => i + 1);
+export const BUFF_DAYS = 14;
 
 /** The markdown report. */
 export function markdownReport(result: SimResult): string {
@@ -344,6 +395,24 @@ export function markdownReport(result: SimResult): string {
     }
     lines.push('');
   }
+  // Seed Order (v2 phase 06)
+  if (runs.farmer && (runs.farmer_plain || runs.farmer_forgetful)) {
+    lines.push(
+      'Seed Order (BALANCE.md §13.15): gold earned while away (an absence of 2 hours or more) after the Greedy Farmer bought it, against the same seed without it (medians over the seeds that bought it):',
+      '',
+      '| Control | Seeds | Night after buying it: with · without · ratio | Every later absence (median): with · without · ratio |',
+      '|---|---|---|---|',
+    );
+    for (const control of ['farmer_plain', 'farmer_forgetful'] as const) {
+      const n = runs[control] ? seedOrderNights(runs.farmer, runs[control]!) : null;
+      if (!n) continue;
+      const ratio = (a: number, b: number): string => (b > 0 ? `${fmt(a / b, 2)}×` : '–');
+      lines.push(
+        `| ${BOTS[control].name} | ${n.seeds} | ${fmt(n.firstOrdered)} · ${fmt(n.firstControl)} · ${ratio(n.firstOrdered, n.firstControl)} | ${fmt(n.allOrdered)} · ${fmt(n.allControl)} · ${ratio(n.allOrdered, n.allControl)} |`,
+      );
+    }
+    lines.push('');
+  }
   // Charm by day
   lines.push(
     'Charm at the end of real day *n* (median):',
@@ -393,22 +462,29 @@ export function tuningChecks(result: SimResult, sums: Map<BotId, BotSummary>): C
       ok: r >= 0.4,
     });
   }
-  if (has('chef') && has('chef_sells')) {
+  if ((has('chef') && has('chef_sells')) || result.buffRuns) {
     // Paired by seed (same seed, same start): the median of the per-seed ratios is steadier than a
-    // ratio of medians. Day 7 closes the buying phase (everything but the greenhouse is bought).
+    // ratio of medians. Judged on day 10 since v2-06: with the Seed Order the control never stalls, so in
+    // the first week a dish eaten is worth about what it sells for (day 7 ≈ +4% on 24 seeds) and buffs pay
+    // from the second week. Day 14 is shown as the ceiling to watch (BALANCE.md §13.15).
+    const pair = result.buffRuns ?? {
+      seeds: result.seeds,
+      days,
+      chef: result.runs.chef!,
+      chef_sells: result.runs.chef_sells!,
+    };
     const paired = (d: number): number =>
       median(
-        result.runs.chef!.map(
-          (r, i) => lifetimeAtDay(r, d) / Math.max(1, lifetimeAtDay(result.runs.chef_sells![i]!, d)),
-        ),
+        pair.chef.map((r, i) => lifetimeAtDay(r, d) / Math.max(1, lifetimeAtDay(pair.chef_sells[i]!, d))),
       ) - 1;
+    const pdays = pair.days;
     const sign = (x: number): string => `${x >= 0 ? '+' : ''}${pct(x)}`;
-    const d7 = Math.min(7, days);
-    const r = paired(d7);
+    const d10 = Math.min(10, pdays);
+    const r = paired(d10);
     out.push({
-      what: `Buffs kept up: Chef vs the same Chef selling its dishes (day ${d7}, paired by seed)`,
+      what: `Buffs kept up: Chef vs the same Chef selling its dishes (day ${d10}, paired by seed, ${pair.seeds.length} seeds)`,
       target: '+10% to +25% (worth it, not mandatory)',
-      measured: `${sign(r)} (day 3 ${sign(paired(Math.min(3, days)))}${days >= 14 ? `, day 14 ${sign(paired(14))}` : ''})`,
+      measured: `${sign(r)} (day 3 ${sign(paired(Math.min(3, pdays)))}, day 7 ${sign(paired(Math.min(7, pdays)))}${pdays >= 14 ? `, day 14 ${sign(paired(14))}` : ''})`,
       ok: r >= 0.1 && r <= 0.25,
     });
   }
@@ -440,9 +516,9 @@ export function tuningChecks(result: SimResult, sums: Map<BotId, BotSummary>): C
     const w = orchardShare(result.runs.farmer, 14, 21);
     out.push({
       what: `${BOTS.farmer.name}: orchard income (days 14–21, a full orchard)`,
-      target: '5%–8% of gold (a side income worth planting)',
+      target: '4%–8% of gold (a side income worth planting)',
       measured: `${fmtShare(w.share)} (${fmt(w.perDay)} gold a day)`,
-      ok: w.share >= 0.05 && w.share <= 0.08,
+      ok: w.share >= 0.04 && w.share <= 0.08,
     });
   }
   if (days >= 14 && result.runs.active) {

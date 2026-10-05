@@ -69,7 +69,7 @@ import type { FishLocationId } from './data/ids';
 import { computeModifiers } from './systems/modifiers';
 import { showAwaySummary, type AwayFarm } from './ui/awaySummary';
 import { byId, h } from './ui/dom';
-import { FarmTools } from './ui/farmTools';
+import { bulkPlots, FarmTools } from './ui/farmTools';
 import { Hud } from './ui/hud';
 import { closeTopModal, showModal } from './ui/modal';
 import { PanelManager } from './ui/panel';
@@ -281,6 +281,10 @@ panels.register(
     ...view,
     dispatch,
     sort: { get: () => prefs.value.kitchenSort, set: (mode) => prefs.set('kitchenSort', mode) },
+    favourites: {
+      get: () => prefs.value.kitchenFavourites,
+      set: (list) => prefs.set('kitchenFavourites', list),
+    },
   }),
 );
 const fishing = fishingPanel({
@@ -320,6 +324,8 @@ panels.register(
       placement.start(kind);
     },
     setAutoSell: (item, on) => game.dispatch({ type: 'setAutoSell', item, on }),
+    setSeedOrderReserve: (pct) => game.dispatch({ type: 'setSeedOrderReserve', pct }),
+    setSeedOrderCrop: (crop, on) => game.dispatch({ type: 'setSeedOrderCrop', crop, on }),
   }),
 );
 const goals = goalsPanel({
@@ -383,6 +389,7 @@ panels.register(
   }),
 );
 hud.settingsButton.addEventListener('click', () => panels.toggle('settings'));
+hud.levelButton.addEventListener('click', () => panels.toggle('goals'));
 const toolbar = buildToolbar(byId('toolbar'), panels);
 const celebration = new Celebration(byId('scene'));
 const decorate: DecorateMode = new DecorateMode({
@@ -456,6 +463,7 @@ const tools = new FarmTools(byId('toolbar'), view, {
   get: () => prefs.value.paint,
   set: (on) => prefs.set('paint', on),
 });
+tools.onBulk = useOnField;
 
 // ---- layout: panels sit between the real HUD and toolbar heights (they change with UI size and phone width)
 function trackHeights(): void {
@@ -742,6 +750,12 @@ game.bus.on('binCollected', (e) => {
     BIN_TILE.row,
   );
 });
+game.bus.on('seedsOrdered', (e) => {
+  toasts.show(
+    `Seed Order: ${e.qty} ${GAME_DATA.crops[e.crop].name.toLowerCase()} seeds for ${e.gold.toLocaleString('en-US')}g.`,
+    'info',
+  );
+});
 game.bus.on('purchased', (e) => {
   if (e.what in GAME_DATA.expansions) {
     const exp = GAME_DATA.expansions[e.what as keyof typeof GAME_DATA.expansions];
@@ -919,9 +933,18 @@ function startStroke(plot: number, shiftKey: boolean): boolean {
     return false;
   }
   stroke = { tool, seed };
-  const all = game.state.farm.plots.map((_, i) => i);
+  const all = bulkPlots(game.state);
   usePlotTool(shiftKey ? [plot, ...all.filter((i) => i !== plot)] : [plot], true);
   return true;
+}
+
+/** Harvest all / Water all: the Shift-click action on the whole field, with the same toasts (v2-06). */
+function useOnField(tool: 'hand' | 'water'): void {
+  if (placement.kind) return;
+  const r = game.dispatch({ type: 'useTool', tool, plots: bulkPlots(game.state), seed: null });
+  if (!r.ok) toasts.show(r.reason);
+  else if (tool === 'water') toasts.show('The whole field is watered.', 'good');
+  flushStrokeToasts();
 }
 
 function endStroke(): void {

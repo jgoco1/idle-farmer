@@ -9,12 +9,13 @@ import type { RecipeDef } from '../data/types';
 import { spriteDataUrl } from '../render/spriteCache';
 import type { Action } from '../core/actions';
 import { KITCHEN_SORTS, type KitchenSort } from '../core/prefs';
+import type { RecipeId } from '../data/ids';
 import type { ActionResult } from '../systems/context';
 import { buffDurationMs, buffMagnitude } from '../systems/buffs';
-import { canCook, cookMs, ingredientStatus, kitchenSlots, knownRecipes } from '../systems/cooking';
+import { canCook, cookMs, ingredientStatus, kitchenSlots, knownRecipes, maxBatch } from '../systems/cooking';
 import { countItem } from '../systems/inventory';
 import { buffEffectText, formatCountdown } from './buffBar';
-import { KITCHEN_SORT_LABELS, sortRecipes } from './recipeSort';
+import { KITCHEN_SORT_LABELS, pinFavourites, sortRecipes, toggleFavourite } from './recipeSort';
 import { h } from './dom';
 import type { PanelDef } from './panel';
 import type { GameViewHooks } from './panels';
@@ -23,6 +24,8 @@ export interface KitchenHooks extends GameViewHooks {
   dispatch(action: Action): ActionResult;
   /** The recipe book's order, kept in prefs (defaults to "can cook now" without them). */
   sort?: { get(): KitchenSort; set(mode: KitchenSort): void };
+  /** Pinned recipes, kept in prefs (v2-06); without them the pin buttons are not shown. */
+  favourites?: { get(): readonly RecipeId[]; set(list: RecipeId[]): void };
 }
 
 type Tab = 'cook' | 'experiment';
@@ -43,6 +46,8 @@ export function kitchenPanel(hooks: KitchenHooks): PanelDef {
     build(body) {
       let tab: Tab = 'cook';
       const picked = new Set<ItemId>();
+      /** How many of each recipe the Cook ×N stepper is set to (UI state, not saved). */
+      const batch = new Map<RecipeId, number>();
 
       const tabs = h('div', { class: 'fish-tabs', role: 'tablist' });
       const tabButtons = new Map<Tab, HTMLButtonElement>();
@@ -197,19 +202,84 @@ export function kitchenPanel(hooks: KitchenHooks): PanelDef {
         const hearty = buffDurationMs(r.tier, true, mods.buffDurationBonus);
         const free = kitchenSlots(state, hooks.data) - state.kitchen.queue.length;
         const can = canCook(state, r);
+        const most = maxBatch(state, hooks.data, r);
+        const n = Math.min(Math.max(1, batch.get(r.id) ?? 1), Math.max(1, most));
         const cook = h('button', {
           type: 'button',
           class: 'btn btn-small',
           'data-cook': r.id,
-          text: 'Cook',
+          text: n > 1 ? `Cook ×${n}` : 'Cook',
           disabled: !can || free <= 0,
-          'aria-label': `Cook ${r.name}`,
+          'aria-label': n > 1 ? `Cook ${n} ${r.name}` : `Cook ${r.name}`,
         });
         cook.addEventListener('click', () => {
-          const res = hooks.dispatch({ type: 'cook', recipe: r.id });
-          msg.textContent = res.ok ? `${r.name} is on the stove.` : res.reason;
-          msg.className = res.ok ? 'form-msg form-ok' : 'form-msg form-error';
+          let done = 0;
+          let why = '';
+          for (let i = 0; i < n; i++) {
+            const res = hooks.dispatch({ type: 'cook', recipe: r.id });
+            if (!res.ok) {
+              why = res.reason;
+              break;
+            }
+            done++;
+          }
+          msg.textContent =
+            done === 0
+              ? why
+              : done === 1
+                ? `${r.name} is on the stove.`
+                : `${done} × ${r.name} are on the stove.`;
+          msg.className = done > 0 ? 'form-msg form-ok' : 'form-msg form-error';
           render(true);
+        });
+        const step = (by: number): void => {
+          batch.set(r.id, Math.min(Math.max(1, n + by), Math.max(1, most)));
+          render(true);
+          book
+            .querySelector<HTMLElement>(`[data-recipe="${r.id}"] [data-role="${by > 0 ? 'more' : 'less'}"]`)
+            ?.focus();
+        };
+        const less = h('button', {
+          type: 'button',
+          class: 'btn btn-small step-btn',
+          'data-role': 'less',
+          text: '−',
+          'aria-label': `Cook one fewer ${r.name}`,
+          disabled: n <= 1,
+        });
+        const moreBtn = h('button', {
+          type: 'button',
+          class: 'btn btn-small step-btn',
+          'data-role': 'more',
+          text: '+',
+          'aria-label': `Cook one more ${r.name}`,
+          disabled: n >= most,
+        });
+        less.addEventListener('click', () => step(-1));
+        moreBtn.addEventListener('click', () => step(1));
+        const stepper = h(
+          'div',
+          { class: 'cook-stepper', role: 'group', 'aria-label': `How many ${r.name} to cook` },
+          less,
+          h('span', { class: 'step-n', 'data-testid': 'cook-n', text: String(n), 'aria-live': 'polite' }),
+          moreBtn,
+        );
+        const pinned = hooks.favourites?.get().includes(r.id) ?? false;
+        const pin = hooks.favourites
+          ? h('button', {
+              type: 'button',
+              class: `fav-btn${pinned ? ' is-fav' : ''}`,
+              'data-fav': r.id,
+              'aria-pressed': String(pinned),
+              'aria-label': pinned ? `Unpin ${r.name}` : `Pin ${r.name} to the top`,
+              title: pinned ? 'Unpin' : 'Pin to the top of the book',
+              text: pinned ? '★' : '☆',
+            })
+          : null;
+        pin?.addEventListener('click', () => {
+          hooks.favourites?.set(toggleFavourite(hooks.favourites.get(), r.id));
+          render(true);
+          book.querySelector<HTMLElement>(`[data-fav="${r.id}"]`)?.focus();
         });
         const ingredients = h(
           'div',
@@ -235,6 +305,7 @@ export function kitchenPanel(hooks: KitchenHooks): PanelDef {
               'span',
               { text: `${r.name} ` },
               h('span', { class: `tier tier-${r.tier}`, text: `T${r.tier}` }),
+              pin,
             ),
             h(
               'span',
@@ -249,7 +320,7 @@ export function kitchenPanel(hooks: KitchenHooks): PanelDef {
             ),
             ingredients,
           ),
-          cook,
+          h('div', { class: 'cook-controls' }, stepper, cook),
         );
       };
 
@@ -258,10 +329,13 @@ export function kitchenPanel(hooks: KitchenHooks): PanelDef {
         const mode = (KITCHEN_SORTS as readonly string[]).includes(sortSelect.value)
           ? (sortSelect.value as KitchenSort)
           : 'ready';
-        const known = sortRecipes(knownRecipes(state), state, hooks.data, mode);
+        const favourites = hooks.favourites?.get() ?? [];
+        const known = pinFavourites(sortRecipes(knownRecipes(state), state, hooks.data, mode), favourites);
         const free = kitchenSlots(state, hooks.data) - state.kitchen.queue.length;
         const sig = [
           mode,
+          favourites.join(','),
+          known.map((id) => batch.get(id) ?? 1).join('.'),
           known.join(','),
           free,
           hooks.calendar().season,

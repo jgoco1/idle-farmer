@@ -1482,3 +1482,39 @@ Every check, as the simulator prints them:
 - **Busy Bees** now also shortens animal cycles. The bots value the buff when they own animals as well as a farmhand.
 - **Unit test guard:** the Casual Idler's offline share in the first week is 89–92% (eggs, milk and fruit it picks by hand on its 2-minute visits are sold online); the test's floor moved from 90% to 85%.
 - **Performance** (`e2e/perf.spec.ts`, median of three): 4.7 KB allocated a frame in the world pan with a full ranch (budget 11 KB; 4.4 KB before), 3.5 KB on the farm, 60 fps; 8 hours away on a full farm 76.9 ms (budget 100 ms).
+
+### 13.15 v2-06 balance report: Seed Order
+
+`npm run simulate -- --seeds 1,2,3,4,5,6,7,8` (30 real days, medians). "Before" is §13.14 (the v2-05 code, which the control bot *Farmer without Seed Order* reproduces exactly: 25,200,358 gold on day 30). **Every check passes on 8 seeds** (37 of 37).
+
+**The upgrade.** `seed_order`, three levels, cost 4,000 × 3ⁿ (**4,000 / 12,000 / 36,000**, 52,000 in all, which moves the v1 catalogue from 538,030 to **590,030**), after the Seed Planter's first level. At each Shipping Bin pickup, for every crop the planter last planted that is in season and ripens before the season ends (table order, no RNG), it tops the bag up to **100 / 300 / 1,000 seeds** at the Shop price **plus a 10% delivery fee** (`SEED_ORDER_FEE`, rounded up). It never spends below a reserve chosen in the card (none, 10%, 25% or 50% of the gold held when the pickup began; default 25%, `SEED_ORDER_RESERVES`), and each crop is all or nothing for bag space and for the reserve.
+
+| Constant | Value | Why |
+|---|---|---|
+| `seedTarget` per level | 100 / 300 / 1,000 | the prompt's example of 20 / 50 / 100 left a 48-plot farm idle for most of each hour (a 5-minute crop needs about 580 seeds an hour); see the tuning notes |
+| `SEED_ORDER_FEE` | 10% | a gentle sink: about 4% of the 35–40% of income that goes back into seeds |
+| `SEED_ORDER_RESERVES` / default | 0, 10, 25, 50 % / 25% | a player setting, not a cost |
+
+**What it is worth** (new report table, Greedy Farmer with the order vs the same seed without it; absences of 2 hours or more after the day the order was bought, medians over the 8 seeds):
+
+| Control | Night after buying it: with · without · ratio | Every later absence (median): with · without · ratio |
+|---|---|---|
+| Farmer without Seed Order (stocks seeds by hand before leaving) | 277,877 · 46,096 · 6.03× | 464,601 · 383,864 · 1.21× |
+| Forgetful Farmer (never stocks, no order) | 277,877 · 16,799 · 16.54× | 464,601 · 72,893 · 6.37× |
+
+So the order is worth about +21% on every idle stretch over a player who stocks by hand (the fee is paid back by never running dry and by buying the new crop mix hourly), and it is the difference between an automated farm that earns and one that stalls for a player who forgets (day 30: 8.3M without either). **Gold by day (after):** Greedy Farmer 563,606 (d3), 2,645,413 (d7), 7,934,238 (d14), **27,656,621 (d30)**, against 425,275 / 2,766,056 / 9,656,395 / 25,200,358 without the order. Day 14 is lower because the order's levels are bought and stocked while the Farmer is still expanding.
+
+**Checks that moved.** All 37 pass. No strategy dominates: day 3 1.14×, day 7 1.14×, day 30 1.30× (limit 1.5×). Buffs kept up: see "The buffs check moves to day 10" below. The Greedy Farmer's orchard income is 59,420 gold a day, as before, but it is now **4.5%** of a larger income: the check's band moved from 5%–8% to **4%–8%** (`scripts/sim/report.ts`). The gold-sink curve stays inside every band.
+
+**The buffs check moves to day 10, on its own 24 seeds (review of PR #28).** With the Seed Order the Chef who sells never stalls for want of seeds, and the old day-7 figure turned out to lean on those stalls: on 16 seeds `main` read +17% and v2-06 +2%. On 24 seeds v2-06's curve is day 3 −3%, day 7 +4%, day 10 +18%, day 14 +32%: in the first week a dish eaten is worth about what it sells for (the automated farm is limited by the farmhand, not growth), and buffs pay from the second week. Buff magnitude barely moves day 7 (0.17 measured +3% on 24 seeds) but pushes day 14 up (+38%), so the constants stay at 0.13 / 25 min and the check is judged where buffs matter:
+- **Day 10, band +10–25%:** measured **+18%** (24 seeds). Day 14 (+32%) is shown in the report as the ceiling to watch.
+- **24 seeds, 14 days, only for this check:** `npm run simulate` runs the Chef and its control on `BUFF_SEEDS` (1–24) for `BUFF_DAYS` (14) in four extra workers, because per-seed ratios run from about −20% to +60% and 5–8 seeds swing the median by ±7 points (seeds 1–8 read +29%). `--quick` skips them. The run takes about 105 s instead of 70.
+- **Unit test** (`tests/simulate.test.ts`, seeds 1–4, day 10): buffs must pay (≥ 1.10) and must not run away (≤ 1.40); its four seeds read +31%.
+
+**Brain changes** (`scripts/sim/brain.ts`): the shopping lists buy Seed Order L1 after the first greenhouse level, L2 after Greenhouse 2 and L3 after Backpack 4; once the order is owned, `leave()` no longer stocks the seeds the order covers by hand (it still stocks a new season's best crop, which the order does not buy); two control bots (`farmer_plain`, `farmer_forgetful`) and `Style.stocksSeeds` make the new report row; `Metrics.aways` records every absence.
+
+**Tuning notes.**
+- With targets of 20 / 50 / 100 the Farmer ended day 30 at 21.0M against 25.2M for the control: the order refilled 100 seeds an hour for a farm that plants hundreds. 200 / 600 / 2,000 gave 0.88× on later absences and 23.6M; **100 / 300 / 1,000** gave 1.21× and 27.7M (bigger targets also tie up gold and bag slots, and the all-or-nothing space rule means a full bag buys nothing).
+- Seed Order buys only what the planter last planted, so on the first day of a season it has nothing to buy until the planter has planted the new crop once; the bots' hand-stocking covers that gap, a player's does not (IDEAS.md).
+- `finishesBeforeSeasonEnds` reads `ctx.calendar.msToSeasonChange`, which the core fixes for a whole segment (up to a day offline), so a crop at the very edge of the season can be judged against a calendar a few hours stale. One big step still equals many small ones (tested across a season change).
+

@@ -13,15 +13,17 @@ import {
   isAnimalId,
   isBuildingId,
   isCatId,
+  isCropId,
   isDecorId,
   isFruitId,
   isParcelId,
   isTownProjectId,
 } from '../data/ids';
 import { GAME_DATA } from '../data';
+import { SEED_ORDER_RESERVES } from '../data/balance';
 import { WORLD_COLS, WORLD_ROWS, WORLD_LAYOUT } from '../data/world';
 
-export const SAVE_VERSION = 13;
+export const SAVE_VERSION = 14;
 export const SAVE_KEY = 'hearthfield-idle/save';
 export const AUTOSAVE_MS = 15_000;
 /** Where the previous good save is kept (v3 phase 00). Same format as the main save. */
@@ -239,6 +241,11 @@ export const migrations: Record<number, Migration> = {
       ranch: { ...old.ranch, feedStore },
     };
   },
+  /**
+   * v13 → v14 (v2 phase 06, Seed Orders): the order's settings, at their defaults (a 25% gold reserve, no crop opted
+   * out; written out here so a later change of the default never alters this migration). The upgrade itself is level 0.
+   */
+  13: (old) => ({ ...old, seedOrder: { reservePct: 25, off: [] } }),
 };
 
 export class SaveError extends Error {
@@ -562,6 +569,19 @@ function catsProblem(s: Record<string, unknown>): string | null {
   return null;
 }
 
+function seedOrderProblem(s: Record<string, unknown>): string | null {
+  const { seedOrder } = s;
+  if (!isObj(seedOrder) || !isInt(seedOrder.reservePct) || !Array.isArray(seedOrder.off))
+    return 'bad seed order';
+  if (!SEED_ORDER_RESERVES.includes(seedOrder.reservePct)) return 'bad seed order';
+  const seen = new Set<string>();
+  for (const c of seedOrder.off) {
+    if (typeof c !== 'string' || !isCropId(c) || seen.has(c)) return 'bad seed order';
+    seen.add(c);
+  }
+  return null;
+}
+
 function cookingProblem(s: Record<string, unknown>): string | null {
   const { kitchen, buffs } = s;
   if (!isObj(kitchen) || !Array.isArray(kitchen.known) || !Array.isArray(kitchen.queue)) return 'bad kitchen';
@@ -619,7 +639,8 @@ export function validateState(s: unknown): string | null {
     townProblem(s) ??
     orchardProblem(s) ??
     ranchProblem(s) ??
-    catsProblem(s)
+    catsProblem(s) ??
+    seedOrderProblem(s)
   );
 }
 

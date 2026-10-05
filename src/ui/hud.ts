@@ -6,6 +6,7 @@ import { formatDuration, formatHudDate, DAY_MS, type Calendar } from '../core/ti
 import { GAME_DATA } from '../data';
 import { spriteDataUrl } from '../render/spriteCache';
 import { formatNumber, type NumberFormat } from '../core/prefs';
+import { farmLevel } from '../systems/unlocks';
 import { BuffBar } from './buffBar';
 import { h } from './dom';
 import { isReducedMotion } from './motion';
@@ -53,6 +54,9 @@ export class Hud {
   private readonly timeIcon: HTMLImageElement;
   private readonly seasonNote: HTMLElement;
   readonly settingsButton: HTMLButtonElement;
+  /** The Farm Level chip next to the gold; main opens the Goals panel from it (v2-06). */
+  readonly levelButton: HTMLButtonElement;
+  private levelShown = -1;
   private last = '';
   private readonly gold = new GoldCounter();
   private goldShown = -1;
@@ -71,6 +75,12 @@ export class Hud {
       'aria-label': 'Settings',
       title: 'Settings',
       text: '⚙',
+    });
+    this.levelButton = h('button', {
+      type: 'button',
+      class: 'hud-level',
+      'data-testid': 'farm-level',
+      title: 'Farm Level: open Goals',
     });
     const gold = h(
       'div',
@@ -98,7 +108,7 @@ export class Hud {
     });
     this.buffBar = new BuffBar(buffs, GAME_DATA);
     this.goldBox = gold;
-    root.append(gold, clock, buffs, h('div', { class: 'hud-right' }, this.settingsButton));
+    root.append(gold, this.levelButton, clock, buffs, h('div', { class: 'hud-right' }, this.settingsButton));
   }
 
   setNumberFormat(mode: NumberFormat): void {
@@ -118,6 +128,12 @@ export class Hud {
       this.goldText.textContent = `${formatNumber(shown, this.numberFormat)}g`;
     }
     this.goldBox.classList.toggle('is-counting', this.gold.counting);
+    const level = farmLevel(state);
+    if (level !== this.levelShown) {
+      this.levelShown = level;
+      this.levelButton.textContent = `Lv ${level}`;
+      this.levelButton.setAttribute('aria-label', `Farm Level ${level}`);
+    }
     this.buffBar.update(state);
     const key = `${cal.dayKey}|${cal.hour}:${cal.minute}|${cal.weekIndex}|${Math.floor(cal.msToSeasonChange / 60000)}`;
     if (key === this.last) return;

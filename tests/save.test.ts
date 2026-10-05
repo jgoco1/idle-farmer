@@ -36,7 +36,8 @@ import {
   trapTile,
   zoneAt,
 } from '../src/render/scene';
-import fixture from './fixtures/save-v13.json';
+import fixture from './fixtures/save-v14.json';
+import fixtureV13 from './fixtures/save-v13.json';
 import fixtureV12 from './fixtures/save-v12.json';
 import fixtureV11 from './fixtures/save-v11.json';
 import fixtureV10 from './fixtures/save-v10.json';
@@ -53,6 +54,7 @@ function withoutV10(rest: Record<string, unknown>): Record<string, unknown> {
   delete rest.orchard;
   delete rest.ranch;
   delete rest.cats;
+  delete rest.seedOrder;
   delete (rest.stats as Record<string, unknown>).fruitPicked;
   delete (rest.stats as Record<string, unknown>).productsCollected;
   const cal = rest.calendar as Record<string, unknown>;
@@ -72,13 +74,27 @@ function memoryStorage(initial: Record<string, string> = {}): SaveStorage & { da
 }
 
 describe('save file', () => {
-  it('is at version 13 (the feed store) with one migration per older version', () => {
-    expect(SAVE_VERSION).toBe(13);
-    expect(Object.keys(migrations)).toEqual(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12']);
+  it('is at version 14 (Seed Order settings) with one migration per older version', () => {
+    expect(SAVE_VERSION).toBe(14);
+    expect(Object.keys(migrations)).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+      '7',
+      '8',
+      '9',
+      '10',
+      '11',
+      '12',
+      '13',
+    ]);
     expect(SAVE_KEY).toBe('hearthfield-idle/save');
   });
 
-  it('the v13 fixture loads unchanged', () => {
+  it('the v14 fixture loads unchanged', () => {
     const file = parseSave(FIXTURE_TEXT);
     expect(file).toEqual(fixture);
   });
@@ -591,6 +607,7 @@ describe('migrations', () => {
     const rest: Record<string, unknown> = JSON.parse(JSON.stringify(s));
     delete rest.ranch;
     delete rest.cats;
+    delete rest.seedOrder;
     delete (rest.stats as Record<string, unknown>).productsCollected;
     expect(rest).toEqual(fixtureV10.state);
     // Eggs and milk are not shipped automatically until the player says so.
@@ -604,6 +621,7 @@ describe('migrations', () => {
     expect(file.state.cats).toEqual({ adopted: ['cat_tabby'], active: 'cat_tabby' });
     const rest: Record<string, unknown> = JSON.parse(JSON.stringify(file.state));
     delete rest.cats;
+    delete rest.seedOrder;
     delete (rest.ranch as Record<string, unknown>).feedStore;
     expect(rest).toEqual(fixtureV11.state);
   });
@@ -617,6 +635,7 @@ describe('migrations', () => {
       ranch: { feedStore?: unknown };
     };
     delete rest.ranch.feedStore;
+    delete (rest as { seedOrder?: unknown }).seedOrder;
     expect(rest).toEqual(fixtureV12.state);
   });
 
@@ -637,6 +656,33 @@ describe('migrations', () => {
     expect(s.inventory.slots).toHaveLength(old.state.inventory.slots.length);
     expect(countItem(s.inventory, 'seed_turnip')).toBe(3); // other stacks untouched
     expect(countItem(s.inventory, 'roasted_turnip', true)).toBe(2);
+  });
+
+  it('migrates a v13 save (v14): the Seed Order settings at their defaults, nothing else changes', () => {
+    const file = parseSave(JSON.stringify(fixtureV13));
+    expect(file.version).toBe(SAVE_VERSION);
+    expect(validateState(file.state)).toBeNull();
+    expect(file.state.seedOrder).toEqual({ reservePct: 25, off: [] });
+    expect(file.state.upgrades.seed_order).toBeUndefined(); // the upgrade itself is level 0
+    const rest = JSON.parse(JSON.stringify(file.state)) as Record<string, unknown>;
+    delete rest.seedOrder;
+    expect(rest).toEqual(fixtureV13.state);
+  });
+
+  it('refuses damaged Seed Order settings', () => {
+    const bad = (mutate: (c: typeof fixture.state) => void): string | null => {
+      const c = structuredClone(fixture.state);
+      mutate(c);
+      return validateState(c);
+    };
+    expect(bad(() => undefined)).toBeNull();
+    expect(bad((c) => (c.seedOrder.reservePct = 30))).toBe('bad seed order');
+    expect(bad((c) => (c.seedOrder.reservePct = 10.5))).toBe('bad seed order');
+    expect(bad((c) => ((c.seedOrder as { off: unknown[] }).off = ['moss']))).toBe('bad seed order');
+    expect(bad((c) => ((c.seedOrder as { off: unknown[] }).off = ['turnip', 'turnip']))).toBe(
+      'bad seed order',
+    );
+    expect(bad((c) => delete (c as Partial<typeof c>).seedOrder)).toBe('bad seed order');
   });
 
   it('refuses a damaged feed store', () => {
@@ -697,6 +743,7 @@ describe('migrations', () => {
     delete rest.orchard;
     delete rest.ranch;
     delete rest.cats;
+    delete rest.seedOrder;
     const stats = rest.stats as Record<string, unknown>;
     delete stats.fruitPicked;
     delete stats.productsCollected;

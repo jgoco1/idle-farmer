@@ -110,6 +110,7 @@ export type UpgradeId =
   | 'farmhand'
   | 'seed_planter'
   | 'auto_seller'
+  | 'seed_order'
   | 'watering_can'
   | 'hoe'
   | 'barn_storage'

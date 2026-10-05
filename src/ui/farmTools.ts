@@ -28,6 +28,14 @@ const TOOLS: readonly ToolDef[] = [
   { tool: 'hand', label: 'Hand', icon: 'ui_tool_hand', key: '5', hint: 'Harvest ready crops' },
 ];
 
+/** The plots Shift-click, Harvest all and Water all work on: the whole field (not the greenhouse), by index. */
+export function bulkPlots(state: GameState): number[] {
+  return state.farm.plots.map((_, i) => i);
+}
+
+/** The two bulk buttons next to the tools, for touch players without Shift-click (v2-06). */
+export type BulkTool = 'hand' | 'water';
+
 export interface FarmToolsDeps {
   data: GameData;
   state(): GameState;
@@ -68,6 +76,8 @@ export function regrowNote(data: GameData, crop: CropId): string {
 }
 
 export class FarmTools {
+  /** Called by Harvest all and Water all (main runs the same `useTool` action Shift-click does). */
+  onBulk: ((tool: BulkTool) => void) | null = null;
   tool: FarmTool = 'auto';
   seed: CropId | null = null;
   private readonly buttons = new Map<FarmTool, HTMLButtonElement>();
@@ -138,6 +148,30 @@ export class FarmTools {
       );
       btn.addEventListener('click', () => this.setPaint(!paint.get()));
       this.paintButton = btn;
+      group.append(btn);
+    }
+    for (const [tool, label, icon, hint] of [
+      [
+        'hand',
+        'Harvest all',
+        'ui_tool_hand',
+        'Harvest every ready crop in the field (like Shift-click with the Hand)',
+      ],
+      ['water', 'Water all', 'ui_tool_water', 'Water the whole field (like Shift-click with the Can)'],
+    ] as const) {
+      const btn = h(
+        'button',
+        {
+          type: 'button',
+          class: 'tool-btn bulk-btn',
+          'data-testid': `${tool === 'hand' ? 'harvest' : 'water'}-all`,
+          'aria-label': label,
+          title: hint,
+        },
+        h('img', { class: 'pixel tool-img', alt: '', width: 32, height: 32, src: spriteDataUrl(icon) }),
+        h('span', { class: 'tool-label farm-tool-label', text: label }),
+      );
+      btn.addEventListener('click', () => this.onBulk?.(tool));
       group.append(btn);
     }
     root.append(group);

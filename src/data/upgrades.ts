@@ -138,6 +138,24 @@ export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object
     effect: [{}, { flags: ['autoShip'] }, { flags: ['autoShip', 'keepReserve'] }],
     requires: [{ kind: 'upgrade', id: 'farmhand', level: 1 }],
   },
+  seed_order: {
+    id: 'seed_order',
+    name: 'Seed Order',
+    description:
+      'At every Shipping Bin pickup, a standing order tops up the seeds your planter uses (in season, and ripe before the season ends) at the Shop price plus a 10% delivery fee. Never spends below your gold reserve.',
+    category: 'farm',
+    kind: 'leveled',
+    max: 3,
+    cost: { base: 4000, ratio: 3 }, // 4000, 12000, 36000
+    effectText: [
+      'not ordered',
+      'keeps 100 seeds of each crop in the bag',
+      'keeps 300 seeds of each crop in the bag',
+      'keeps 1,000 seeds of each crop in the bag',
+    ],
+    effect: [{}, { seedTarget: 100 }, { seedTarget: 300 }, { seedTarget: 1000 }],
+    requires: [{ kind: 'upgrade', id: 'seed_planter', level: 1 }],
+  },
   watering_can: {
     id: 'watering_can',
     name: 'Watering Can',
