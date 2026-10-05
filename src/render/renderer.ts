@@ -44,6 +44,8 @@ import {
   townSpritePos,
   WORLD_H,
   WORLD_W,
+  WORLD_Y0,
+  WORLD_Y1,
   zoneAt,
   type Grid,
   type PlotSprites,
@@ -367,6 +369,9 @@ export class Renderer {
     this.frame.width = WORLD_W;
     this.frame.height = WORLD_H;
     this.fctx = context2d(this.frame);
+    // The frame's (0, 0) is the world's top-left (0, WORLD_Y0): one translate keeps every draw call in
+    // world pixels, negative rows included. Reads (the copy to the screen) use canvas pixels.
+    this.fctx.setTransform(1, 0, 0, 1, 0, -WORLD_Y0);
     for (let i = 0; i < CHUNK_COLS * CHUNK_ROWS; i++) {
       const c = i % CHUNK_COLS;
       const r = Math.floor(i / CHUNK_COLS);
@@ -988,9 +993,9 @@ export class Renderer {
     const vis = visibleRect(this.cam, this.view, this.visible);
     // The frame region to compose: whole world pixels covering the view, inside the world.
     const x0 = Math.max(0, Math.floor(vis.x));
-    const y0 = Math.max(0, Math.floor(vis.y));
+    const y0 = Math.max(WORLD_Y0, Math.floor(vis.y));
     const x1 = Math.min(WORLD_W, Math.ceil(vis.x + vis.w));
-    const y1 = Math.min(WORLD_H, Math.ceil(vis.y + vis.h));
+    const y1 = Math.min(WORLD_Y1, Math.ceil(vis.y + vis.h));
     const aclock = this.aclock;
     aclock.hour = calendar.hour;
     aclock.isNight = calendar.isNight;
@@ -1026,7 +1031,7 @@ export class Renderer {
       const idx = list[i]!;
       const chunk = this.chunks[idx]!;
       const cx = (idx % CHUNK_COLS) * CHUNK_PX;
-      const cy = Math.floor(idx / CHUNK_COLS) * CHUNK_PX;
+      const cy = Math.floor(idx / CHUNK_COLS) * CHUNK_PX + WORLD_Y0;
       f.drawImage(chunk.ground, cx, cy);
       if (winter) f.drawImage(chunk.snow, cx, cy);
     }
@@ -1127,7 +1132,7 @@ export class Renderer {
       c.fillStyle = PALETTE.grass_dark; // letterbox: the world is smaller than the view
       c.fillRect(0, 0, this.view.w, this.view.h);
     }
-    if (x1 > x0 && y1 > y0) c.drawImage(this.frame, x0, y0, x1 - x0, y1 - y0, dx, dy, dw, dh);
+    if (x1 > x0 && y1 > y0) c.drawImage(this.frame, x0, y0 - WORLD_Y0, x1 - x0, y1 - y0, dx, dy, dw, dh);
   }
 
   /** One fruit tree: its stage's sprite (a mature one in the season's look) with the fruit hanging on it. */

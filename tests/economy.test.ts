@@ -12,7 +12,7 @@ import { addItem, countItem } from '../src/systems/inventory';
 import { buySeeds, maxAffordableSeeds, seedStock } from '../src/systems/shop';
 import { farmLevel, isUnlocked, provisionalFarmLevel, unlockHint } from '../src/systems/unlocks';
 import { buyUpgrade, upgradeCost } from '../src/systems/upgrades';
-import { buildLayout, buildZones, sceneryFor, plotIndexAt, zoneAt } from '../src/render/scene';
+import { buildLayout, buildZones, sceneryFor, plotIndexAt, zoneAt, groundAt } from '../src/render/scene';
 import { at, NY, setFarmLevel } from './helpers';
 
 const CREATED = at(NY, 2026, 1, 7, 10);
@@ -258,7 +258,7 @@ describe('farm expansion', () => {
     // The fence wraps the grown field; the plot zone grows with it.
     const big = { cols: 8, rows: 6 };
     const layout = buildLayout(big, ['farm_1', 'farm_2', 'farm_3', 'farm_4']);
-    expect(layout.ground[7]![13]).toBe('tile_soil_dry');
+    expect(groundAt(layout.ground, 13, 7)).toBe('tile_soil_dry');
     expect(layout.objects.some((o) => o.sprite === 'obj_fence_h' && o.y === 8 * 16)).toBe(true);
     expect(zoneAt(buildZones(big), 13, 7)?.id).toBe('plots');
     expect(zoneAt(buildZones(big), 18, 7)?.id).toBe('bin');

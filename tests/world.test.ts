@@ -10,7 +10,15 @@ import { buildCalendar } from '../src/core/time';
 import { TOWN_PROJECT_SCALE } from '../src/data/balance';
 import { GAME_DATA } from '../src/data';
 import { PARCEL_IDS } from '../src/data/ids';
-import { HOME_RECT, regionAt, WORLD_COLS, WORLD_LAYOUT, WORLD_ROWS } from '../src/data/world';
+import {
+  HOME_RECT,
+  regionAt,
+  WORLD_BOTTOM,
+  WORLD_COLS,
+  WORLD_LAYOUT,
+  WORLD_ROWS,
+  WORLD_TOP,
+} from '../src/data/world';
 import {
   CHUNK_COLS,
   CHUNK_ROWS,
@@ -31,7 +39,17 @@ import {
   type Viewport,
 } from '../src/render/camera';
 import { edgePips } from '../src/render/pips';
-import { buildLayout, buildZones, TILE, WORLD_H, WORLD_W, zoneAt } from '../src/render/scene';
+import {
+  buildLayout,
+  buildZones,
+  groundAt,
+  TILE,
+  WORLD_H,
+  WORLD_W,
+  WORLD_Y0,
+  WORLD_Y1,
+  zoneAt,
+} from '../src/render/scene';
 import { buyParcel, nextParcel, parcelStatus } from '../src/systems/parcels';
 import { at, NY, setFarmLevel } from './helpers';
 
@@ -40,8 +58,8 @@ const desktop: Viewport = { w: 1280, h: 640, dpr: 1 };
 const phone: Viewport = { w: 360, h: 560, dpr: 1 };
 
 describe('the world layout (DATA_SCHEMAS §9.3)', () => {
-  it('is 36 × 22 with the v1 scene as its top-left 20 × 12 corner', () => {
-    expect([WORLD_COLS, WORLD_ROWS]).toEqual([36, 22]);
+  it('is 36 × 36 (rows −14 … 21) with the v1 scene at (0, 0)', () => {
+    expect([WORLD_COLS, WORLD_ROWS, WORLD_TOP, WORLD_BOTTOM]).toEqual([36, 36, -14, 22]);
     expect(HOME_RECT).toEqual({ col: 0, row: 0, cols: 20, rows: 12 });
     expect(regionAt(0, 0)).toBe('home');
     expect(regionAt(19, 11)).toBe('home');
@@ -52,16 +70,20 @@ describe('the world layout (DATA_SCHEMAS §9.3)', () => {
     expect(regionAt(5, 17)).toBe('town');
     expect(regionAt(17, 16)).toBe('sea');
     expect(regionAt(36, 0)).toBeNull();
+    expect(regionAt(0, WORLD_TOP - 1)).toBeNull();
+    expect(regionAt(0, WORLD_BOTTOM)).toBeNull();
+    expect(regionAt(0, WORLD_TOP)).not.toBeNull();
   });
 
   it('keeps regions apart and inside the world, signs and tree spots inside their parcels', () => {
     const rects = WORLD_LAYOUT.regions.map((r) => r.rect);
     for (const r of rects) {
       expect(r.col + r.cols).toBeLessThanOrEqual(WORLD_COLS);
-      expect(r.row + r.rows).toBeLessThanOrEqual(WORLD_ROWS);
+      expect(r.row).toBeGreaterThanOrEqual(WORLD_TOP);
+      expect(r.row + r.rows).toBeLessThanOrEqual(WORLD_BOTTOM);
     }
     for (let c = 0; c < WORLD_COLS; c++)
-      for (let r = 0; r < WORLD_ROWS; r++) {
+      for (let r = WORLD_TOP; r < WORLD_BOTTOM; r++) {
         const n = WORLD_LAYOUT.regions.filter(
           (g) =>
             c >= g.rect.col &&
@@ -81,7 +103,7 @@ describe('the world layout (DATA_SCHEMAS §9.3)', () => {
     // Lanes are drawn as paths and never overlap a parcel.
     const ground = buildLayout(GAME_DATA.startGrid).ground;
     for (const l of WORLD_LAYOUT.lanes) {
-      expect(ground[l.row]![l.col], `${l.col},${l.row}`).toBe('tile_path');
+      expect(groundAt(ground, l.col, l.row), `${l.col},${l.row}`).toBe('tile_path');
       expect(['home', 'lanes', 'town']).toContain(regionAt(l.col, l.row));
     }
   });
@@ -144,12 +166,16 @@ describe('the camera (GDD §12.1)', () => {
     const cam = clampCamera({ x: -500, y: 9999, zoom: 3 }, desktop);
     const v = visibleRect(cam, desktop);
     expect(v.x).toBeCloseTo(0);
-    expect(v.y + v.h).toBeCloseTo(WORLD_H);
+    expect(v.y + v.h).toBeCloseTo(WORLD_Y1);
+    // v4: the view travels north up to the tree line, not past it.
+    const north = visibleRect(clampCamera({ x: 300, y: -9999, zoom: 3 }, desktop), desktop);
+    expect(north.y).toBeCloseTo(WORLD_Y0);
     const right = panBy({ x: 300, y: 200, zoom: 3 }, desktop, -1e6, 0);
     expect(visibleRect(right, desktop).x + visibleRect(right, desktop).w).toBeCloseTo(WORLD_W);
     // 1× on a wide screen: the whole world fits and is centred.
     const out = clampCamera({ x: 10, y: 10, zoom: 1 }, desktop);
-    expect(out).toEqual({ x: WORLD_W / 2, y: WORLD_H / 2, zoom: 1 });
+    expect(out).toEqual({ x: WORLD_W / 2, y: (WORLD_Y0 + WORLD_Y1) / 2, zoom: 1 });
+    expect(WORLD_H).toBe(WORLD_Y1 - WORLD_Y0);
   });
 
   it('zooms around a point: the world pixel under the cursor stays under it', () => {
@@ -207,19 +233,22 @@ describe('pan versus click', () => {
 
 describe('viewport culling', () => {
   it('draws only the ground chunks the view overlaps', () => {
-    expect([CHUNK_COLS, CHUNK_ROWS]).toEqual([3, 2]);
-    // The default desktop view shows chunks 0 and 1 of the top row (home spans x 0–320, y 0–192).
-    expect(visibleChunks(visibleRect(defaultCamera(desktop), desktop))).toEqual([0, 1]);
+    // v4: chunks are anchored at the world's top (y −224), 3 × 3 of them.
+    expect([CHUNK_COLS, CHUNK_ROWS]).toEqual([3, 3]);
+    // The default desktop view (home spans x 0–320, y 0–192) straddles chunk rows 0 (y −224…32) and 1.
+    expect(visibleChunks(visibleRect(defaultCamera(desktop), desktop))).toEqual([0, 1, 3, 4]);
     // A small view in the middle of the bottom-right chunk.
-    expect(visibleChunks({ x: 530, y: 300, w: 20, h: 20 })).toEqual([5]);
-    // A view across the chunk corner at (256, 256).
-    expect(visibleChunks({ x: 250, y: 250, w: 20, h: 20 })).toEqual([0, 1, 3, 4]);
+    expect(visibleChunks({ x: 530, y: 300, w: 20, h: 20 })).toEqual([8]);
+    // A view across the chunk corner at (256, 32).
+    expect(visibleChunks({ x: 250, y: 22, w: 20, h: 20 })).toEqual([0, 1, 3, 4]);
+    // Above row 0: the north band is in chunk row 0.
+    expect(visibleChunks({ x: 10, y: -200, w: 20, h: 20 })).toEqual([0]);
     // The whole world.
-    expect(visibleChunks({ x: -100, y: -100, w: 900, h: 600 })).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(visibleChunks({ x: -100, y: -300, w: 900, h: 800 })).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8]);
     // The output array is reused.
     const out: number[] = [9, 9, 9];
-    expect(visibleChunks({ x: 0, y: 0, w: 10, h: 10 }, out)).toBe(out);
-    expect(out).toEqual([0]);
+    expect(visibleChunks({ x: 0, y: 40, w: 10, h: 10 }, out)).toBe(out);
+    expect(out).toEqual([3]);
   });
 });
 

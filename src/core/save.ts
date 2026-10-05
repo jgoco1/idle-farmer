@@ -21,7 +21,7 @@ import {
 } from '../data/ids';
 import { GAME_DATA } from '../data';
 import { SEED_ORDER_RESERVES } from '../data/balance';
-import { WORLD_COLS, WORLD_ROWS, WORLD_LAYOUT } from '../data/world';
+import { WORLD_BOTTOM, WORLD_COLS, WORLD_LAYOUT, WORLD_TOP } from '../data/world';
 
 export const SAVE_VERSION = 14;
 export const SAVE_KEY = 'hearthfield-idle/save';
@@ -482,7 +482,8 @@ function decorProblem(s: Record<string, unknown>): string | null {
       return 'bad decoration';
     const at = p.at;
     if (!isObj(at) || !isInt(at.col) || !isInt(at.row)) return 'bad decoration';
-    if (at.col < 0 || at.row < 0 || at.col >= WORLD_COLS || at.row >= WORLD_ROWS) return 'bad decoration';
+    if (at.col < 0 || at.row < WORLD_TOP || at.col >= WORLD_COLS || at.row >= WORLD_BOTTOM)
+      return 'bad decoration';
     if (p.flipped !== undefined && p.flipped !== true) return 'bad decoration';
     if (ids.has(p.id)) return 'bad decoration';
     ids.add(p.id);

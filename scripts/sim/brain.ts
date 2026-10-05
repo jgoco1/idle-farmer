@@ -49,7 +49,7 @@ import {
   projectStatus,
   type StageStatus,
 } from '../../src/systems/townProjects';
-import { WORLD_COLS, WORLD_ROWS, WORLD_LAYOUT } from '../../src/data/world';
+import { WORLD_BOTTOM, WORLD_COLS, WORLD_LAYOUT } from '../../src/data/world';
 import { dishBuff, planEat } from '../../src/systems/buffs';
 import { freeSpots, ripeTrees, saplingsInBag } from '../../src/systems/orchard';
 import { feedAvailable, feedRoom } from '../../src/systems/feedStore';
@@ -944,7 +944,7 @@ export class Brain {
     const home: { col: number; row: number; d: number }[] = [];
     const meadow: { col: number; row: number; d: number }[] = [];
     const m = WORLD_LAYOUT.regions.find((r) => r.id === 'meadow')!.rect;
-    for (let row = 0; row < WORLD_ROWS; row++)
+    for (let row = 0; row < WORLD_BOTTOM; row++)
       for (let col = 0; col < WORLD_COLS; col++) {
         if (col < 20 && row < 12) home.push({ col, row, d: Math.hypot(col - 2.5, row - 2) });
         else if (col >= m.col && col < m.col + m.cols && row >= m.row && row < m.row + m.rows)

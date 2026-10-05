@@ -14,7 +14,7 @@ import {
   type TownProjectId,
 } from '../data/ids';
 import type { TileRect } from '../data/types';
-import { HOME_RECT, WORLD_COLS, WORLD_LAYOUT, WORLD_ROWS } from '../data/world';
+import { HOME_RECT, WORLD_BOTTOM, WORLD_COLS, WORLD_LAYOUT, WORLD_ROWS, WORLD_TOP } from '../data/world';
 import { anchoredPosition } from './spriteCache';
 import { spriteDef } from './sprites';
 import { townSpriteId } from './sprites/town';
@@ -25,9 +25,12 @@ export const TILE = 16;
 /** The home region (the whole v1 scene) in logical pixels: 320 × 192. */
 export const HOME_W = HOME_RECT.cols * TILE;
 export const HOME_H = HOME_RECT.rows * TILE;
-/** The world in logical pixels: 576 × 352. */
+/** The world's size in logical pixels: 576 × 576 (v4). Sizes, never bounds: see WORLD_Y0 / WORLD_Y1. */
 export const WORLD_W = WORLD_COLS * TILE;
 export const WORLD_H = WORLD_ROWS * TILE;
+/** The world's top and bottom edges in world pixels (−224 and 352): the north band has negative rows. */
+export const WORLD_Y0 = WORLD_TOP * TILE;
+export const WORLD_Y1 = WORLD_BOTTOM * TILE;
 
 /** Top-left tile of the plot grid. The grid grows right and down from here (4 × 2 → 8 × 6). */
 export const PLOT_ORIGIN = { col: 6, row: 2 } as const;
@@ -123,7 +126,7 @@ export function zoneAt(zones: readonly Zone[], col: number, row: number): Zone |
 
 /** World pixel → world tile, or null outside the world. */
 export function tileAt(x: number, y: number): { col: number; row: number } | null {
-  if (x < 0 || y < 0 || x >= WORLD_W || y >= WORLD_H) return null;
+  if (x < 0 || y < WORLD_Y0 || x >= WORLD_W || y >= WORLD_Y1) return null;
   return { col: Math.floor(x / TILE), row: Math.floor(y / TILE) };
 }
 
@@ -207,12 +210,17 @@ export interface PlacedSprite {
 }
 
 export interface SceneLayout {
-  /** Ground sprite id for every tile, [row][col]. */
+  /** Ground sprite id for every tile, [row − WORLD_TOP][col] (see `groundAt`). */
   ground: string[][];
   /** Tiles whose ground animates (water), redrawn every frame. */
   animated: { col: number; row: number; sprite: string }[];
   /** Objects drawn over the ground, sorted by their bottom edge so nearer things overlap farther ones. */
   objects: PlacedSprite[];
+}
+
+/** The ground sprite at world tile (col, row) (rows may be negative), or '' outside the world. */
+export function groundAt(ground: readonly (readonly string[])[], col: number, row: number): string {
+  return ground[row - WORLD_TOP]?.[col] ?? '';
 }
 
 /** Cheap deterministic hash for cosmetic variety (never game state, never the game RNG). */
@@ -464,7 +472,7 @@ export function buildLayout(
   const animated: SceneLayout['animated'] = [];
   const objects: PlacedSprite[] = [];
 
-  for (let row = 0; row < WORLD_ROWS; row++) {
+  for (let row = WORLD_TOP; row < WORLD_BOTTOM; row++) {
     const line: string[] = [];
     for (let col = 0; col < WORLD_COLS; col++) {
       const pond = pondTile(col, row);

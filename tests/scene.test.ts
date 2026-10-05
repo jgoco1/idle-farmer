@@ -16,17 +16,21 @@ import {
   WORLD_H,
   WORLD_W,
   zoneAt,
+  groundAt,
+  WORLD_Y0,
+  WORLD_Y1,
 } from '../src/render/scene';
 import { SPRITES } from '../src/render/sprites';
 import { tintAt } from '../src/render/tint';
 import { START_GRID } from '../src/data/balance';
 
 describe('scene layout', () => {
-  it('is a 36 × 22 world of 16 px tiles whose home region is the 20 × 12 v1 scene', () => {
-    expect([WORLD_W, WORLD_H]).toEqual([576, 352]);
+  it('is a 36 × 36 world of 16 px tiles (rows −14 … 21) whose home region is the 20 × 12 v1 scene', () => {
+    expect([WORLD_W, WORLD_H]).toEqual([576, 576]);
+    expect([WORLD_Y0, WORLD_Y1]).toEqual([-224, 352]);
     expect([HOME_W, HOME_H]).toEqual([320, 192]);
     const layout = buildLayout(START_GRID);
-    expect(layout.ground).toHaveLength(22);
+    expect(layout.ground).toHaveLength(36);
     for (const row of layout.ground) {
       expect(row).toHaveLength(36);
       for (const id of row) expect(SPRITES[id], id).toBeDefined();
@@ -36,10 +40,10 @@ describe('scene layout', () => {
 
   it('draws the start plots as tilled soil at (6,2), 4 × 2', () => {
     const { ground } = buildLayout(START_GRID);
-    expect(ground[2]![6]).toBe('tile_soil_dry');
-    expect(ground[3]![9]).toBe('tile_soil_dry');
-    expect(ground[4]![9]).not.toBe('tile_soil_dry');
-    expect(ground[2]![10]).not.toBe('tile_soil_dry');
+    expect(groundAt(ground, 6, 2)).toBe('tile_soil_dry');
+    expect(groundAt(ground, 9, 3)).toBe('tile_soil_dry');
+    expect(groundAt(ground, 9, 4)).not.toBe('tile_soil_dry');
+    expect(groundAt(ground, 10, 2)).not.toBe('tile_soil_dry');
   });
 
   it('animates the pond water and the sea, nothing else in home', () => {
@@ -64,13 +68,13 @@ describe('scene layout', () => {
       'river',
       'ocean',
     ]);
-    expect(ground[2]![6]).toBe('tile_soil_dry');
-    expect(ground[7]![13]).toBe('tile_soil_dry');
-    expect(ground[9]![14]).toBe('tile_path');
-    expect(ground[11]![10]).toBe('tile_river');
-    expect(ground[10]![15]).toBe('tile_path'); // the landing
-    expect(ground[11]![17]).toBe('tile_sea');
-    expect(ground[8]![2]).toBe('tile_water');
+    expect(groundAt(ground, 6, 2)).toBe('tile_soil_dry');
+    expect(groundAt(ground, 13, 7)).toBe('tile_soil_dry');
+    expect(groundAt(ground, 14, 9)).toBe('tile_path');
+    expect(groundAt(ground, 10, 11)).toBe('tile_river');
+    expect(groundAt(ground, 15, 10)).toBe('tile_path'); // the landing
+    expect(groundAt(ground, 17, 11)).toBe('tile_sea');
+    expect(groundAt(ground, 2, 8)).toBe('tile_water');
   });
 
   it('overgrows locked parcels with a "For sale" sign, and clears them once bought', () => {
@@ -208,9 +212,9 @@ describe('the field fence and the home path', () => {
         c >= f.col && c < f.col + f.cols && r >= f.row && r < f.row + f.rows;
       for (const [c, r] of tiles) {
         expect(inside(c, r), `${name} ${c},${r}`).toBe(false);
-        expect(ground[r]![c], `${name} ${c},${r}`).toBe('tile_path');
+        expect(groundAt(ground, c, r), `${name} ${c},${r}`).toBe('tile_path');
       }
-      for (const g of gates) expect(ground[g.row]![g.col]).toBe('tile_path');
+      for (const g of gates) expect(groundAt(ground, g.col, g.row)).toBe('tile_path');
       // Walk the path (through its gates and across the field) from the door to the tile beside the lane.
       const open = new Set([...tiles.map(([c, r]) => `${c},${r}`), ...gates.map((g) => `${g.col},${g.row}`)]);
       for (let r = f.row + 1; r < f.row + f.rows - 1; r++)
@@ -233,7 +237,7 @@ describe('the field fence and the home path', () => {
         }
       }
       expect(seen.has('17,9'), name).toBe(true);
-      expect(ground[9]![18]).toBe('tile_path'); // the lane carries on from there
+      expect(groundAt(ground, 18, 9)).toBe('tile_path'); // the lane carries on from there
       // Every path tile is part of that one route (no stubs cut off by the field).
       for (const [c, r] of tiles) expect(seen.has(`${c},${r}`), `${name} ${c},${r}`).toBe(true);
     }

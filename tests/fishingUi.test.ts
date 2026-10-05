@@ -3,7 +3,15 @@ import type { GameEvent } from '../src/core/events';
 import type { OfflineReport } from '../src/core/offline';
 import { START_GRID } from '../src/data/balance';
 import { FISH_IDS, JUNK_IDS } from '../src/data/ids';
-import { buildLayout, buildZones, inRect, LOCATION_ZONE, TRAP_TILES, trapTile } from '../src/render/scene';
+import {
+  buildLayout,
+  buildZones,
+  inRect,
+  LOCATION_ZONE,
+  TRAP_TILES,
+  trapTile,
+  groundAt,
+} from '../src/render/scene';
 import { ALL_SPRITES, SPRITES } from '../src/render/sprites';
 import { awayRows, awayTotals } from '../src/ui/awaySummary';
 
@@ -20,30 +28,30 @@ describe('fishing scenery', () => {
     }
     expect(home).toContain('obj_for_sale'); // the dock's sign on the shore
     expect(home.filter((s) => s === 'obj_dock_post')).toHaveLength(0);
-    expect(plain.ground[11]![8]).not.toBe('tile_river');
-    expect(plain.ground[11]![17]).toBe('tile_sea');
+    expect(groundAt(plain.ground, 8, 11)).not.toBe('tile_river');
+    expect(groundAt(plain.ground, 17, 11)).toBe('tile_sea');
   });
 
   it('River Access lays a river along the bottom edge with a bridge', () => {
     const layout = buildLayout(START_GRID, ['river']);
     for (let col = 7; col <= 13; col++) {
-      expect(layout.ground[10]![col], `bank ${col}`).toBe('tile_pond_edge_n');
-      expect(layout.ground[11]![col], `current ${col}`).toBe('tile_river');
+      expect(groundAt(layout.ground, col, 10), `bank ${col}`).toBe('tile_pond_edge_n');
+      expect(groundAt(layout.ground, col, 11), `current ${col}`).toBe('tile_river');
     }
-    expect(layout.ground[10]![6]).toBe('tile_pond_corner_nw');
-    expect(layout.ground[11]![14]).toBe('tile_pond_edge_e');
+    expect(groundAt(layout.ground, 6, 10)).toBe('tile_pond_corner_nw');
+    expect(groundAt(layout.ground, 14, 11)).toBe('tile_pond_edge_e');
     expect(layout.animated.filter((a) => a.sprite === 'tile_river')).toHaveLength(7);
     expect(layout.objects.filter((o) => o.sprite === 'obj_bridge')).toHaveLength(2);
-    expect(layout.ground[11]![15]).not.toBe('tile_sea'); // the dock is not there yet
+    expect(groundAt(layout.ground, 15, 11)).not.toBe('tile_sea'); // the dock is not there yet
   });
 
   it('the Old Dock adds sea tiles, planks and posts in the bottom-right corner', () => {
     const layout = buildLayout(START_GRID, ['river', 'ocean']);
     for (let col = 16; col <= 19; col++) {
-      expect(layout.ground[10]![col]).toBe('tile_sea');
-      expect(layout.ground[11]![col]).toBe('tile_sea');
+      expect(groundAt(layout.ground, col, 10)).toBe('tile_sea');
+      expect(groundAt(layout.ground, col, 11)).toBe('tile_sea');
     }
-    expect(layout.ground[10]![15]).toBe('tile_path');
+    expect(groundAt(layout.ground, 15, 10)).toBe('tile_path');
     expect(layout.objects.filter((o) => o.sprite === 'obj_dock')).toHaveLength(3);
     // Two dock posts, plus the two end posts of the broken Old Bridge on the inlet (row 12).
     expect(layout.objects.filter((o) => o.sprite === 'obj_dock_post' && o.y < 192)).toHaveLength(2);
@@ -59,7 +67,7 @@ describe('fishing scenery', () => {
       expect(TRAP_TILES[loc]).toHaveLength(3); // two, and a third once the Pond Fish bundle is done
       for (const t of TRAP_TILES[loc]) {
         expect(inRect(zoneOf(LOCATION_ZONE[loc]).rect, t.col, t.row), `${loc} ${t.col},${t.row}`).toBe(true);
-        expect(water.has(layout.ground[t.row]![t.col]!), `${loc} ${t.col},${t.row}`).toBe(true);
+        expect(water.has(groundAt(layout.ground, t.col, t.row)), `${loc} ${t.col},${t.row}`).toBe(true);
         expect(
           layout.objects.some(
             (o) => o.x === t.col * 16 && o.y === t.row * 16 && o.sprite !== 'obj_dock_post',

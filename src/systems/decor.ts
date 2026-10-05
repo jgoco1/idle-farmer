@@ -8,7 +8,7 @@ import type { GameData } from '../data';
 import type { DecorId } from '../data/ids';
 import { DECOR_IDS, isDecorId } from '../data/ids';
 import type { DecorDef } from '../data/types';
-import { fixedBlockReason, regionAt, WORLD_COLS, WORLD_ROWS } from '../data/world';
+import { fixedBlockReason, regionAt, WORLD_BOTTOM, WORLD_COLS, WORLD_TOP } from '../data/world';
 import { charmOf, noteCharm } from './charm';
 import { fail, OK, type ActionResult, type SimContext } from './context';
 import { canAfford, spend } from './economy';
@@ -138,9 +138,9 @@ export function tileProblem(state: GameState, data: GameData, col: number, row: 
     !Number.isInteger(col) ||
     !Number.isInteger(row) ||
     col < 0 ||
-    row < 0 ||
+    row < WORLD_TOP ||
     col >= WORLD_COLS ||
-    row >= WORLD_ROWS
+    row >= WORLD_BOTTOM
   ) {
     return 'That is past the edge of the world.';
   }

@@ -1,15 +1,23 @@
-// The v2 world layout (GDD §12.1, DATA_SCHEMAS.md §9.3): a 36 × 22 tile map whose top-left 20 × 12
-// corner is the v1 scene at the same tile coordinates. Regions, lanes, the sea, the town sites, the
-// orchard's tree spots and the "For sale" signs are data here, not constants scattered in render code.
+// The world layout (GDD §12.1, §13.2; DATA_SCHEMAS.md §9.3, §10.3): a 36 × 36 tile map, rows −14 … 21.
+// The v1 scene is the 20 × 12 block at (0, 0), the v2 world rows 0 … 21, and the v4 north band rows
+// −14 … −1. Regions, lanes, the sea, the town sites, the orchard's tree spots, the north fields and the
+// "For sale" signs are data here, not constants scattered in render code.
 //
-// The world may only grow right and down. Never move HOME_ORIGIN or shift a region: decorations and
-// buildings (v2 phases 02 and 04) are stored in world tiles, and a shift would need a save migration.
+// The world may grow in any direction by adding rows or columns outside it; existing tiles never move.
+// HOME_ORIGIN stays (0, 0) and stored positions are world tiles, which may be negative. WORLD_TOP,
+// WORLD_BOTTOM and WORLD_COLS are the only place the size is written: code reads them (or WORLD_Y0 /
+// WORLD_Y1 in pixels, or the layout), never 0 or WORLD_H as a bound.
 
 import type { ParcelId, TownProjectId } from './ids';
 import type { TileRect } from './types';
 
 export const WORLD_COLS = 36;
-export const WORLD_ROWS = 22;
+/** The top row (v4: the north band is rows −14 … −1). */
+export const WORLD_TOP = -14;
+/** One past the bottom row. */
+export const WORLD_BOTTOM = 22;
+/** A count of rows, never a bound. */
+export const WORLD_ROWS = WORLD_BOTTOM - WORLD_TOP;
 
 /** Where the v1 20 × 12 scene sits in the world. Never changes. */
 export const HOME_ORIGIN = { col: 0, row: 0 } as const;
@@ -25,6 +33,8 @@ export interface WorldTile {
 export interface WorldLayout {
   cols: number;
   rows: number;
+  /** The top row (WORLD_TOP); rows run `top … top + rows − 1`. */
+  top: number;
   /** Home, the three parcels and the town square. */
   regions: readonly { id: RegionId; rect: TileRect }[];
   /** Scenery path tiles that join the regions. Nothing is placed on them. */
@@ -51,6 +61,7 @@ const run = (col: number, row: number, dc: number, dr: number, n: number): World
 export const WORLD_LAYOUT: WorldLayout = Object.freeze({
   cols: WORLD_COLS,
   rows: WORLD_ROWS,
+  top: WORLD_TOP,
   regions: [
     { id: 'home', rect: HOME_RECT },
     { id: 'orchard', rect: { col: 21, row: 0, cols: 15, rows: 7 } },
@@ -119,7 +130,7 @@ export function inTileRect(r: TileRect, col: number, row: number): boolean {
 
 /** The region a world tile belongs to (lanes and sea between them), or null outside the world. */
 export function regionAt(col: number, row: number, layout: WorldLayout = WORLD_LAYOUT): RegionId | null {
-  if (col < 0 || row < 0 || col >= layout.cols || row >= layout.rows) return null;
+  if (col < 0 || row < layout.top || col >= layout.cols || row >= layout.top + layout.rows) return null;
   for (const r of layout.regions) if (inTileRect(r.rect, col, row)) return r.id;
   if (layout.sea.some((s) => inTileRect(s, col, row))) return 'sea';
   return 'lanes';
