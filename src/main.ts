@@ -1529,6 +1529,8 @@ function exposeHooks(): void {
     lightsLit: () => renderer.lightsLit,
     decorMode: () => decorate.on,
     sceneSprites: () => renderer.layoutSpriteIds(),
+    /** The farmhand figure: its feet in world px and the field it is in (v4-01, e2e). */
+    farmhand: () => ({ x: renderer.farmhand.x, y: renderer.farmhand.y, area: renderer.farmhand.area }),
     /** Where an animal's feet are in world px (e2e: click an animal). */
     animalAt: (id: number) => renderer.ranch.positionOf(id),
     /** Building mode (e2e). */
