@@ -1303,3 +1303,310 @@ Rules that carry over from §8: migrations take raw JSON and do not import curre
 - **Cook ×N:** `maxBatch(state, data, recipe)` in `src/systems/cooking.ts` (free stove slots, then the ingredients in the bag); the stepper is UI state in `kitchenPanel.ts` and Cook sends N `cook` actions.
 - **Harvest all / Water all:** `bulkPlots(state)` in `src/ui/farmTools.ts` (the whole field, not the greenhouse) is used by Shift-click and the two buttons, which send the same `useTool` action (`useOnField` in `main.ts`).
 - **HUD chip:** `Hud.levelButton` shows `Lv ${farmLevel(state)}`; `main.ts` toggles the Goals panel from it.
+
+## 10. v4: the North
+
+Written by v4 phase 00. Numbers are in BALANCE.md §14 and behaviour in GDD §13; this section fixes ids, coordinates, shapes and the save plan. Each item is tagged with the phase that builds it (`@v4-01` … `@v4-04`). As in §9, a data table keyed by an id union is a full `Record`, so a missing entry is a compile error.
+
+### 10.1 New id unions (`src/data/ids.ts`)
+
+```ts
+export type ParcelId = 'orchard' | 'yard' | 'meadow'
+  | 'north_fields' | 'terraces';                                                              // @v4-01
+export type NorthFieldId = 'north_fields' | 'terraces';    // a parcel that carries a field; the FieldId of its plots   @v4-01
+export type FieldId = 'home' | 'greenhouse' | NorthFieldId;                                    // @v4-01 (derived from a plot index)
+export type RegionId = 'home' | ParcelId | 'town' | 'lanes' | 'sea' | 'northroad' | 'woods';   // @v4-01 (src/data/world.ts)
+
+export type DrinkId =                                                                         // @v4-03, @v4-04
+  | 'tomato_juice' | 'honey_milk' | 'strawberry_cordial' | 'blueberry_cordial' | 'lemonade'
+  | 'apple_cider' | 'peach_iced_tea' | 'melon_cooler' | 'hot_cocoa' | 'orchard_punch'        // @v4-03
+  | 'herbal_tea' | 'elderflower_cordial';                                                     // @v4-04
+export type ForageId = 'morel' | 'chanterelle' | 'wild_mint' | 'elderflower'
+  | 'blackberry' | 'rose_hip' | 'hazelnut';                                                   // @v4-04
+export type LakeFishId = 'whitefish' | 'lake_trout' | 'crayfish' | 'pike' | 'golden_trout' | 'alpine_char';   // @v4-04
+
+// Extended unions
+export type FishLocationId = 'pond' | 'river' | 'ocean' | 'lake';                             // @v4-04
+export type FishId = /* the 16 v1 ids */ | LakeFishId;                                        // @v4-04
+export type ExpansionId = /* the 6 v1 ids */ | 'lake';                                        // @v4-04 (kind 'fishing', location 'lake')
+export type ItemId = /* v2 */ | DrinkId | 'honey' | 'cocoa' | ForageId;                       // @v4-03, @v4-04
+export type RecipeId = /* the 32 dishes */
+  | 'honey_cake' | 'honey_roast_yams'                                                         // @v4-03 (dishes)
+  | 'mushroom_risotto' | 'blackberry_tart'                                                    // @v4-04 (dishes)
+  | DrinkId;                                                                                  // drinks are recipes with station 'press'
+export type UpgradeId = /* v2 */ | 'forager_basket';                                          // @v4-04, only if the owner approves
+export type MilestoneId = /* v2 */
+  | 'm24_north_field' | 'm25_first_serving' | 'm26_first_drink' | 'm27_first_honey'
+  | 'm28_first_forage' | 'm29_lake_fish';
+export type GoalTemplateId = /* v2 */ | 'serve_dishes' | 'press_drinks';                      // @v4-02, @v4-03
+export type BundleId = /* v2 */ | 'press_house' | 'forager';                                  // @v4-03, @v4-04
+export type PanelId = /* v2 */ | 'restaurant' | 'press';                                      // @v4-02, @v4-03
+```
+
+Guards and arrays alongside the v2 ones: `NORTH_FIELD_IDS`, `isNorthFieldId`, `DRINK_IDS`, `isDrinkId`, `FORAGE_IDS`, `isForageId`. A drink's item id is its recipe id (as a dish's is). `PARCEL_IDS` keeps purchase order: orchard, yard, meadow, north_fields, terraces; a parcel's `requires` (not its place in the list) decides when it can be bought.
+
+### 10.2 World coordinates: growing north (@v4-01)
+
+```ts
+// src/data/world.ts
+export const WORLD_COLS = 36;
+export const WORLD_TOP = -14;                    // the north band is rows −14 … −1
+export const WORLD_BOTTOM = 22;                  // exclusive; today's bottom
+export const WORLD_ROWS = WORLD_BOTTOM - WORLD_TOP;   // 36: a count, never a bound
+export const HOME_ORIGIN = { col: 0, row: 0 } as const;   // unchanged
+// src/render/scene.ts
+export const WORLD_Y0 = WORLD_TOP * TILE;        // −224
+export const WORLD_Y1 = WORLD_BOTTOM * TILE;     // 352
+export const WORLD_H = WORLD_ROWS * TILE;        // 576 (a size)
+```
+
+The four coordinate spaces of §9.3 are unchanged; **world tile rows may now be negative**. Rules:
+- A bound is `WORLD_TOP ≤ row < WORLD_BOTTOM` and `0 ≤ col < WORLD_COLS`, or `WORLD_Y0 ≤ y < WORLD_Y1` in pixels. Never `row < 0` or `y < 0`.
+- Arrays over rows are indexed `row − WORLD_TOP` (the layout's `ground`, chunk rows).
+- **The world may grow in any direction by adding tiles outside it; existing tiles never move.** A future band adds a new `WORLD_TOP`, `WORLD_BOTTOM` or `WORLD_COLS`; nothing stored changes meaning.
+
+**Audit: every place that assumes the world starts at row 0** (line numbers on `main` at v2-06). "Change" is what negative rows need.
+
+| # | Where | What it assumes | Change |
+|---|---|---|---|
+| 1 | `src/data/world.ts:11–12` | `WORLD_COLS`, `WORLD_ROWS` are the size and `0` the top | add `WORLD_TOP`, `WORLD_BOTTOM`; `WORLD_ROWS` derived; `WorldLayout` gains `top` |
+| 2 | `src/data/world.ts:1–6` | comment: "may only grow right and down" | the new rule above |
+| 3 | `src/data/world.ts:121–122` `regionAt` | `row < 0 \|\| row >= layout.rows` is outside | `row < layout.top \|\| row >= layout.top + layout.rows` |
+| 4 | `src/data/world.ts:160, 173` blocked-tile key `row × WORLD_COLS + col` | – | none: unique for negative rows while `0 ≤ col < 36` (a test pins it) |
+| 5 | `src/render/scene.ts:29–30` `WORLD_W`, `WORLD_H` | `WORLD_H` is also the bottom bound | add `WORLD_Y0`, `WORLD_Y1`; `WORLD_H` stays a size |
+| 6 | `src/render/scene.ts:125–126` `tileAt` | `y < 0` is outside | `y < WORLD_Y0 \|\| y >= WORLD_Y1`; `Math.floor` already maps −0.5 to −1 |
+| 7 | `src/render/scene.ts:467–498` `buildLayout` | loops `row = 0 … WORLD_ROWS`, `ground[row]` | loop `WORLD_TOP … WORLD_BOTTOM`, `ground[row − WORLD_TOP]` (a `groundAt(layout, col, row)` helper) |
+| 8 | `src/render/scene.ts:281` forest `TREES`, `SCENERY` | the world's edge is row 0 at the top | the tree line at row −14 and the north scenery are data (`WORLD_LAYOUT.treeLine`, `SCENERY`) |
+| 9 | `src/render/scene.ts:219` `tileHash` | – | none: integer maths works for negatives |
+| 10 | `src/render/scene.ts:169–197` `tileOfPlot`, `plotIndexAt`; `:226` `fenceRect`; `:245` `pathFor` | one field (plus the greenhouse) | per field (§10.3): `fieldOf(index)`, `FIELD_LAYOUT[field]`, `fenceRectFor(field, grid)`, `pathFor` stays the home path; north fields have fixed fences and paths in `WORLD_LAYOUT` |
+| 11 | `src/render/camera.ts:83–86` `clampCamera` | y clamped to `[halfH, WORLD_H − halfH]`, centred at `WORLD_H / 2` | `[WORLD_Y0 + halfH, WORLD_Y1 − halfH]`, centre `(WORLD_Y0 + WORLD_Y1) / 2` |
+| 12 | `src/render/camera.ts:160–161` `CHUNK_ROWS` | `ceil(WORLD_H / CHUNK_PX)` | unchanged formula (3 rows of chunks) |
+| 13 | `src/render/camera.ts:167–176` `visibleChunks` | `r0 = floor(rect.y / CHUNK_PX)`, chunk row 0 at y 0 | `floor((rect.y − WORLD_Y0) / CHUNK_PX)` (chunks anchored at the world's top) |
+| 14 | `src/render/camera.ts:95–105` `defaultCamera` | – | none (home region); a test pins it |
+| 15 | `src/render/renderer.ts:366–379` frame canvas and chunk canvases | the frame canvas's (0, 0) is world (0, 0) | the frame stays `WORLD_W × WORLD_H`; `fctx.setTransform(1, 0, 0, 1, 0, −WORLD_Y0)` once, so every draw stays in world px; chunk height `min(CHUNK_PX, WORLD_H − r × CHUNK_PX)` unchanged |
+| 16 | `src/render/renderer.ts:943–945` `buildChunks` | ground row `r0` = chunk row × 16 | unchanged once `ground` is indexed from the top (#7) |
+| 17 | `src/render/renderer.ts:988–991` the composed region | `y0 = max(0, …)`, `y1 = min(WORLD_H, …)` | `max(WORLD_Y0, …)`, `min(WORLD_Y1, …)` |
+| 18 | `src/render/renderer.ts:1027–1030` chunk draw position | `cy = chunkRow × CHUNK_PX` | `+ WORLD_Y0` |
+| 19 | `src/render/renderer.ts:1130` copy to screen | source rect `(x0, y0)` is canvas px | source `y0 − WORLD_Y0` (the canvas is not transformed for `drawImage` reads) |
+| 20 | `src/render/ambient.ts:93` clouds; `:132–137` `setBounds` | clouds spawn in `[20, WORLD_H]`; bounds clamped to `[0, WORLD_H]` | `[WORLD_Y0 + 20, WORLD_Y1]`; `[WORLD_Y0, WORLD_Y1]` |
+| 21 | `src/systems/decor.ts:140–143` `tileProblem` | `row < 0` is past the edge | `row < WORLD_TOP`; new region cases: north parcels need ownership, `northroad` and `woods` are refused ("The north road belongs to everyone.", "Leave the woods wild.") |
+| 22 | `src/core/save.ts:485` decoration validation | `at.row < 0` is bad | `at.row < WORLD_TOP` |
+| 23 | `src/core/save.ts:373` placed objects | `at` inside the one grid | inside its field's grid (`field` absent = home, §10.6) |
+| 24 | `src/core/save.ts:528–545` ranch buildings | – | none (no bound checked; buildings stay in the yard) |
+| 25 | `src/systems/ranch.ts:203–231` building placement | – | none (the yard's rect) |
+| 26 | `src/render/pips.ts:37–60` `edgePips` | – | none (pure maths on world px) |
+| 27 | `src/main.ts:498` `regionAt` for toasts | regions known to `REGION_NAMES` | add `north_fields` "North Fields", `terraces` "Upper Terraces", `northroad` "North Road", `woods` "North Woods" |
+| 28 | `src/core/prefs.ts` `sanitizeCamera` | – | none: any finite world px; clamped when used |
+| 29 | `e2e/helpers.ts:99` `plotTile` | the home field only | add `fieldPlotTile(field, i)`; `tilePoint`, `showTile`, `onScreen` work in world tiles and need nothing |
+| 30 | `scripts/sim/brain.ts:947` decoration spiral | rows `0 … WORLD_ROWS` | rows `WORLD_TOP … WORLD_BOTTOM` if the north becomes decoration space for bots (home and meadow only today: no change needed) |
+| 31 | `tests/world.test.ts:44, 60–64`, `tests/decorRender.test.ts:256–266` | the world is 36 × 22 from row 0 | the new size and bounds |
+| 32 | sprites that tile | – | none: ground, water, fences and paths are drawn per tile at world px; auto-tile masks use `"col,row"` keys; particles and ambient use float world px |
+
+About 30 sites, a dozen with real edits; roughly 250 lines plus tests. Hit-testing order (§9.3) gains the north's zones after the v1 zones: restaurant site, Press House site, hive spots, forage spots, the lake.
+
+### 10.3 The north layout and fields (@v4-01)
+
+```ts
+// WorldLayout additions (src/data/world.ts)
+export interface WorldLayout {
+  /* … §9.3 … */
+  top: number;                                              // WORLD_TOP
+  treeLine: TileRect;                                       // (0, −14) 36 × 1
+  hedges: readonly TileRect[];                              // (0, −1) 20 × 1, (0, −8) 20 × 1
+  northFields: Readonly<Record<NorthFieldId, NorthFieldLayout>>;
+  restaurantSite: TileRect;                                 // (22, −6) 5 × 5: footprint (22, −5) 5 × 3, terrace (22, −2) 5 × 1
+  pressSite: TileRect;                                      // (28, −6) 4 × 5: footprint (28, −5) 4 × 3, yard (28, −2) 4 × 1 (one press per slot)
+  hiveSpots: readonly WorldTile[];                          // (32, −6), (34, −6), (32, −4), (34, −4), (32, −2), (34, −2)
+  lake: TileRect;                                           // (27, −13) 7 × 3, jetty (30, −10)
+  forageSpots: readonly { col: number; row: number; kind: ForageKind }[];   // @v4-04, 8 entries
+  // forSaleSigns gains north_fields (18, −6) and terraces (18, −12)
+}
+export interface NorthFieldLayout {
+  origin: WorldTile;               // top-left plot: north_fields (6, −6), terraces (6, −12)
+  grid: { cols: number; rows: number };   // 8 × 4, 8 × 3 (fixed: no expansions)
+  gate: WorldTile & { sprite: 'obj_fence_gate_v' };   // (14, −5), (14, −11)
+  path: readonly WorldTile[];      // (15 … 19, −5), (15 … 19, −11), to the north road
+  rest: WorldTile;                 // where the farmhand figure waits: the path tile by the gate
+}
+export type ForageKind = 'mushroom' | 'herb' | 'berry' | 'nut';
+```
+
+Regions (`WORLD_LAYOUT.regions`): `north_fields` (0, −7) 20 × 6, `terraces` (0, −13) 20 × 5, `northroad` (21, −7) 15 × 6, `woods` (21, −13) 15 × 5. Lanes add col 20 rows −13 … −1 and rows −1 and −8 at cols 21 … 35. `DECOR_BLOCKED` adds each north field's fence ring (the whole field plus ring), its path, the hedges and the tree line; `fixedBlockReason` covers them.
+
+**Plot addressing** (`src/data/balance.ts`, `src/systems/farming.ts`):
+
+```ts
+GREENHOUSE_BASE = 1000                                       // unchanged
+FIELD_BASE: Readonly<Record<NorthFieldId, number>> = { north_fields: 2000, terraces: 3000 };
+fieldOf(index): FieldId      // < 1000 home · < 2000 greenhouse · < 3000 north_fields · < 4000 terraces
+plotAt(state, index)         // home plots, greenhouse, or state.farm.north[field].plots[index − FIELD_BASE[field]]
+allPlotIndexes(state)        // home, greenhouse, then each owned north field in NORTH_FIELD_IDS order (cached per farm shape)
+tileOfPlot(grid, index)      // north: FIELD origin + (i % cols, floor(i / cols))
+plotIndexAt(grid, col, row, greenhousePlots, ownedNorth)     // inverse, −1 off any plot
+```
+
+Coverage maps (sprinklers, scarecrows) are kept per field (`Coverage` gains `byField`), and an area never crosses into another field. `expandToolArea` clips to the clicked plot's field. `bulkPlots(state)` (Shift-click and Harvest all / Water all) takes the clicked field for Shift-click and every non-greenhouse field for the buttons.
+
+### 10.4 Content definitions (v4)
+
+```ts
+// src/data/parcels.ts: ParcelDef gains an optional field
+export interface ParcelDef { /* … §9.4 … */ field?: NorthFieldId }   // north parcels carry their field   @v4-01
+
+// src/data/restaurant.ts  @v4-02
+export interface RestaurantLevelDef { price: number; slots: number; premium: number }
+export const RESTAURANT: {
+  name: 'The Bramble Table'; requires: readonly UnlockCondition[];
+  levels: readonly [RestaurantLevelDef, RestaurantLevelDef, RestaurantLevelDef];   // BALANCE §14.3
+  specialRota: readonly RecipeId[];                         // 28 ids; special(d) = rota[d % 28]
+};
+// a menuable item: an ItemDef with category 'dish' or 'drink'; serving interval from its recipe's tier
+
+// src/data/recipes.ts: RecipeDef gains a station  @v4-03
+export interface RecipeDef {
+  /* … §4.4 … */
+  station?: 'kitchen' | 'press';                            // absent = kitchen
+  // for 'press', cookSec is the press time (BALANCE §14.4); the tier formula divides it by TIER_PRESS_DIV
+}
+// ItemCategory gains 'drink' (sellable, edible, menuable) and 'forage' (sellable); honey is 'animal'
+// (a sellable product, Auto-Seller off by default); cocoa is 'feed'-like: category 'ingredient', not sellable.
+export type ItemCategory = /* v2 */ | 'drink' | 'forage' | 'ingredient';
+
+// src/data/press.ts  @v4-03
+export interface PressLevelDef { price: number; slots: number }
+export const PRESS_HOUSE: { name: 'Press House'; requires: readonly UnlockCondition[]; levels: readonly PressLevelDef[]; shelf: { cocoa: number } };
+export const HIVE: { basePrice: number; ratio: number; cycleSec: number; store: number; product: 'honey'; requires: readonly UnlockCondition[] };
+
+// src/data/forage.ts  @v4-04
+export const FORAGE_KINDS: Readonly<Record<ForageKind, Readonly<Record<SeasonId, { item: ForageId; perDay: number } | null>>>>;
+
+// src/data/fish.ts  @v4-04
+export interface ReelTuning { zoneSpeedMult: number; zoneWidthMult: number; biteWaitMult: number }
+export const LOCATION_REEL: Readonly<Record<FishLocationId, ReelTuning>>;   // pond, river, ocean all 1; lake 0.85 / 0.92 / 1.15
+```
+
+One new `UnlockCondition` kind. The restaurant uses `farmLevel`, `upgrade` (kitchen 2) and `parcel`; the Press House `farmLevel` and `parcel`; hives `{ kind: 'press', level: 1 }`, the new kind (@v4-03: met by a built Press House of at least that level). New `QuestObjective` kinds: `{ kind: 'ownNorthField'; count }` (checked from state, @v4-01), `{ kind: 'serve'; count }` (counts `served`, @v4-02), `{ kind: 'press'; count }` (counts `drinkPressed`, @v4-03), `{ kind: 'collectHoney'; count }` (@v4-03), `{ kind: 'forage'; count }` (@v4-04); the existing `catch` objective already takes a `location`, so `m29_lake_fish` is `{ kind: 'catch', location: 'lake', count: 1 }`. New `BundleReward` kinds: `{ kind: 'menuSlot'; count: 1 }` (@v4-03), `{ kind: 'forageCap'; days: 1 }` (@v4-04).
+
+### 10.5 `GameState` additions
+
+```ts
+export interface GameState {
+  /* … v1 and v2 fields … */
+
+  // ---- north fields (@v4-01, save 15)
+  farm: {
+    grid; plots; greenhouse;                                 // unchanged
+    north: Partial<Record<NorthFieldId, NorthField>>;        // an entry once the parcel is bought
+  };
+  // placed objects on north plots: PlacedObject gains `field?: NorthFieldId` (absent = home); `at` is in that field's plot coordinates
+
+  // ---- restaurant (@v4-02, save 16)
+  restaurant: {
+    level: number;                                           // 0 = not built, 1 … 3
+    menu: MenuSlot[];                                        // length = slots for the level (+1 with the bundle)
+    today: { day: number; gold: number; served: number };    // calendar.dayIndex; reset by onDayStarted
+  };
+
+  // ---- Press House and apiary (@v4-03, save 17)
+  press: {
+    level: number;                                           // 0 = not built
+    slots: PressSlot[];                                      // length = slots for the level
+  };
+  apiary: { hives: HiveState[] };
+
+  // ---- North Woods (@v4-04, save 18)
+  forage: { spots: ForageSpotState[] };                     // one per WORLD_LAYOUT.forageSpots entry, created when the woods open
+}
+
+export interface NorthField {
+  plots: Plot[];                                             // row-major, cols × rows of its layout
+  lastPlantedCrop: (CropId | null)[];                        // same length; the planter's memory for this field
+}
+export interface MenuSlot {
+  item: ItemId | null;                                       // a dish or drink; null = empty
+  qty: number;                                               // 0 … MENU_SLOT_CAP
+  hearty: boolean;                                           // which stack it holds (served at the same price)
+  cycleMs: number;                                           // simulated ms into the current serving; 0 when empty
+}
+export interface PressSlot {
+  recipe: RecipeId | null;                                   // a 'press' recipe
+  remainingMs: number;                                       // 0 = finished
+  done: number;                                              // finished drinks waiting (0 or 1; a repeating slot that finds no room waits)
+  repeat: boolean;                                           // "keep pressing"
+  saved?: ItemId;                                            // like CookJob.saved (the Cooking perk)
+}
+export interface HiveState { id: number; spot: number; honey: number; cycleMs: number }
+export interface ForageSpotState { spot: number; item: ForageId | null; qty: number; lastDay: number }
+// Stats gains: restaurantGold, served (@v4-02); drinksPressed, honeyCollected (@v4-03); foraged (@v4-04).
+```
+
+Derived, never stored: a field's owned state (from `land.parcels`), coverage per field, the day's special, a menu slot's serving interval and next serving time, the restaurant's slot count, press slot count, hive count and next free spot, forage ripeness and cap. `state.lastPlantedCrop` keeps its v1 layout (home field then greenhouse); north fields keep their own.
+
+### 10.6 Actions and events
+
+```ts
+// @v4-01: buyParcel already covers the fields; farming actions take any plot index; placement gains a field
+| { type: 'place'; kind: PlacedKind; col: number; row: number; field?: NorthFieldId }   // extends the v1 placement action
+// @v4-02
+| { type: 'buildRestaurant' }                                                           // level 1
+| { type: 'upgradeRestaurant' }
+| { type: 'stockMenu'; slot: number; item: ItemId; qty: number; hearty?: boolean }      // all or nothing; same item (and stack kind) as the slot holds
+| { type: 'restockMenu' }                                                               // tops every slot up from the bag
+| { type: 'clearMenuSlot'; slot: number }                                               // back to the bag; refused if it does not fit
+// @v4-03
+| { type: 'buildPress' } | { type: 'upgradePress' }
+| { type: 'startPress'; slot: number; recipe: RecipeId; repeat?: boolean }
+| { type: 'setPressRepeat'; slot: number; repeat: boolean }
+| { type: 'cancelPress'; slot: number }                                                 // ingredients back, like cancelCook
+| { type: 'collectPress'; slot?: number }                                               // omitted = all
+| { type: 'buyCocoa'; qty: number }
+| { type: 'buyHive' }                                                                   // next free spot
+| { type: 'collectHive'; hive?: number }                                                // omitted = all
+// @v4-04
+| { type: 'pickForage'; spot: number }
+```
+
+```ts
+| { type: 'northFieldBought'; field: NorthFieldId }                                     // @v4-01 (with parcelBought)
+| { type: 'restaurantBuilt' | 'restaurantUpgraded'; level: number }                     // @v4-02
+| { type: 'served'; item: ItemId; qty: number; gold: number; slot: number; special: boolean }   // @v4-02, batched per slot per step
+| { type: 'menuEmpty'; slot: number }                                                   // @v4-02, once when a slot runs out (away summary, pip)
+| { type: 'pressBuilt' | 'pressUpgraded'; level: number }                              // @v4-03
+| { type: 'drinkPressed'; recipe: RecipeId; slot: number; auto: boolean }               // @v4-03, a run finished
+| { type: 'pressCollected'; recipe: RecipeId; qty: number; auto: boolean }              // @v4-03
+| { type: 'hiveBought'; id: number } | { type: 'honeyMade'; qty: number }               // @v4-03 (batched)
+| { type: 'honeyCollected'; qty: number; auto: boolean }                                // @v4-03
+| { type: 'forageGrown'; item: ForageId; qty: number }                                  // @v4-04, at a refresh (away summary)
+| { type: 'foragePicked'; item: ForageId; qty: number; spot: number; auto: boolean }    // @v4-04
+// harvested, planted, watered gain `field: FieldId` (derived from the index; a convenience for the farmhand figure and the report)
+```
+
+`goldEarned.source` gains `'restaurant'`. `purchased.what` widens with `'restaurant' | 'press' | 'hive' | 'cocoa'` and the new parcel ids.
+
+### 10.7 Modifiers
+
+No new `Modifiers` fields. Hives read `animalSpeedModifier` (Busy Bees), like the animals. The restaurant reads none (its price is base × premium; `sellPriceModifier` and the category bonuses do not apply). Presses read none (Quick Hands is for the stove). Drinks give buffs through the existing seven types and slots. Decorations, charm and town projects still feed nothing, and the v2-02 test that places everything and checks `computeModifiers` keeps passing.
+
+### 10.8 Simulated-time reporting
+
+| System | Step size independence | `msToNextSimEvent`? |
+|---|---|---|
+| restaurant (`tickRestaurant`, after `tickCooking` so a dish cooked this step is not served in it) | whole cycles per slot; fixed interval inside a step | no: nothing changes the interval mid-step |
+| presses (`tickPress`, after `tickRestaurant`) | a run's remaining time counts down; a "keep pressing" restart takes ingredients from the bag | **yes**: `msToNextPressFinish`, because a restart reads the bag, which other systems change |
+| hives (`tickApiary`, right after `tickRanch`, before farming; it uses no RNG) | whole cycles; Busy Bees fixed inside a step | no (buff expiry is already a boundary) |
+| forage (`growForage`, from `onDayStarted`, like `growOrchard`) | calendar days | – |
+
+The Collecting Basket empties hives and finished presses in `ranchPickup`, before the bin pickup (so drinks and honey the Auto-Seller ships are paid at that pickup).
+
+### 10.9 `SAVE_VERSION` plan and migration contracts
+
+One version per build phase that changes state. v3 changes no state (its prompts say so), so the numbers follow v2-06's 14. If any other phase bumps the version first, each v4 phase takes the next free number and keeps the contract.
+
+| Version | Phase | Adds | Migration `migrations[n]` (raw JSON of version n → n + 1) | Fixture `tests/fixtures/save-v(n+1).json` holds |
+|---|---|---|---|---|
+| **15** | v4-01 | `farm.north`, `placed[].field` | 14 → 15: `farm: { ...old.farm, north: {} }`. `placed` entries stay as they are (no `field` = home). Nothing moves: the test loads `save-v14.json` and checks that every decoration, building, tree, trap, placed object and zone hit-tests to the same thing as before, and that a stored camera pref clamps to the same view at the default zoom. | `north_fields` owned with a mix of plots (tilled, planted, ready, dead), a sprinkler and a scarecrow on north plots, `lastPlantedCrop` for the field, and a decoration on a north parcel tile with a negative row |
+| **16** | v4-02 | `restaurant`, `stats.restaurantGold`, `stats.served` | 15 → 16: `restaurant: { level: 0, menu: [], today: { day: old.calendar.maxDayIndex, gold: 0, served: 0 } }`, the two stats at 0 | a level 2 restaurant with three slots: a full stack, a hearty stack mid-cycle, an empty slot |
+| **17** | v4-03 | `press`, `apiary`, `stats.drinksPressed`, `stats.honeyCollected` | 16 → 17: `press: { level: 0, slots: [] }`, `apiary: { hives: [] }`, the stats at 0. Known recipes need nothing (drinks are learned on build). | a level 2 Press House with a running slot, a finished one and a repeating one; three hives (one full); honey and cocoa in the bag; a drink on the menu |
+| **18** | v4-04 | `forage`, `stats.foraged` | 17 → 18: `forage: { spots: [] }` (spots are created when the woods open, with `lastDay` = that day), `stats.foraged: 0`. The lake needs no state: `'lake'` joins `expansions`, `fishing.traps[].location` and the collection when bought. | eight spots in mixed states (ripe, capped, resting), the lake bought with a trap, a lake fish in the collection |
+
+The §8 and §9.10 rules carry over: migrations take raw JSON and import no current types; a save newer than the code or one that fails to load is never overwritten (show the error, offer an export); adding content needs no migration unless the state shape changes; the camera is not in the save. `validateState` gains: north field plots and `lastPlantedCrop` of the layout's length (`bad north field`), placed objects inside their field (`bad placed object`), decorations with `WORLD_TOP ≤ row` (`bad decoration`), menu slots (`bad menu`: a menuable item, `0 ≤ qty ≤ 99`, `cycleMs ≥ 0`, length ≤ 5), press slots (`bad press`), hives (`bad hive`: unique spots inside `hiveSpots`), forage spots (`bad forage`).

@@ -440,3 +440,58 @@ export const animalChickenIdle: SpriteDef = {
 - **Farmhouse:** one finished sprite per combination, `obj_farmhouse_<paint>_<roof>[_loft]` (paint red, sage, sky; roof tile, thatch, slate), composed at load from the v1 sprite by recolouring the walls (leaving the door) and the roof. The original is `obj_farmhouse`. The loft is a 64 × 64 sprite: the roof and chimney rise one tile, a copy of the facade's upper rows sits between, and a dormer window stands on the roof. (ART_STYLE §6.2 listed separate `walls` and `roof` layer sprites; combined sprites are simpler to draw and test.)
 - **Town stages:** `obj_<project>_<n>`, n = 0 the ruin, then one per stage, each the site's size plus one tile of height (the bridge 80 × 32, the bakery and fountain 48 × 64, the bandstand 48 × 48, the lighthouse 32 × 64, the hall 64 × 64), placed with their bottom on the site's bottom. The fountain's last two stages have 2 water frames (400 ms). The lighthouse beam is drawn as a glow wedge (a full turn every 8 s, clipped to the sea, still under reduced motion); the bakery's smoke and the band's notes are particles (`steam`, and a new `note` kind); the band is `fx_band` (2 frames, 420 ms); the festival lights are two `obj_lights_pole` and five `obj_lights_string` tiles across the square.
 
+
+## 7. v4: the North
+
+Written by v4 phase 00. Everything in §1–§6 still holds: palette keys only, 1 px `k` outlines on objects, light from the top-left, sizes in multiples of 16, frames on the render clock, glow drawn after the night tint, everything culled to the view and allocation-free.
+
+**Scale rule (amends §6).** The world is 576 × 576 logical px (36 × 36 tiles, rows −14 … 21). The frame canvas is world-sized and translated by `WORLD_Y0`, so sprites are positioned in world pixels exactly as before; a sprite at a negative row is no different from one at a positive row.
+
+### 7.1 Palette: no additions
+
+The north uses the 49 colours. The **mountain lake** is deeper than the pond: `b` base with `A` (slate) in its deepest middle and a `c`/`C` rim; the **pines** are `l` with `h` and a `K` trunk shadow, darker and cooler than the round v1 `obj_tree`; **honey** is `u`/`U` with an `O` edge and `w` highlight; **cocoa** and the Press House's casks are `m`/`M`; the restaurant's awning is `q`/`Q` stripes on `w`. If a later phase finds it truly needs a colour (for example a cooler pine green), it adds one key to `src/render/palette.ts`, documents it here and updates the colour count in `tests/sprites.test.ts`.
+
+### 7.2 Sizes and names
+
+| Thing | Sprite size (px) | Footprint (tiles) | Anchor | Ids | Frames |
+|---|---|---|---|---|---|
+| Tree line (world edge) | 16 × 32 | 1 × 1 | bottom-center | `obj_pine`, `obj_pine_winter`; the edge row alternates `obj_pine` and the v1 `obj_tree` with `tileHash` | 1 |
+| Woods floor | 16 × 16 | tile | top-left | `tile_woods_a`, `tile_woods_b` (grass `g`/`h` with needle and moss specks) | 1 |
+| Hedge | 16 × 16 | 1 × 1 | top-left | `obj_hedge`, seasonal `obj_hedge_spring` (white blossom), `_autumn` (red berries `q`), `_winter` (snow cap) | 1 |
+| North field fence, gates | 16 × 16 | – | top-left | the home field's: `obj_fence_h`, `_v`, `_nw/ne/sw/se`, `obj_fence_gate_v` | 1 |
+| Field paths, north road | 16 × 16 | tile | top-left | `tile_path` (as today) | 1 |
+| Restaurant | **80 × 64** per level | 5 × 3 (the roof rises one tile) | bottom-center on the footprint | `obj_restaurant_1`, `_2`, `_3`; night frames `obj_restaurant_<n>_lit` (windows `a`, a hanging lantern) | 1 (+ lit) |
+| Terrace table | 16 × 16 | 1 × 1 (row −2, one per slot) | top-left | `obj_table` (two stools), `obj_table_dish` (a plate on it while that slot serves) | 1 |
+| Diner | 16 × 16 | – (render only) | bottom-center | `npc_diner_<a…d>_walk`, `_sit`, `_eat` (4 palettes from the existing skin, hair and cloth keys) | walk 2 × 160 ms, sit 1, eat 2 × 400 ms |
+| Press House | **64 × 64** per level | 4 × 3 (roof rises one tile) | bottom-center | `obj_press_house_1`, `_2`, `_3`; `obj_press_house_<n>_lit` | 1 (+ lit) |
+| Press station (one per slot, in the yard) | 16 × 32 | 1 × 1 (row −2) | bottom-center | `obj_press_idle`, `obj_press_busy` (the screw turns), `obj_press_done` (a bottle with a `w` glint) | busy 2 × 300 ms |
+| Beehive | 16 × 32 | 1 × 1 | bottom-center | `obj_hive`, `obj_hive_full` (a honey drip `U`), `obj_hive_winter` (snow cap, wrapped in `M` straw) | 1 |
+| Bees | – | render only | – | drawn as 1 px `u`/`k` dots on the render clock (no sprite) | – |
+| Forage spot | 16 × 16 | 1 × 1 | bottom-center | `forage_<item>` (morel, chanterelle, wild_mint, elderflower, blackberry, rose_hip, hazelnut), `forage_rest`, `forage_rest_winter` | 1 |
+| Mountain lake | 16 × 16 | tile | top-left | `tile_lake_a`, `tile_lake_b` (animated like `tile_water`, darker), edges `tile_lake_edge_<mask>` (the 16-mask helper of §6.2, shore `y`/`h`) | 2 × 700 ms |
+| Jetty | 16 × 16 | 1 × 1 | top-left | `obj_jetty` | 1 |
+| "For sale" signs | 16 × 16 | 1 × 1 | bottom-center | `obj_for_sale` (as v2) | 1 |
+| Empty lots (restaurant, Press House) | 16 × 16 | tile | top-left | `tile_soil_untilled` with an `obj_lot_sign` (a little post with a hammer icon) | 1 |
+| Items | 16 × 16 | – | – | `item_<drink>`, `item_honey`, `item_cocoa`, `item_<forage>`, `item_<lake fish>`, `item_<new dish>` | 1 |
+| Edge pips | 16 × 16 | – | – | `ui_pip_arrow` plus the target's icon (as v2) | 1 |
+
+### 7.3 Buildings
+
+- **The restaurant** is a two-storey timber inn, `M`/`p` beams on `x`/`w` plaster with a `R`/`r` tiled roof and a striped `q`/`w` awning over the door. Level 1 has one window lit at night and two terrace tables; level 2 adds a bay window and a third table; level 3 adds a second chimney, flower boxes (`i`, `u`) and the fourth table. Steam (the existing `steam` particle) rises from the kitchen chimney while any slot serves. At night the windows switch to the lit frame and get `fx_glow_small` halos (the farmhouse's rule, §6.5) and a lantern over the door gets `fx_glow_large`.
+- **Diners** walk up the north road from the bottom of the view, take a free terrace table by day (inside, as silhouettes in the lit windows, at night), eat for the length of the serving cycle and leave. They are drawn in the depth-merged object loop by their feet, like the hens. Four palette variants, flipped for left and right, no names. Under reduced motion they stand still at their tables.
+- **The Press House** is a squat stone barn (`N`/`n` walls, `A` slate roof, `M` doors) with a big wooden press visible through an open side; level 2 adds a lean-to with casks, level 3 a little bottle-green (`G`/`h`) shopfront. Its presses stand in the yard below it, one 16 × 32 station per slot, turning while busy.
+- **Beehives** are white `w`/`x` box hives on `M` stands with a `P` roof; a full hive shows a honey drip. In winter they wear straw wraps and snow and there are no bees.
+
+### 7.4 The woods and the lake
+
+- **Pines** are tall and narrow (about 12 × 28 px inside the 16 × 32 frame), in two shapes chosen by `tileHash` so the tree line does not repeat. In winter they keep their needles with snow on each tier.
+- **Forage spots** are small and low (they sit on the woods floor, never taller than 16 px) so the woods stay readable: mushrooms as two or three caps (`m`/`P` morels, `u`/`O` chanterelles), mint as a `G`/`H` clump, elderflower as `w` umbels on `h`, blackberries and rose hips as `k`/`v` and `q` dots on a bramble, hazelnuts as `M` clusters under a leaf. A resting spot is bare earth with a leaf or two; a resting winter spot is snow.
+- **The lake** has a 1-tile shore of `y` sand and `h` reeds on its south side, the jetty at (30, −10), and drifting `C` sparkles by day; at night a moon reflection (a `w`/`C` streak) in its middle.
+
+### 7.5 Item icons
+
+Drinks share three vessel families so the bag reads at a glance: **bottles** (cordials, juice, cider: a `k`-outlined bottle with the drink's colour and a `P` cork), **glasses** (lemonade, iced tea, cooler, punch: a tall glass with a `w` highlight and fruit garnish), **mugs** (cocoa, honey milk, herbal tea: an `x` mug with steam pixels). Honey is a squat jar with a `P` lid and a `u` label; cocoa a small `m` sack; forage items as their spots, larger; lake fish follow the v1 fish icon rules (body colour, 1 px eye, fin highlight).
+
+### 7.6 Checklist
+
+Check each new sprite at 1× and 3× beside the farmhouse, a crop and the orchard, by day, at midnight (debug time-warp) and in winter (snow dusting); check the restaurant's lit windows and halos against the night tint; check the tree line along the top of a phone scrolled all the way north.

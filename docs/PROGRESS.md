@@ -983,3 +983,36 @@ A small owner-requested pass between v2-04 and v2-05 (no phase prompt).
 - Order settings live in `state.seedOrder`; new settings need a save bump and a migration like `migrations[13]`.
 - A new bulk button goes next to the two in `FarmTools` (`onBulk`); a new Kitchen control follows the stepper in `recipeRow`.
 - Targets and fee are `seedTarget` in `src/data/upgrades.ts` and `SEED_ORDER_FEE` in `balance.ts`; re-run `npm run simulate` (the "Seed Order" table) after changing either.
+
+## v4 Phase 00: Design the North
+
+### Built
+Documentation only; no game code changed.
+- **The audit** (DATA_SCHEMAS §10.2): 32 places that read the world's size or assume row 0 is the top, with file, line and the change each needs. Result: **negative rows work** (`WORLD_TOP = −14`, world 36 × 36); about a dozen real edits, mostly bounds and one translate on the frame canvas. No save coordinate moves and no migration touches a position.
+- **`docs/GDD.md` §13:** why v4, the pillars, the growing-north rule that replaces "only right and down", the northern ASCII map joined to today's (regions, zones, camera pass), the two north fields (32 and 24 plots, plot bases 2000 and 3000, every tool and automation across fields, the farmhand's gate-and-road walk), the restaurant (menu slots, 20 min × tier serving, premium, cap, a fixed weekly special rota), drinks and the Press House (non-alcoholic, long timers, "keep pressing", existing buff types and slots), the apiary, North Woods foraging, the mountain lake, milestones, goals and bundles, what the north does not get, the phase-ownership table and **six open questions** for the owner. Also §9 (the Press House and diners) and §10 (phases v2-05 to v4-04).
+- **`docs/BALANCE.md` §14:** the v2-06 baseline, a cooking probe (dishes are 2–5% of a cook's gold; the Chef eats ~15 a day and sells ~190), parcel prices and paybacks, cap rises, world constants, restaurant levels and serving formula with what it can earn per menu, **four simulator runs** of a restaurant stand-in and the answers to the prompt's three balance questions, the 12-drink table with scores and tiers from the formula (a press-time divisor of 600), hives and honey, honey and forage dishes, milestones, goals, bundles, forage and lake tables, the v4 catalogue (+6.93M → 18.25M) and a **30/45/60-day** gold-sink curve, pacing targets with the day each thing should first be bought, what the brain must learn per phase, and the constants.
+- **`docs/DATA_SCHEMAS.md` §10:** id unions, world coordinates and the audit, the north layout and per-field plot addressing, content shapes (restaurant, press, hives, forage, lake reel tuning), `GameState` additions, actions and events, "no new modifiers", which timers need `msToNextSimEvent`, and the **save plan 15 → 18** with each migration's contract and fixture contents.
+- **`docs/ART_STYLE.md` §7:** no palette additions; sizes, ids and frames for pines, hedges, the woods floor, the restaurant at three levels by day and night with diners, the Press House and its stations, hives, forage spots by season, lake tiles, item icon families.
+- **`docs/IDEAS.md`:** two entries updated (hot cocoa, minimap) and eight ideas kept out of v4.
+
+### Deviations
+- **The restaurant's serving time depends on tier** (20 minutes × tier), not a flat N minutes per table: with a flat 20-minute interval a slot of feasts earns about 19× a slot of snacks, and four feast slots would make about 46k gold an hour, most of a late farm's income. Per-tier timing caps a full T4 menu near 19% of late income and reads well ("guests linger over a feast").
+- **The tier formula for drinks uses its own time divisor** (`TIER_PRESS_DIV = 600`, one point per 10 minutes) instead of the dish divisor (30 s): with the dish divisor every long-press drink would be T4. Units, value, thresholds and price multipliers are the dish ones.
+- **The restaurant's simulator rationale uses a stand-in** (a temporary change to `settleSale`, run locally and not committed), because the prompt keeps simulator changes for the build phases. It is a ceiling: no table limit, the premium on every dish sold.
+- **The build split is confirmed with one move:** the two forage drinks are in v4-04, since their ingredients come from the woods.
+- **The North Road and the North Woods are public regions** (like the town square), not parcels; only the two fields are bought as land.
+
+### Known issues
+- **Every v4 number is a first cut.** Field incomes and paybacks are estimates from per-plot figures; drinks, honey and forage from per-hour figures. The restaurant's are the best-founded (four stand-in runs) but the stand-in has no table limit.
+- **The paired buffs check is sensitive to when gold arrives** in the first ten days: the stand-in moved it between +18% and +37% while lifetime gold moved within ±10%. v4-02 must read it on 24 seeds after every change (BALANCE §14.3's rule).
+- **A keen player still spends out the catalogue around day 35–40** (BALANCE §14.8); after that gold buys nothing new, as in v1's last weeks (IDEAS.md).
+- The 60-day runs needed for §14.8's curve double the simulator's time (about 8–9 minutes on 8 seeds here); they are a v4-04 report, not `npm test`.
+
+### Next-phase notes (for v4 phase 01: the north and its fields)
+- **Answer GDD §13.12 first** and record the answers there; the docs are written for the recommended answers (no alcohol; premium 1.30/1.45/1.60, cap 1.75; two fields; a Forager's Basket; a special rota; a Restaurant toolbar button).
+- **Coordinates first, in one commit:** `WORLD_TOP`, `WORLD_BOTTOM`, `WORLD_ROWS` in `src/data/world.ts`, `WORLD_Y0`/`WORLD_Y1` in `src/render/scene.ts`, then every row of the audit table in DATA_SCHEMAS §10.2 in order (bounds → arrays from the top → camera → tests). The frame canvas needs one `setTransform(1, 0, 0, 1, 0, −WORLD_Y0)`; the final `drawImage` reads canvas pixels, so subtract `WORLD_Y0` there. Run the whole suite before adding any north content: the world simply gets taller and nothing else should change.
+- **Then the layout as data:** extend `WORLD_LAYOUT` (`top`, `treeLine`, `hedges`, `northFields`, `restaurantSite`, `pressSite`, `hiveSpots`, `lake`, `forSaleSigns`), add the regions and lanes, `REGION_NAMES`, and the north `SCENERY` (pines, hedges, empty lots, overgrowth on the two parcels). The restaurant, Press House and apiary sites are empty lots until v4-02/03.
+- **Fields:** `FIELD_BASE` in `balance.ts`; `fieldOf`, `plotAt`, `allPlotIndexes`, `tileOfPlot`, `plotIndexAt`, `expandToolArea`, coverage per field, `bulkPlots`, `PlacedObject.field`, `NorthField.lastPlantedCrop`; the parcels gain `field`. Keep the home field's `pathFor`/`fenceRect` as they are; north fences, gates and paths come from the layout.
+- **Farmhand figure:** group jobs by field, route through each field's `gate`, `path` and the road (col 20) at 2× speed off-field, rest at the last field's `rest` tile (GDD §13.3).
+- **Save 15** as DATA_SCHEMAS §10.9, with the hit-test-everything test on `save-v14.json`.
+- **Simulator:** the parcel wants and the north report rows (BALANCE §14.10); recheck the paybacks (§14.1) and move the parcel prices there if they miss.

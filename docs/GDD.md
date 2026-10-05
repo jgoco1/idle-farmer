@@ -234,11 +234,11 @@ Off by default and only built if the owner wants it after playing v1. A 0–100 
 ## 9. Out of scope (v1, amended for v2)
 
 - Multiplayer, trading or any online features
-- NPCs with relationships, romance or dialogue trees (the town is buildings and projects, not people)
+- NPCs with relationships, romance or dialogue trees (the town is buildings and projects, not people). v4's restaurant diners are ambient figures, like the bandstand's musicians: no names, needs or dialogue.
 - Combat, mines, monsters or health
 - A walkable player character (the farmhand is a visual-only helper)
 - ~~Animals (chickens, cows)~~ **In scope from v2** (§12.4), chickens and cows only. Still out: other animal types, breeding, and animal quality, affection or mood systems beyond cosmetic petting.
-- Artisan machines (kegs, preserve jars, a cheese press, mayonnaise machines): **still out in v2**. The kitchen makes cheese and jam as ordinary recipes.
+- Artisan machines (kegs, preserve jars, a cheese press, mayonnaise machines): **still out in v2**. The kitchen makes cheese and jam as ordinary recipes. **v4:** the Press House (§13.5) is the one drinks station, with recipes and slots like the stove; kegs, jars and other per-product machines stay out.
 - Weather events (rain, storms) and festivals (the Community Hall's festival lights are a decoration, not an event)
 - Crafting beyond cooking. Making hay and corn feed in the Ranch panel is a one-click conversion, not a crafting system.
 - Quality tiers for crops, fruit or animal products (silver/gold stars). A large egg is its own item, not a tier.
@@ -270,6 +270,13 @@ Ideas like these go to `docs/IDEAS.md`.
 | v2-03 | fruit trees, the calendar day index, fruit recipes, the Orchard Basket bundle (save 10) |
 | v2-04 | coop, barn and silo; chickens and cows; feed; egg and milk recipes; the Barnyard bundle (save 11) |
 | v2 polish | farm cats to adopt, the field fence's corners and gates, the home path at every field size, panel sizes (save 12) |
+| v2-05 | balance and polish: the feed store, Paint mode, tap-to-inspect, Busy Bees for animals (save 13) |
+| v2-06 | Seed Order, Harvest all / Water all, Cook ×N, the Farm Level chip (save 14) |
+| v4-00 | the v4 design (§13, BALANCE.md §14, DATA_SCHEMAS.md §10, ART_STYLE.md §7) |
+| v4-01 | the world grows north (negative rows), the North Fields and Upper Terraces with every automation (save 15) |
+| v4-02 | the restaurant (save 16) |
+| v4-03 | the Press House and drinks, the apiary and honey (save 17) |
+| v4-04 | the North Woods (foraging), the mountain lake, the v4 balance pass over 30 and 60 days (save 18) |
 
 
 ## 11. Owner decisions
@@ -555,3 +562,195 @@ Animals live in the **Old Paddock**. They are fed from what you grow and give eg
 - **3 goal templates:** `raise_charm` "Raise your charm by N" (v2-02), `pick_fruit` "Pick N fruit" (v2-03), `collect_produce` "Collect N eggs or milk" (v2-04).
 - **2 bundles:** `orchard_basket` (a spread of fruit; opens the last 2 tree spots; v2-03) and `barnyard` (eggs, a large egg, milk, hay; troughs hold 50% more; v2-04).
 - **Town projects** (v2-02): `old_bridge`, `fountain`, `bakery`, `bandstand`, `lighthouse`, `community_hall` (§12.2).
+
+---
+
+## 13. v4: the North
+
+Written by v4 phase 00. Numbers are in BALANCE.md §14, ids and save shapes in DATA_SCHEMAS.md §10, sprites in ART_STYLE.md §7. Like §12, this says **what** and **why**; the build phases follow these four sections and note any difference in `docs/PROGRESS.md`.
+
+v4 adds a **northern band of new land** above today's map: two more fields, a **restaurant** that buys your cooking, a **Press House** that makes drinks, an **apiary**, and the **North Woods** with forage spots and a **mountain lake**. It is built in four phases, one PR each:
+
+| Phase | Feature | Save |
+|---|---|---|
+| v4-01 | the world grows north; the North Fields and Upper Terraces parcels, farmed by hand and by every automation | 15 |
+| v4-02 | the restaurant | 16 |
+| v4-03 | the Press House and its drinks; the apiary and honey | 17 |
+| v4-04 | the North Woods (foraging) and the mountain lake; the v4 balance and polish pass | 18 |
+
+**Why these.** The v2-06 simulator run shows the keen bots spending out the whole catalogue (11.3M) between day 21 and day 30 while still earning 55–60k gold per simulated hour, and dishes earning only 2–5% of even the Chef's gold: the stove makes far more than the Market can absorb (an expensive dish has a market depth of 20, so the 20th sale of the day is at half price). The north gives the late game land to grow on, gives cooking a real outlet (the restaurant) and an idle side (drinks), and adds a slow, gentle daily ritual (the woods). It also adds about 7M of catalogue (BALANCE §14.8) so gold keeps buying something visible into the second month.
+
+**Pillars still hold.**
+1. *Cozy, never punishing.* Nothing on a menu, in a press, in a hive or on a forage spot spoils, wilts or is lost. An empty menu does nothing; a full hive waits; a forage spot left alone stops at its cap.
+2. *Always something growing.* Presses run for twenty minutes to three hours, hives fill over hours, forage spots over days.
+3. *Your absence is part of play.* The restaurant turns what you cooked while playing into gold while you are away; the presses and hives keep working on simulated time; forage spots count real days, like trees.
+4. *Small choices with character.* What to put on the menu tonight (a few feasts or many snacks), which drink to press before bed, which field gets the pumpkins.
+5. *Everything visible in one world.* Every v4 purchase changes the north: a cleared field, a lit restaurant with diners on its terrace, presses turning in the Press House yard, bees round the hives.
+
+**Fixed owner decisions (v4):** the world grows north and no saved position moves; more fields in the north, bought as parcels with their own plot grids; a restaurant that buys dishes and drinks for more than the Market, on a fixed schedule; a drinks station with its own recipe family and long timers; decorations stay cosmetic, no town project gives gold or an income multiplier (so the restaurant is a building you buy), animals stay gentle, nothing spoils, no games of chance or anything that imitates one.
+
+### 13.1 Growing north (v4 phase 01)
+
+**Decided: negative rows.** The world's top becomes `WORLD_TOP = −14`; rows −14 to −1 are the north band, and every existing tile keeps its coordinates. The world becomes **36 × 36 tiles** (rows −14 … 21; 576 × 576 logical px). The home region stays at (0, 0), so no decoration, building, tree spot, trap, plot or stored camera moves, and the save needs no coordinate migration.
+
+**The audit** (full table with file and line in DATA_SCHEMAS.md §10.2) found about 30 places that read the world's size or assume row 0 is the top. They fall in four groups:
+- **Bounds checks** (`tileAt`, `regionAt`, `tileProblem`, decoration validation in `save.ts`, the e2e helpers): a `row < 0` test becomes `row < WORLD_TOP`. `Math.floor` on a negative world pixel already gives the right tile.
+- **Arrays indexed from row 0** (the layout's `ground` rows, the ground chunk grid, the frame canvas): they are anchored at the world's top instead (`row − WORLD_TOP`), and the frame canvas gets one translate (`setTransform(1, 0, 0, 1, 0, −WORLD_Y0)`) so every draw call still works in world pixels.
+- **The camera** (clamp, letterbox centring, ambient bounds, cloud spawning): `[0, WORLD_H]` becomes `[WORLD_Y0, WORLD_Y1]`.
+- **Things that already work:** `tileHash`, the blocked-tile key (`row × 36 + col` is unique for negative rows because columns stay 0 … 35), edge pips, the `"col,row"` string keys, prefs (a stored camera is in world pixels and keeps its meaning).
+
+That is a contained change of roughly 250 lines plus tests, most of it mechanical. **Why not shift everything down 14 rows instead:** every decoration and building in every save would need a migration, the camera pref (per device, not in the save) could not be migrated at all, and several hundred hard-coded tiles in tests, e2e specs and data would move. Negative rows keep every number anyone has written down.
+
+**The new rule** (replaces CLAUDE.md's "the world only grows right and down" in v4-01): *the world may grow in any direction by adding rows or columns outside it; existing tiles never move, `HOME_ORIGIN` stays (0, 0), and stored positions are world tiles, which may be negative.* `WORLD_TOP`, `WORLD_ROWS` and `WORLD_COLS` are the only place the size is written; code reads `WORLD_Y0`/`WORLD_Y1` (pixels) or the layout, never `0` or `WORLD_H` as a bound.
+
+### 13.2 The northern map (v4 phase 01)
+
+```
+      000000000011111111112222222222333333
+      012345678901234567890123456789012345
+ -14  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ -13  .....##########.....=T.T.T.~~~~~~~T.
+ -12  .....#UUUUUUUU#...S.=.f..f.~~~~~~~.f
+ -11  .....#UUUUUUUUg======T..T.T~~~~~~~.T
+ -10  .....#UUUUUUUU#.....=..f......j..T.f
+  -9  .....##########.....=.T...f.Tf.Tf..T
+  -8  hhhhhhhhhhhhhhhhhhhh================
+  -7  .....##########.....=...............
+  -6  .....#NNNNNNNN#...S.=.rrrrr.ppppb.b.
+  -5  .....#NNNNNNNNg======.RRRRR.PPPP....
+  -4  .....#NNNNNNNN#.....=.RRRRR.PPPPb.b.
+  -3  .....#NNNNNNNN#.....=.RRRRR.PPPP....
+  -2  .....##########.....=.ttttt.kkkkb.b.
+  -1  hhhhhhhhhhhhhhhhhhhh================
+   0  ....................=ooooooooooooooo
+   1  .HHHH##########GGGG.=oTToTToTToTTo22
+   2  .HHHH#PPPPPPPP#GGGG.=oTToTToTToTTo22
+```
+
+Rows 0–2 are today's map (§12.1), unchanged. Key: `^` the tree line at the world's edge; `=` lanes and field paths; `h` hedges; `#` field fences, `g` their gates; `N` North Fields plots; `U` Upper Terraces plots; `S` "For sale" signs; `R` the restaurant (`r` its roof rising into the row above, `t` its terrace of tables); `P` the Press House (`p` roof, `k` the yard where its presses stand, one per slot); `b` hive spots; `~` the mountain lake, `j` its jetty; `f` forage spots; `T` pines.
+
+| Region | Tiles (col, row, cols × rows) | What it is | Owned? |
+|---|---|---|---|
+| **North Fields** (`north_fields`) | (0, −7) 20 × 6 | a parcel with an **8 × 4** field (32 plots) at (6, −6), its fence ring (5, −7)–(14, −2), a gate on the east rail at (14, −5) and a path (15–19, −5) to the north road | parcel (§13.3) |
+| **Upper Terraces** (`terraces`) | (0, −13) 20 × 5 | a parcel with an **8 × 3** field (24 plots) at (6, −12), fence ring (5, −13)–(14, −9), gate (14, −11), path (15–19, −11) | parcel |
+| **North Road** (`northroad`) | (21, −7) 15 × 6 | the restaurant site (22, −6) 5 × 5, the Press House site (28, −6) 4 × 5 and the apiary (32, −6) 4 × 5 with six hive spots | public, like the town square |
+| **North Woods** (`woods`) | (21, −13) 15 × 5 | pines, eight forage spots and the mountain lake (27, −13) 7 × 3 with a jetty at (30, −10) | public |
+| **Lanes** | col 20 rows −13 … −1 (the **north road**, continuing today's lane at col 20); row −1 and row −8, cols 21–35 | scenery paths; nothing is placed on them | – |
+| **Hedges** | row −1 and row −8, cols 0–19 | a hawthorn hedge between home, the two fields and their lanes (blossom in spring, berries in autumn, snow in winter) | – |
+| **Tree line** | row −14, all columns | the world's north edge: dense forest, like the v1 forest edge | – |
+
+**How it reads.** From the farm, the north road runs straight up past the orchard into the pines. Its first stretch is a little hamlet: the restaurant on the left with tables on its terrace, the Press House in the middle with its presses in the yard, the hives at the end. West of the road, behind a hedge, are the two fields, one above the other like steps up the hill. At the top the road ends at the woods and the lake under the tree line. The hedges at rows −1 and −8 are new tiles, so they never cover a decoration a player already placed (row 0 of the home region is untouched).
+
+**Clickable zones** (added to `buildZones`): the restaurant site (opens the Restaurant panel; before it is built, the panel shows the build card), the Press House site (the Press House panel), each hive spot (collects a hive with honey, else opens the apiary card), the lake (Fishing at the lake, or its price while locked), each forage spot (picks it), the two "For sale" signs (as §12.1). Decorations may go on owned north parcels' free grass only: never on a field, its fence ring or path, a hedge, a lane, the north road's sites, the woods or the lake.
+
+**The camera.** The default view and **Home** do not change: centred on the home region at the default zoom (a phone centres on the home field, v2-05). The clamp now lets the view travel up to the tree line, so a phone can scroll 14 more rows north, all the way to the lake; at 1× on a wide screen the whole 576 × 576 world fits. Buying a north parcel glides the camera to it, as v2's parcels do. Edge pips gain the north's targets (ready north plots, a full hive, finished drinks, an empty menu, ripe forage spots). There is no minimap (IDEAS.md keeps it).
+
+### 13.3 The north fields (v4 phase 01)
+
+**Two field parcels**, bought in **Upgrades › Land** or from their sign, like the v2 parcels (prices and conditions in BALANCE §14.1):
+
+| Order | Parcel | Field | Opens |
+|---|---|---|---|
+| 4 | **North Fields** (`north_fields`) | 8 × 4 = 32 plots | the first north field |
+| 5 | **Upper Terraces** (`terraces`) | 8 × 3 = 24 plots | the second; the terraces step up the hill |
+
+The fields have a fixed size: no expansions. Their plots start **untilled** and the parcel's overgrowth clears when bought. Together they add 56 plots to the home field's 48 and the greenhouse's 12.
+
+**Plot indexes.** Each field has its own base, like the greenhouse: home field `0 … 47`, greenhouse `GREENHOUSE_BASE (1000) + n`, North Fields `2000 + row × 8 + col`, Upper Terraces `3000 + row × 8 + col` (`FIELD_BASE` in `src/data/balance.ts`). A plot index therefore says which field it is in without a lookup, existing indexes never change, and `allPlotIndexes` lists home, greenhouse, then the north fields.
+
+**Everything that farms covers every field:**
+- **Hoe, Seeds, Can, Hand** work on any plot. A tool's area (3, 9 or 25 tiles) is clipped to the field that was clicked; it never jumps a fence.
+- **Shift-click** applies to every plot of the field that was clicked. **Harvest all** and **Water all** cover every open field (home and north), still not the greenhouse (as today).
+- **Sprinklers and scarecrows** can be placed on north plots and cover only their own field. Their caps rise with each north field (sprinklers +2, scarecrows +1; BALANCE §14.1), so a fully sprinkled north is possible.
+- **The farmhand** has one capacity per visit shared by every field (and the orchard), taking the oldest-ready plots first, wherever they are. **The planter** follows it with its own capacity; it remembers the last crop per plot in every field (`lastPlantedCrop` per field).
+- **Seed Order** buys for every crop the planter last planted in any field.
+- **The Auto-Seller**, Busy Bees, growth buffs and the offline catch-up treat north plots like home plots. One big step equals many small ones with a north field in use (a test).
+
+**The farmhand's walk (render only).** The figure groups each visit's jobs by field and works one field at a time, nearest field first. Between fields it never walks through a fence: it goes out through the field's gate, along the field path to the north road, up or down the road, and in through the next field's gate (waypoints are data: each field's gate, its path end and the road). On those connecting paths it trots at twice its walking speed. It rests by the gate of the field it worked last. Off-screen it is simply not drawn; harvests pop when the logic does them, as today, and the queue of six jobs still trims a backlog, so the figure never lags behind more than a visit.
+
+### 13.4 The restaurant (v4 phase 02)
+
+The **restaurant** (*The Bramble Table*) is a building on the north road that buys your dishes, and later your drinks, for more than the Market pays, on a steady schedule.
+
+- **Bought and upgraded** in its own panel (click the site, or the Restaurant button in the toolbar once built): three levels with more menu slots and a better premium (BALANCE §14.3). It stands on its fixed site; nothing is placed or moved. It looks bigger at each level and its windows glow at night.
+- **The menu:** 2, 3 or 4 **menu slots**. "Fill from bag" puts a stack of one dish or drink on a slot (up to 99; plain or hearty), "Restock" tops every slot up from the bag with what it already serves, and "Clear" puts a slot's stack back in the bag (refused politely if the bag has no room).
+- **Serving, on a fixed timer:** each slot serves one item every **20 minutes × the item's tier** of simulated time (a T1 snack every 20 minutes, a T4 feast every 80: guests linger over a feast). Slots serve in whole cycles, like the ranch, so one big step equals many small ones. There is no chance in it: guests arrive exactly on schedule.
+- **Price:** a serving earns the item's **base price × the level's premium** (1.30, 1.45, 1.60). It does not touch Market demand, specials, the sparkline, Silver Tongue or the winter dish bonus: restaurant guests are not the Market. It never pays more than **1.75 × base**.
+- **Chef's special (decided: yes).** Each day one recipe is the special and earns **+0.15** on top of the premium (still capped at 1.75 × base). The special comes from a **fixed weekly rota** published in the panel ("This week: Mon Pumpkin Soup, Tue Fish Tacos, …"), chosen by `calendar.dayIndex`, so it is a calendar, not a draw: you can see next Thursday's special today.
+- **Takings** go straight to gold with an event and a coin chime (no Shipping Bin), the panel shows today's takings and servings, and the away summary has a line ("The restaurant served 46 dishes for 12,880g").
+- **Gentle:** an empty slot does nothing; a dish on the menu waits forever; nothing spoils, and clearing the menu gives everything back.
+- **Life (render only):** diners walk up the road, sit at the terrace tables in the day and inside by lamplight at night, and leave; steam rises from the kitchen chimney while anything is on the menu. Diners are ambient figures like the bandstand's musicians, with no names, needs or relationships (§9 still holds). They use a private generator and typed arrays, like `ranchLife.ts`, and never touch game state.
+
+**Why this shape.** The simulator (BALANCE §14.3) shows that dishes are 2–5% of a cooking bot's gold today and that bulk sales of dishes are throttled by market depth, not by the stove. A premium on top of base price with no demand loss is what makes cooking pay; the per-tier serving time and the slot count are the throttle that keeps the restaurant a strong side income (5–15% of a cook's gold) rather than the new main farm. A "Chef who sells" does not become dominant: in deliberately generous tests with the premium on every dish sale and no table limit, the strategy spread stayed at or under 1.38× (limit 1.5×), and with the premium starting on day 8 (the restaurant's planned opening) the buffs check stayed in its band (+23%).
+
+### 13.5 Drinks and the Press House (v4 phase 03)
+
+**Content rating: non-alcoholic (recommended; open question 1).** The **Press House** presses fruit, steeps teas and warms milk. Its drinks are juices, cordials, ciders in the old sense of sweet pressed apple juice, iced tea, lemonade and hot cocoa. The v3 store listings say there is no alcohol, and alcohol would raise the age rating on Google Play, the App Store and Steam. A brewery is written up as an open question, not decided.
+
+**The station.** The Press House is a building on its north road site, bought and upgraded in its own panel: **2, 3, then 4 press slots**. Each slot takes one drink recipe, uses its ingredients from the bag when started, and finishes after a **long timer** (20 minutes to 3 hours of simulated time). A finished drink waits in its slot until collected (a click, the panel's Collect all, or the Collecting Basket at each bin pickup); it never spoils. A slot can be set to **keep pressing**: when it finishes and the bag has the ingredients, it starts the same drink again. Taking a drink off the press gives its ingredients back, as the stove does.
+- The panel has the recipe book's sort menu (the same `kitchenSort` rules and favourites) and a Make ×N stepper for free slots.
+- Presses are timed in simulated time and cooking-speed buffs do **not** apply to them (Quick Hands is about the cook, not the press). Press finishes are reported by `msToNextSimEvent`, because a "keep pressing" slot takes ingredients from the bag when it restarts.
+
+**Recipes:** 12 drinks (10 in v4-03 and 2 that use forage items in v4-04), from fruit, crops, milk, honey and one bought ingredient, cocoa, sold on the Press House shelf so a winter player can always make cocoa. Tiers come from the existing formula with a time term suited to long timers (one point per 10 minutes instead of per 30 seconds); prices from the existing tier multipliers. Full table in BALANCE §14.4.
+
+**Buffs (decided: the existing types and the existing slots).** A drink is eaten (drunk) like a dish and gives a buff of one of the seven existing types, with the existing stacking rules and the existing 3–5 slots. *Why not a separate drink slot:* the buffs check already reads +18% at day 10 and +32% at day 14 (the ceiling to watch); a sixth always-on buff would push it out of band and make keeping slots full mandatory. Drinks instead fill the gaps: they give the thinner types (Quick Bite, Angler's Luck, Green Thumb), and none gives Silver Tongue, so drinks add choice, not power. No new buff types.
+
+**Where drinks go:** sold at the Market (a new `drink` category with its own demand), served at the restaurant, given to bundles and town stages (BALANCE §14.6), and drunk for a buff. The Auto-Seller has toggles for drinks and honey, **off** by default.
+
+### 13.6 The apiary (v4 phase 03)
+
+**Six hive spots** at the end of the north road (the `b` tiles). Hives are bought one at a time in the Press House panel's Apiary card and appear on the next free spot (like fish traps, the player does not choose).
+- Each hive makes **honey on a simulated-time cycle** (one jar an hour) into its own store of 10, in whole cycles. A full store waits; nothing is lost. **Busy Bees** shortens the cycle through the existing `animalSpeedModifier` (it already speeds the animals).
+- Hives need **nothing else**: no feed, no flowers. They never read decorations (cosmetic), and no crop or tree is required. (Flower-varietal honeys that read crops or trees in bloom are in IDEAS.md.)
+- **Collecting:** click a hive, or the Press House panel's Collect all; the **Collecting Basket** (`ranch_collector`) also empties the hives at each bin pickup.
+- **Bees** are render-only: a few dots around each hive by day, none at night or in winter (the hive wears a snow cap). They use the render-side generator.
+- Honey is a sellable item and an ingredient in drinks and two recipes (BALANCE §14.5).
+
+### 13.7 The North Woods: foraging (v4 phase 04)
+
+**Eight forage spots** in the woods regrow wild things on **calendar days**, like trees: at each 06:00 refresh a spot that has an item this season gains its day's yield, up to **three days' worth**, and days missed while away are counted exactly (one big jump equals daily visits). Each spot has a kind (mushroom, herb, flower and berry, nut), and the season picks the item: morels and chanterelles, wild mint, elderflower, blackberries and rose hips, hazelnuts (BALANCE §14.7). A spot whose kind has nothing this season rests, bare or snow-covered.
+- **Picking:** click the spot (the item goes to the bag, or the bin if the Auto-Seller ships it). An edge pip points at ripe spots. A tap on touch shows the spot's label first, like trees (v2-05).
+- **Automation: only if the owner agrees** (open question 4). Recommended: a one-level **Forager's Basket** upgrade that picks the woods at each bin pickup, like the Trap Collector.
+- The woods are public and open once v4-04 ships with the North Fields owned (the road there runs past them).
+- Forage items sell at the Market and go into two drinks (Herbal Tea, Elderflower Cordial) and two dishes (Mushroom Risotto, Blackberry Tart).
+
+### 13.8 The mountain lake (v4 phase 04)
+
+A **fourth fishing location** in the woods, bought like the river and the dock (**Mountain Lake**, an expansion of kind fishing, BALANCE §14.7). Its own **6 fish**, a common one at every hour of every season (as `tests/fishing.test.ts` requires), no legendary (one legendary per season stays), and junk. Its own **reel tuning**: still mountain water, so the sweet zone drifts more slowly but is a little narrower, and bites come a little later (a `reel` block on the location). Two trap spots (three with the Pond Fish bundle, which already adds one per location), trap-catchable fish as elsewhere, and a Fish Collection page. Relaxed fishing and offline traps behave as at the other waters.
+
+### 13.9 Milestones, goals, bundles and town stages
+
+- **Milestones** (no farm points, like v2's): `m24_north_field` own a north field (v4-01), `m25_first_serving` serve a dish at the restaurant (v4-02), `m26_first_drink` press a drink (v4-03), `m27_first_honey` collect honey (v4-03), `m28_first_forage` pick a forage item (v4-04), `m29_lake_fish` catch a fish in the mountain lake (v4-04). Rewards are gold or recipes.
+- **Goal templates:** `serve_dishes` "Serve N dishes at the restaurant" (v4-02), `press_drinks` "Press N drinks" (v4-03).
+- **Bundles:** `press_house` (a spread of drinks and honey; reward: **a fifth restaurant menu slot**, the terrace's fifth table) (v4-03) and `forager` (forage items across seasons; reward: forage spots hold 4 days' worth instead of 3) (v4-04).
+- **Town stages:** no project changes stages for v4 (their asks are the owner's), but drinks and honey may be added as alternative items in a later content pass (IDEAS.md).
+
+### 13.10 What the north does not get (and why)
+
+- **A mill** (wheat to flour, bread recipes): wheat already feeds 10 recipes (13 with v4), hay and the bakery stage; a mill is another station to babysit with no new kind of play. Left out; IDEAS.md.
+- **New animals** (ducks, goats, sheep): out of scope for v4 by the phase prompts. The apiary is the only new producer.
+- **A brewery or winery:** only if the owner says so (open question 1).
+- **A north decoration set:** the north parcels add decoration space; a "Mountain" set (stone paths, log fences, lanterns) is a natural later content pass (IDEAS.md).
+- **Weather, festivals, staff, wages, reviews, ratings, random customers:** still out (§9).
+
+### 13.11 Build phases: what each phase owns
+
+| Phase | Owns | Does not touch | Save |
+|---|---|---|---|
+| **v4-01** The north and its fields | `WORLD_TOP` and every audited site (DATA_SCHEMAS §10.2); the north band in `WORLD_LAYOUT` and `SCENERY` (tree line, hedges, lanes, the north road, the empty restaurant, Press House and apiary sites as lots, the woods' pines and the lake as scenery water); the two field parcels, their fences, gates and paths; plot indexes per field; every farming tool and automation across fields (§13.3); sprinkler and scarecrow caps; the farmhand's waypoint walk; camera clamp; e2e helpers; the brain buys the fields; the "north fields' share" report row | the restaurant, presses, hives, forage, lake fishing | 15 |
+| **v4-02** The restaurant | `src/data/restaurant.ts`, `src/systems/restaurant.ts`, actions, the Restaurant panel, the building's art and diners, the special rota, the away line; the brain stocks the menu; the buffs check rule; the restaurant's report rows | drinks (the menu accepts any `menuable` item, so drinks plug in later) | 16 |
+| **v4-03** Drinks and the apiary | drink recipes (`station: 'press'`), the Press House system and panel, cocoa on its shelf, hives and honey, Collecting Basket on hives, drinks on the menu, bundles, milestones; the brain presses, keeps hives and serves drinks | forage drinks (they need v4-04's items) | 17 |
+| **v4-04** Woods, lake, balance | forage spots and items, the two forage drinks and two dishes, the Forager's Basket if approved, the lake location, its fish and tuning, the v4 balance pass over 30 and 60 days, the small known issues of v4-01 to v4-03 | new animals, a second restaurant, weather | 18 |
+
+This confirms the split in the phase prompts. The only move is that the **Press House bundle** and the **apiary** both land in v4-03 (as the prompt has it), and the **two forage drinks** move to v4-04 because their ingredients do not exist before it.
+
+### 13.12 Open questions for the owner
+
+Decide these before v4-01 starts; each has a recommendation, and the documents are written for the recommended answer.
+
+1. **Alcohol: no (recommended).** Drinks are non-alcoholic; the Press House makes juices, cordials, sweet cider, teas and cocoa. *Alternative:* a brewery or winery with ale, wine and mead. *Trade-off:* richer real-world flavour and a classic farm-game staple, against a higher age rating on all three stores (PEGI 12–16 / ESRB T, an App Store 17+ "frequent alcohol" descriptor is possible, Steam's mature content survey), a rewrite of the store listings (`docs/STORE.md` says there is no alcohol), and a game that today is suitable for everyone. If yes, the brewery would be a second station with the same rules, and v4-03 grows by a third.
+2. **The restaurant's premium: 1.30 / 1.45 / 1.60, special +0.15, cap 1.75 × base (recommended).** *Alternatives:* a flatter 1.25 / 1.35 / 1.45 (the restaurant is a convenience more than an income), or a steeper 1.4 / 1.6 / 1.8 with cap 2.0 (cooking becomes a main strategy; the simulator then needs a slower serving time to keep the Chef under the 1.5× spread).
+3. **How many north fields: two (recommended)**, North Fields 32 plots and Upper Terraces 24 plots. *Alternative:* a third, a "High Meadow" field of 24 plots in place of part of the woods (the woods shrink to 4 forage spots), for about +40% more crop land and a late 4M sink.
+4. **Foraging automation: yes, a Forager's Basket (recommended)**, a single 120,000g upgrade that picks the woods at each bin pickup. *Alternative:* no automation, so foraging stays the one small daily walk in the game (spots cap at three days, so skipping a day or two loses nothing).
+5. **Chef's special on a fixed weekly rota: yes (recommended).** *Alternative:* no special (one less thing to read in the panel).
+6. **The restaurant's toolbar button:** a new **Restaurant** button once built (recommended), or reached only by clicking the building and through Upgrades. The toolbar has room on desktop; on phones it joins the overflow like Ranch.
