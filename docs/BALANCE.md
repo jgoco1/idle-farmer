@@ -1726,10 +1726,12 @@ No farm points (`FARM_POINT_MILESTONES` stays m01–m15).
 // at each daily refresh, for each spot, like trees (exact for any number of missed days):
 for d in (spot.lastDay, calendar.dayIndex]:
     item = FORAGE_KINDS[kind][seasonOfDay(d)]                     // null = the spot rests this season
-    if item: spot.item = item; spot.qty = min(FORAGE_CAP_DAYS * perDay(item), spot.qty + perDay(item))
+    if item && (spot.qty === 0 || spot.item === item):
+        spot.item = item; spot.qty = min(FORAGE_CAP_DAYS * perDay(item), spot.qty + perDay(item))
 spot.lastDay = calendar.dayIndex
 // a season change with a different item replaces what is waiting only once it has been picked: an unpicked
-// spot keeps its item and quantity until picked (nothing is lost), then starts the new season's item
+// spot keeps its item and quantity (and does not grow) until picked (nothing is lost), then starts the new
+// season's item on the next day
 FORAGE_CAP_DAYS = 3
 ```
 
