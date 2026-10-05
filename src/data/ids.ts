@@ -128,8 +128,14 @@ export type UpgradeId =
 
 export type ExpansionId = 'farm_1' | 'farm_2' | 'farm_3' | 'farm_4' | 'river' | 'ocean';
 
-/** Land parcels of the v2 world, bought in this order (v2 phase 01, BALANCE.md §13.1). */
-export type ParcelId = 'orchard' | 'yard' | 'meadow';
+/** Land parcels, bought in this order (v2 phase 01, BALANCE.md §13.1; the north fields v4-01, §14.1). */
+export type ParcelId = 'orchard' | 'yard' | 'meadow' | NorthFieldId;
+
+/** A north parcel that carries a plot grid (v4-01): also the field id of its plots. */
+export type NorthFieldId = 'north_fields' | 'terraces';
+
+/** Which field a plot is in (v4-01), derived from its index (`fieldOf` in src/systems/farming.ts). */
+export type FieldId = 'home' | 'greenhouse' | NorthFieldId;
 
 /** Town projects (v2 phase 02, GDD §12.2). Their building sites are world layout (v2 phase 01). */
 export type TownProjectId =
@@ -314,7 +320,10 @@ export const RECIPE_IDS: readonly RecipeId[] = [
   'moonfin_sushi',
 ];
 
-export const PARCEL_IDS: readonly ParcelId[] = ['orchard', 'yard', 'meadow'];
+export const PARCEL_IDS: readonly ParcelId[] = ['orchard', 'yard', 'meadow', 'north_fields', 'terraces'];
+
+/** The north fields in plot-index order (v4-01). */
+export const NORTH_FIELD_IDS: readonly NorthFieldId[] = ['north_fields', 'terraces'];
 
 export const TOWN_PROJECT_IDS: readonly TownProjectId[] = [
   'old_bridge',
@@ -445,6 +454,10 @@ export function isTownProjectId(id: string): id is TownProjectId {
 
 export function isParcelId(id: string): id is ParcelId {
   return (PARCEL_IDS as readonly string[]).includes(id);
+}
+
+export function isNorthFieldId(id: string): id is NorthFieldId {
+  return (NORTH_FIELD_IDS as readonly string[]).includes(id);
 }
 
 export function seedOf(crop: CropId): SeedId {

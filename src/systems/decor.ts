@@ -153,11 +153,17 @@ export function tileProblem(state: GameState, data: GameData, col: number, row: 
     case 'orchard':
     case 'yard':
     case 'meadow':
+    case 'north_fields':
+    case 'terraces':
       return ownsParcel(state, region) ? null : `You do not own the ${data.parcels[region].name} yet.`;
     case 'town':
       return 'The town square belongs to everyone.';
     case 'sea':
       return 'That is the sea.';
+    case 'northroad':
+      return 'The north road belongs to everyone.';
+    case 'woods':
+      return 'Leave the woods wild.';
     default:
       return 'Lanes stay clear.';
   }

@@ -20,6 +20,7 @@ import type {
   ItemId,
   JunkId,
   MilestoneId,
+  NorthFieldId,
   ParcelId,
   Rarity,
   RecipeId,
@@ -166,6 +167,8 @@ export interface ParcelDef {
   requires: readonly UnlockCondition[];
   /** What it is for, shown on the sign and the Land card. */
   opens: string;
+  /** A north parcel carries a field of plots (v4-01). */
+  field?: NorthFieldId;
 }
 
 export interface ExpansionDef {

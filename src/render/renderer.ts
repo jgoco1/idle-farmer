@@ -960,7 +960,7 @@ export class Renderer {
         line.forEach((sprite, col) => {
           g.drawImage(spriteFrame(sprite), col * TILE, row * TILE);
           // Winter snow covers open grass only: plots, crops and objects are drawn over or away from it.
-          if (!sprite.startsWith('tile_grass')) return;
+          if (!sprite.startsWith('tile_grass') && !sprite.startsWith('tile_woods')) return;
           sn.globalAlpha = 0.62;
           sn.fillStyle = PALETTE.white_warm;
           sn.fillRect(col * TILE, row * TILE, TILE, TILE);
@@ -1080,7 +1080,7 @@ export class Renderer {
       while (ti < SPOT_ORDER.length && (WORLD_LAYOUT.treeSpots[SPOT_ORDER[ti]!]!.row + 2) * TILE < bottom)
         this.drawTree(this.spotTree[SPOT_ORDER[ti++]!], season, calendar.dayIndex, vis);
       if (!overlaps(vis, o.x, o.y, o.w, o.h)) continue;
-      f.drawImage(spriteFrame(o.sprite, timeMs), o.x, o.y);
+      f.drawImage(spriteFrame(o.seasonal ? o.seasonal[season]! : o.sprite, timeMs), o.x, o.y);
       drawn++;
     }
     while (di < decor.length) this.drawDecor(decor[di++]!, season, winter, lit, vis, timeMs);

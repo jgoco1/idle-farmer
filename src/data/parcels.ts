@@ -1,5 +1,5 @@
-// Land parcels (GDD §12.1, BALANCE.md §13.1): the three regions of the v2 world that are bought
-// with gold, in order. In v2 phase 01 they only make space; phases 02–04 fill them.
+// Land parcels (GDD §12.1, §13.3; BALANCE.md §13.1, §14.1): the regions of the world that are bought
+// with gold. The three v2 parcels make space; the two north parcels (v4-01) each carry a field.
 
 import type { ParcelId } from './ids';
 import type { ParcelDef } from './types';
@@ -40,5 +40,33 @@ export const PARCELS: Readonly<Record<ParcelId, ParcelDef>> = Object.freeze({
     price: 500_000,
     requires: [{ kind: 'parcel', id: 'yard' }],
     opens: 'The largest space for decorations',
+  },
+  // The north (v4-01, BALANCE §14.1): two fields with their own plot grids.
+  north_fields: {
+    id: 'north_fields',
+    name: 'North Fields',
+    description: 'Good dark soil behind a hawthorn hedge, just up the north road.',
+    rect: rectOf('north_fields'),
+    price: 1_500_000,
+    requires: [
+      { kind: 'parcel', id: 'yard' },
+      { kind: 'expansion', id: 'farm_4' },
+      { kind: 'farmLevel', level: 7 },
+    ],
+    opens: 'A second field of 32 plots',
+    field: 'north_fields',
+  },
+  terraces: {
+    id: 'terraces',
+    name: 'Upper Terraces',
+    description: 'Old terraces stepping up the hill toward the pines. The walls just need a mend.',
+    rect: rectOf('terraces'),
+    price: 2_400_000,
+    requires: [
+      { kind: 'parcel', id: 'north_fields' },
+      { kind: 'farmLevel', level: 8 },
+    ],
+    opens: 'A third field of 24 plots',
+    field: 'terraces',
   },
 });

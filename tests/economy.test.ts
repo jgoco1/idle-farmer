@@ -246,7 +246,7 @@ describe('farm expansion', () => {
     // The home region only (parcels and the town have their own scenery).
     const sprites = (ex: Parameters<typeof sceneryFor>[0]) =>
       sceneryFor(ex)
-        .filter((d) => d.col < 20 && d.row < 12)
+        .filter((d) => d.col < 20 && d.row >= 0 && d.row < 12)
         .map((d) => d.sprite);
     expect(sprites([])).toContain('obj_weeds');
     expect(sprites(['farm_1'])).not.toContain('obj_weeds');
