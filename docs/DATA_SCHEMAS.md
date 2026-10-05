@@ -1334,7 +1334,7 @@ export type RecipeId = /* the 32 dishes */
   | 'honey_cake' | 'honey_roast_yams'                                                         // @v4-03 (dishes)
   | 'mushroom_risotto' | 'blackberry_tart'                                                    // @v4-04 (dishes)
   | DrinkId;                                                                                  // drinks are recipes with station 'press'
-export type UpgradeId = /* v2 */ | 'forager_basket';                                          // @v4-04, only if the owner approves
+export type UpgradeId = /* v2 */ | 'forager_basket';                                          // @v4-04 (confirmed, GDD §13.12)
 export type MilestoneId = /* v2 */
   | 'm24_north_field' | 'm25_first_serving' | 'm26_first_drink' | 'm27_first_honey'
   | 'm28_first_forage' | 'm29_lake_fish';

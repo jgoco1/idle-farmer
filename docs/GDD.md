@@ -312,6 +312,10 @@ v2 phase 00 proposed these twelve choices as open questions; the owner confirmed
 
 No open questions remain for v2 phase 01.
 
+### v4 owner decisions
+
+The six v4 decisions (no alcohol, the restaurant's premium, two north fields, the Forager's Basket, the special rota, the Restaurant button) are in §13.12, confirmed as recommended after v4 phase 00.
+
 ---
 
 ## 12. v2: a bigger world, decorations, an orchard and animals
@@ -672,11 +676,11 @@ The fields have a fixed size: no expansions. Their plots start **untilled** and 
 
 The **restaurant** (*The Bramble Table*) is a building on the north road that buys your dishes, and later your drinks, for more than the Market pays, on a steady schedule.
 
-- **Bought and upgraded** in its own panel (click the site, or the Restaurant button in the toolbar once built): three levels with more menu slots and a better premium (BALANCE §14.3). It stands on its fixed site; nothing is placed or moved. It looks bigger at each level and its windows glow at night.
+- **Bought and upgraded** in its own panel (click the site, or the Restaurant button in the toolbar once built, §13.12 decision 6): three levels with more menu slots and a better premium (BALANCE §14.3). It stands on its fixed site; nothing is placed or moved. It looks bigger at each level and its windows glow at night.
 - **The menu:** 2, 3 or 4 **menu slots**. "Fill from bag" puts a stack of one dish or drink on a slot (up to 99; plain or hearty), "Restock" tops every slot up from the bag with what it already serves, and "Clear" puts a slot's stack back in the bag (refused politely if the bag has no room).
 - **Serving, on a fixed timer:** each slot serves one item every **20 minutes × the item's tier** of simulated time (a T1 snack every 20 minutes, a T4 feast every 80: guests linger over a feast). Slots serve in whole cycles, like the ranch, so one big step equals many small ones. There is no chance in it: guests arrive exactly on schedule.
 - **Price:** a serving earns the item's **base price × the level's premium** (1.30, 1.45, 1.60). It does not touch Market demand, specials, the sparkline, Silver Tongue or the winter dish bonus: restaurant guests are not the Market. It never pays more than **1.75 × base**.
-- **Chef's special (decided: yes).** Each day one recipe is the special and earns **+0.15** on top of the premium (still capped at 1.75 × base). The special comes from a **fixed weekly rota** published in the panel ("This week: Mon Pumpkin Soup, Tue Fish Tacos, …"), chosen by `calendar.dayIndex`, so it is a calendar, not a draw: you can see next Thursday's special today.
+- **Chef's special (decided, §13.12 decision 5).** Each day one recipe is the special and earns **+0.15** on top of the premium (still capped at 1.75 × base). The special comes from a **fixed weekly rota** published in the panel ("This week: Mon Pumpkin Soup, Tue Fish Tacos, …"), chosen by `calendar.dayIndex`, so it is a calendar, not a draw: you can see next Thursday's special today.
 - **Takings** go straight to gold with an event and a coin chime (no Shipping Bin), the panel shows today's takings and servings, and the away summary has a line ("The restaurant served 46 dishes for 12,880g").
 - **Gentle:** an empty slot does nothing; a dish on the menu waits forever; nothing spoils, and clearing the menu gives everything back.
 - **Life (render only):** diners walk up the road, sit at the terrace tables in the day and inside by lamplight at night, and leave; steam rises from the kitchen chimney while anything is on the menu. Diners are ambient figures like the bandstand's musicians, with no names, needs or relationships (§9 still holds). They use a private generator and typed arrays, like `ranchLife.ts`, and never touch game state.
@@ -685,7 +689,7 @@ The **restaurant** (*The Bramble Table*) is a building on the north road that bu
 
 ### 13.5 Drinks and the Press House (v4 phase 03)
 
-**Content rating: non-alcoholic (recommended; open question 1).** The **Press House** presses fruit, steeps teas and warms milk. Its drinks are juices, cordials, ciders in the old sense of sweet pressed apple juice, iced tea, lemonade and hot cocoa. The v3 store listings say there is no alcohol, and alcohol would raise the age rating on Google Play, the App Store and Steam. A brewery is written up as an open question, not decided.
+**Content rating: non-alcoholic (decided, §13.12 decision 1).** The **Press House** presses fruit, steeps teas and warms milk. Its drinks are juices, cordials, ciders in the old sense of sweet pressed apple juice, iced tea, lemonade and hot cocoa. The v3 store listings say there is no alcohol, and alcohol would raise the age rating on Google Play, the App Store and Steam. A brewery was considered and not taken.
 
 **The station.** The Press House is a building on its north road site, bought and upgraded in its own panel: **2, 3, then 4 press slots**. Each slot takes one drink recipe, uses its ingredients from the bag when started, and finishes after a **long timer** (20 minutes to 3 hours of simulated time). A finished drink waits in its slot until collected (a click, the panel's Collect all, or the Collecting Basket at each bin pickup); it never spoils. A slot can be set to **keep pressing**: when it finishes and the bag has the ingredients, it starts the same drink again. Taking a drink off the press gives its ingredients back, as the stove does.
 - The panel has the recipe book's sort menu (the same `kitchenSort` rules and favourites) and a Make ×N stepper for free slots.
@@ -710,7 +714,7 @@ The **restaurant** (*The Bramble Table*) is a building on the north road that bu
 
 **Eight forage spots** in the woods regrow wild things on **calendar days**, like trees: at each 06:00 refresh a spot that has an item this season gains its day's yield, up to **three days' worth**, and days missed while away are counted exactly (one big jump equals daily visits). Each spot has a kind (mushroom, herb, flower and berry, nut), and the season picks the item: morels and chanterelles, wild mint, elderflower, blackberries and rose hips, hazelnuts (BALANCE §14.7). A spot whose kind has nothing this season rests, bare or snow-covered.
 - **Picking:** click the spot (the item goes to the bag, or the bin if the Auto-Seller ships it). An edge pip points at ripe spots. A tap on touch shows the spot's label first, like trees (v2-05).
-- **Automation: only if the owner agrees** (open question 4). Recommended: a one-level **Forager's Basket** upgrade that picks the woods at each bin pickup, like the Trap Collector.
+- **Automation (decided, §13.12 decision 4):** a one-level **Forager's Basket** upgrade picks the woods at each bin pickup, like the Trap Collector.
 - The woods are public and open once v4-04 ships with the North Fields owned (the road there runs past them).
 - Forage items sell at the Market and go into two drinks (Herbal Tea, Elderflower Cordial) and two dishes (Mushroom Risotto, Blackberry Tart).
 
@@ -729,7 +733,7 @@ A **fourth fishing location** in the woods, bought like the river and the dock (
 
 - **A mill** (wheat to flour, bread recipes): wheat already feeds 10 recipes (13 with v4), hay and the bakery stage; a mill is another station to babysit with no new kind of play. Left out; IDEAS.md.
 - **New animals** (ducks, goats, sheep): out of scope for v4 by the phase prompts. The apiary is the only new producer.
-- **A brewery or winery:** only if the owner says so (open question 1).
+- **A brewery or winery:** not taken (§13.12 decision 1).
 - **A north decoration set:** the north parcels add decoration space; a "Mountain" set (stone paths, log fences, lanterns) is a natural later content pass (IDEAS.md).
 - **Weather, festivals, staff, wages, reviews, ratings, random customers:** still out (§9).
 
@@ -740,17 +744,19 @@ A **fourth fishing location** in the woods, bought like the river and the dock (
 | **v4-01** The north and its fields | `WORLD_TOP` and every audited site (DATA_SCHEMAS §10.2); the north band in `WORLD_LAYOUT` and `SCENERY` (tree line, hedges, lanes, the north road, the empty restaurant, Press House and apiary sites as lots, the woods' pines and the lake as scenery water); the two field parcels, their fences, gates and paths; plot indexes per field; every farming tool and automation across fields (§13.3); sprinkler and scarecrow caps; the farmhand's waypoint walk; camera clamp; e2e helpers; the brain buys the fields; the "north fields' share" report row | the restaurant, presses, hives, forage, lake fishing | 15 |
 | **v4-02** The restaurant | `src/data/restaurant.ts`, `src/systems/restaurant.ts`, actions, the Restaurant panel, the building's art and diners, the special rota, the away line; the brain stocks the menu; the buffs check rule; the restaurant's report rows | drinks (the menu accepts any `menuable` item, so drinks plug in later) | 16 |
 | **v4-03** Drinks and the apiary | drink recipes (`station: 'press'`), the Press House system and panel, cocoa on its shelf, hives and honey, Collecting Basket on hives, drinks on the menu, bundles, milestones; the brain presses, keeps hives and serves drinks | forage drinks (they need v4-04's items) | 17 |
-| **v4-04** Woods, lake, balance | forage spots and items, the two forage drinks and two dishes, the Forager's Basket if approved, the lake location, its fish and tuning, the v4 balance pass over 30 and 60 days, the small known issues of v4-01 to v4-03 | new animals, a second restaurant, weather | 18 |
+| **v4-04** Woods, lake, balance | forage spots and items, the two forage drinks and two dishes, the Forager's Basket, the lake location, its fish and tuning, the v4 balance pass over 30 and 60 days, the small known issues of v4-01 to v4-03 | new animals, a second restaurant, weather | 18 |
 
 This confirms the split in the phase prompts. The only move is that the **Press House bundle** and the **apiary** both land in v4-03 (as the prompt has it), and the **two forage drinks** move to v4-04 because their ingredients do not exist before it.
 
-### 13.12 Open questions for the owner
+### 13.12 v4 owner decisions (confirmed after v4 phase 00)
 
-Decide these before v4-01 starts; each has a recommendation, and the documents are written for the recommended answer.
+v4 phase 00 proposed these six choices as open questions; the owner confirmed all six as recommended. The alternatives are kept for the record and are **not** to be built.
 
-1. **Alcohol: no (recommended).** Drinks are non-alcoholic; the Press House makes juices, cordials, sweet cider, teas and cocoa. *Alternative:* a brewery or winery with ale, wine and mead. *Trade-off:* richer real-world flavour and a classic farm-game staple, against a higher age rating on all three stores (PEGI 12–16 / ESRB T, an App Store 17+ "frequent alcohol" descriptor is possible, Steam's mature content survey), a rewrite of the store listings (`docs/STORE.md` says there is no alcohol), and a game that today is suitable for everyone. If yes, the brewery would be a second station with the same rules, and v4-03 grows by a third.
-2. **The restaurant's premium: 1.30 / 1.45 / 1.60, special +0.15, cap 1.75 × base (recommended).** *Alternatives:* a flatter 1.25 / 1.35 / 1.45 (the restaurant is a convenience more than an income), or a steeper 1.4 / 1.6 / 1.8 with cap 2.0 (cooking becomes a main strategy; the simulator then needs a slower serving time to keep the Chef under the 1.5× spread).
-3. **How many north fields: two (recommended)**, North Fields 32 plots and Upper Terraces 24 plots. *Alternative:* a third, a "High Meadow" field of 24 plots in place of part of the woods (the woods shrink to 4 forage spots), for about +40% more crop land and a late 4M sink.
-4. **Foraging automation: yes, a Forager's Basket (recommended)**, a single 120,000g upgrade that picks the woods at each bin pickup. *Alternative:* no automation, so foraging stays the one small daily walk in the game (spots cap at three days, so skipping a day or two loses nothing).
-5. **Chef's special on a fixed weekly rota: yes (recommended).** *Alternative:* no special (one less thing to read in the panel).
-6. **The restaurant's toolbar button:** a new **Restaurant** button once built (recommended), or reached only by clicking the building and through Upgrades. The toolbar has room on desktop; on phones it joins the overflow like Ranch.
+1. **No alcohol.** Drinks are non-alcoholic: the Press House makes juices, cordials, sweet cider, teas and cocoa, and the store listings stay as they are (`docs/STORE.md`: no alcohol). *Alternative:* a brewery or winery with ale, wine and mead, which would have raised the age rating on all three stores (PEGI 12–16 / ESRB T, a possible App Store 17+ "frequent alcohol" descriptor, Steam's mature content survey) and grown v4-03 by a second station.
+2. **The restaurant's premium: 1.30 / 1.45 / 1.60** by level, the day's special **+0.15**, and a cap of **1.75 × base** (BALANCE §14.3). *Alternatives:* a flatter 1.25 / 1.35 / 1.45, or a steeper 1.4 / 1.6 / 1.8 with a cap of 2.0.
+3. **Two north fields:** North Fields (8 × 4, 32 plots) and Upper Terraces (8 × 3, 24 plots). *Alternative:* a third "High Meadow" field of 24 plots in part of the woods (IDEAS.md).
+4. **Foraging gets an automation upgrade:** the **Forager's Basket** (`forager_basket`), one level at 120,000 gold, picks every ripe forage spot at each Shipping Bin pickup (BALANCE §14.7). It is built in v4-04. *Alternative:* no automation, so foraging stays a hand-only daily walk.
+5. **A Chef's special on a fixed weekly rota:** one recipe a day earns +0.15, chosen by `calendar.dayIndex` from `SPECIAL_ROTA`, with the next seven days shown in the panel. *Alternative:* no special.
+6. **A Restaurant toolbar button** once the restaurant is built (on phones it joins the overflow like Ranch). *Alternative:* reach it only by clicking the building.
+
+No open questions remain for v4 phase 01.

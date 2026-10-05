@@ -1750,7 +1750,7 @@ FORAGE_CAP_DAYS = 3
 | `rose_hip` | 55 | 5 | 90 | sale; the Forager bundle |
 | `hazelnut` | 70 | 6 | 80 | sale; the Forager bundle |
 
-The woods earn 3–5k gold a day at base (well under 1% of a late farm): a gentle daily walk and an ingredient stream, never an income. **Forager's Basket** (`forager_basket`, only if the owner says yes, GDD §13.12 question 4): one level, 120,000, requires `m28_first_forage`; flag `autoForage` picks every ripe spot at each bin pickup into the bag (or the bin), Farming XP ¼.
+The woods earn 3–5k gold a day at base (well under 1% of a late farm): a gentle daily walk and an ingredient stream, never an income. **Forager's Basket** (`forager_basket`, confirmed by the owner, GDD §13.12 decision 4): one level, 120,000, requires `m28_first_forage`; flag `autoForage` picks every ripe spot at each bin pickup into the bag (or the bin), Farming XP ¼.
 
 **Forage dishes** (v4-04): `mushroom_risotto` Mushroom Risotto (chanterelle ×2, wheat ×1, milk ×1; 90 s; score 17.90, **T3**, base 872, `xp`; card 8,000) and `blackberry_tart` Blackberry Tart (blackberry ×4, wheat ×2, egg ×1; 60 s; score 15.80, **T3**, base 544, `fishingSpeed`; card 6,000).
 
@@ -1780,7 +1780,7 @@ Junk: `old_boot`, `driftwood`. Whitefish bites at every hour of every season, so
 | Six hives (§14.5) | 209,000 |
 | v4 recipe cards: 8 drinks, 3 dishes | 86,000 |
 | Mountain Lake and two more fish traps (§14.7) | 314,200 |
-| Forager's Basket (if approved) | 120,000 |
+| Forager's Basket | 120,000 |
 | **v4 total** | **6,929,100** |
 
 The whole catalogue becomes 11,319,030 + 6,929,100 = **18,248,130**. The north fields add about +30–40% to crop income from day 10–18, the restaurant, presses and hives a few percent more.
@@ -1824,7 +1824,7 @@ The bots still act only through `Game.dispatch`; each phase extends `scripts/sim
 | v4-01 | `{ kind: 'parcel' }` wants for `north_fields` (after `farm_4`, the starter yard and Seed Order L2) and `terraces` (in `spendV2`'s turns, before decorations); place sprinklers and scarecrows on north plots; Harvest all covers every field; stock seeds for the north (Seed Order covers it once planted) | moments: each north parcel; gold earned on north plots (by field, from `harvested` with a field) and its share of crop gold; payback day | north fields' share (§14.9); payback ≤ 10 days |
 | v4-02 | build and upgrade the restaurant; fill the menu for each absence and restock each look; cook for margin; the Chef's order eat → menu → Market | restaurant gold and servings per day and their share; the special's share | restaurant share (§14.9); the buffs check with both Chefs using the restaurant |
 | v4-03 | build and upgrade the Press House; keep presses going (start "keep pressing" on the best drink the bag can sustain through the absence; buy cocoa in winter); buy hives and collect honey (the Collecting Basket does it later); drinks on the menu after dishes of the same value; drink for buffs like dishes | drink gold per day and share; honey per day; drinks pressed | drink share (§14.9) |
-| v4-04 | pick forage each look; buy the lake and its traps (the Angler first), fish the lake in rotation; buy the Forager's Basket if it exists; 60-day runs | forage and lake gold; the 60-day "Gold still to spend" columns | §14.8's curve at 30, 45 and 60 days; spread at day 60 |
+| v4-04 | pick forage each look; buy the lake and its traps (the Angler first), fish the lake in rotation; buy the Forager's Basket after the lake; 60-day runs | forage and lake gold; the 60-day "Gold still to spend" columns | §14.8's curve at 30, 45 and 60 days; spread at day 60 |
 
 `tests/simulate.test.ts` stays green in every phase (determinism, speed: one bot's 30 days in under 10 s, the first session, the tuning checks on short runs). A 60-day run is only in `npm run simulate -- --days 60` and is not part of `npm test`.
 

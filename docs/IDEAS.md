@@ -112,6 +112,6 @@ v4 phase 00 (the North; ideas kept out of v4 on purpose):
 - **Drinks and honey in town stages**: the projects' asks are the owner's; drinks could be alternative items in a later content pass (GDD §13.9).
 - **A repeatable late sink** after the catalogue is spent (a keen player runs out around day 35–40 even with v4, BALANCE §14.8): something cosmetic and endless, never income. Owner call.
 - **An auto-stocking pantry** for the restaurant (a level or upgrade that restocks the menu from the bag at each bin pickup, like the silo): v4-02 has a one-click Restock instead. Later, if players ask.
-- **A third north field** ("High Meadow", 24 plots, in part of the woods) if the owner wants more land (GDD §13.12 question 3).
-- **A brewery** with ale, cider and mead: only if the owner answers yes to GDD §13.12 question 1 (store age ratings).
+- **A third north field** ("High Meadow", 24 plots, in part of the woods): the owner chose two fields (GDD §13.12 decision 3); kept here if more land is wanted later.
+- **A brewery** with ale, cider and mead: the owner chose no alcohol (GDD §13.12 decision 1, store age ratings). Not planned.
 
