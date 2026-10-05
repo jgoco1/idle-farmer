@@ -100,6 +100,8 @@ export type GameEvent =
   | { type: 'inventoryFull'; item: ItemId }
   /** Items thrown away from the bag (the Inventory's Discard button). */
   | { type: 'discarded'; item: ItemId; qty: number }
+  /** A stack was moved or merged, or the bag was sorted (the Inventory panel). */
+  | { type: 'bagArranged' }
   | { type: 'bite' | 'escaped'; location: FishLocationId }
   | { type: 'trapCollected'; location: FishLocationId; items: number }
   | { type: 'caught'; catch: FishId | JunkId; sizeCm: number; location: FishLocationId; viaTrap: boolean }

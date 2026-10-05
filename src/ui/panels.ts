@@ -13,6 +13,7 @@ import { spriteDataUrl } from '../render/spriteCache';
 import type { ActionResult } from '../systems/context';
 import { inSeason } from '../systems/farming';
 import { usedSlots } from '../systems/inventory';
+import { attachBagDrag } from './bagDrag';
 import { unitPrice } from '../systems/market';
 import type { Modifiers } from '../systems/modifiers';
 import { maxAffordableSeeds, seedStock } from '../systems/shop';
@@ -324,14 +325,51 @@ export function inventoryPanel(hooks: InventoryHooks): PanelDef {
     live: true,
     build(body) {
       const summary = h('p', { class: 'muted inv-summary' });
+      const sort = h('button', {
+        type: 'button',
+        class: 'btn btn-small',
+        'data-testid': 'inv-sort',
+        text: 'Sort',
+        title: 'Merge stacks of the same item and sort the bag by kind, then name',
+      });
+      const hint = h('p', { class: 'inv-hint', role: 'status' });
       const grid = h('div', { class: 'inv-grid', role: 'list', 'aria-label': 'Inventory slots' });
       const detail = h('div', { class: 'inv-detail', 'aria-live': 'polite' });
-      const blank = 'Hover or tap an item to see what it is worth.';
+      const blank =
+        'Hover or tap an item to see what it is worth. Drag a stack (hold it on touch) to move it or merge it.';
       let selected: number | null = null;
-      body.append(summary, grid, detail);
+      /** The slot whose stack the Move… button picked up; the next slot clicked is where it goes. */
+      let moving: number | null = null;
+      body.append(h('div', { class: 'inv-head' }, summary, sort), hint, grid, detail);
+
+      const move = (from: number, to: number): void => {
+        const r = hooks.dispatch({ type: 'moveStack', from, to });
+        if (r.ok) selected = hooks.state().inventory.slots[to] ? to : null;
+        else {
+          eatMsg.textContent = r.reason;
+          eatMsg.className = 'form-msg form-error';
+        }
+        refresh();
+      };
+      const drag = attachBagDrag(grid, move);
+      sort.addEventListener('click', () => {
+        moving = null;
+        selected = null;
+        hooks.dispatch({ type: 'sortInventory' });
+        refresh();
+      });
+      // Closing the panel drops a held stack or a pending Move.
+      const root = body.closest<HTMLElement>('.panel');
+      if (root) {
+        new MutationObserver(() => {
+          if (!root.hidden) return;
+          drag.cancel();
+          moving = null;
+        }).observe(root, { attributes: true, attributeFilter: ['hidden'] });
+      }
 
       const eatMsg = h('p', { class: 'form-msg', role: 'status' });
-      const describe = (def: ItemDef | undefined, qty: number, hearty = false): void => {
+      const describe = (def: ItemDef | undefined, qty: number, hearty = false, slotIndex = -1): void => {
         if (!def) {
           detail.replaceChildren(h('p', { class: 'muted', text: blank }), eatMsg);
           return;
@@ -372,7 +410,18 @@ export function inventoryPanel(hooks: InventoryHooks): PanelDef {
           'aria-label': `Discard ${def.name}`,
         });
         discard.addEventListener('click', () => confirmDiscard(def, qty, hearty));
-        parts.push(h('div', { class: 'btn-row' }, discard));
+        const moveBtn = h('button', {
+          type: 'button',
+          class: 'btn btn-small',
+          'data-move': def.id,
+          text: 'Move…',
+          'aria-label': `Move ${def.name} to another slot`,
+        });
+        moveBtn.addEventListener('click', () => {
+          moving = slotIndex;
+          refresh();
+        });
+        parts.push(h('div', { class: 'btn-row' }, ...(slotIndex >= 0 ? [moveBtn] : []), discard));
         detail.replaceChildren(...parts.filter((p): p is HTMLElement => p !== null), eatMsg);
       };
 
@@ -397,53 +446,75 @@ export function inventoryPanel(hooks: InventoryHooks): PanelDef {
         });
       };
 
-      return {
-        refresh() {
-          const inv = hooks.state().inventory;
-          summary.textContent = `${usedSlots(inv)} / ${inv.slots.length} slots · stacks of ${inv.stackSize}`;
-          grid.replaceChildren();
-          inv.slots.forEach((stack, i) => {
-            const def = stack ? hooks.data.items[stack.item] : undefined;
-            const slot = h('button', {
-              type: 'button',
-              class: `inv-slot${stack ? '' : ' is-empty'}`,
-              role: 'listitem',
-              'data-item': stack?.item,
-              'aria-label':
-                stack && def ? `${def.name}${stack.hearty ? ' (hearty)' : ''}, ${stack.qty}` : 'Empty slot',
-              title: def ? itemTooltip(hooks, def) : undefined,
-            });
-            if (stack && def) {
-              slot.append(
-                h('img', { class: 'pixel', alt: '', width: 32, height: 32, src: spriteDataUrl(def.sprite) }),
-              );
-              if (stack.hearty) {
-                slot.append(
-                  h('img', {
-                    class: 'pixel inv-hearty',
-                    alt: 'Hearty',
-                    width: 20,
-                    height: 20,
-                    src: spriteDataUrl('ui_hearty'),
-                  }),
-                );
-              }
-              slot.append(h('span', { class: 'inv-qty', text: String(stack.qty) }));
-              if (stack.hearty) slot.dataset.hearty = 'true';
-              const show = (): void => describe(def, stack.qty, stack.hearty === true);
-              slot.addEventListener('mouseenter', show);
-              slot.addEventListener('focus', show);
-              slot.addEventListener('click', () => {
-                selected = i;
-                show();
-              });
-            }
-            grid.append(slot);
+      const refresh = (): void => {
+        if (drag.active()) return; // never rebuild the grid under a held stack
+        const inv = hooks.state().inventory;
+        summary.textContent = `${usedSlots(inv)} / ${inv.slots.length} slots · stacks of ${inv.stackSize}`;
+        if (moving !== null && !inv.slots[moving]) moving = null;
+        const held = moving !== null ? inv.slots[moving] : null;
+        const heldDef = held ? hooks.data.items[held.item] : undefined;
+        hint.textContent = heldDef
+          ? `Choose a slot for the ${heldDef.name} (or click it again to keep it there).`
+          : '';
+        grid.classList.toggle('is-moving', moving !== null);
+        grid.replaceChildren();
+        inv.slots.forEach((stack, i) => {
+          const def = stack ? hooks.data.items[stack.item] : undefined;
+          const slot = h('button', {
+            type: 'button',
+            class: `inv-slot${stack ? '' : ' is-empty'}${i === moving ? ' is-drag-source' : ''}`,
+            role: 'listitem',
+            'data-slot': String(i),
+            'data-item': stack?.item,
+            'aria-label':
+              stack && def ? `${def.name}${stack.hearty ? ' (hearty)' : ''}, ${stack.qty}` : 'Empty slot',
+            title: def ? itemTooltip(hooks, def) : undefined,
           });
-          const sel = selected !== null ? inv.slots[selected] : null;
-          describe(sel ? hooks.data.items[sel.item] : undefined, sel?.qty ?? 0, sel?.hearty === true);
-        },
+          if (stack && def) {
+            slot.append(
+              h('img', { class: 'pixel', alt: '', width: 32, height: 32, src: spriteDataUrl(def.sprite) }),
+            );
+            if (stack.hearty) {
+              slot.append(
+                h('img', {
+                  class: 'pixel inv-hearty',
+                  alt: 'Hearty',
+                  width: 20,
+                  height: 20,
+                  src: spriteDataUrl('ui_hearty'),
+                }),
+              );
+            }
+            slot.append(h('span', { class: 'inv-qty', text: String(stack.qty) }));
+            if (stack.hearty) slot.dataset.hearty = 'true';
+            const show = (): void => describe(def, stack.qty, stack.hearty === true, i);
+            slot.addEventListener('mouseenter', show);
+            slot.addEventListener('focus', show);
+          }
+          slot.addEventListener('click', () => {
+            if (drag.consumeClick()) return; // the end of a mouse drag, not a selection
+            if (moving !== null) {
+              const from = moving;
+              moving = null;
+              if (from === i) refresh();
+              else move(from, i);
+              return;
+            }
+            if (!stack || !def) return;
+            selected = i;
+            describe(def, stack.qty, stack.hearty === true, i);
+          });
+          grid.append(slot);
+        });
+        const sel = selected !== null ? inv.slots[selected] : null;
+        describe(
+          sel ? hooks.data.items[sel.item] : undefined,
+          sel?.qty ?? 0,
+          sel?.hearty === true,
+          selected ?? -1,
+        );
       };
+      return { refresh };
     },
   };
 }

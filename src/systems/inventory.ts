@@ -7,7 +7,7 @@
 
 import type { GameState, Inventory } from '../core/state';
 import type { ItemId } from '../data/ids';
-import type { ItemStack } from '../data/types';
+import type { ItemCategory, ItemStack } from '../data/types';
 import { fail, OK, type ActionResult, type SimContext } from './context';
 
 function sameKind(s: ItemStack, item: ItemId, hearty: boolean): boolean {
@@ -118,5 +118,108 @@ export function discardItem(
   const kind = hearty ?? (countItem(state.inventory, item, false) >= qty ? false : undefined);
   if (!removeItem(state.inventory, item, qty, kind)) return fail(`You don't have ${qty} ${def.name}.`);
   ctx.events.push({ type: 'discarded', item, qty });
+  return OK;
+}
+
+/**
+ * Tops each stack up from later stacks of the same kind, in place, so no two stacks of one kind are both
+ * short of `stackSize`. Barn storage calls it when stacks grow, so two full stacks of 99 become 198 and an
+ * empty slot. Nothing is gained or lost; returns true if anything moved.
+ */
+export function mergeStacks(inv: Inventory): boolean {
+  let moved = false;
+  for (let i = 0; i < inv.slots.length; i++) {
+    const s = inv.slots[i];
+    if (!s) continue;
+    for (let j = i + 1; j < inv.slots.length && s.qty < inv.stackSize; j++) {
+      const t = inv.slots[j];
+      if (!t || !sameKind(t, s.item, Boolean(s.hearty))) continue;
+      const n = Math.min(t.qty, inv.stackSize - s.qty);
+      s.qty += n;
+      t.qty -= n;
+      if (t.qty === 0) inv.slots[j] = null;
+      moved = true;
+    }
+  }
+  return moved;
+}
+
+/**
+ * Moves the stack in slot `from` onto slot `to` (dragging in the Inventory panel): into an empty slot it
+ * moves, onto a stack of the same kind it merges as far as the stack size allows (the rest stays behind),
+ * onto anything else the two swap.
+ */
+export function moveStack(state: GameState, ctx: SimContext, from: number, to: number): ActionResult {
+  const slots = state.inventory.slots;
+  const inRange = (i: number): boolean => Number.isInteger(i) && i >= 0 && i < slots.length;
+  if (!inRange(from) || !inRange(to)) return fail('There is no such slot.');
+  const s = slots[from];
+  if (!s) return fail('That slot is empty.');
+  if (from === to) return OK;
+  const t = slots[to];
+  if (t && sameKind(t, s.item, Boolean(s.hearty)) && t.qty < state.inventory.stackSize) {
+    const n = Math.min(s.qty, state.inventory.stackSize - t.qty);
+    t.qty += n;
+    s.qty -= n;
+    if (s.qty === 0) slots[from] = null;
+  } else {
+    slots[to] = s;
+    slots[from] = t ?? null;
+  }
+  ctx.events.push({ type: 'bagArranged' });
+  return OK;
+}
+
+/** The Sort button's order: what you plant, what you grow, what you catch and cook, then the rest. */
+const SORT_CATEGORIES: readonly ItemCategory[] = [
+  'seed',
+  'sapling',
+  'crop',
+  'fruit',
+  'animal',
+  'fish',
+  'dish',
+  'feed',
+  'junk',
+];
+
+/**
+ * Sorts the bag (the Inventory panel's Sort button): merges every kind into as few stacks as the stack size
+ * allows and lays them out from the first slot, by category (`SORT_CATEGORIES`), then name, plain before
+ * hearty; empty slots go to the end. Merging never needs more slots than before, so it always fits.
+ */
+export function sortInventory(state: GameState, ctx: SimContext): ActionResult {
+  const inv = state.inventory;
+  const totals: ItemStack[] = [];
+  for (const s of inv.slots) {
+    if (!s) continue;
+    const e = totals.find((t) => sameKind(t, s.item, Boolean(s.hearty)));
+    if (e) e.qty += s.qty;
+    else totals.push(s.hearty ? { item: s.item, qty: s.qty, hearty: true } : { item: s.item, qty: s.qty });
+  }
+  const rank = (t: ItemStack): number => {
+    const r = SORT_CATEGORIES.indexOf(ctx.data.items[t.item]?.category ?? 'junk');
+    return r < 0 ? SORT_CATEGORIES.length : r;
+  };
+  const name = (t: ItemStack): string => ctx.data.items[t.item]?.name ?? t.item;
+  totals.sort(
+    (a, b) =>
+      rank(a) - rank(b) ||
+      (name(a) < name(b) ? -1 : name(a) > name(b) ? 1 : 0) ||
+      (a.item < b.item ? -1 : a.item > b.item ? 1 : 0) ||
+      Number(Boolean(a.hearty)) - Number(Boolean(b.hearty)),
+  );
+  const next: (ItemStack | null)[] = [];
+  for (const t of totals) {
+    for (let left = t.qty; left > 0;) {
+      const n = Math.min(left, inv.stackSize);
+      next.push(t.hearty ? { item: t.item, qty: n, hearty: true } : { item: t.item, qty: n });
+      left -= n;
+    }
+  }
+  if (next.length > inv.slots.length) return fail('The bag is too full to sort.'); // never: merging only frees slots
+  while (next.length < inv.slots.length) next.push(null);
+  inv.slots = next;
+  ctx.events.push({ type: 'bagArranged' });
   return OK;
 }
