@@ -215,6 +215,8 @@ test.describe('on a 390 × 844 touch phone', () => {
       'untilled',
       'untilled',
     ]);
+    // Chrome sometimes drops the click of a tap that lands just after a fast swipe (4 runs in 30 here).
+    await page.waitForTimeout(400);
     await page.getByRole('button', { name: 'Back to the farm' }).tap();
     await expect.poll(async () => (await camera(page)).x).toBe(before.x);
 

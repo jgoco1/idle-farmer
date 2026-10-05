@@ -1518,3 +1518,326 @@ So the order is worth about +21% on every idle stretch over a player who stocks 
 - Seed Order buys only what the planter last planted, so on the first day of a season it has nothing to buy until the planter has planted the new crop once; the bots' hand-stocking covers that gap, a player's does not (IDEAS.md).
 - `finishesBeforeSeasonEnds` reads `ctx.calendar.msToSeasonChange`, which the core fixes for a whole segment (up to a day offline), so a crop at the very edge of the season can be judged against a calendar a few hours stale. One big step still equals many small ones (tested across a season change).
 
+
+## 14. v4: the North
+
+Written by v4 phase 00 as **starting numbers**. v4 phases 01–04 build them and tune them with `npm run simulate`; a phase that moves a number updates this section and adds a dated note under §14.12. Ids match DATA_SCHEMAS.md §10 and GDD §13. Prices use `roundNice` unless already round.
+
+**Where v4 starts** (`npm run simulate -- --seeds 1,2,3,4,5,6,7,8` on `main` after v2-06, 30 days, medians; the same as §13.15):
+
+| Bot | Gold d7 | Gold d14 | Gold d30 | Gold / sim h, d21–30 | Catalogue still to spend, d21 · d30 |
+|---|---|---|---|---|---|
+| Greedy Farmer | 2,645,413 | 7,934,238 | 27,656,621 | 56–61k | 22% · 2% |
+| Angler | 2,908,179 | 11,459,419 | 32,763,940 | 55–61k | 3% · 3% |
+| Chef | 3,004,546 | 11,921,941 | 35,865,804 | 62–71k | 2% · 2% |
+| Chef who sells (control) | 2,662,349 | 8,066,403 | 26,895,475 | 56–61k | 28% · 2% |
+| Active Player | 896,828 | 4,356,439 | 16,338,659 | 54–57k | 60% · 31% |
+
+A day of the simulator's schedule credits about 19.5 simulated hours (two sessions plus two capped absences), so the keen bots earn about 1.1–1.3M gold a real day from week 3, and every bot but the Active Player has bought the whole catalogue (11.3M) by day 21–28.
+
+**What cooking earns today** (a probe of the v2-06 code on seeds 1–4, per real day, medians; not part of the report):
+
+| Bot, days | Dishes cooked | T1 / T2 / T3 / T4 | Eaten | Dish gold | Sold at (share of base price) | Share of all gold |
+|---|---|---|---|---|---|---|
+| Chef, d7–14 | 237 | 216 / 17 / 5 / 0 | 15 | 32,862 | 112% | 2.2% |
+| Chef, d14–21 | 141 | 104 / 22 / 12 / 1 | 13 | 59,114 | 155% | 3.5% |
+| Chef, d21–30 | 201 | 167 / 23 / 10 / 1 | 12 | 44,275 | 128% | 3.6% |
+| Chef who sells, d14–21 | 206 | 166 / 22 / 8 / 0 | 0 | 54,108 | 120% | 4.8% |
+| Active Player, d14–21 | 65 | 58 / 2 / 2 / 0 | 0 | 13,234 | 119% | 1.8% |
+
+Two things follow. Dishes are a small share of gold, so the restaurant can be generous per dish without upsetting the strategy spread. And **the Chef eats only 12–15 dishes a day and sells about 190**: both Chefs will stock the restaurant with nearly everything they cook, so the restaurant raises both sides of the buffs check almost equally (§14.3).
+
+### 14.1 North field parcels (v4-01)
+
+| id | Name | World rect | Field (plot origin, size) | Plot index base | Price | Requires | Opens |
+|---|---|---|---|---|---|---|---|
+| `north_fields` | North Fields | (0, −7) 20 × 6 | (6, −6), 8 × 4 = 32 plots | 2000 | 1,500,000 | parcel `yard`, expansion `farm_4`, Farm Level 7 | the first north field |
+| `terraces` | Upper Terraces | (0, −13) 20 × 5 | (6, −12), 8 × 3 = 24 plots | 3000 | 2,400,000 | parcel `north_fields`, Farm Level 8 | the second north field |
+
+**What a field is worth.** From day 14 the Greedy Farmer earns 56–63k gold per simulated hour from 60 plots (48 + the greenhouse's 12), of which about 90% is crops (the orchard is 4%, animals 6%): roughly 850 gold per plot per hour, gross. A new field's crops meet the same market depth, so count on about 70% of that per plot: **North Fields ≈ 19k gold per simulated hour gross (≈ 370k a real day)**, Upper Terraces ≈ 14k (≈ 270k a day). After seeds (35–40% of crop gold goes back into seeds) that is ≈ 220k and ≈ 165k a day net, so North Fields pays back in about **7 real days** and the Terraces in about **15**: a strong mid-game buy and a long late one. v4-01 measures it (the "north fields' share" row) and moves the prices if a field pays back in under 5 or over 12 days (North Fields) / under 10 or over 20 (Terraces).
+
+**Caps that rise with the fields** (`src/data/upgrades.ts`; same cost curves continued, BALANCE §4):
+
+| Upgrade | Max today | Max with North Fields · with Terraces | New units' costs |
+|---|---|---|---|
+| `sprinkler` (base 300, ratio 1.35) | 12 | 14 · 16 | 10,900, 14,700 · 19,900, 26,800 |
+| `scarecrow` (base 600, ratio 1.8) | 4 | 5 · 6 | 6,300 · 11,300 |
+
+With Sprinkler Tech L2 (a 5 × 5 square) two sprinklers cover a north field, so the new units are a comfort, not a requirement. The farmhand needs nothing new: Level 5 reaches about 133 plots a minute against 116 plots of 5–20-minute crops.
+
+**Seed Order.** A full farm with both north fields plants about 1,000 seeds an hour of short crops, which is Level 3's target (1,000 per crop, per pickup). If v4-01's run shows the north stalling between pickups, the lever is `seedTarget` at Level 3 (1,000 → 1,500), not a new level.
+
+### 14.2 World constants (v4-01)
+
+`WORLD_TOP = −14`, `WORLD_COLS = 36`, `WORLD_ROWS = 36` (rows −14 … 21; `WORLD_BOTTOM = 22`). In pixels `WORLD_Y0 = −224`, `WORLD_Y1 = 352`, `WORLD_W = WORLD_H = 576`. Ground chunks stay 16 tiles, anchored at the world's top (3 × 3 chunks). Camera numbers (drag threshold, zoom limits, the default view) do not change.
+
+### 14.3 The restaurant (v4-02)
+
+**Levels** (bought in the Restaurant panel; requires Farm Level 7, Kitchen Level 2 and parcel `yard`):
+
+| Level | Price | Menu slots (tables) | Premium | With the day's special |
+|---|---|---|---|---|
+| 1 | 120,000 | 2 | 1.30 | 1.45 |
+| 2 | 350,000 | 3 | 1.45 | 1.60 |
+| 3 | 800,000 | 4 | 1.60 | 1.75 |
+
+The **Press House bundle** (§14.6) adds a fifth slot (the terrace has five tables). 1,270,000 in all.
+
+**Serving** (per slot, exact for any step size; no RNG):
+
+```ts
+SERVE_MIN_PER_TIER   = 20                         // minutes of simulated time per serving, × the item's tier
+interval(item)       = SERVE_MIN_PER_TIER * 60_000 * tier(item)   // T1 20 min · T2 40 · T3 60 · T4 80
+// each step, for each slot holding qty > 0 of an item:
+servings  = min(slot.qty, floor((slot.cycleMs + dtMs) / interval))
+slot.cycleMs = (slot.cycleMs + dtMs) - servings * interval;   slot.qty -= servings
+if (slot.qty === 0) slot.cycleMs = 0                          // an emptied slot restarts from zero when restocked
+price     = min(RESTAURANT_MAX_MULT, premium(level) + (item === specialOf(dayIndex) ? SPECIAL_BONUS : 0)) * basePrice
+gold      = servings * round(price)                            // straight to the purse; demand, specials and mods untouched
+RESTAURANT_MAX_MULT = 1.75; SPECIAL_BONUS = 0.15; MENU_SLOT_CAP = 99
+```
+
+Nothing changes the interval mid-step (no modifier reads it), so `msToNextSimEvent` does not need to split at servings; a level upgrade or a restock is an action, which is already a step boundary. The day's special is fixed for the calendar segment the core steps through.
+
+**The special rota.** `SPECIAL_ROTA` is a fixed list of 28 recipe and drink ids (every T2–T4 dish and drink at least once, seasonal ones in their season's weeks); the special on day `d` is `SPECIAL_ROTA[d % 28]`. The panel lists the next seven days. If the player does not know that recipe, there is simply no special for them that day.
+
+**What it can earn.** Per slot per simulated hour at Level 3 (premium 1.60), with average base prices by tier (T1 125, T2 361, T3 1,079, T4 2,409):
+
+| Menu | Servings / slot / h | Gold / slot / h | 4 slots / sim h | 4 slots / real day (19.5 sim h) |
+|---|---|---|---|---|
+| all T1 | 3 | 600 | 2,400 | 47,000 |
+| all T2 | 1.5 | 866 | 3,500 | 68,000 |
+| all T3 | 1 | 1,726 | 6,900 | 135,000 |
+| all T4 | 0.75 | 2,891 | 11,600 | 226,000 |
+
+So a cook's restaurant earns 5–11% of late income with an ordinary menu and at most about 19% with four feasts on it all day. The extra over selling the same dishes at the Market is a third to a half of that (the Market already paid 112–155% of base for the few dishes it took), so the restaurant adds roughly **2–8%** to a cook's gold: a strong side income, not a new main farm. A full T4 menu also needs about 60 T4 dishes cooked a day, which only a player who cooks most of the session will do.
+
+**Simulator rationale (v4-00).** v4-00 cannot add the restaurant to the simulator (that is v4-02), so it ran the real bots with a deliberately generous stand-in: **every dish sale paid base × premium, with no demand loss and no table limit**, a ceiling on what any restaurant can do with today's cooking. Results (8 seeds, 30 days, medians; the buffs check on its own 24 seeds at day 10):
+
+| Run | Chef d30 | Chef who sells d30 | Strategy spread d3 · d7 · d30 | Buffs check (day 10) | Notes |
+|---|---|---|---|---|---|
+| v2-06 baseline | 35,865,804 | 26,895,475 | 1.14× · 1.14× · 1.30× | +18% (d14 +32%) | |
+| ×1.45 from day 0 | 38,072,536 | 29,403,161 | 1.34× · 1.30× · 1.38× | **+37%** ❌ (d14 +38%) | Active Player +1% |
+| ×1.60 from day 0 | 32,380,185 | 27,794,073 | 1.24× · 1.17× · 1.18× | +23% (d14 +35%) | |
+| ×1.45 from day 8 | 35,296,870 | 28,869,543 | 1.14× · 1.14× · 1.28× | +23% (d14 +32%) | the restaurant's real opening day |
+
+Answers to the three questions:
+1. **Does it make "Chef who sells" dominant? No.** Even the ceiling runs keep the Chef who sells below the Chef and the spread at or under 1.38× (limit 1.5×); with the premium starting on day 8, the Chef who sells gains 7% by day 30 and the spread is 1.28×. The effect on lifetime gold (−10% to +9% across runs) is about the size of the simulator's own seed noise, because dishes are 2–5% of gold.
+2. **The buffs check.** Both Chefs stock the restaurant with what they do not eat, so the restaurant raises both sides; the eaten dishes' opportunity cost rises by only ~15 dishes a day × the premium. But extra gold in the first week moves *when* the Chef makes its day-10 purchases, and the paired day-10 figure is sensitive to that: it read +37% when the premium started on day 0, but **+23% (in band) when it started on day 8**, the restaurant's real opening. **Rule for v4-02:** the check keeps comparing the Chef with the Chef who sells, **both stocking the restaurant first** (it is a selling channel, not a buff), judged at day 10 on 24 seeds as now. If it leaves the +10–25% band, the levers in order are: the restaurant's opening (its requirements, so it lands on day 6–9), `SERVE_MIN_PER_TIER` (capacity), the premium; buff constants move only if the day-14 ceiling (+32%) also breaks.
+3. **The gold-sink curve.** The restaurant is 1.27M of catalogue bought on days 6–14 (L1 with the starter yard, L2–L3 in the v2 spending turns), and its income (5–11% of a cook's gold) moves a cook's spent-out day about 1–2 days earlier (§14.8).
+
+**What the brain learns (v4-02).**
+- Build the restaurant when unlocked, right after the starter yard, with gold the planter's seeds will not need (`seedGold`); levels 2 and 3 join `spendV2`'s turns.
+- **Before leaving:** fill the menu for the absence: for each slot, choose the dish with the most `base × servings` that the absence can serve (`servings = absenceSimMs / interval`), from the bag, highest value first; `Restock` at every look.
+- **Cooking for it:** the Chef, the Chef who sells and the Active Player keep the stove busy during sessions with the best-margin recipe they can make (`base × premium − ingredient value`), not the quickest, once the restaurant exists.
+- The Chef eats first, stocks the restaurant second and sells the rest; the Chef who sells stocks the restaurant first and sells the rest.
+
+### 14.4 The Press House and drinks (v4-03)
+
+**Levels** (requires Farm Level 7 and parcel `orchard`; bought in the Press House panel):
+
+| Level | Price | Press slots | Notes |
+|---|---|---|---|
+| 1 | 90,000 | 2 | Tomato Juice and Honey Milk known; the Apiary card opens |
+| 2 | 250,000 | 3 | Orchard Punch's card can be bought |
+| 3 | 600,000 | 4 | |
+
+940,000 in all. **Cocoa** (`cocoa`, "Cocoa Beans") is sold on the Press House shelf at 60 gold (`COCOA_PRICE`), item base price 60, not sellable (like feed), so the winter drink never depends on a season.
+
+**Drink tier and price.** The dish formula, with a time term for long timers:
+
+```ts
+score = units + value / TIER_VALUE_DIV + pressSec / TIER_PRESS_DIV     // TIER_VALUE_DIV = 50 (as dishes), TIER_PRESS_DIV = 600 (1 point per 10 min)
+tier  = score >= 28 ? 4 : score >= 15 ? 3 : score >= 8 ? 2 : 1          // the dish thresholds
+basePrice = round(value * TIER_SELL_MULT[tier])                         // the dish multipliers 1.25 / 1.40 / 1.60 / 2.00
+buff: magnitude and duration from tier exactly as dishes (§7)
+```
+
+(A long press scored with the dish divisor of 30 seconds would make every drink T4.) Presses are not sped up by Quick Hands or any modifier. One run makes one drink.
+
+**Recipes (12: 2 × T1, 3 × T2, 6 × T3, 1 × T4).** Honey is 150 (§14.5), cocoa 60, forage items as §14.7.
+
+| id | Name | Ingredients | Press (min) | Units | Value | Score | Tier | Base price | Buff | Magnitude | Duration | Fresh in | Discovery | Phase |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `tomato_juice` | Tomato Juice | tomato ×4 | 20 | 4 | 48 | 6.96 | T1 | 60 | `growth` | +13% | 25 min | summer, autumn | starter (with the Press House) | v4-03 |
+| `honey_milk` | Honey Milk | milk ×1, honey ×1 | 20 | 2 | 390 | 11.80 | T2 | 546 | `automationSpeed` | +26% | 75 min | all | starter (with the Press House) | v4-03 |
+| `strawberry_cordial` | Strawberry Cordial | strawberry ×4, honey ×1 | 30 | 5 | 230 | 12.60 | T2 | 322 | `fishingSpeed` | +26% | 75 min | spring | card 3,000 | v4-03 |
+| `blueberry_cordial` | Blueberry Cordial | blueberry ×6, honey ×1 | 30 | 7 | 222 | 14.44 | T2 | 311 | `fishingLuck` | +26% | 75 min | summer | card 3,000 | v4-03 |
+| `lemonade` | Lemonade | lemon ×1, honey ×1 | 60 | 2 | 850 | 25.00 | T3 | 1,360 | `cookSpeed` | +58.5% | 3 h 45 | winter, spring | milestone `m26_first_drink` | v4-03 |
+| `apple_cider` | Sweet Cider | apple ×2 | 90 | 2 | 590 | 22.80 | T3 | 944 | `growth` | +39% | 3 h 45 | summer, autumn | card 6,000 | v4-03 |
+| `peach_iced_tea` | Peach Iced Tea | peach ×1, honey ×1 | 60 | 2 | 650 | 21.00 | T3 | 1,040 | `fishingSpeed` | +39% | 3 h 45 | summer | card 8,000 | v4-03 |
+| `melon_cooler` | Melon Cooler | melon ×1, blueberry ×4 | 60 | 5 | 611 | 23.22 | T3 | 978 | `fishingLuck` | +39% | 3 h 45 | summer | card 8,000 | v4-03 |
+| `hot_cocoa` | Hot Cocoa | milk ×2, cocoa ×1, honey ×1 | 45 | 4 | 690 | 22.30 | T3 | 1,104 | `xp` | +58.5% | 3 h 45 | all (cocoa from the shelf) | card 10,000 | v4-03 |
+| `orchard_punch` | Orchard Punch | apple ×1, pear ×1, persimmon ×1, cranberry ×4, honey ×1 | 180 | 8 | 1,686 | 59.72 | T4 | 3,372 | `automationSpeed` | +52% | 11 h 15 | autumn | card 20,000 · Press House L2 | v4-03 |
+| `herbal_tea` | Herbal Tea | wild_mint ×2 | 20 | 2 | 90 | 5.80 | T1 | 112 | `xp` | +19.5% | 25 min | spring, summer, autumn | milestone `m28_first_forage` | v4-04 |
+| `elderflower_cordial` | Elderflower Cordial | elderflower ×3, honey ×1 | 60 | 4 | 330 | 16.60 | T3 | 528 | `cookSpeed` | +58.5% | 3 h 45 | spring | card 9,000 | v4-04 |
+
+Buffs: growth 2, automationSpeed 2, fishingSpeed 2, fishingLuck 2, cookSpeed 2, xp 2, **sellPrice 0** (drinks add choice, not gold power). Every season has drinks (spring 5, summer 7, autumn 4, winter 3 counting the all-season ones). The cards cost 67,000.
+
+**What the Press House earns.** Four slots of T3 drinks at about an hour each, kept pressing through a 9-hour absence, make about 36 drinks worth 1,000–1,360 each: **35–50k gold a night at base**, or more on the menu, from ingredients worth about 60% of that. Drinks should land at **2–10% of a cook's gold** on days 14–30 (a new report row); the levers are press times, then `TIER_PRESS_DIV`.
+
+### 14.5 The apiary and honey (v4-03)
+
+| Thing | Number |
+|---|---|
+| Hive spots | 6 (`HIVE_SPOTS` in `src/data/world.ts`) |
+| Hive price, the (n+1)th | `roundNice(10_000 × 1.5^n)`: 10,000, 15,000, 23,000, 34,000, 51,000, 76,000 (209,000 for six); requires the Press House L1 |
+| Honey cycle | 3,600 s (`HIVE_CYCLE_SEC`), shortened by `animalSpeedModifier` (Busy Bees) as `round(3_600_000 / speed)` whole ms |
+| Hive store | 10 jars (`HIVE_STORE`); full = it waits |
+| `honey` | base price 150, Farming XP 10 a jar (the crop formula), ¼ when the Collecting Basket collects; market depth 55 |
+
+Six hives make 6 jars an hour (≈ 900 gold an hour at base, ≈ 1.5% of late income) and hold a 10-hour absence. A hive pays for itself in 11–85 hours of honey: they are cheap on purpose, because honey's real job is to feed drinks. Production uses the ranch's whole-cycle rule and is equal for one big step and many small ones.
+
+**Honey dishes** (kitchen recipes, v4-03):
+
+| id | Name | Ingredients | Cook (s) | Units | Value | Score | Tier | Base price | Buff | Discovery |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `honey_cake` | Honey Cake | wheat ×2, egg ×1, honey ×1 | 60 | 4 | 290 | 11.80 | T2 | 406 | `automationSpeed` | milestone `m27_first_honey` |
+| `honey_roast_yams` | Honey-Roast Yams | yam ×2, honey ×1 | 45 | 3 | 372 | 11.94 | T2 | 521 | `growth` | card 5,000 |
+
+### 14.6 Milestones, goals and bundles (v4-01 … v4-04)
+
+| Milestone | Objective | Reward | Phase |
+|---|---|---|---|
+| `m24_north_field` | Own a north field | 50,000 gold | 01 |
+| `m25_first_serving` | Serve a dish at the restaurant | 30,000 gold | 02 |
+| `m26_first_drink` | Press a drink | recipe `lemonade` | 03 |
+| `m27_first_honey` | Collect honey | recipe `honey_cake` | 03 |
+| `m28_first_forage` | Pick something in the North Woods | recipe `herbal_tea` | 04 |
+| `m29_lake_fish` | Catch a fish in the mountain lake | 40,000 gold | 04 |
+
+No farm points (`FARM_POINT_MILESTONES` stays m01–m15).
+
+| Goal template | Example | Target | Requires |
+|---|---|---|---|
+| `serve_dishes` | Serve 12 dishes at the restaurant | about one hour of the current menu's servings, at least 3 | the restaurant built |
+| `press_drinks` | Press 4 drinks | one per press slot | the Press House built |
+
+| Bundle | Slots | Reward | Phase |
+|---|---|---|---|
+| `press_house` | tomato_juice ×5, honey_milk ×5, apple_cider ×3, lemonade ×3, honey ×10 | a fifth restaurant menu slot | 03 |
+| `forager` | morel ×5, chanterelle ×5, wild_mint ×10, blackberry ×10, hazelnut ×10 | forage spots hold 4 days' worth (`FORAGE_CAP_DAYS` 3 → 4) | 04 |
+
+### 14.7 North Woods and the mountain lake (v4-04)
+
+**Forage spots** (8, `FORAGE_SPOTS` in `src/data/world.ts`; kind by spot):
+
+```ts
+// at each daily refresh, for each spot, like trees (exact for any number of missed days):
+for d in (spot.lastDay, calendar.dayIndex]:
+    item = FORAGE_KINDS[kind][seasonOfDay(d)]                     // null = the spot rests this season
+    if item && (spot.qty === 0 || spot.item === item):
+        spot.item = item; spot.qty = min(FORAGE_CAP_DAYS * perDay(item), spot.qty + perDay(item))
+spot.lastDay = calendar.dayIndex
+// a season change with a different item replaces what is waiting only once it has been picked: an unpicked
+// spot keeps its item and quantity (and does not grow) until picked (nothing is lost), then starts the new
+// season's item on the next day
+FORAGE_CAP_DAYS = 3
+```
+
+| Kind (spots) | Spring | Summer | Autumn | Winter |
+|---|---|---|---|---|
+| mushroom (2) | `morel` ×2 | `chanterelle` ×2 | `chanterelle` ×3 | rests |
+| herb (2) | `wild_mint` ×5 | `wild_mint` ×5 | `wild_mint` ×4 | rests |
+| flower and berry (2) | `elderflower` ×4 | `blackberry` ×4 | `blackberry` ×5 | `rose_hip` ×4 |
+| nut (2) | rests | rests | `hazelnut` ×5 | `hazelnut` ×4 |
+
+| Item | Base price | Farming XP | Market depth | Uses |
+|---|---|---|---|---|
+| `morel` | 160 | 10 | 53 | Mushroom Risotto (alternative), sale |
+| `chanterelle` | 140 | 10 | 57 | Mushroom Risotto |
+| `wild_mint` | 45 | 5 | 100 | Herbal Tea |
+| `elderflower` | 60 | 6 | 87 | Elderflower Cordial |
+| `blackberry` | 50 | 5 | 95 | Blackberry Tart |
+| `rose_hip` | 55 | 5 | 90 | sale; the Forager bundle |
+| `hazelnut` | 70 | 6 | 80 | sale; the Forager bundle |
+
+The woods earn 3–5k gold a day at base (well under 1% of a late farm): a gentle daily walk and an ingredient stream, never an income. **Forager's Basket** (`forager_basket`, confirmed by the owner, GDD §13.12 decision 4): one level, 120,000, requires `m28_first_forage`; flag `autoForage` picks every ripe spot at each bin pickup into the bag (or the bin), Farming XP ¼.
+
+**Forage dishes** (v4-04): `mushroom_risotto` Mushroom Risotto (chanterelle ×2, wheat ×1, milk ×1; 90 s; score 17.90, **T3**, base 872, `xp`; card 8,000) and `blackberry_tart` Blackberry Tart (blackberry ×4, wheat ×2, egg ×1; 60 s; score 15.80, **T3**, base 544, `fishingSpeed`; card 6,000).
+
+**The mountain lake** (`lake`, an expansion of kind `fishing`: 300,000; requires expansion `ocean`, parcel `north_fields` and Farm Level 7). Two trap spots, a third with the Pond Fish bundle; `fish_trap`'s max rises 6 → 8 (the 7th and 8th cost 5,700 and 8,500).
+
+| id | Name | Seasons | Hours | Rarity | Difficulty | Size (cm) | Base price | Trap |
+|---|---|---|---|---|---|---|---|---|
+| `whitefish` | Whitefish | all | 0–24 | common | 25 | 25–50 | 45 | yes |
+| `lake_trout` | Lake Trout | spring, summer, autumn | 5–21 | common | 35 | 30–70 | 70 | yes |
+| `crayfish` | Crayfish | spring, summer, autumn | 18–8 | uncommon | 40 | 8–15 | 120 | yes |
+| `pike` | Pike | autumn, winter, spring | 0–24 | uncommon | 55 | 50–120 | 170 | yes |
+| `golden_trout` | Golden Trout | summer | 8–18 | rare | 75 | 25–55 | 460 | no |
+| `alpine_char` | Alpine Char | winter | 0–24 | rare | 72 | 30–70 | 480 | no |
+
+Junk: `old_boot`, `driftwood`. Whitefish bites at every hour of every season, so the lake is never empty. **Reel tuning** (`FishLocationDef.reel`): `zoneSpeedMult 0.85`, `zoneWidthMult 0.92`, `biteWaitMult 1.15` (still water: a slower, slightly narrower zone, later bites). Relaxed fishing multiplies on top as elsewhere.
+
+### 14.8 Gold still to spend: v4
+
+**Catalogue added by v4:**
+
+| Part | Cost |
+|---|---|
+| North Fields and Upper Terraces (§14.1) | 3,900,000 |
+| Sprinklers 13–16 and scarecrows 5–6 (§14.1) | 89,900 |
+| Restaurant, three levels (§14.3) | 1,270,000 |
+| Press House, three levels (§14.4) | 940,000 |
+| Six hives (§14.5) | 209,000 |
+| v4 recipe cards: 8 drinks, 3 dishes | 86,000 |
+| Mountain Lake and two more fish traps (§14.7) | 314,200 |
+| Forager's Basket | 120,000 |
+| **v4 total** | **6,929,100** |
+
+The whole catalogue becomes 11,319,030 + 6,929,100 = **18,248,130**. The north fields add about +30–40% to crop income from day 10–18, the restaurant, presses and hives a few percent more.
+
+**Target curve** (share of the catalogue still to spend, medians, ±10 points). v4 lengthens the curve: the simulator runs **60 days** for these rows from v4-04 (30 days for everything else, as now).
+
+| Day | 7 | 14 | 21 | 30 | 45 | 60 |
+|---|---|---|---|---|---|---|
+| Greedy Farmer | 85–95% | 55–75% | 30–50% | 10–30% | 0–10% | 0–5% |
+| Active Player | 90–97% | 75–90% | 60–80% | 40–60% | 15–40% | 0–20% |
+
+Reading it: v2's content is still bought on days 2–21 as now, the north's on days 8–30 for a keen player and 14–55 for the hour-a-day player. A keen player spends out around **day 35–40**; after that, as in v1's last weeks, gold has nothing left to buy (IDEAS.md: a later repeatable sink). Checks 1–3 of §13.4 keep their form with the new days: `toSpend(day 30) > 0` for every strategy bot; for the Active Player `toSpend(day 45) > 0` and more than its gold in hand on day 45; no hoard while there is still something to buy. If the curve misses, the levers in order are the Upper Terraces' price, `TOWN_PROJECT_SCALE`, then decoration prices.
+
+### 14.9 Pacing targets (v4)
+
+| Moment | Greedy Farmer | Chef | Active Player | Notes |
+|---|---|---|---|---|
+| Restaurant built (L1) | day 6–9 | day 5–8 | day 9–14 | after the starter yard |
+| First serving | the same session | the same session | the same session | |
+| Restaurant L3 | day 12–18 | day 10–15 | day 20–30 | |
+| North Fields bought | day 9–13 | day 9–13 | day 15–20 | after `farm_4` and the Old Paddock |
+| North Fields paid back | ≤ 10 days after buying | | | gross gold from its plots |
+| Press House built | day 8–12 | day 7–11 | day 12–18 | |
+| First hive / first honey | day 8–12 / +1 h | | | |
+| Upper Terraces bought | day 14–18 | day 14–18 | day 22–30 | |
+| Mountain Lake | day 12–16 (Angler day 9–12) | | day 18–25 | |
+| First forage | the first session after v4-04's woods open | | | |
+| Restaurant income (days 14–30) | – (cooks little) | 5–15% of gold | ≤ 15% | new check |
+| Drink income (days 14–30) | ≤ 5% | 2–10% | ≤ 10% | new check |
+| North fields' share of crop gold (days 14–30) | 25–45% | 20–45% | 15–40% | new check |
+| Honey, forage, lake fish | reported, no check (each ≤ 5%) | | | |
+
+The phase 09 and v2 checks stay as they are: **no strategy dominates** (≤ 1.5× at days 3, 7 and 30, and at 60 when run), the **buffs check** (day 10, 24 seeds, +10–25%, with the rule in §14.3), **no early dead time**, **no runaway growth** (the north fields will lift week 4 above week 2 for the first time: allow day 28 / day 14 up to 1.5×), the **Casual Idler ≥ 40%** of the Active Player at day 3, the orchard and animal bands.
+
+### 14.10 Simulator changes (what the brain must learn)
+
+The bots still act only through `Game.dispatch`; each phase extends `scripts/sim/` (not v4-00).
+
+| Phase | Brain learns | Report adds | Checks added |
+|---|---|---|---|
+| v4-01 | `{ kind: 'parcel' }` wants for `north_fields` (after `farm_4`, the starter yard and Seed Order L2) and `terraces` (in `spendV2`'s turns, before decorations); place sprinklers and scarecrows on north plots; Harvest all covers every field; stock seeds for the north (Seed Order covers it once planted) | moments: each north parcel; gold earned on north plots (by field, from `harvested` with a field) and its share of crop gold; payback day | north fields' share (§14.9); payback ≤ 10 days |
+| v4-02 | build and upgrade the restaurant; fill the menu for each absence and restock each look; cook for margin; the Chef's order eat → menu → Market | restaurant gold and servings per day and their share; the special's share | restaurant share (§14.9); the buffs check with both Chefs using the restaurant |
+| v4-03 | build and upgrade the Press House; keep presses going (start "keep pressing" on the best drink the bag can sustain through the absence; buy cocoa in winter); buy hives and collect honey (the Collecting Basket does it later); drinks on the menu after dishes of the same value; drink for buffs like dishes | drink gold per day and share; honey per day; drinks pressed | drink share (§14.9) |
+| v4-04 | pick forage each look; buy the lake and its traps (the Angler first), fish the lake in rotation; buy the Forager's Basket after the lake; 60-day runs | forage and lake gold; the 60-day "Gold still to spend" columns | §14.8's curve at 30, 45 and 60 days; spread at day 60 |
+
+`tests/simulate.test.ts` stays green in every phase (determinism, speed: one bot's 30 days in under 10 s, the first session, the tuning checks on short runs). A 60-day run is only in `npm run simulate -- --days 60` and is not part of `npm test`.
+
+### 14.11 v4 constants
+
+In `src/data/balance.ts`: `FIELD_BASE = { north_fields: 2000, terraces: 3000 }` (v4-01); `SERVE_MIN_PER_TIER = 20`, `RESTAURANT_MAX_MULT = 1.75`, `SPECIAL_BONUS = 0.15`, `MENU_SLOT_CAP = 99` (v4-02); `TIER_PRESS_DIV = 600`, `COCOA_PRICE = 60`, `HIVE_CYCLE_SEC = 3600`, `HIVE_STORE = 10`, `HIVE_BASE_PRICE = 10_000`, `HIVE_PRICE_RATIO = 1.5` (v4-03); `FORAGE_CAP_DAYS = 3`, `FORAGER_BONUS_DAYS = 1` (v4-04). World size constants live in `src/data/world.ts` (§14.2). Content tables (restaurant levels, Press House levels, drinks, the special rota, forage kinds, lake fish) live in their data files.
+
+### 14.12 v4 tuning notes
+
+**v4 phase 00 notes.**
+- No number in the game changed. The baseline above is `main` after v2-06 and matches §13.15.
+- The restaurant numbers come from the cooking probe and the four stand-in runs above (`PROBE_PREMIUM`, a temporary change to `settleSale` that was not committed). The stand-in is a ceiling: it has no table limit and pays the premium on every dish sold, so v4-02's real restaurant (2–4 slots, 20 minutes per tier) earns less than it did.
+- The paired buffs figure moved between +18% and +37% across the stand-in runs while lifetime gold moved within ±10%: it reacts to *when* gold arrives in the first ten days more than to how much. v4-02 should read it on 24 seeds after every change, as the v2-06 review set up.
+- Field, drink, honey and forage numbers are estimates from the per-plot and per-hour figures above; v4-01, v4-03 and v4-04 measure them and record the changes here.

@@ -2,7 +2,7 @@
 
 Ideas that came up during a phase but were outside its scope. Add one line per idea: **what**, **why**, and **which phase or version** could own it. Reviewed after phase 09.
 
-- *Partly absorbed by v2 (v2-03/04): Persimmon Pudding and Lemon Meringue Pie are cookable from winter-fresh ingredients (BALANCE §13.8); the winter kitchen speed bonus is still open.* **Winter-only recipes** (hot cocoa, leek soup) and a winter kitchen speed bonus, to make winter cooking week richer. Owner liked the winter-cooking direction; add via `templates/add-content.md` after phase 06, or in phase 09 if pacing needs it.
+- *Partly absorbed by v2 (v2-03/04): Persimmon Pudding and Lemon Meringue Pie are cookable from winter-fresh ingredients (BALANCE §13.8); the winter kitchen speed bonus is still open. v4-03 plans Hot Cocoa as a Press House drink (cocoa from its shelf, BALANCE §14.4).* **Winter-only recipes** (hot cocoa, leek soup) and a winter kitchen speed bonus, to make winter cooking week richer. Owner liked the winter-cooking direction; add via `templates/add-content.md` after phase 06, or in phase 09 if pacing needs it.
 - **Rain days** that water every plot, tied to the real calendar. Adds weather (out of scope for v1).
 - *Done in v2-01 (GDD §12.1 "Phones"): the scene fills the space between the HUD and the toolbar at ≥ 2× and one finger pans.* **A bigger scene on narrow phones**: at 360 px wide and a 1× pixel ratio the integer-scale rule leaves the scene at 320 × 192 CSS px with 16 px tap targets. A portrait layout (taller scene, or 2× with horizontal panning) would be friendlier. Phase 08 (mobile).
 - *Partly done in v2-01: locked parcels are overgrown with a "For sale" sign, and the old dock's shore has one until it is bought; reeds along the future river are still open.* **Decor on locked lots**: reeds along the future river, a "For sale" sign on the old dock, so locked zones read as clickable before they are bought. (Phase 03 put two old trees on the greenhouse lot until `farm_3`.) Phase 05 (river/ocean) or 08 (polish).
@@ -54,7 +54,7 @@ Phase 09 (simulator findings, for v2):
 
 v2 phase 00 (design update; ideas kept out of v2 on purpose):
 - **Rotating decorations** (only flipping in v2) and **seasonal decoration packs** sold for one season a year. Later v2 content via `templates/add-content.md`.
-- **A world minimap** in a corner, with the edge pips' targets on it. Could follow v2-01 if the world grows again.
+- **A world minimap** in a corner, with the edge pips' targets on it. Could follow v2-01 if the world grows again. *v4 grows it to 36 × 36 and still leaves the minimap out (GDD §13.2); edge pips cover the north.*
 - **More animal kinds** (ducks, goats, sheep) and **more tree kinds** (cherry blossom that bears nothing, a golden apple): out of scope for v2 (GDD §9); a later content phase.
 - **Grafting and tree quality, animal affection and breeding**: out of scope (GDD §9). Not planned.
 - *Done in v2-05.* **Busy Bees that also shortens animal cycles** (see "Busy Bees that matters late" above): v2 keeps animal cycles fixed; a later balance phase could use this seam.
@@ -104,3 +104,14 @@ v2 phase 06 (ideas kept out of it on purpose):
 - **Seed Order for next season's crops.** The order buys only what the planter last planted, in season and ripe in time, so on the first Sunday of a new season it has nothing to buy until the player plants the new season's crop by hand once; an "also stock the best crop for next season" setting would close the gap. A later balance phase.
 - **Harvest all for the greenhouse** (it follows Shift-click and leaves the greenhouse plots alone, as Shift-click always has).
 - **Cook ×N for the Experiment tab** and a "keep favourites cooking" repeat. Later UI polish.
+
+v4 phase 00 (the North; ideas kept out of v4 on purpose):
+- **A mill** (wheat to flour, bread recipes): wheat already has ten recipes (thirteen with v4), hay and a bakery stage; another station to tend adds no new kind of play (GDD §13.10). A later content phase if wheat feels idle.
+- **A "Mountain" decoration set** (stone paths, log fences, lanterns, a wooden bench under the pines) for the north parcels' spare grass. Later content via `templates/add-content.md`.
+- **Flower-varietal honey**: hives near crops or trees in bloom (never decorations, which are cosmetic) make a blossom or heather honey with its own price. v4-03 keeps one honey (GDD §13.6).
+- **Drinks and honey in town stages**: the projects' asks are the owner's; drinks could be alternative items in a later content pass (GDD §13.9).
+- **A repeatable late sink** after the catalogue is spent (a keen player runs out around day 35–40 even with v4, BALANCE §14.8): something cosmetic and endless, never income. Owner call.
+- **An auto-stocking pantry** for the restaurant (a level or upgrade that restocks the menu from the bag at each bin pickup, like the silo): v4-02 has a one-click Restock instead. Later, if players ask.
+- **A third north field** ("High Meadow", 24 plots, in part of the woods): the owner chose two fields (GDD §13.12 decision 3); kept here if more land is wanted later.
+- **A brewery** with ale, cider and mead: the owner chose no alcohol (GDD §13.12 decision 1, store age ratings). Not planned.
+
