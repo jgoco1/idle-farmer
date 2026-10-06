@@ -65,7 +65,7 @@ simulatedMs = ∫ rate(t) dt over [0, away]          // max 8h + 4h = 12h of sim
 
 The offline pass walks the **real** timeline from `savedAt` to `now` in segments. A segment ends at every calendar event (06:00 daily, Sunday 00:00 season change) and at every simulated-time event (buff expiry, cook completion). For each segment it advances simulated time by `∫ rate`, using closed-form maths (growth, demand recovery) or per-interval batches (farmhand, traps, bin pickups). So a crop that would wither at Sunday midnight grows only until then, and a buff that expires two hours in only helps for those two hours. Segments with `rate = 0` only process calendar events, which keeps a 30-day absence cheap.
 
-Performance budget (enforced by tests from phase 04): 8 h offline in < 100 ms, a 30-day absence in < 300 ms.
+Performance budget (enforced by tests from phase 04): 8 h offline in < 100 ms, a 30-day absence in < 300 ms. **After v4-02** the 8 h budget for the whole farm (every field automated: 116 plots, the orchard and the ranch, in `e2e/perf.spec.ts`) is **125 ms**; it read 80–100 ms in a cloud container, against v1's 48-plot farm the 100 ms was set for. Smaller farms in the unit tests keep 100 ms.
 
 ---
 
