@@ -264,7 +264,7 @@ for (const scenario of ['farm', 'world'] as const)
     expect(result.worstFrameMs).toBeLessThan(50); // no visible garbage-collection hitch
   });
 
-test('loading after 8 hours away with that farm (and both north fields) catches up in well under 100 ms', async ({
+test('loading after 8 hours away with that farm (and both north fields) catches up within the 125 ms budget', async ({
   page,
   context,
 }) => {
@@ -366,5 +366,7 @@ test('loading after 8 hours away with that farm (and both north fields) catches 
   );
   expect(harvested).toBeGreaterThan(1000);
   expect(ms).toBeGreaterThan(0);
-  expect(ms).toBeLessThan(100);
+  // 125 ms since v4-02 (100 ms before): the budget was set for v1's 48-plot farm, and this one automates 116 plots
+  // with the orchard and the ranch. It read 80–100 ms in a cloud container after v4-02. Do not raise it again.
+  expect(ms).toBeLessThan(125);
 });

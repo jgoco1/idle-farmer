@@ -559,8 +559,8 @@ describe('north fields: automation', () => {
     }
     times.sort((a, b) => a - b);
     expect(harvested).toBeGreaterThan(1000);
-    // The 100 ms budget is judged in the browser by e2e/perf.spec.ts ("…and both north fields catches up in well
-    // under 100 ms"). Here, in parallel with the whole suite, the CI runner reads about twice this machine's time
+    // The 125 ms budget (100 ms until v4-02) is judged in the browser by e2e/perf.spec.ts ("…and both north
+    // fields catches up within the 125 ms budget"). Here, in parallel with the whole suite, the CI runner reads about twice this machine's time
     // (93–165 ms for a 46 ms median here), so this bound is 250 ms, as in tests/automation.test.ts.
     expect(times[Math.floor(times.length / 2)]!, times.join()).toBeLessThan(250);
   });
