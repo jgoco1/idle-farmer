@@ -233,8 +233,10 @@ export function msToNextAutomation(state: GameState, ctx: SimContext): number {
           return cd;
         continue;
       }
-      if (soonest > cd)
-        soonest = Math.min(soonest, msUntilReady(plot, crop, ctx.mods, envFor(cov, base + i)));
+      // A crop ready by the next visit means the next visit has work: every other answer is `cd` too.
+      const ms = msUntilReady(plot, crop, ctx.mods, envFor(cov, base + i));
+      if (ms <= cd) return cd;
+      if (ms < soonest) soonest = ms;
     }
   }
   // One planter job is enough to know the next visit has work (a full plan is wasted here).
