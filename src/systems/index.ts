@@ -16,6 +16,7 @@ import { msToNextBuffExpiry, tickBuffs } from './buffs';
 import { growOrchard } from './orchard';
 import { runSeedOrder } from './seedOrder';
 import { ranchPickup, tickRanch } from './ranch';
+import { openRestaurantDay, tickRestaurant } from './restaurant';
 import { resetDailyGoals, revalidateGoals, runProgression } from './progression';
 
 /**
@@ -39,6 +40,7 @@ export function tickSystems(state: GameState, ctx: SimContext, dtMs: number): vo
   tickShippingBin(state, ctx, dtMs); // a pickup lands at the end of the step, at that moment's prices
   if (pickup) runSeedOrder(state, ctx); // the Seed Order buys with what the pickup just paid (v2-06)
   tickCooking(state, ctx, dtMs); // dishes finish (hearty in winter) into the bag
+  tickRestaurant(state, ctx, dtMs); // after cooking: the menu serves what was stocked; whole servings, no RNG
   tickBuffs(state, ctx, dtMs); // this step's bonuses were applied through ctx.mods
   runProgression(state, ctx); // last: XP, milestones and goals from everything this step reported
 }
@@ -65,6 +67,7 @@ export function onDayStarted(state: GameState, ctx: SimContext): void {
   growOrchard(state, ctx); // trees count real days: first, so today's market already knows a tree turned mature
   openMarketDay(state, ctx.data, ctx.rng, ctx.calendar.season);
   state.stats.goldToday = 0;
+  openRestaurantDay(state, ctx); // today's takings start again
   state.stats.daysPassed += 1;
   resetDailyGoals(state); // "in one day" goals start again from zero
   revalidateGoals(state, ctx.data, ctx.rng, ctx.calendar.season);

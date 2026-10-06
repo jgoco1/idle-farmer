@@ -120,6 +120,8 @@ export interface Stats {
   bestDishTier: number; // @06: the highest tier cooked so far, 0 = none
   fruitPicked: number; // v2-03: fruit picked from the orchard
   productsCollected: number; // v2-04: eggs and milk taken out of the ranch's stores
+  restaurantGold: number; // v4-02: gold the restaurant's guests have paid
+  served: number; // v4-02: servings at the restaurant
 }
 
 export interface Settings {
@@ -191,6 +193,27 @@ export interface GameState {
 
   // ---- Seed Order settings (v2 phase 06, save 14); the upgrade level is in `upgrades`
   seedOrder: SeedOrderState;
+
+  // ---- the restaurant (v4 phase 02, save 16)
+  restaurant: RestaurantState;
+}
+
+/**
+ * One menu slot (a terrace table). `item` stays set when the stack runs out, so Restock knows what it
+ * serves; `qty` 0 means it waits. The serving interval and the next serving are derived.
+ */
+export interface MenuSlot {
+  item: ItemId | null; // a dish (or, from v4-03, a drink); null = never stocked or cleared
+  qty: number; // 0 … MENU_SLOT_CAP
+  hearty: boolean; // which stack it holds (served at the same price)
+  cycleMs: number; // simulated ms into the current serving; 0 while empty
+}
+
+/** The restaurant (DATA_SCHEMAS.md §10.5). Its slot count, premium and the day's special are derived. */
+export interface RestaurantState {
+  level: number; // 0 = not built, 1 … 3
+  menu: MenuSlot[]; // one per slot of the level
+  today: { day: number; gold: number; served: number }; // calendar.dayIndex; restarted at the 06:00 refresh
 }
 
 /** The Seed Order's settings: the gold reserve it never spends below (percent of current gold) and the crops opted out. */
@@ -420,6 +443,7 @@ export function createInitialState(now: number, lc: LocalClock, seed: number = s
     ranch: { buildings: [], animals: [], feedStore: { hay: 0, corn_feed: 0 } },
     cats: { adopted: ['cat_tabby'], active: 'cat_tabby' },
     seedOrder: { reservePct: SEED_ORDER_DEFAULT_RESERVE, off: [] },
+    restaurant: { level: 0, menu: [], today: { day: 0, gold: 0, served: 0 } },
   };
   // A new farm opens with today's specials and the first sparkline point (every save starts in spring).
   openMarketDay(state, GAME_DATA, createRng(state), 'spring');
@@ -444,6 +468,8 @@ export function createStartingStats(): Stats {
     bestDishTier: 0,
     fruitPicked: 0,
     productsCollected: 0,
+    restaurantGold: 0,
+    served: 0,
   };
 }
 

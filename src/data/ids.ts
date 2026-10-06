@@ -219,7 +219,9 @@ export type MilestoneId =
   | 'm21_first_egg'
   | 'm22_first_milk'
   // v4-01
-  | 'm24_north_field';
+  | 'm24_north_field'
+  // v4-02
+  | 'm25_first_serving';
 
 export type BundleId =
   | 'spring_crops'
@@ -243,10 +245,21 @@ export type GoalTemplateId =
   | 'eat_dish'
   | 'raise_charm'
   | 'pick_fruit'
-  | 'collect_produce';
+  | 'collect_produce'
+  // v4-02
+  | 'serve_dishes';
 
 export type PanelId =
-  'inventory' | 'shop' | 'market' | 'kitchen' | 'fishing' | 'upgrades' | 'goals' | 'settings' | 'ranch';
+  | 'inventory'
+  | 'shop'
+  | 'market'
+  | 'kitchen'
+  | 'fishing'
+  | 'upgrades'
+  | 'goals'
+  | 'settings'
+  | 'ranch'
+  | 'restaurant';
 
 export const CROP_IDS: readonly CropId[] = [
   'turnip',

@@ -5,7 +5,7 @@
 import type { GameState } from '../core/state';
 import type { SimContext } from './context';
 
-export type GoldSource = 'sale' | 'quest' | 'other';
+export type GoldSource = 'sale' | 'quest' | 'restaurant' | 'other';
 
 function assertGold(amount: number): void {
   if (!Number.isInteger(amount) || amount < 0)

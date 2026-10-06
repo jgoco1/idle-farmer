@@ -37,6 +37,13 @@ import {
   renameAnimal,
   upgradeBuilding,
 } from '../systems/ranch';
+import {
+  buildRestaurant,
+  clearMenuSlot,
+  restockMenu,
+  stockMenu,
+  upgradeRestaurant,
+} from '../systems/restaurant';
 import { runProgression } from '../systems/progression';
 import type {
   AnimalId,
@@ -142,6 +149,13 @@ export type Action =
   | { type: 'fillTrough'; building: number }
   /** Click a building: take what is in its store. */
   | { type: 'collectBuilding'; building: number }
+  /** Restaurant panel (v4 phase 02): build it (level 1) or buy the next level. */
+  | { type: 'buildRestaurant' }
+  | { type: 'upgradeRestaurant' }
+  /** Put `qty` of a dish from the bag on a menu slot (all or nothing); top every slot up; or clear one back into the bag. */
+  | { type: 'stockMenu'; slot: number; item: ItemId; qty: number; hearty?: boolean }
+  | { type: 'restockMenu' }
+  | { type: 'clearMenuSlot'; slot: number }
   | { type: 'debugSetTimeWarp'; on: boolean };
 
 export const TIME_WARP_SPEED = 60;
@@ -270,6 +284,16 @@ function handleAction(state: GameState, ctx: SimContext, action: Action): Action
       return fillTrough(state, ctx, action.building);
     case 'collectBuilding':
       return collectBuilding(state, ctx, action.building);
+    case 'buildRestaurant':
+      return buildRestaurant(state, ctx);
+    case 'upgradeRestaurant':
+      return upgradeRestaurant(state, ctx);
+    case 'stockMenu':
+      return stockMenu(state, ctx, action.slot, action.item, action.qty, action.hearty);
+    case 'restockMenu':
+      return restockMenu(state, ctx);
+    case 'clearMenuSlot':
+      return clearMenuSlot(state, ctx, action.slot);
     case 'debugSetTimeWarp':
       state.clock.speed = action.on ? TIME_WARP_SPEED : 1;
       return OK;

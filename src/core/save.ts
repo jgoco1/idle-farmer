@@ -15,16 +15,23 @@ import {
   isCatId,
   isCropId,
   isDecorId,
+  isDishId,
   isFruitId,
   isNorthFieldId,
   isParcelId,
   isTownProjectId,
 } from '../data/ids';
 import { GAME_DATA } from '../data';
-import { SEED_ORDER_RESERVES } from '../data/balance';
+import { MENU_SLOT_CAP, SEED_ORDER_RESERVES } from '../data/balance';
 import { WORLD_BOTTOM, WORLD_COLS, WORLD_LAYOUT, WORLD_TOP } from '../data/world';
 
-export const SAVE_VERSION = 15;
+export const SAVE_VERSION = 16;
+/** The most menu slots a save may hold: the top level's tables plus the Press House bundle's fifth (v4-03). */
+const MAX_MENU_SLOTS = 5;
+/** What a menu slot may hold. v4-03 adds drinks. */
+function isMenuableId(id: string): boolean {
+  return isDishId(id);
+}
 export const SAVE_KEY = 'hearthfield-idle/save';
 export const AUTOSAVE_MS = 15_000;
 /** Where the previous good save is kept (v3 phase 00). Same format as the main save. */
@@ -253,6 +260,15 @@ export const migrations: Record<number, Migration> = {
    * grew north into negative rows, so every stored tile keeps its meaning.
    */
   14: (old) => ({ ...old, farm: { ...old.farm, north: {} } }),
+  /**
+   * v15 → v16 (v4 phase 02, the restaurant): not built yet, with an empty menu and today's takings at zero
+   * (the day is the save's latest day index), and the two restaurant statistics at zero.
+   */
+  15: (old) => ({
+    ...old,
+    restaurant: { level: 0, menu: [], today: { day: old.calendar?.maxDayIndex ?? 0, gold: 0, served: 0 } },
+    stats: { ...old.stats, restaurantGold: 0, served: 0 },
+  }),
 };
 
 export class SaveError extends Error {
@@ -370,6 +386,8 @@ function economyProblem(s: Record<string, unknown>): string | null {
     'bestDishTier',
     'fruitPicked',
     'productsCollected',
+    'restaurantGold',
+    'served',
   ]) {
     if (!isInt(stats[k])) return 'bad stats';
   }
@@ -587,6 +605,30 @@ function ranchProblem(s: Record<string, unknown>): string | null {
   return null;
 }
 
+function restaurantProblem(s: Record<string, unknown>): string | null {
+  const { restaurant } = s;
+  if (!isObj(restaurant) || !isInt(restaurant.level) || !Array.isArray(restaurant.menu))
+    return 'bad restaurant';
+  const levels = GAME_DATA.restaurant.levels;
+  if (restaurant.level < 0 || restaurant.level > levels.length) return 'bad restaurant';
+  const { today } = restaurant;
+  if (!isObj(today) || !isInt(today.day) || !isInt(today.gold) || !isInt(today.served))
+    return 'bad restaurant';
+  if (today.gold < 0 || today.served < 0) return 'bad restaurant';
+  // One slot per table: none before it is built, at most the top level's tables plus the bundle's fifth.
+  if (restaurant.level === 0 ? restaurant.menu.length !== 0 : restaurant.menu.length > MAX_MENU_SLOTS)
+    return 'bad menu';
+  for (const m of restaurant.menu) {
+    if (!isObj(m) || !isInt(m.qty) || !isInt(m.cycleMs) || typeof m.hearty !== 'boolean') return 'bad menu';
+    if (m.qty < 0 || m.qty > MENU_SLOT_CAP || m.cycleMs < 0) return 'bad menu';
+    if (m.item === null) {
+      if (m.qty !== 0) return 'bad menu';
+    } else if (typeof m.item !== 'string' || !isMenuableId(m.item)) return 'bad menu';
+    if (m.qty === 0 && m.cycleMs !== 0) return 'bad menu';
+  }
+  return null;
+}
+
 function catsProblem(s: Record<string, unknown>): string | null {
   const { cats } = s;
   if (!isObj(cats) || !Array.isArray(cats.adopted) || typeof cats.active !== 'string') return 'bad cats';
@@ -670,7 +712,8 @@ export function validateState(s: unknown): string | null {
     orchardProblem(s) ??
     ranchProblem(s) ??
     catsProblem(s) ??
-    seedOrderProblem(s)
+    seedOrderProblem(s) ??
+    restaurantProblem(s)
   );
 }
 

@@ -301,3 +301,16 @@ export const BARNYARD_TROUGH_BONUS = 0.5;
 export const AUTO_COLLECT_XP_SHARE = 0.25;
 /** Buttons in the Ranch panel: feed made or bought in these amounts (units of crop, or of feed bought). */
 export const FEED_AMOUNTS: readonly number[] = [1, 10];
+
+// ---- the restaurant (v4 phase 02, BALANCE.md §14.3)
+
+/** Minutes of simulated time per serving, × the item's tier (T1 20 min … T4 80 min). */
+export const SERVE_MIN_PER_TIER = 20;
+/** A serving never pays more than this × the item's base price (premium and the day's special together). */
+export const RESTAURANT_MAX_MULT = 1.75;
+/** The day's special earns this on top of the level's premium. */
+export const SPECIAL_BONUS = 0.15;
+/** A menu slot holds at most this many of its dish. */
+export const MENU_SLOT_CAP = 99;
+/** "Fill from bag" amounts in the Restaurant panel (the last one, `Infinity`, is "all that fits"). */
+export const MENU_FILL_AMOUNTS: readonly number[] = [1, 10, Infinity];

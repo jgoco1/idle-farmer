@@ -43,6 +43,10 @@ export interface AwayTotals {
   ordered: Partial<Record<CropId, number>>;
   orderedTotal: number;
   orderedGold: number;
+  /** The restaurant (v4 phase 02): servings and their gold, and menu slots that ran out. */
+  served: number;
+  servedGold: number;
+  menuEmptied: number;
 }
 
 export function awayTotals(report: OfflineReport): AwayTotals {
@@ -69,6 +73,9 @@ export function awayTotals(report: OfflineReport): AwayTotals {
     ordered: {},
     orderedTotal: 0,
     orderedGold: 0,
+    served: 0,
+    servedGold: 0,
+    menuEmptied: 0,
   };
   for (const e of report.events) {
     if (e.type === 'harvested') {
@@ -105,6 +112,11 @@ export function awayTotals(report: OfflineReport): AwayTotals {
       t.collectedByBasket[e.product] = (t.collectedByBasket[e.product] ?? 0) + e.qty;
     } else if (e.type === 'troughEmpty') {
       if (!t.unfed.includes(e.animal)) t.unfed.push(e.animal);
+    } else if (e.type === 'served') {
+      t.served += e.qty;
+      t.servedGold += e.gold;
+    } else if (e.type === 'menuEmpty') {
+      t.menuEmptied += 1;
     } else if (e.type === 'questDone') {
       if (e.kind === 'goal') t.goalsDone += 1;
       else t.milestonesDone += 1;
@@ -188,6 +200,21 @@ export function awayRows(report: OfflineReport, farm: AwayFarm): AwayRow[] {
     rows.push({
       icon: 'obj_trough_empty',
       text: animal === 'cow' ? 'The cows would love some hay.' : 'The hens would love some feed.',
+    });
+  }
+  if (t.served > 0) {
+    rows.push({
+      icon: 'obj_table_dish',
+      text: `The restaurant served ${t.served.toLocaleString('en-US')} dish${t.served === 1 ? '' : 'es'} for ${t.servedGold.toLocaleString('en-US')}g.`,
+    });
+  }
+  if (t.menuEmptied > 0) {
+    rows.push({
+      icon: 'obj_table',
+      text:
+        t.menuEmptied === 1
+          ? 'A table at the restaurant is waiting for more dishes.'
+          : `${t.menuEmptied} tables at the restaurant are waiting for more dishes.`,
     });
   }
   if (t.orderedTotal > 0) {

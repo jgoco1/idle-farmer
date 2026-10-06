@@ -47,7 +47,7 @@ export type GameEvent =
   /** `field` (v4-01): a north field's plot (col, row); absent for the home field. */
   | { type: 'placed' | 'pickedUp'; kind: PlacedKind; col: number; row: number; field?: NorthFieldId }
   | { type: 'sold'; item: ItemId; qty: number; gold: number; via: 'market' | 'bin' }
-  | { type: 'goldEarned'; amount: number; source: 'sale' | 'quest' | 'other' }
+  | { type: 'goldEarned'; amount: number; source: 'sale' | 'quest' | 'restaurant' | 'other' }
   | {
       type: 'purchased';
       what:
@@ -61,7 +61,8 @@ export type GameEvent =
         | BuildingId
         | AnimalId
         | FeedId
-        | CatId;
+        | CatId
+        | 'restaurant';
       gold: number;
     }
   | { type: 'parcelBought'; parcel: ParcelId }
@@ -101,6 +102,12 @@ export type GameEvent =
     }
   /** A trough ran dry (once per emptying): the away summary says the animals would love some feed. */
   | { type: 'troughEmpty'; building: number; animal: AnimalId }
+  /** The restaurant (v4 phase 02): built at level 1, or upgraded to `level`. */
+  | { type: 'restaurantBuilt' | 'restaurantUpgraded'; level: number }
+  /** Guests were served this step: batched per slot; `special` when the item was the day's special. */
+  | { type: 'served'; item: ItemId; qty: number; gold: number; slot: number; special: boolean }
+  /** A menu slot ran out (once per emptying): the away summary, the pip and the panel say so gently. */
+  | { type: 'menuEmpty'; slot: number; item: ItemId }
   | { type: 'inventoryFull'; item: ItemId }
   /** Items thrown away from the bag (the Inventory's Discard button). */
   | { type: 'discarded'; item: ItemId; qty: number }

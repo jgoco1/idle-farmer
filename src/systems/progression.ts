@@ -66,6 +66,7 @@ import { grantDecor, hasDecorToPlace } from './decor';
 import { goalSlots } from './townProjects';
 import { fruitXp, ownsMatureTree, treeAge } from './orchard';
 import { animalsOfKind, productXp } from './ranch';
+import { servingsPerHour } from './restaurant';
 
 // ---- XP
 
@@ -203,6 +204,8 @@ function advance(state: GameState, data: GameData, o: QuestObjective, e: GameEve
         (!o.product || o.product === e.product || (o.product === 'egg' && e.product === 'large_egg'))
         ? e.qty
         : 0;
+    case 'serve':
+      return e.type === 'served' ? e.qty : 0;
     case 'reachFarmLevel':
     case 'ownParcel':
     case 'ownNorthField':
@@ -234,6 +237,7 @@ const EVENT_FOR: Readonly<Record<QuestObjective['kind'], GameEvent['type'] | nul
   projectStage: 'projectStageDone',
   pickFruit: 'fruitPicked',
   collectProduct: 'collected',
+  serve: 'served',
 };
 
 /** What a goal's progress is measured against. */
@@ -484,6 +488,16 @@ function variantsOf(state: GameState, data: GameData, season: SeasonId, id: Goal
         });
       return out;
     }
+    case 'serve_dishes':
+      // About an hour of the menu's servings (an empty table counts as a T2 dish), at least 3.
+      return state.restaurant.level > 0
+        ? [
+            {
+              key: id,
+              objective: { kind: 'serve', count: Math.max(3, niceTarget(servingsPerHour(state, data))) },
+            },
+          ]
+        : [];
     case 'raise_charm': {
       if (!hasDecorToPlace(state, data)) return [];
       const amount = Math.max(GOAL_CHARM_MIN, niceTarget(GOAL_CHARM_SHARE * charmOf(state, data)));

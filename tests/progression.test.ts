@@ -628,6 +628,7 @@ describe('milestones', () => {
       'm22_first_milk',
       'm23_charm_100',
       'm24_north_field',
+      'm25_first_serving',
     ]);
     for (const m of MILESTONES) {
       expect(m.flavor.length, m.id).toBeGreaterThan(20);
@@ -782,8 +783,8 @@ describe('milestones', () => {
 const START_TEMPLATES = ['harvest_crop', 'harvest_any', 'catch_fish', 'cook_distinct', 'eat_dish'];
 
 describe('the goal board', () => {
-  it('has 12 templates, each with a warm line', () => {
-    expect(Object.keys(GOAL_TEMPLATES)).toHaveLength(12);
+  it('has 13 templates, each with a warm line', () => {
+    expect(Object.keys(GOAL_TEMPLATES)).toHaveLength(13);
     for (const t of Object.values(GOAL_TEMPLATES)) expect(t.flavor.length, t.id).toBeGreaterThan(10);
   });
 
