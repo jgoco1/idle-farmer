@@ -3,7 +3,8 @@
 // level, placeable, expansion and recipe card), the land parcels (v2-01), and (v2-02) the decorations
 // (the counted copies of each piece, 40 path and 30 fence tiles a set, the farmhouse pieces) and the town
 // projects' gold, (v2-03) the saplings and (v2-04) the ranch: every building level, the hens and cows the buildings
-// hold at their top level, the Collecting Basket and the two recipe cards that need a building.
+// hold at their top level, the Collecting Basket and the two recipe cards that need a building; (v4-02) the
+// restaurant's levels; (v4-03) the Press House's levels, the six hives and the drink cards (and Honey-Roast Yams).
 
 import type { GameState } from '../../src/core/state';
 import type { GameData } from '../../src/data';
@@ -15,7 +16,7 @@ import {
   PARCEL_IDS,
   saplingOf,
   treeOfFruit,
-  RECIPE_IDS,
+  ALL_RECIPE_IDS,
   TOWN_PROJECT_IDS,
   type ExpansionId,
   type UpgradeId,
@@ -24,6 +25,7 @@ import { projectStagesDone, stageGold } from '../../src/systems/townProjects';
 import { ownedDecor } from '../../src/systems/decor';
 import { countItem } from '../../src/systems/inventory';
 import { upgradeCost, upgradeLevel } from '../../src/systems/upgrades';
+import { roundNice } from '../../src/data/balance';
 
 function upgradeSpend(data: GameData, id: UpgradeId, levels: number): number {
   const def = data.upgrades[id];
@@ -54,6 +56,18 @@ function cardNeedsBuilding(unlock: readonly { kind: string }[]): boolean {
   return unlock.some((c) => c.kind === 'building');
 }
 
+/** v4-03: a recipe card that opens with the Press House (the drinks, Honey-Roast Yams). */
+function cardNeedsPress(unlock: readonly { kind: string }[]): boolean {
+  return unlock.some((c) => c.kind === 'press');
+}
+
+/** v4-03: the price of the first `n` hives. */
+function hivesPrice(data: GameData, n: number): number {
+  let sum = 0;
+  for (let i = 0; i < n; i++) sum += roundNice(data.hive.basePrice * data.hive.ratio ** i);
+  return sum;
+}
+
 /** The parts of the catalogue, at list price. */
 export function catalogueParts(data: GameData): {
   v1: number;
@@ -63,6 +77,7 @@ export function catalogueParts(data: GameData): {
   decor: number;
   projects: number;
   restaurant: number;
+  press: number;
 } {
   let v1 = 0;
   let ranch = 0;
@@ -72,10 +87,12 @@ export function catalogueParts(data: GameData): {
     else v1 += spend;
   }
   for (const id of Object.keys(data.expansions) as ExpansionId[]) v1 += data.expansions[id].price;
-  for (const id of RECIPE_IDS) {
+  let press = data.press.levels.reduce((sum, l) => sum + l.price, 0) + hivesPrice(data, 6); // v4-03
+  for (const id of ALL_RECIPE_IDS) {
     const d = data.recipes[id].discovery;
     if (d.kind !== 'card') continue;
     if (cardNeedsBuilding(d.unlock)) ranch += d.price;
+    else if (cardNeedsPress(d.unlock)) press += d.price;
     else v1 += d.price;
   }
   for (const id of BUILDING_IDS) ranch += data.buildings[id].levels.reduce((sum, l) => sum + l.price, 0);
@@ -95,12 +112,12 @@ export function catalogueParts(data: GameData): {
     0,
   );
   const restaurant = data.restaurant.levels.reduce((sum, l) => sum + l.price, 0); // v4-02
-  return { v1, parcels, saplings, ranch, decor, projects, restaurant };
+  return { v1, parcels, saplings, ranch, decor, projects, restaurant, press };
 }
 
 export function catalogueTotal(data: GameData): number {
   const p = catalogueParts(data);
-  return p.v1 + p.parcels + p.saplings + p.ranch + p.decor + p.projects + p.restaurant;
+  return p.v1 + p.parcels + p.saplings + p.ranch + p.decor + p.projects + p.restaurant + p.press;
 }
 
 /** The list price of everything in the catalogue this farm already owns (a known recipe card counts). */
@@ -118,6 +135,8 @@ export function catalogueOwned(s: GameState, data: GameData): number {
     for (let l = 0; l < b.level; l++) sum += data.buildings[b.kind].levels[l]!.price;
   for (const a of s.ranch.animals) sum += data.animals[a.kind].price;
   for (let l = 0; l < s.restaurant.level; l++) sum += data.restaurant.levels[l]!.price;
+  for (let l = 0; l < s.press.level; l++) sum += data.press.levels[l]!.price;
+  sum += hivesPrice(data, s.apiary.hives.length);
   for (const f of FRUIT_IDS) {
     // planted trees and saplings in the bag count as bought (a removed tree is not counted again)
     const have =

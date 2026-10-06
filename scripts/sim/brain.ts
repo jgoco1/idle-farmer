@@ -21,6 +21,7 @@ import {
   CROP_IDS,
   FRUIT_IDS,
   RECIPE_IDS,
+  isDishId,
   seedOf,
   treeOfFruit,
   type FruitId,
@@ -107,6 +108,16 @@ import {
   todaysSpecial,
 } from '../../src/systems/restaurant';
 import { MENU_SLOT_CAP } from '../../src/data/balance';
+import {
+  drinkCards,
+  drinksWaiting,
+  knownDrinks,
+  pressBlock,
+  pressMs,
+  pressSlotFor,
+  runsInBag,
+} from '../../src/systems/press';
+import { hiveBlock, honeyWaiting, nextHivePrice } from '../../src/systems/apiary';
 import { orderedCrops } from '../../src/systems/seedOrder';
 import { isUnlocked } from '../../src/systems/unlocks';
 import { purchaseBlock, requirementsFor, upgradeCost, upgradeLevel } from '../../src/systems/upgrades';
@@ -323,6 +334,15 @@ const FEED_CROP_KEEP = SILO_RESERVE + 10;
 const MENU_DISHES_KEPT = 40;
 /** v4-02: how many recipes the menu is cooked from (their ingredients stay out of the Auto-Seller during a session). */
 const MENU_RECIPES = 10;
+/** v4-03: how many of the best drinks keep their ingredients in the bag, and for how many runs a press each. */
+const DRINKS_KEPT = 3;
+const DRINK_RUNS_KEPT = 12;
+/** v4-03: the least a press run should earn over its ingredients (Tomato Juice's 12 gold is not worth the tomatoes). */
+const DRINK_MIN_MARGIN = 50;
+/** v4-03: a drink on the menu counts as this much of a dish of the same value (dishes first, BALANCE §14.10). */
+const DRINK_TIE = 0.999;
+/** v4-03: cocoa beans bought in winter per press, for Hot Cocoa. */
+const COCOA_PER_PRESS = 6;
 /** Simulated hours a real day of the schedule credits (two sessions and two capped absences). */
 const DAY_SIM_HOURS = 19.5;
 
@@ -446,7 +466,7 @@ export class Brain {
       }
     }
     if (this.style.cardThrift > 0) {
-      for (const card of recipeCards(s, data)) {
+      for (const card of [...recipeCards(s, data), ...drinkCards(s, data)]) {
         if (card.unlocked && s.gold >= card.price * this.style.cardThrift)
           act(game.dispatch({ type: 'buyRecipe', recipe: card.id }));
       }
@@ -456,6 +476,8 @@ export class Brain {
     if (this.style.cook === 'eat') useful = this.eat(run, false) || useful;
     else if (s.stats.dishesEaten === 0) useful = this.eatAny(run) || useful; // the "eat a dish" milestone
     useful = this.menu(run, false) || useful; // v4-02: eat first, the restaurant second, sell the rest
+    useful = this.apiary(run) || useful; // v4-03: honey in, before the presses want it
+    useful = this.presses(run, false) || useful; // v4-03: finished drinks in, idle presses started
     useful = this.sell(run, keep, false) || useful;
     useful = this.starters(run) || useful;
     useful = this.shop(run) || useful;
@@ -476,10 +498,13 @@ export class Brain {
     // The order buys what the planter last planted; seeds for a new season's crop (the fallback) are still stocked by hand.
     if (this.style.stocksSeeds !== false) this.stockSeeds(run, upgradeLevel(s, 'seed_order') > 0);
     if (this.style.cook === 'eat') this.eat(run, true);
+    this.apiary(run);
+    this.presses(run, true); // v4-03: every press keeps pressing the best drink the bag can sustain while away
     this.menu(run, true); // v4-02: the menu for the absence, before the rest is shipped
     this.sell(run, this.keepList(s), true);
     this.starterYard(run); // v2-05: the coop, two hens, the barn and a cow come before saplings and the town
     this.openRestaurant(run, this.seedGold(run)); // v4-02: right after the starter yard
+    this.openPress(run, this.seedGold(run)); // v4-03: the Press House and its hives after the restaurant
     this.orchard(run, true); // v2-05: saplings out of what is left after the seeds the planter will need
     this.spendV2(run); // last: what is left after the seeds the planter will need
     this.keepForMenu(run, false); // v4-02: the Auto-Seller ships everything again while away
@@ -510,6 +535,7 @@ export class Brain {
     if (this.style.cook !== 'none') {
       const slots = kitchenSlots(s, this.data);
       const targets = s.kitchen.known
+        .filter(isDishId)
         .map((id) => this.data.recipes[id])
         .filter((r) => r.tier >= 2)
         .sort((a, b) => b.tier - a.tier || b.basePrice - a.basePrice)
@@ -519,6 +545,17 @@ export class Brain {
       for (const r of this.menuRecipes(s))
         for (const i of r.ingredients)
           add(i.item, i.qty * Math.min(MENU_DISHES_KEPT, Math.ceil((DAY_SIM_HOURS * 3) / r.tier)));
+    }
+    // v4-03: honey, and the ingredients of the best drinks for about a day of pressing in every press.
+    if (s.press.level > 0) {
+      add('honey', MENU_SLOT_CAP);
+      const slots = s.press.slots.length;
+      for (const r of this.drinkChoices(s).slice(0, DRINKS_KEPT))
+        for (const i of r.ingredients)
+          add(
+            i.item,
+            i.qty * slots * Math.min(DRINK_RUNS_KEPT, Math.ceil((DAY_SIM_HOURS * 3_600_000) / pressMs(r))),
+          );
     }
     return keep;
   }
@@ -557,6 +594,7 @@ export class Brain {
       let best: RecipeId | null = null;
       let bestScore = 0;
       for (const id of s.kitchen.known) {
+        if (!isDishId(id)) continue; // drinks are pressed, not cooked (v4-03)
         const r = this.data.recipes[id];
         if (!canCook(s, r) || r.ingredients.some((i) => spare(i.item) < i.qty)) continue;
         const margin = (r.basePrice - ingredientValue(r, this.data.items)) / r.cookSec;
@@ -642,7 +680,7 @@ export class Brain {
       if (!def?.sellable) continue;
       // Keeping buffs up: two of each dish worth eating stay in the bag (more would crowd out seeds).
       const hold =
-        def.category === 'dish'
+        def.category === 'dish' || def.category === 'drink'
           ? Math.max(
               this.style.cook === 'eat' &&
                 buffPriority(this.style, s, this.data.recipes[stack.item as DishId].buff) >= 2
@@ -881,6 +919,9 @@ export class Brain {
     // and its levels 2 and 3 for a player who cooks (a farmer who never cooks buys them in spendV2's turns).
     if (this.style.menuFirst && s.restaurant.level > 0)
       inn = this.restaurantOne(run, this.seedGold(run)) > 0 || inn;
+    // v4-03: the Press House and its hives after the restaurant, the same way.
+    inn = this.openPress(run, this.seedGold(run)) || inn;
+    if (this.style.menuFirst && s.press.level > 0) inn = this.pressOne(run, this.seedGold(run)) > 0 || inn;
     if (!yard && !tree) return inn;
     const spare = s.gold - this.seedGold(run);
     if (spare <= 0) return false;
@@ -906,6 +947,7 @@ export class Brain {
     const premium = restaurantLevel(s, this.data)?.premium ?? 0;
     if (premium <= 0 || this.style.cook === 'none') return [];
     return s.kitchen.known
+      .filter(isDishId)
       .map((id) => this.data.recipes[id])
       .filter(
         (r) =>
@@ -931,6 +973,10 @@ export class Brain {
   private keepForMenu(run: SimRun, on: boolean): void {
     const need = new Set<ItemId>();
     if (on) for (const r of this.menuRecipes(run.state)) for (const i of r.ingredients) need.add(i.item);
+    // v4-03: the best drinks' fruit and crops stay out of the Auto-Seller during a session too.
+    if (on)
+      for (const r of this.drinkChoices(run.state).slice(0, DRINKS_KEPT))
+        for (const i of r.ingredients) if (this.data.items[i.item]?.sellable) need.add(i.item);
     for (const item of need) {
       if (this.menuKept.has(item)) continue;
       run.game.dispatch({ type: 'setAutoSell', item, on: false });
@@ -1109,7 +1155,9 @@ export class Brain {
       seen.add(k);
       const n = Math.min(have(stack.item, hearty), servings(stack.item));
       if (n <= 0) continue;
-      const value = servingPrice(s, this.data, stack.item, special) * n;
+      // v4-03: a drink goes on after a dish of the same value.
+      const value =
+        servingPrice(s, this.data, stack.item, special) * n * (isDishId(stack.item) ? 1 : DRINK_TIE);
       if (value > bestValue) {
         bestValue = value;
         best = { item: stack.item, hearty, qty: n };
@@ -1121,7 +1169,7 @@ export class Brain {
       seen.add(`${m.item}|${m.hearty}`);
       const n = Math.min(have(m.item, m.hearty), servings(m.item));
       if (n <= 0) continue;
-      const value = servingPrice(s, this.data, m.item, special) * n;
+      const value = servingPrice(s, this.data, m.item, special) * n * (isDishId(m.item) ? 1 : DRINK_TIE);
       if (value > bestValue) {
         bestValue = value;
         best = { item: m.item, hearty: m.hearty, qty: n };
@@ -1140,6 +1188,113 @@ export class Brain {
       }
     }
     return true;
+  }
+
+  // ---- v4 phase 03: the Press House, drinks and the apiary (BALANCE §14.4–14.5, §14.10)
+
+  /** Known drinks worth a press run (base price over the ingredients' value, at least DRINK_MIN_MARGIN), best per press hour first. */
+  private drinkChoices(s: GameState): RecipeDef[] {
+    if (s.press.level <= 0) return [];
+    const margin = (r: RecipeDef): number => r.basePrice - ingredientValue(r, this.data.items);
+    return knownDrinks(s)
+      .map((id) => this.data.recipes[id])
+      .filter((r) => margin(r) >= DRINK_MIN_MARGIN || this.bundleWants(s, r.id) > 0)
+      .sort((a, b) => margin(b) / pressMs(b) - margin(a) / pressMs(a));
+  }
+
+  /** How many of `item` the Community Board's open bundles still want (a player who gives to them presses for them). */
+  private bundleWants(s: GameState, item: ItemId): number {
+    if (!this.style.bundles) return 0;
+    let n = 0;
+    for (const id of BUNDLE_IDS) {
+      if (isBundleDone(s, id)) continue;
+      for (const slot of bundleSlots(s, this.data, id))
+        if (!slot.done && slot.item === item) n += slot.need - slot.have;
+    }
+    return n;
+  }
+
+  /** Builds the Press House once the restaurant stands and it can be had, then buys the hives, all with gold above `keep`. */
+  private openPress(run: SimRun, keep: number): boolean {
+    const s = run.state;
+    let useful = false;
+    if (s.press.level === 0) {
+      if (s.restaurant.level === 0 || pressBlock(s, this.data)) return false;
+      if (s.gold < this.data.press.levels[0].price + keep) return false;
+      if (!run.game.dispatch({ type: 'buildPress' }).ok) return false;
+      useful = true;
+    }
+    // Hives are cheap on purpose: honey feeds the drinks. Every spot gets one as the gold allows.
+    for (let guard = 0; guard < 6; guard++) {
+      const price = nextHivePrice(s, this.data);
+      if (price === null || hiveBlock(s, this.data) || s.gold < price + keep) break;
+      if (!run.game.dispatch({ type: 'buyHive' }).ok) break;
+      useful = true;
+    }
+    return useful;
+  }
+
+  /** The Press House's next level (2 or 3) if the gold above `keep` pays for it. Returns the gold spent. */
+  private pressOne(run: SimRun, keep: number): number {
+    const s = run.state;
+    if (s.press.level <= 0 || pressBlock(s, this.data)) return 0;
+    const next = this.data.press.levels[s.press.level];
+    if (!next || s.gold < next.price + keep) return 0;
+    const before = s.gold;
+    return run.game.dispatch({ type: 'upgradePress' }).ok ? before - s.gold : 0;
+  }
+
+  /** Collects the honey (until the Collecting Basket does it at each pickup). */
+  private apiary(run: SimRun): boolean {
+    const s = run.state;
+    if (honeyWaiting(s) === 0) return false;
+    return run.game.dispatch({ type: 'collectHive' }).ok;
+  }
+
+  /**
+   * Keeps the presses going: collects what is finished, and starts every idle press on the drink whose runs the bag can
+   * sustain earn most (margin × the runs that fit in the session or, when leaving, the absence), set to keep pressing.
+   * Buys cocoa in winter for Hot Cocoa.
+   */
+  private presses(run: SimRun, leaving: boolean): boolean {
+    const s = run.state;
+    if (s.press.level <= 0) return false;
+    const game = run.game;
+    let useful = false;
+    if (drinksWaiting(s) > 0 && game.dispatch({ type: 'collectPress' }).ok) useful = true;
+    const choices = this.drinkChoices(s);
+    if (choices.length === 0) return useful;
+    if (this.season === 'winter' && choices.some((r) => r.id === 'hot_cocoa')) {
+      const want = COCOA_PER_PRESS * s.press.slots.length - countItem(s.inventory, 'cocoa');
+      if (want > 0 && s.gold > want * this.data.press.shelf.cocoa * 4)
+        useful = game.dispatch({ type: 'buyCocoa', qty: want }).ok || useful;
+    }
+    const horizon = leaving ? this.awayMs + HOUR : Math.max(HOUR, this.sessionLeftMs);
+    for (let i = 0; i < s.press.slots.length; i++) {
+      const slot = s.press.slots[i]!;
+      if (slot.remainingMs > 0) {
+        // Leaving: a press at work keeps pressing what it presses.
+        if (leaving && !slot.repeat) game.dispatch({ type: 'setPressRepeat', slot: i, repeat: true });
+        continue;
+      }
+      let best: RecipeDef | null = null;
+      let bestValue = 0;
+      for (const r of choices) {
+        const runs = Math.min(runsInBag(s, r), Math.max(1, Math.floor(horizon / pressMs(r))));
+        if (runs <= 0 || pressSlotFor(s, r.id) < 0) continue;
+        const margin = r.basePrice - ingredientValue(r, this.data.items);
+        const value = Math.max(margin, 1) * runs + (this.bundleWants(s, r.id) > 0 ? 1e6 : 0);
+        if (value > bestValue) {
+          bestValue = value;
+          best = r;
+        }
+      }
+      if (!best) break;
+      const at = pressSlotFor(s, best.id);
+      if (at >= 0 && game.dispatch({ type: 'startPress', slot: at, recipe: best.id, repeat: true }).ok)
+        useful = true;
+    }
+    return useful;
   }
 
   /**
@@ -1386,6 +1541,8 @@ export class Brain {
       if (turn === 0) spent = this.ranchOne(run, reserve + hold);
       // v4-02: the restaurant's levels 2 and 3 share the ranch's turn.
       if (spent === 0 && turn === 0) spent = this.restaurantOne(run, reserve + hold);
+      // v4-03: and the Press House's levels 2 and 3.
+      if (spent === 0 && turn === 0) spent = this.pressOne(run, reserve + hold);
       if (spent === 0 && turn !== 2) spent = this.donateGold(run, budget);
       if (spent === 0 && !saving) spent = this.buyDecor(run, budget);
       if (spent === 0 && turn === 2) spent = this.donateGold(run, budget);

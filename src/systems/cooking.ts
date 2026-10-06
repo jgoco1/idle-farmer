@@ -115,6 +115,7 @@ export function learn(
 export function startCooking(state: GameState, ctx: SimContext, id: RecipeId): ActionResult {
   const recipe = ctx.data.recipes[id];
   if (!recipe) return fail('Unknown recipe.');
+  if (recipe.station === 'press') return fail(`${recipe.name} is made in the Press House, not on the stove.`);
   if (!isKnown(state, id)) return fail(`You haven't learned ${recipe.name} yet.`);
   if (state.kitchen.queue.length >= kitchenSlots(state, ctx.data)) {
     return fail('The stove is full. Wait for a dish to finish, or upgrade the Kitchen.');

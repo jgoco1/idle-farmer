@@ -71,6 +71,11 @@ export interface Snapshot {
   restaurantGold: number;
   served: number;
   specialGold: number;
+  /** v4-03: gold from drinks (sold at the Market or served at the restaurant), drinks pressed, honey sold and collected. */
+  drinkGold: number;
+  drinksPressed: number;
+  honeyGold: number;
+  honeyCollected: number;
 }
 
 export interface Metrics {
@@ -111,6 +116,11 @@ export interface Metrics {
   restaurantGold: number;
   served: number;
   specialGold: number;
+  /** v4-03: gold from drinks (sold or served), drinks pressed, honey sold and jars collected. */
+  drinkGold: number;
+  drinksPressed: number;
+  honeyGold: number;
+  honeyCollected: number;
   /** Every absence: when it began (real ms since the start), how long it was, and the gold earned during it (v2 phase 06). */
   aways: { startMs: number; ms: number; gold: number }[];
 }
@@ -149,6 +159,10 @@ export class SimRun {
     restaurantGold: 0,
     served: 0,
     specialGold: 0,
+    drinkGold: 0,
+    drinksPressed: 0,
+    honeyGold: 0,
+    honeyCollected: 0,
     aways: [],
   };
   private lastUsefulPlayMs = 0;
@@ -174,6 +188,9 @@ export class SimRun {
     bus.on('sold', (e) => {
       const cat = data.items[e.item]?.category;
       if (cat === 'dish') this.metrics.dishGold += e.gold;
+      else if (cat === 'drink') this.metrics.drinkGold += e.gold;
+      else if (e.item === 'honey')
+        this.metrics.honeyGold += e.gold; // v4-03: not the animals' gold
       else if (cat === 'fruit') this.metrics.orchardGold += e.gold;
       else if (cat === 'animal') this.metrics.animalGold += e.gold;
       else if (cat === 'crop') this.metrics.cropGold += e.gold;
@@ -191,8 +208,18 @@ export class SimRun {
       this.metrics.restaurantGold += e.gold;
       this.metrics.served += e.qty;
       if (e.special) this.metrics.specialGold += e.gold;
+      if (data.items[e.item]?.category === 'drink') this.metrics.drinkGold += e.gold;
     });
     bus.on('restaurantUpgraded', (e) => this.mark(`restaurant_l${e.level}`));
+    bus.on('pressUpgraded', (e) => this.mark(`press_l${e.level}`));
+    bus.on('drinkPressed', () => {
+      this.mark('first_drink');
+      this.metrics.drinksPressed += 1;
+    });
+    bus.on('honeyCollected', (e) => {
+      this.mark('first_honey');
+      this.metrics.honeyCollected += e.qty;
+    });
     bus.on('cooked', (e) => {
       this.metrics.cooked += 1;
       this.mark(`dish_t${e.tier}`);
@@ -375,6 +402,10 @@ export class SimRun {
       restaurantGold: this.metrics.restaurantGold,
       served: this.metrics.served,
       specialGold: this.metrics.specialGold,
+      drinkGold: this.metrics.drinkGold,
+      drinksPressed: this.metrics.drinksPressed,
+      honeyGold: this.metrics.honeyGold,
+      honeyCollected: this.metrics.honeyCollected,
     });
   }
 }

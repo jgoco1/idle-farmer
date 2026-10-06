@@ -249,6 +249,7 @@ describe('the presses', () => {
     addItem(s.inventory, 'tomato', 8);
     expect(why(act(s, { type: 'startPress', slot: 0, recipe: 'lemonade' }))).toMatch(/learned/);
     expect(why(act(s, { type: 'startPress', slot: 0, recipe: 'roasted_turnip' }))).toMatch(/Only drinks/);
+    expect(why(act(s, { type: 'cook', recipe: 'tomato_juice' }))).toMatch(/Press House, not on the stove/);
     expect(act(s, { type: 'startPress', slot: 0, recipe: 'tomato_juice' }).ok).toBe(true);
     expect(countItem(s.inventory, 'tomato')).toBe(4);
     expect(s.press.slots[0]).toEqual({
