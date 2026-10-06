@@ -47,7 +47,7 @@ export const PARCELS: Readonly<Record<ParcelId, ParcelDef>> = Object.freeze({
     name: 'North Fields',
     description: 'Good dark soil behind a hawthorn hedge, just up the north road.',
     rect: rectOf('north_fields'),
-    price: 1_500_000,
+    price: 3_000_000,
     requires: [
       { kind: 'parcel', id: 'yard' },
       { kind: 'expansion', id: 'farm_4' },
@@ -61,7 +61,7 @@ export const PARCELS: Readonly<Record<ParcelId, ParcelDef>> = Object.freeze({
     name: 'Upper Terraces',
     description: 'Old terraces stepping up the hill toward the pines. The walls just need a mend.',
     rect: rectOf('terraces'),
-    price: 2_400_000,
+    price: 4_500_000,
     requires: [
       { kind: 'parcel', id: 'north_fields' },
       { kind: 'farmLevel', level: 8 },

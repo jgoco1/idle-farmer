@@ -306,7 +306,7 @@ describe('north fields: plot addressing (DATA_SCHEMAS §10.3)', () => {
     s.land.parcels.push('orchard', 'yard');
     s.expansions.push('farm_1', 'farm_2', 'farm_3', 'farm_4');
     setFarmLevel(s, 7);
-    s.gold = 2_000_000;
+    s.gold = 5_000_000;
     const events: GameEvent[] = [];
     expect(buyParcel(s, ctxAt(s, events), 'north_fields').ok).toBe(true);
     expect(s.farm.north.north_fields!.plots).toHaveLength(32);

@@ -45,7 +45,7 @@ async function readyForTheNorth(page: Page): Promise<void> {
     game.state.gold = 10_000_000;
     for (const id of ['farm_1', 'farm_2', 'farm_3', 'farm_4']) game.dispatch({ type: 'buyExpansion', id });
     for (const parcel of ['orchard', 'yard']) game.dispatch({ type: 'buyParcel', parcel });
-    game.state.gold = 2_000_000;
+    game.state.gold = 4_000_000;
   });
 }
 
@@ -87,7 +87,7 @@ test('scroll north, buy the North Fields from its sign, farm a north plot and wa
   await clickTile(page, 18, -6);
   const dialog = page.getByRole('dialog', { name: 'For sale: North Fields' });
   await expect(dialog).toBeVisible();
-  await dialog.getByRole('button', { name: 'Buy · 1,500,000g' }).click();
+  await dialog.getByRole('button', { name: 'Buy · 3,000,000g' }).click();
   await expect
     .poll(() => page.evaluate(() => (window as unknown as Win).__game.state.land.parcels))
     .toContain('north_fields');

@@ -16,12 +16,7 @@ import { makeContext } from '../../src/core/sim';
 import type { GameState, PlacedKind } from '../../src/core/state';
 import type { GameData } from '../../src/data';
 import type { CropDef, FishDef } from '../../src/data/types';
-import {
-  GREENHOUSE_BASE,
-  MARKET_CHANNEL,
-  OFFLINE_FULL_MS,
-  OFFLINE_REDUCED_RATE,
-} from '../../src/data/balance';
+import { MARKET_CHANNEL, OFFLINE_FULL_MS, OFFLINE_REDUCED_RATE } from '../../src/data/balance';
 import {
   CROP_IDS,
   FRUIT_IDS,
@@ -62,11 +57,29 @@ import {
   troughSize,
 } from '../../src/systems/ranch';
 import { SILO_RESERVE } from '../../src/data/balance';
-import type { AnimalId, BuildingId, SeasonId } from '../../src/data/ids';
+import {
+  NORTH_FIELD_IDS,
+  type AnimalId,
+  type BuildingId,
+  type NorthFieldId,
+  type SeasonId,
+} from '../../src/data/ids';
 import { seasonOfDay } from '../../src/core/time';
 import { bundleSlots, isBundleDone } from '../../src/systems/bundles';
 import { canCook, ingredientValue, kitchenSlots, recipeCards } from '../../src/systems/cooking';
-import { allPlotIndexes, canPullUp, isGreenhouseIndex, isReady, plotAt } from '../../src/systems/farming';
+import {
+  allPlotIndexes,
+  canPullUp,
+  envFor,
+  isGreenhouseIndex,
+  isReady,
+  lastPlanted,
+  plotAt,
+  plotCount,
+} from '../../src/systems/farming';
+
+/** Plots in the open fields (home and the north fields, not the greenhouse): what the seed reserve is sized by. */
+const openPlots = (s: GameState): number => plotCount(s) - s.farm.greenhouse.length;
 import { chooseCatch, landCatch } from '../../src/systems/fishing';
 import { countItem, spaceFor } from '../../src/systems/inventory';
 import { unlockedLocations } from '../../src/systems/locations';
@@ -76,6 +89,8 @@ import {
   areaOf,
   areaOffsets,
   coverageOf,
+  fieldPlotIndex,
+  gridOf,
   inGrid,
   objectAt,
   occupiedPlots,
@@ -166,7 +181,16 @@ export const FARM_SHOPPING: readonly Want[] = [
   // buff check and the Farmer's spending (BALANCE.md §13.12, v2-03 notes), so it stays here.
   pa('orchard'),
   pa('yard'),
+  // v4-01 (BALANCE §14.10): the North Fields once the starter yard and Seed Order L2 are in (see `offer`), after the
+  // meadow (ahead of it, saving for the field from day 7 moved the buffs check from +16% to +37%), then the
+  // sprinklers and scarecrow that come with it.
+  // The Upper Terraces are bought in `spendV2`'s turns, before decorations; their sprinklers and scarecrow wait here.
   pa('meadow'),
+  pa('north_fields'),
+  ...sprinklers(10, 14),
+  up('scarecrow', 5),
+  ...sprinklers(15, 16),
+  up('scarecrow', 6),
 ];
 
 /** The farm-first order without the Seed Order: the control bots of the v2-06 report row never buy it. */
@@ -182,7 +206,19 @@ export const FARM_SHOPPING_NO_ORDER: readonly Want[] = FARM_SHOPPING.filter(
 export const ACTIVE_SHOPPING: readonly Want[] = (() => {
   const v1 = FARM_SHOPPING.filter((w) => w.kind !== 'parcel');
   const at = v1.findIndex((w) => w.kind === 'upgrade' && w.id === 'greenhouse' && w.level === 1) + 1;
-  return [...v1.slice(0, at), pa('orchard'), pa('yard'), ...v1.slice(at), pa('meadow')];
+  const north = FARM_SHOPPING.slice(
+    FARM_SHOPPING.findIndex((w) => w.kind === 'parcel' && w.id === 'meadow') + 1,
+  );
+  const v1Only = v1.filter((w) => !north.includes(w));
+  return [
+    ...v1Only.slice(0, at),
+    pa('orchard'),
+    pa('yard'),
+    ...v1Only.slice(at),
+    pa('meadow'),
+    pa('north_fields'),
+    ...north,
+  ];
 })();
 
 /** The water-first order: rods, the river, traps and the dock early, then the farm list. */
@@ -589,6 +625,9 @@ export class Brain {
   private offer(s: GameState, w: Want): number | null {
     if (w.kind === 'parcel') {
       if (s.land.parcels.includes(w.id)) return null;
+      // v4-01: the North Fields after the starter yard and the Seed Order's second level (BALANCE §14.10).
+      if (w.id === 'north_fields' && (!this.starterYardDone(s) || upgradeLevel(s, 'seed_order') < 2))
+        return null;
       const def = this.data.parcels[w.id];
       return isUnlocked(s, def.requires, this.data) ? def.price : null;
     }
@@ -618,7 +657,7 @@ export class Brain {
       }
       if (!target) return useful;
       const restock = upgradeLevel(s, 'auto_seller') > 0 ? SEED_STOCK_CYCLES : 1;
-      const reserve = SEED_RESERVE_PER_PLOT * s.farm.plots.length * restock;
+      const reserve = SEED_RESERVE_PER_PLOT * openPlots(s) * restock;
       if (s.gold < target.price + reserve) return useful;
       const w = target.want;
       const r =
@@ -650,7 +689,7 @@ export class Brain {
     // leaving, after the planter's seeds are stocked; bought mid-session they left the planter without seed overnight.
     if (!buy) return useful;
     const restock = upgradeLevel(s, 'auto_seller') > 0 ? SEED_STOCK_CYCLES : 1;
-    const reserve = Math.max(keep, SEED_RESERVE_PER_PLOT * s.farm.plots.length * restock);
+    const reserve = Math.max(keep, SEED_RESERVE_PER_PLOT * openPlots(s) * restock);
     for (let guard = 0; guard < Math.min(10, most); guard++) {
       const spots = freeSpots(s, this.data);
       if (spots.length === 0) break;
@@ -759,7 +798,7 @@ export class Brain {
     if (!s.land.parcels.includes('yard')) return false;
     let useful = false;
     const restock = upgradeLevel(s, 'auto_seller') > 0 ? SEED_STOCK_CYCLES : 1;
-    const reserve = SEED_RESERVE_PER_PLOT * s.farm.plots.length * restock;
+    const reserve = SEED_RESERVE_PER_PLOT * openPlots(s) * restock;
     for (const b of s.ranch.buildings) {
       if (!this.data.buildings[b.kind].houses) continue;
       if (storeCount(b) > 0 && run.game.dispatch({ type: 'collectBuilding', building: b.id }).ok)
@@ -777,7 +816,7 @@ export class Brain {
     const s = run.state;
     if (!s.land.parcels.includes('yard')) return false;
     const restock = upgradeLevel(s, 'auto_seller') > 0 ? SEED_STOCK_CYCLES : 1;
-    const reserve = SEED_RESERVE_PER_PLOT * s.farm.plots.length * restock;
+    const reserve = SEED_RESERVE_PER_PLOT * openPlots(s) * restock;
     let useful = false;
     for (let guard = 0; guard < RANCH_STARTER_STEPS && !this.starterYardDone(s); guard++) {
       if (this.ranchOne(run, reserve) === 0) break;
@@ -1033,9 +1072,20 @@ export class Brain {
       break;
     }
     const restock = upgradeLevel(s, 'auto_seller') > 0 ? SEED_STOCK_CYCLES : 1;
-    const reserve = SEED_RESERVE_PER_PLOT * s.farm.plots.length * restock;
+    const reserve = SEED_RESERVE_PER_PLOT * openPlots(s) * restock;
     let budget = Math.floor(Math.max(0, s.gold - reserve - hold) * V2_SPEND_SHARE);
-    let useful = this.placeDecor(run);
+    let useful = false;
+    // v4-01: the Upper Terraces come before decorations: bought once the gold above the reserve covers them, and
+    // saved for meanwhile (decorations wait; the ranch and the town carry on).
+    const terraces = this.offer(s, pa('terraces'));
+    let saving = false;
+    if (terraces !== null && hold === 0) {
+      if (s.gold - reserve >= terraces) {
+        useful = run.game.dispatch({ type: 'buyParcel', parcel: 'terraces' }).ok;
+        budget = Math.floor(Math.max(0, s.gold - reserve) * V2_SPEND_SHARE);
+      } else saving = true;
+    }
+    useful = this.placeDecor(run) || useful;
     this.styleHouse(run);
 
     // Items the bag holds go to the project at once (they are not gold).
@@ -1053,7 +1103,7 @@ export class Brain {
       let spent = 0;
       if (turn === 0) spent = this.ranchOne(run, reserve + hold);
       if (spent === 0 && turn !== 2) spent = this.donateGold(run, budget);
-      if (spent === 0) spent = this.buyDecor(run, budget);
+      if (spent === 0 && !saving) spent = this.buyDecor(run, budget);
       if (spent === 0 && turn === 2) spent = this.donateGold(run, budget);
       if (spent === 0) break;
       budget -= spent;
@@ -1150,17 +1200,21 @@ export class Brain {
       while (stockOf(s, kind) > 0) {
         const spot = this.bestSpot(s, kind, false) ?? this.bestSpot(s, kind, true);
         if (!spot) break;
-        const idx = spot.row * s.farm.grid.cols + spot.col;
-        const p = s.farm.plots[idx]!;
+        const field = spot.field;
+        const idx = fieldPlotIndex(s, spot.col, spot.row, field);
+        const p = plotAt(s, idx)!;
         if (p.state === 'planted') {
           if (!isReady(p, this.data)) break; // wait for the crop, then clear the spot
           run.game.dispatch({ type: 'harvest', plots: [idx] });
-          if (s.farm.plots[idx]!.state === 'planted') {
+          if (plotAt(s, idx)!.state === 'planted') {
             // A regrower stays planted: pull it up by placing elsewhere later.
             break;
           }
         }
-        if (!run.game.dispatch({ type: 'place', kind, col: spot.col, row: spot.row }).ok) break;
+        const action = field
+          ? { type: 'place' as const, kind, col: spot.col, row: spot.row, field }
+          : { type: 'place' as const, kind, col: spot.col, row: spot.row };
+        if (!run.game.dispatch(action).ok) break;
         useful = true;
       }
       if (stockOf(s, kind) > 0) this.placeRetryAt = run.playMs + MIN;
@@ -1168,34 +1222,51 @@ export class Brain {
     return useful;
   }
 
-  private bestSpot(s: GameState, kind: PlacedKind, standing: boolean): { col: number; row: number } | null {
-    const { cols, rows } = s.farm.grid;
+  /** The best plot for one more `kind` in any field (home, then each north field, v4-01): the most uncovered plots. */
+  private bestSpot(
+    s: GameState,
+    kind: PlacedKind,
+    standing: boolean,
+  ): { col: number; row: number; field: NorthFieldId | undefined } | null {
     const offsets = areaOffsets(areaOf(s, this.data, kind));
     const scarecrow = kind !== 'sprinkler';
     const covered = new Set<number>();
     for (const o of s.placed) {
       if ((o.kind !== 'sprinkler') !== scarecrow) continue;
-      for (const [dc, dr] of areaOffsets(areaOf(s, this.data, o.kind)))
-        covered.add((o.at.row + dr) * cols + o.at.col + dc);
+      const g = gridOf(s, o.field);
+      for (const [dc, dr] of areaOffsets(areaOf(s, this.data, o.kind))) {
+        const c = o.at.col + dc;
+        const r = o.at.row + dr;
+        if (c >= 0 && r >= 0 && c < g.cols && r < g.rows) covered.add(fieldPlotIndex(s, c, r, o.field));
+      }
     }
     const used = occupiedPlots(s);
-    let best: { col: number; row: number } | null = null;
+    let best: { col: number; row: number; field: NorthFieldId | undefined } | null = null;
     let bestGain = scarecrow ? 3 : 1; // a scarecrow is worth moving a crop for only if it helps a few plots
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        const p = s.farm.plots[row * cols + col]!;
-        if (p.state === 'planted' && !standing) continue;
-        if (p.state !== 'planted' && placementProblem(s, kind, col, row) !== null) continue;
-        if (p.state === 'planted' && (objectAt(s, col, row) || p.harvests > 0)) continue;
-        let gain = 0;
-        for (const [dc, dr] of offsets) {
-          const c = col + dc;
-          const r = row + dr;
-          if (inGrid(s, c, r) && !covered.has(r * cols + c) && !used.has(r * cols + c)) gain++;
-        }
-        if (gain >= bestGain + (best ? 1 : 0)) {
-          bestGain = gain;
-          best = { col, row };
+    const fields: (NorthFieldId | undefined)[] = [
+      undefined,
+      ...NORTH_FIELD_IDS.filter((f) => s.farm.north[f]),
+    ];
+    for (const field of fields) {
+      const { cols, rows } = gridOf(s, field);
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const p = plotAt(s, fieldPlotIndex(s, col, row, field))!;
+          if (p.state === 'planted' && !standing) continue;
+          if (p.state !== 'planted' && placementProblem(s, kind, col, row, field) !== null) continue;
+          if (p.state === 'planted' && (objectAt(s, col, row, field) || p.harvests > 0)) continue;
+          let gain = 0;
+          for (const [dc, dr] of offsets) {
+            const c = col + dc;
+            const r = row + dr;
+            if (!inGrid(s, c, r, field)) continue;
+            const i = fieldPlotIndex(s, c, r, field);
+            if (!covered.has(i) && !used.has(i)) gain++;
+          }
+          if (gain >= bestGain + (best ? 1 : 0)) {
+            bestGain = gain;
+            best = { col, row, field };
+          }
         }
       }
     }
@@ -1312,9 +1383,9 @@ export class Brain {
     }
     const cov = coverageOf(s, data);
     const dry = plots.filter((i) => {
-      if (i >= GREENHOUSE_BASE) return false;
-      const p = s.farm.plots[i]!;
-      return p.state !== 'untilled' && p.state !== 'dead' && p.waterMsLeft === 0 && cov?.sprinkled[i] !== 1;
+      if (isGreenhouseIndex(i)) return false;
+      const p = plotAt(s, i)!;
+      return p.state !== 'untilled' && p.state !== 'dead' && p.waterMsLeft === 0 && !envFor(cov, i).sprinkled;
     });
     if (dry.length > 0 && game.dispatch({ type: 'water', plots: dry }).ok) useful = true;
     return useful;
@@ -1360,7 +1431,7 @@ export class Brain {
       if (used.has(i)) continue;
       const p = plotAt(s, i)!;
       if (p.state === 'planted' && p.crop && data.crops[p.crop].regrowSec !== null) continue; // keeps regrowing
-      const last = s.lastPlantedCrop[isGreenhouseIndex(i) ? s.farm.plots.length + i - GREENHOUSE_BASE : i];
+      const last = lastPlanted(s, i);
       const def = last ? data.crops[last] : null;
       const ok = def && def.regrowSec === null && (isGreenhouseIndex(i) || def.seasons.includes(season));
       const crop = ok ? last! : fallback;
