@@ -266,19 +266,19 @@ describe('farm expansion', () => {
 });
 
 describe('backpack', () => {
-  it('adds slots for gold, level by level, up to 28', () => {
+  it('adds slots for gold, six a level, up to 42', () => {
     const s = farm();
     const def = GAME_DATA.upgrades.backpack!;
-    expect([0, 1, 2, 3].map((l) => upgradeCost(def, l))).toEqual([200, 440, 970, 2100]);
+    expect([0, 1, 2, 3, 4].map((l) => upgradeCost(def, l))).toEqual([200, 440, 970, 2100, 4700]);
     const ctx = ctxAt(s);
     expect(buyUpgrade(s, ctx, 'backpack')).toEqual({ ok: false, reason: 'You need 200g for that.' });
     s.gold = 10_000;
     addItem(s.inventory, 'turnip', 5);
-    for (const slots of [16, 20, 24, 28]) {
+    for (const slots of [18, 24, 30, 36, 42]) {
       expect(buyUpgrade(s, ctx, 'backpack').ok).toBe(true);
       expect(s.inventory.slots).toHaveLength(slots);
     }
-    expect(s.gold).toBe(10_000 - 200 - 440 - 970 - 2100);
+    expect(s.gold).toBe(10_000 - 200 - 440 - 970 - 2100 - 4700);
     expect(countItem(s.inventory, 'turnip')).toBe(5); // nothing is lost
     expect(buyUpgrade(s, ctx, 'backpack')).toEqual({ ok: false, reason: 'Backpack is fully upgraded.' });
   });

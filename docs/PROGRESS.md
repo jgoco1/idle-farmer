@@ -984,6 +984,25 @@ A small owner-requested pass between v2-04 and v2-05 (no phase prompt).
 - A new bulk button goes next to the two in `FarmTools` (`onBulk`); a new Kitchen control follows the stepper in `recipeRow`.
 - Targets and fee are `seedTarget` in `src/data/upgrades.ts` and `SEED_ORDER_FEE` in `balance.ts`; re-run `npm run simulate` (the "Seed Order" table) after changing either.
 
+## Polish after v4-00: arranging the bag, and a bigger backpack
+
+### Built
+- **Drag to move or merge:** in the Inventory, drag a stack onto another slot. The same item merges (as far as the stack size allows; the rest stays behind), an empty slot takes it, anything else swaps. A mouse drags after a few pixels; on touch, hold the stack for a moment first, so a swipe still scrolls the bag. The held stack fades, the slot under it lights up, and its icon follows the pointer. Action `moveStack`, `src/ui/bagDrag.ts`.
+- **Sort:** a Sort button merges every item into full stacks and orders the bag (seeds, saplings, crops, fruit, animal products, fish, dishes, feed, junk; then by name; plain dishes before hearty). Action `sortInventory`.
+- **Move…** in the item detail: the keyboard (and screen reader) way to move a stack; pick it, then the slot.
+- **A bigger backpack** (after v4-01, whose bots filled their bags): six slots a level instead of four, and a fifth level, so 12 / 18 / 24 / 30 / 36 / 42 slots. A save gets the slots its level now gives when it loads (`syncBagSlots`, called by the `Game` constructor and by buying a level); nothing is removed. The bots buy level 5 after Seed Order 3.
+- **Bigger stacks merge:** buying Barn Storage tops each stack up from later ones of the same kind (`mergeStacks`), so two stacks of 99 become one of 198 and a free slot.
+- Tests: `tests/bagSort.test.ts`; e2e in `e2e/bag.spec.ts` (mouse drag, keyboard Move…, a touch long-press, a swipe that moves nothing). Screenshot `docs/screenshots/polish-bag-drag.png`.
+
+### Deviations
+- None. No `SAVE_VERSION` change (the slots array keeps its shape; old saves grow on load instead of by migration).
+
+### Known issues
+- None known.
+
+### Next-phase notes
+- A new item category must be added to `SORT_CATEGORIES` in `src/systems/inventory.ts` (an unknown one sorts last). v4 drinks, honey and forage items should get a place there.
+
 ## v4 Phase 00: Design the North
 
 ### Built

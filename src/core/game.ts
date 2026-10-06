@@ -4,6 +4,7 @@
 import type { GameData } from '../data';
 import type { ActionResult } from '../systems/context';
 import { plotWatered } from '../systems/farming';
+import { syncBagSlots } from '../systems/upgrades';
 import { applyAction, type Action } from './actions';
 import { EventBus, type GameEvent } from './events';
 import { FixedStepper } from './loop';
@@ -48,6 +49,7 @@ export class Game {
     this.data = opts.data;
     this.lc = opts.lc;
     this.now = opts.now;
+    syncBagSlots(this.state, this.data); // a save from before the bigger Backpack levels gets its new slots
   }
 
   /** Calendar time now (real time plus the debug offset). */

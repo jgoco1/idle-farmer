@@ -1172,7 +1172,7 @@ describe('the Community Board', () => {
     s.inventory.slots = s.inventory.slots.slice(0, before + 4);
     s.gold = 10_000;
     expect(buyUpgrade(s, ctxAt(s), 'backpack')).toEqual({ ok: true });
-    expect(s.inventory.slots.length).toBe(16 + 4);
+    expect(s.inventory.slots.length).toBe(18 + 4);
   });
 
   it('Autumn Harvest: unlocks the greenhouse', () => {

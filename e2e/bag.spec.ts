@@ -2,6 +2,7 @@
 // bag, and sorting the Kitchen's recipe book (kept in prefs across a reload).
 
 import { expect, test, type Page } from '@playwright/test';
+import { shot } from './helpers';
 
 type Win = {
   __game: {
@@ -124,4 +125,126 @@ test('the Kitchen sorts its recipe book, and remembers the choice after a reload
   await expect(page.getByRole('dialog', { name: 'Kitchen' }).getByTestId('kitchen-sort')).toHaveValue(
     'price',
   );
+});
+
+/** Opens the Inventory with these stacks in the first slots and the rest empty. */
+async function bagWith(page: Page, stacks: ({ item: string; qty: number } | null)[]): Promise<void> {
+  await page.evaluate((st) => {
+    const inv = (window as unknown as Win).__game.state.inventory;
+    inv.slots = inv.slots.map((_, i) => st[i] ?? null);
+  }, stacks);
+  await page
+    .getByRole('button', { name: /^Inventory/ })
+    .first()
+    .click();
+}
+
+test('drag a stack onto another to merge it, onto an empty slot to move it; Sort merges and orders the bag', async ({
+  page,
+}) => {
+  await open(page);
+  await bagWith(page, [
+    { item: 'turnip', qty: 60 },
+    { item: 'seed_potato', qty: 5 },
+    { item: 'turnip', qty: 30 },
+  ]);
+  const panel = page.getByRole('dialog', { name: 'Inventory' });
+  const slot = (i: number) => panel.locator(`[data-slot="${i}"]`);
+
+  // Mouse: drag slot 2's turnips onto slot 0's: one stack of 90.
+  await slot(2).dragTo(slot(0));
+  await expect
+    .poll(() => bag(page).then((b) => b.slice(0, 3)))
+    .toEqual([{ item: 'turnip', qty: 90 }, { item: 'seed_potato', qty: 5 }, null]);
+  // A drag's release is not a click: the merged stack is under the pointer, so it is described, not picked.
+  await expect(panel.locator('.inv-detail')).toContainText('×90');
+  await expect(panel.locator('.inv-hint')).toBeHidden();
+
+  // Onto an empty slot it moves, with the slot lit while it is over it.
+  const a = await slot(1).boundingBox();
+  const b = await slot(7).boundingBox();
+  await page.mouse.move(a!.x + a!.width / 2, a!.y + a!.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b!.x + b!.width / 2, b!.y + b!.height / 2, { steps: 6 });
+  await expect(slot(7)).toHaveClass(/is-drop-target/);
+  await expect(page.locator('.inv-ghost img')).toHaveCount(1);
+  await panel.screenshot({ path: shot('polish-bag-drag.png') });
+  await page.mouse.up();
+  await expect(page.locator('.inv-ghost')).toHaveCount(0);
+  expect((await bag(page))[7]).toEqual({ item: 'seed_potato', qty: 5 });
+  expect((await bag(page))[1]).toBeNull();
+
+  // Sort: seeds first, then crops, from the first slot.
+  await page.evaluate(() => {
+    (window as unknown as Win).__game.state.inventory.slots[4] = { item: 'turnip', qty: 20 };
+  });
+  await panel.getByTestId('inv-sort').click();
+  expect((await bag(page)).slice(0, 3)).toEqual([
+    { item: 'seed_potato', qty: 5 },
+    { item: 'turnip', qty: 99 },
+    { item: 'turnip', qty: 11 },
+  ]);
+  await expect(slot(0)).toHaveAttribute('data-item', 'seed_potato');
+});
+
+test('Move… moves a stack from the keyboard: pick it, then the slot', async ({ page }) => {
+  await open(page);
+  await bagWith(page, [{ item: 'turnip', qty: 4 }]);
+  const panel = page.getByRole('dialog', { name: 'Inventory' });
+  await panel.locator('[data-slot="0"]').focus();
+  await page.keyboard.press('Enter');
+  await panel.locator('[data-move="turnip"]').focus();
+  await page.keyboard.press('Enter');
+  await expect(panel.locator('.inv-hint')).toContainText('Choose a slot for the Turnip');
+  await panel.locator('[data-slot="5"]').focus();
+  await page.keyboard.press('Enter');
+  expect((await bag(page))[5]).toEqual({ item: 'turnip', qty: 4 });
+  await expect(panel.locator('.inv-hint')).toBeHidden();
+});
+
+test.describe('on a touch phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 3 });
+
+  test('a long press picks a stack up and a drag merges it; a quick swipe does not', async ({ page }) => {
+    await open(page);
+    await bagWith(page, [{ item: 'turnip', qty: 10 }, null, { item: 'turnip', qty: 15 }]);
+    const panel = page.getByRole('dialog', { name: 'Inventory' });
+    const centre = async (i: number): Promise<{ x: number; y: number }> => {
+      const r = (await panel.locator(`[data-slot="${i}"]`).boundingBox())!;
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    };
+    await page.waitForTimeout(500); // the bottom sheet slides up: measure once it has stopped
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', p?: { x: number; y: number }) =>
+      cdp.send('Input.dispatchTouchEvent', { type, touchPoints: p ? [{ x: p.x, y: p.y, id: 0 }] : [] });
+    const from = await centre(2);
+    const to = await centre(0);
+    const steps = (n: number) =>
+      Array.from({ length: n + 1 }, (_, i) => ({
+        x: from.x + ((to.x - from.x) * i) / n,
+        y: from.y + ((to.y - from.y) * i) / n,
+      }));
+
+    // A quick swipe (no hold) moves nothing.
+    await touch('touchStart', from);
+    for (const p of steps(6)) await touch('touchMove', p);
+    await touch('touchEnd');
+    expect((await bag(page)).slice(0, 3)).toEqual([
+      { item: 'turnip', qty: 10 },
+      null,
+      { item: 'turnip', qty: 15 },
+    ]);
+
+    // Hold, then drag: the stacks merge.
+    await page.waitForTimeout(400);
+    await touch('touchStart', from);
+    await page.waitForTimeout(450);
+    await expect(page.locator('.inv-ghost')).toHaveCount(1);
+    for (const p of steps(6)) await touch('touchMove', p);
+    await touch('touchEnd');
+    await expect
+      .poll(() => bag(page).then((b) => b.slice(0, 3)))
+      .toEqual([{ item: 'turnip', qty: 25 }, null, null]);
+    await expect(page.locator('.inv-ghost')).toHaveCount(0);
+  });
 });

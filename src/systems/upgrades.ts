@@ -10,6 +10,7 @@ import type { AutomationFlag, UnlockCondition, UpgradeDef, UpgradeEffect } from 
 import { fail, OK, type ActionResult, type SimContext } from './context';
 import { canAfford, spend } from './economy';
 import { bundleBonuses } from './bundles';
+import { mergeStacks } from './inventory';
 import { addTrap, maxTraps, trapsPerLocation } from './locations';
 import { isUnlocked, unlockHint } from './unlocks';
 
@@ -25,6 +26,18 @@ export function upgradeCost(def: UpgradeDef, level: number): number {
 /** Inventory slots for a backpack level. */
 export function backpackSlots(data: GameData, level: number): number | null {
   return data.upgrades.backpack?.effect[level]?.inventorySlots ?? null;
+}
+
+/**
+ * Grows the bag to the slots its Backpack level gives, plus the Summer Crops bundle's extra slots. Buying a level
+ * calls it, and so does loading a save, so a save made when the levels gave fewer slots gets the difference
+ * (polish after v4-01). It never removes a slot.
+ */
+export function syncBagSlots(state: GameState, data: GameData): void {
+  const slots = backpackSlots(data, upgradeLevel(state, 'backpack'));
+  if (slots === null) return;
+  const target = slots + bundleBonuses(state, data).inventorySlots;
+  while (state.inventory.slots.length < target) state.inventory.slots.push(null);
 }
 
 /** The effect row of `id` at the player's current level (level 0 = nothing bought). */
@@ -57,12 +70,10 @@ export function purchaseBlock(state: GameState, data: GameData, id: UpgradeId): 
 function applyEffect(state: GameState, data: GameData, id: UpgradeId, level: number): void {
   const effect = data.upgrades[id]?.effect[level];
   if (id === 'backpack') {
-    // The Summer Crops bundle's extra slots come on top of the backpack's.
-    const slots = backpackSlots(data, level);
-    const target = slots === null ? null : slots + bundleBonuses(state, data).inventorySlots;
-    while (target !== null && state.inventory.slots.length < target) state.inventory.slots.push(null);
+    syncBagSlots(state, data);
   } else if (id === 'barn_storage' && effect?.stackSize) {
     state.inventory.stackSize = Math.max(state.inventory.stackSize, effect.stackSize);
+    mergeStacks(state.inventory); // two full stacks of the old size become one
   } else if (id === 'farmhand') {
     // Hiring starts the timer; a better farmhand never has to wait longer than the new interval.
     const interval = (effect?.intervalSec ?? 0) * 1000;

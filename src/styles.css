@@ -439,6 +439,51 @@ canvas {
   cursor: default;
   opacity: 0.6;
 }
+/* Sorting and moving stacks (polish after v4-00): the held stack fades, the slot under it lights up. */
+.inv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.inv-head .inv-summary {
+  margin: 0;
+}
+.inv-hint:empty {
+  display: none;
+}
+.inv-hint {
+  margin: 4px 0 0;
+  color: var(--c-gold_dark);
+}
+.inv-grid .inv-slot {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.inv-grid.is-moving .inv-slot {
+  cursor: pointer;
+}
+.inv-slot.is-drag-source {
+  opacity: 0.4;
+  border-style: dashed;
+}
+.inv-slot.is-drop-target {
+  outline: 2px solid var(--c-gold);
+  outline-offset: 1px;
+  opacity: 1;
+}
+.inv-ghost {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  transform: translate(-50%, -60%) scale(calc(var(--ui-scale, 1) * 1.15));
+  filter: drop-shadow(2px 3px 0 var(--c-shadow));
+}
+.inv-ghost img {
+  display: block;
+  image-rendering: pixelated;
+}
 .inv-qty {
   position: absolute;
   right: 1px;

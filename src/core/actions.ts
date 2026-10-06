@@ -10,7 +10,7 @@ import { harvestPlots, plantPlots, tillPlots, useTool, waterPlots, type FarmTool
 import { buyExpansion } from '../systems/expansions';
 import { buyParcel } from '../systems/parcels';
 import { sellItems } from '../systems/market';
-import { discardItem } from '../systems/inventory';
+import { discardItem, moveStack, sortInventory } from '../systems/inventory';
 import { shipItems, unshipItems } from '../systems/shippingBin';
 import { buySeeds } from '../systems/shop';
 import { setAutoSell } from '../systems/autoSeller';
@@ -71,6 +71,10 @@ export type Action =
   | { type: 'sell'; item: ItemId; qty: number }
   /** Throw items away for good (`hearty` picks hearty or plain dishes). */
   | { type: 'discardItem'; item: ItemId; qty: number; hearty?: boolean }
+  /** Inventory: drag a stack onto another slot (move, merge or swap). */
+  | { type: 'moveStack'; from: number; to: number }
+  /** Inventory: merge and sort the whole bag. */
+  | { type: 'sortInventory' }
   /** Shipping Bin: drop items in (paid at 100% at the next hourly pickup), or take them back out. */
   | { type: 'ship'; item: ItemId; qty: number }
   | { type: 'unship'; item: ItemId }
@@ -175,6 +179,10 @@ function handleAction(state: GameState, ctx: SimContext, action: Action): Action
       return sellItems(state, ctx, action.item, action.qty);
     case 'discardItem':
       return discardItem(state, ctx, action.item, action.qty, action.hearty);
+    case 'moveStack':
+      return moveStack(state, ctx, action.from, action.to);
+    case 'sortInventory':
+      return sortInventory(state, ctx);
     case 'ship':
       return shipItems(state, ctx, action.item, action.qty);
     case 'unship':

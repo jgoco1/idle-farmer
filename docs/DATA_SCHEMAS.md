@@ -1304,6 +1304,13 @@ Rules that carry over from §8: migrations take raw JSON and do not import curre
 - **Harvest all / Water all:** `bulkPlots(state)` in `src/ui/farmTools.ts` (the whole field, not the greenhouse) is used by Shift-click and the two buttons, which send the same `useTool` action (`useOnField` in `main.ts`).
 - **HUD chip:** `Hud.levelButton` shows `Lv ${farmLevel(state)}`; `main.ts` toggles the Goals panel from it.
 
+### 9.17 As built in the bag-arranging polish (after v4-00)
+
+- **Actions** `{ type: 'moveStack'; from: number; to: number }` (`moveStack` in `src/systems/inventory.ts`): onto an empty slot the stack moves; onto a stack of the same item and `hearty` it merges up to `stackSize` (the rest stays in `from`); onto anything else (or a full stack) the two swap. `from === to` is a no-op. A slot outside the bag or an empty `from` is refused. `{ type: 'sortInventory' }` (`sortInventory`): merges every (item, hearty) kind into as few stacks as `stackSize` allows and lays them out from slot 0 by category (`seed`, `sapling`, `crop`, `fruit`, `animal`, `fish`, `dish`, `feed`, `junk`), then item name, then plain before hearty; empty slots last. Both emit **event** `{ type: 'bagArranged' }`; nothing else changes.
+- **Barn Storage** now calls `mergeStacks(inventory)` after raising `stackSize`: each stack is topped up in place from later stacks of the same kind, so two stacks of 99 become one of 198.
+- **UI:** `src/ui/bagDrag.ts` (`attachBagDrag`): a mouse drags after 6 px; a finger holds for 300 ms first (a quick swipe still scrolls). Slots carry `data-slot`. The Inventory panel has a Sort button (`data-testid="inv-sort"`) and a "Move…" button in the detail (`data-move`), the keyboard way: pick, then press a slot. No `SAVE_VERSION` change.
+- **Backpack** (polish after v4-01): levels give 12 / 18 / 24 / 30 / 36 / 42 slots (a fifth level at 4,700). `syncBagSlots(state, data)` in `src/systems/upgrades.ts` grows `inventory.slots` to the level's slots plus the Summer Crops bundle's; buying a level and the `Game` constructor (every load) call it, and it never removes a slot. Not a shape change, so no migration.
+
 ## 10. v4: the North
 
 Written by v4 phase 00. Numbers are in BALANCE.md §14 and behaviour in GDD §13; this section fixes ids, coordinates, shapes and the save plan. Each item is tagged with the phase that builds it (`@v4-01` … `@v4-04`). As in §9, a data table keyed by an id union is a full `Record`, so a missing entry is a compile error.
