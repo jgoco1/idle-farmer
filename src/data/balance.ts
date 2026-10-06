@@ -314,3 +314,24 @@ export const SPECIAL_BONUS = 0.15;
 export const MENU_SLOT_CAP = 99;
 /** "Fill from bag" amounts in the Restaurant panel (the last one, `Infinity`, is "all that fits"). */
 export const MENU_FILL_AMOUNTS: readonly number[] = [1, 10, Infinity];
+
+// ---- the Press House and the apiary (v4 phase 03, BALANCE.md §14.4–14.5)
+
+/** A drink's tier counts one point per this many seconds of press time (dishes: TIER_COOK_DIV). */
+export const TIER_PRESS_DIV = 600;
+/** Cocoa beans on the Press House shelf, gold each (not sellable). */
+export const COCOA_PRICE = 60;
+/** Honey's market base price, and Farming XP per jar collected by hand (¼ by the Collecting Basket). */
+export const HONEY_PRICE = 150;
+export const HONEY_XP = 10;
+/** One jar of honey per hive per this many seconds of simulated time (Busy Bees shortens it). */
+export const HIVE_CYCLE_SEC = 3600;
+/** Jars a hive holds; a full hive waits. */
+export const HIVE_STORE = 10;
+/** The (n+1)th hive costs roundNice(HIVE_BASE_PRICE × HIVE_PRICE_RATIO^n). */
+export const HIVE_BASE_PRICE = 10_000;
+export const HIVE_PRICE_RATIO = 1.5;
+/** Buttons on the Press House shelf: cocoa bought in these amounts. */
+export const COCOA_AMOUNTS: readonly number[] = [1, 10];
+/** Finished drinks a press slot holds before a "keep pressing" slot waits for them to be collected. */
+export const PRESS_SLOT_STORE = 24;

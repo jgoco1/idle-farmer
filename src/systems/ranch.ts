@@ -32,6 +32,8 @@ import { canAfford, spend } from './economy';
 import { feedAvailable, feedRoom, storeFeed, takeFeed } from './feedStore';
 import { countItem, removeItem, spaceFor } from './inventory';
 import { ownsParcel } from './parcels';
+import { collectAllHives } from './apiary';
+import { collectAllPresses, resumeRepeating } from './press';
 import { isUnlocked, unlockHint } from './unlocks';
 import { hasFlag } from './upgrades';
 
@@ -594,11 +596,20 @@ export function collectAllStores(state: GameState, ctx: SimContext): number {
   return moved;
 }
 
-/** What the ranch does at each shipping-bin pickup: the silo feeds, then the Collecting Basket empties the stores. */
+/**
+ * What the ranch does at each shipping-bin pickup: the silo feeds, then the Collecting Basket empties the
+ * stores and (v4-03) the hives and the finished presses, and restarts "keep pressing" slots that had
+ * stopped. The basket makes every pickup a step boundary (`msToNextPickup`), so this is step-size exact.
+ */
 export function ranchPickup(state: GameState, ctx: SimContext): void {
-  if (state.ranch.buildings.length === 0) return;
-  runSilo(state, ctx);
-  if (hasFlag(state, ctx.data, 'ranch_collector', 'autoCollect')) collectAllStores(state, ctx);
+  if (state.ranch.buildings.length > 0) runSilo(state, ctx);
+  if (!hasFlag(state, ctx.data, 'ranch_collector', 'autoCollect')) return;
+  if (state.ranch.buildings.length > 0) collectAllStores(state, ctx);
+  if (state.apiary.hives.length > 0) collectAllHives(state, ctx);
+  if (state.press.slots.length > 0) {
+    collectAllPresses(state, ctx);
+    resumeRepeating(state, ctx);
+  }
 }
 
 /** Whether the Collecting Basket has been bought. */

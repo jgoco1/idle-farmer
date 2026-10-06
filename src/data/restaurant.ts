@@ -25,7 +25,7 @@ const SPECIAL_ROTA: readonly RecipeId[] = [
   // autumn
   'glazed_yams',
   'pear_crumble',
-  'corn_chowder',
+  'honey_roast_yams', // v4-03 (was a second Corn Chowder)
   'catfish_gumbo',
   'cranberry_pie',
   'pumpkin_soup',
@@ -33,9 +33,9 @@ const SPECIAL_ROTA: readonly RecipeId[] = [
   // winter
   'soft_cheese',
   'garden_omelette',
-  'scholars_stew',
-  'apricot_custard',
-  'lemon_meringue_pie',
+  'hot_cocoa', // v4-03: drinks join the rota (was a second Scholar's Stew)
+  'honey_cake', // v4-03 (was a second Apricot Custard)
+  'lemonade', // v4-03 (was a second Lemon Meringue Pie)
   'persimmon_pudding',
   'moonfin_sushi',
 ];

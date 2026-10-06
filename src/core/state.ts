@@ -122,6 +122,8 @@ export interface Stats {
   productsCollected: number; // v2-04: eggs and milk taken out of the ranch's stores
   restaurantGold: number; // v4-02: gold the restaurant's guests have paid
   served: number; // v4-02: servings at the restaurant
+  drinksPressed: number; // v4-03: press runs finished
+  honeyCollected: number; // v4-03: jars taken out of the hives
 }
 
 export interface Settings {
@@ -196,6 +198,41 @@ export interface GameState {
 
   // ---- the restaurant (v4 phase 02, save 16)
   restaurant: RestaurantState;
+
+  // ---- the Press House and the apiary (v4 phase 03, save 17)
+  press: PressState;
+  apiary: ApiaryState;
+}
+
+/**
+ * One press in the Press House yard (DATA_SCHEMAS.md §10.5). `recipe` stays set after a run so the slot
+ * can press it again; `remainingMs` 0 means it is not pressing. Finished drinks wait in `done` (never
+ * spoiling) until collected; a "keep pressing" slot starts the same drink again when a run finishes and
+ * the bag has the ingredients and the slot has room (`PRESS_SLOT_STORE`).
+ */
+export interface PressSlot {
+  recipe: RecipeId | null; // a drink (station 'press'); null = never used or cleared
+  remainingMs: number; // simulated ms of the current run; 0 = idle
+  done: number; // finished drinks waiting in the slot
+  repeat: boolean; // "keep pressing"
+}
+
+/** The Press House (v4-03). Its slot count is derived from the level. */
+export interface PressState {
+  level: number; // 0 = not built, 1 … 3
+  slots: PressSlot[]; // one per press slot of the level
+}
+
+/** A beehive on one of the apiary's spots: honey in its store and simulated ms into the current jar. */
+export interface HiveState {
+  id: number;
+  spot: number; // index into WORLD_LAYOUT.hiveSpots
+  honey: number; // jars waiting, 0 … HIVE_STORE
+  cycleMs: number; // 0 while full
+}
+
+export interface ApiaryState {
+  hives: HiveState[];
 }
 
 /**
@@ -444,6 +481,8 @@ export function createInitialState(now: number, lc: LocalClock, seed: number = s
     cats: { adopted: ['cat_tabby'], active: 'cat_tabby' },
     seedOrder: { reservePct: SEED_ORDER_DEFAULT_RESERVE, off: [] },
     restaurant: { level: 0, menu: [], today: { day: 0, gold: 0, served: 0 } },
+    press: { level: 0, slots: [] },
+    apiary: { hives: [] },
   };
   // A new farm opens with today's specials and the first sparkline point (every save starts in spring).
   openMarketDay(state, GAME_DATA, createRng(state), 'spring');
@@ -470,6 +509,8 @@ export function createStartingStats(): Stats {
     productsCollected: 0,
     restaurantGold: 0,
     served: 0,
+    drinksPressed: 0,
+    honeyCollected: 0,
   };
 }
 

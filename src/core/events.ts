@@ -62,7 +62,10 @@ export type GameEvent =
         | AnimalId
         | FeedId
         | CatId
-        | 'restaurant';
+        | 'restaurant'
+        | 'press'
+        | 'hive'
+        | 'cocoa';
       gold: number;
     }
   | { type: 'parcelBought'; parcel: ParcelId }
@@ -108,6 +111,19 @@ export type GameEvent =
   | { type: 'served'; item: ItemId; qty: number; gold: number; slot: number; special: boolean }
   /** A menu slot ran out (once per emptying): the away summary, the pip and the panel say so gently. */
   | { type: 'menuEmpty'; slot: number; item: ItemId }
+  /** The Press House (v4 phase 03): built at level 1, or upgraded to `level`. */
+  | { type: 'pressBuilt' | 'pressUpgraded'; level: number }
+  /** A press run finished in slot `slot` (the drink waits there); `auto` when the slot is set to keep pressing. */
+  | { type: 'drinkPressed'; recipe: RecipeId; slot: number; tier: RecipeTier; auto: boolean }
+  /** Finished drinks left a press slot for the bag or the bin; `auto` = the Collecting Basket. */
+  | { type: 'pressCollected'; recipe: RecipeId; qty: number; auto: boolean; shipped: number }
+  /** A "keep pressing" slot finished and could not start again (ingredients or room); once per stop. */
+  | { type: 'pressStopped'; recipe: RecipeId; slot: number; reason: 'ingredients' | 'full' }
+  /** The apiary (v4-03): a hive was bought onto spot `spot`; honey reached the hives this step (batched). */
+  | { type: 'hiveBought'; id: number; spot: number }
+  | { type: 'honeyMade'; qty: number }
+  /** Honey left the hives for the bag or the bin; `auto` = the Collecting Basket. */
+  | { type: 'honeyCollected'; qty: number; auto: boolean; shipped: number }
   | { type: 'inventoryFull'; item: ItemId }
   /** Items thrown away from the bag (the Inventory's Discard button). */
   | { type: 'discarded'; item: ItemId; qty: number }
@@ -118,7 +134,7 @@ export type GameEvent =
   | { type: 'caught'; catch: FishId | JunkId; sizeCm: number; location: FishLocationId; viaTrap: boolean }
   | { type: 'cooked'; recipe: RecipeId; tier: RecipeTier; hearty: boolean }
   | { type: 'ate'; recipe: RecipeId; buff: BuffType; hearty: boolean }
-  | { type: 'recipeLearned'; recipe: RecipeId; how: 'card' | 'milestone' | 'experiment' }
+  | { type: 'recipeLearned'; recipe: RecipeId; how: 'card' | 'milestone' | 'experiment' | 'press' }
   | { type: 'buffStarted' | 'buffExpired'; buff: BuffType }
   | { type: 'levelUp'; skill: SkillId; level: number }
   | { type: 'farmLevelUp'; level: number }

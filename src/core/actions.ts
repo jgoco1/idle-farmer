@@ -44,6 +44,16 @@ import {
   stockMenu,
   upgradeRestaurant,
 } from '../systems/restaurant';
+import {
+  buildPress,
+  buyCocoa,
+  cancelPress,
+  collectPress,
+  setPressRepeat,
+  startPress,
+  upgradePress,
+} from '../systems/press';
+import { buyHive, collectHive } from '../systems/apiary';
 import { runProgression } from '../systems/progression';
 import type {
   AnimalId,
@@ -54,6 +64,7 @@ import type {
   CropId,
   DecorId,
   DishId,
+  DrinkId,
   ExpansionId,
   FishLocationId,
   FruitId,
@@ -113,7 +124,8 @@ export type Action =
   /** Shop: buy a recipe card. */
   | { type: 'buyRecipe'; recipe: RecipeId }
   /** Inventory: eat a dish for its buff. `hearty` picks the stack; `replace` confirms swapping out the buff with the least time left. */
-  | { type: 'eat'; dish: DishId; hearty?: boolean; replace?: boolean }
+  /** Eat a dish or (v4-03) drink a drink: both give a buff. */
+  | { type: 'eat'; dish: DishId | DrinkId; hearty?: boolean; replace?: boolean }
   /** Community Board: give up to `qty` of an item from the bag to a bundle. */
   | { type: 'donate'; bundle: BundleId; item: ItemId; qty: number }
   /** Shop › Decor: buy pieces for the decoration stock (v2 phase 02). Farmhouse pieces are owned once. */
@@ -156,6 +168,19 @@ export type Action =
   | { type: 'stockMenu'; slot: number; item: ItemId; qty: number; hearty?: boolean }
   | { type: 'restockMenu' }
   | { type: 'clearMenuSlot'; slot: number }
+  /** Press House panel (v4 phase 03): build it (level 1) or buy the next level. */
+  | { type: 'buildPress' }
+  | { type: 'upgradePress' }
+  /** Start a drink in a press slot (ingredients from the bag), "keep pressing", take a run off, collect. */
+  | { type: 'startPress'; slot: number; recipe: RecipeId; repeat?: boolean }
+  | { type: 'setPressRepeat'; slot: number; repeat: boolean }
+  | { type: 'cancelPress'; slot: number }
+  | { type: 'collectPress'; slot?: number }
+  /** Cocoa beans from the Press House shelf. */
+  | { type: 'buyCocoa'; qty: number }
+  /** The apiary: a hive on the next free spot; collect one hive's honey (by id) or every hive's. */
+  | { type: 'buyHive' }
+  | { type: 'collectHive'; hive?: number }
   | { type: 'debugSetTimeWarp'; on: boolean };
 
 export const TIME_WARP_SPEED = 60;
@@ -294,6 +319,24 @@ function handleAction(state: GameState, ctx: SimContext, action: Action): Action
       return restockMenu(state, ctx);
     case 'clearMenuSlot':
       return clearMenuSlot(state, ctx, action.slot);
+    case 'buildPress':
+      return buildPress(state, ctx);
+    case 'upgradePress':
+      return upgradePress(state, ctx);
+    case 'startPress':
+      return startPress(state, ctx, action.slot, action.recipe, action.repeat);
+    case 'setPressRepeat':
+      return setPressRepeat(state, ctx, action.slot, action.repeat);
+    case 'cancelPress':
+      return cancelPress(state, ctx, action.slot);
+    case 'collectPress':
+      return collectPress(state, ctx, action.slot);
+    case 'buyCocoa':
+      return buyCocoa(state, ctx, action.qty);
+    case 'buyHive':
+      return buyHive(state, ctx);
+    case 'collectHive':
+      return collectHive(state, ctx, action.hive);
     case 'debugSetTimeWarp':
       state.clock.speed = action.on ? TIME_WARP_SPEED : 1;
       return OK;

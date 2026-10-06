@@ -237,6 +237,24 @@ export const MILESTONES: readonly QuestDef[] = Object.freeze([
     rewards: [{ kind: 'gold', amount: 30_000 }],
     requires: [],
   },
+  {
+    id: 'm26_first_drink',
+    kind: 'milestone',
+    title: 'Press a drink',
+    flavor: 'The big press creaks, and the first bottle is poured. Something bright for the winter, perhaps?',
+    objective: { kind: 'press', count: 1 },
+    rewards: [{ kind: 'recipe', id: 'lemonade' }],
+    requires: [],
+  },
+  {
+    id: 'm27_first_honey',
+    kind: 'milestone',
+    title: 'Collect honey',
+    flavor: 'A jar of gold from the hives, and only one bee followed you home.',
+    objective: { kind: 'collectHoney', count: 1 },
+    rewards: [{ kind: 'recipe', id: 'honey_cake' }],
+    requires: [],
+  },
 ] satisfies QuestDef[]);
 
 export const MILESTONE_IDS: readonly MilestoneId[] = MILESTONES.map((m) => m.id as MilestoneId);
@@ -364,6 +382,15 @@ export const GOAL_TEMPLATES: Readonly<Record<GoalTemplateId, QuestDef>> = Object
     rewards: [],
     requires: [],
   },
+  press_drinks: {
+    id: 'press_drinks',
+    title: 'Press {n} drinks',
+    kind: 'goal',
+    flavor: 'Keep the presses in the yard turning.',
+    objective: { kind: 'press', count: 0 },
+    rewards: [],
+    requires: [],
+  },
 } satisfies Record<GoalTemplateId, QuestDef>);
 
 export const BUNDLES: Readonly<Record<BundleId, BundleDef>> = Object.freeze({
@@ -472,6 +499,21 @@ export const BUNDLES: Readonly<Record<BundleId, BundleDef>> = Object.freeze({
     reward: { kind: 'troughBonus', bonus: BARNYARD_TROUGH_BONUS },
     rewardText: 'Every trough holds 50% more feed',
   },
+  press_house: {
+    id: 'press_house',
+    name: 'Press House',
+    flavor:
+      'A row of bottles and a jar of honey, lined up on the Press House sill for the whole town to try.',
+    slots: [
+      { item: 'tomato_juice', qty: 5 },
+      { item: 'honey_milk', qty: 5 },
+      { item: 'apple_cider', qty: 3 },
+      { item: 'lemonade', qty: 3 },
+      { item: 'honey', qty: 10 },
+    ],
+    reward: { kind: 'menuSlot', count: 1 },
+    rewardText: 'A fifth table on the restaurant terrace',
+  },
 } satisfies Record<BundleId, BundleDef>);
 
 export const BUNDLE_IDS: readonly BundleId[] = [
@@ -483,4 +525,5 @@ export const BUNDLE_IDS: readonly BundleId[] = [
   'cozy_dinner',
   'orchard_basket',
   'barnyard',
+  'press_house',
 ];

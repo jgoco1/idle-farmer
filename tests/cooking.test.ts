@@ -11,7 +11,15 @@ import { BASE_BUFF_SLOTS, HEARTY_DURATION_BONUS, MAX_BUFF_SLOTS, TIER_SELL_MULT 
 import { BUFF_TYPES } from '../src/data/buffs';
 import { CROPS } from '../src/data/crops';
 import { FISH } from '../src/data/fish';
-import { RECIPE_IDS, type BuffType, type RecipeId, type RecipeTier, type SeasonId } from '../src/data/ids';
+import {
+  ALL_RECIPE_IDS,
+  DRINK_IDS,
+  RECIPE_IDS,
+  type BuffType,
+  type RecipeId,
+  type RecipeTier,
+  type SeasonId,
+} from '../src/data/ids';
 import { RECIPES } from '../src/data/recipes';
 import { farmhandStats } from '../src/systems/automation';
 import {
@@ -89,15 +97,18 @@ function giveBuff(s: GameState, type: BuffType, tier: RecipeTier, remainingMs: n
 }
 
 describe('recipe data (phase 06)', () => {
-  it('has the 32 recipes of BALANCE.md (§7, §13.8): 8 T1, 11 T2, 9 T3 and 4 T4', () => {
-    expect(RECIPE_IDS).toHaveLength(32);
-    expect(Object.keys(RECIPES).sort()).toEqual([...RECIPE_IDS].sort());
+  it('has the 34 dishes of BALANCE.md (§7, §13.8, §14.5): 8 T1, 13 T2, 9 T3 and 4 T4, and the 10 drinks', () => {
+    expect(RECIPE_IDS).toHaveLength(34);
+    expect(DRINK_IDS).toHaveLength(10);
+    expect(Object.keys(RECIPES).sort()).toEqual([...ALL_RECIPE_IDS].sort());
     const count = (t: RecipeTier) => RECIPE_IDS.filter((r) => RECIPES[r].tier === t).length;
-    expect([count(1), count(2), count(3), count(4)]).toEqual([8, 11, 9, 4]);
+    expect([count(1), count(2), count(3), count(4)]).toEqual([8, 13, 9, 4]);
+    for (const id of RECIPE_IDS) expect(RECIPES[id].station ?? 'kitchen', id).toBe('kitchen');
+    for (const id of DRINK_IDS) expect(RECIPES[id].station, id).toBe('press');
   });
 
-  it('every declared tier matches the tier its inputs work out to (so data and formula cannot drift)', () => {
-    for (const id of RECIPE_IDS) {
+  it('every declared tier matches the tier its inputs work out to, dishes and drinks (so data and formula cannot drift)', () => {
+    for (const id of ALL_RECIPE_IDS) {
       expect(
         recipeTier(RECIPES[id], GAME_DATA.items),
         `${id} (score ${recipeScore(RECIPES[id], GAME_DATA.items).toFixed(2)})`,
@@ -113,8 +124,8 @@ describe('recipe data (phase 06)', () => {
     expect(score('moonfin_sushi')).toBe(45.34);
   });
 
-  it('every dish is priced at its ingredients × the tier multiplier, so cooking always beats selling raw', () => {
-    for (const id of RECIPE_IDS) {
+  it('every dish and drink is priced at its ingredients × the tier multiplier, so cooking always beats selling raw', () => {
+    for (const id of ALL_RECIPE_IDS) {
       const r = RECIPES[id];
       const value = ingredientValue(r, GAME_DATA.items);
       expect(r.basePrice, id).toBe(Math.round(value * TIER_SELL_MULT[r.tier]));
@@ -158,15 +169,15 @@ describe('recipe data (phase 06)', () => {
 
   it('spreads the buffs as BALANCE.md says', () => {
     const per = (b: BuffType) => RECIPE_IDS.filter((r) => RECIPES[r].buff === b).length;
-    expect(BUFF_TYPES.map(per)).toEqual([4, 7, 4, 3, 5, 4, 5]); // phase 09: Blueberry Muffin is Silver Tongue; v2-03 adds Baked Apple, Cherry Jam, Pear Crumble and Peach Cobbler; v2-04 Fried Egg, Soft Cheese, Garden Omelette, Apricot Custard, Lemon Meringue Pie and Persimmon Pudding
+    expect(BUFF_TYPES.map(per)).toEqual([5, 7, 4, 3, 5, 5, 5]); // v4-03: Honey-Roast Yams (growth), Honey Cake (automationSpeed); phase 09: Blueberry Muffin is Silver Tongue; v2-03 adds Baked Apple, Cherry Jam, Pear Crumble and Peach Cobbler; v2-04 Fried Egg, Soft Cheese, Garden Omelette, Apricot Custard, Lemon Meringue Pie and Persimmon Pudding
   });
 
   it('has three starter recipes, and a card or another way to find every other one', () => {
     const kinds = RECIPE_IDS.map((r) => RECIPES[r].discovery.kind);
     expect(kinds.filter((k) => k === 'starter')).toHaveLength(3);
     expect(kinds.filter((k) => k === 'experiment')).toHaveLength(6);
-    expect(kinds.filter((k) => k === 'milestone')).toHaveLength(8);
-    expect(kinds.filter((k) => k === 'card')).toHaveLength(15);
+    expect(kinds.filter((k) => k === 'milestone')).toHaveLength(9);
+    expect(kinds.filter((k) => k === 'card')).toHaveLength(16);
     expect(createInitialState(0, NY).kitchen.known).toEqual([
       'roasted_turnip',
       'baked_potato',
@@ -814,7 +825,8 @@ describe('recipe discovery', () => {
   it('sells recipe cards, showing what locks each one', () => {
     const s = farm();
     const cards = recipeCards(s, GAME_DATA);
-    expect(cards).toHaveLength(15);
+    expect(cards).toHaveLength(16); // the kitchen's cards only: drink cards are in the Press House
+    expect(cards.find((c) => c.id === 'honey_roast_yams')!.hint).toBe('Build the Press House first.');
     expect(cards.map((c) => c.price)).toEqual([...cards.map((c) => c.price)].sort((a, b) => a - b));
     expect(cards[0]).toMatchObject({ id: 'wheat_flatbread', price: 120, unlocked: true });
     expect(cards.find((c) => c.id === 'berry_bowl')).toMatchObject({ unlocked: false });
@@ -942,7 +954,7 @@ describe('cooking art', () => {
   it('gives every dish and every buff type its own icon, plus the hearty badge and the chimney steam', () => {
     const dishes = RECIPE_IDS.map((id) => SPRITES[`item_${id}`]);
     for (const d of dishes) expect(d).toBeDefined();
-    expect(new Set(dishes.map((d) => d!.frames[0]!.join(''))).size).toBe(32);
+    expect(new Set(dishes.map((d) => d!.frames[0]!.join(''))).size).toBe(34);
     const buffs = BUFF_TYPES.map((t) => SPRITES[GAME_DATA.buffs[t].icon]);
     for (const b of buffs) expect(b).toBeDefined();
     expect(new Set(buffs.map((b) => b!.frames[0]!.join(''))).size).toBe(7);

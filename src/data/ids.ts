@@ -44,7 +44,8 @@ export type FishId =
 
 export type JunkId = 'old_boot' | 'seaweed' | 'driftwood';
 
-export type RecipeId =
+/** The kitchen's dishes (the stove's recipes). */
+export type DishId =
   // T1
   | 'roasted_turnip'
   | 'baked_potato'
@@ -80,10 +81,29 @@ export type RecipeId =
   | 'garden_banquet'
   | 'royal_sturgeon'
   | 'harvest_feast'
-  | 'moonfin_sushi';
+  | 'moonfin_sushi'
+  // v4-03: honey dishes
+  | 'honey_cake'
+  | 'honey_roast_yams';
 
-/** A cooked dish is an item whose id is the recipe id. */
-export type DishId = RecipeId;
+/** The Press House's drinks (v4 phase 03, BALANCE.md §14.4); v4-04 adds the two forage drinks. Non-alcoholic. */
+export type DrinkId =
+  | 'tomato_juice'
+  | 'honey_milk'
+  | 'strawberry_cordial'
+  | 'blueberry_cordial'
+  | 'lemonade'
+  | 'apple_cider'
+  | 'peach_iced_tea'
+  | 'melon_cooler'
+  | 'hot_cocoa'
+  | 'orchard_punch';
+
+/**
+ * Every recipe: the kitchen's dishes and (v4-03) the Press House's drinks, which are recipes with
+ * `station: 'press'`. A cooked dish or a pressed drink is an item whose id is the recipe id.
+ */
+export type RecipeId = DishId | DrinkId;
 
 /** The fruits of the orchard's trees (v2 phase 03, BALANCE.md §13.5). A fruit is also an item, like a crop. */
 export type FruitId = 'cherry' | 'apricot' | 'peach' | 'apple' | 'pear' | 'persimmon' | 'lemon';
@@ -99,8 +119,21 @@ export type AnimalProductId = 'egg' | 'large_egg' | 'milk';
 export type FeedId = 'hay' | 'corn_feed';
 export type BuildingId = 'coop' | 'barn' | 'silo';
 
+/** The apiary's honey and the Press House shelf's cocoa (v4 phase 03). */
+export type PressItemId = 'honey' | 'cocoa';
+
 export type ItemId =
-  CropId | SeedId | FishId | JunkId | DishId | FruitId | SaplingId | AnimalProductId | FeedId;
+  | CropId
+  | SeedId
+  | FishId
+  | JunkId
+  | DishId
+  | DrinkId
+  | FruitId
+  | SaplingId
+  | AnimalProductId
+  | FeedId
+  | PressItemId;
 
 export type UpgradeId =
   // farm automation and tools (phase 04)
@@ -221,7 +254,10 @@ export type MilestoneId =
   // v4-01
   | 'm24_north_field'
   // v4-02
-  | 'm25_first_serving';
+  | 'm25_first_serving'
+  // v4-03
+  | 'm26_first_drink'
+  | 'm27_first_honey';
 
 export type BundleId =
   | 'spring_crops'
@@ -231,7 +267,9 @@ export type BundleId =
   | 'river_and_sea'
   | 'cozy_dinner'
   | 'orchard_basket'
-  | 'barnyard';
+  | 'barnyard'
+  // v4-03
+  | 'press_house';
 
 export type GoalTemplateId =
   | 'harvest_crop'
@@ -247,7 +285,9 @@ export type GoalTemplateId =
   | 'pick_fruit'
   | 'collect_produce'
   // v4-02
-  | 'serve_dishes';
+  | 'serve_dishes'
+  // v4-03
+  | 'press_drinks';
 
 export type PanelId =
   | 'inventory'
@@ -259,7 +299,8 @@ export type PanelId =
   | 'goals'
   | 'settings'
   | 'ranch'
-  | 'restaurant';
+  | 'restaurant'
+  | 'press';
 
 export const CROP_IDS: readonly CropId[] = [
   'turnip',
@@ -300,7 +341,8 @@ export const FISH_IDS: readonly FishId[] = [
 
 export const JUNK_IDS: readonly JunkId[] = ['old_boot', 'seaweed', 'driftwood'];
 
-export const RECIPE_IDS: readonly RecipeId[] = [
+/** The kitchen's dishes in table order (drinks are in `DRINK_IDS`; `ALL_RECIPE_IDS` has both). */
+export const RECIPE_IDS: readonly DishId[] = [
   'roasted_turnip',
   'baked_potato',
   'grilled_bluegill',
@@ -333,7 +375,26 @@ export const RECIPE_IDS: readonly RecipeId[] = [
   'royal_sturgeon',
   'harvest_feast',
   'moonfin_sushi',
+  'honey_cake',
+  'honey_roast_yams',
 ];
+
+/** The Press House's drinks in table order (T1 first). */
+export const DRINK_IDS: readonly DrinkId[] = [
+  'tomato_juice',
+  'honey_milk',
+  'strawberry_cordial',
+  'blueberry_cordial',
+  'lemonade',
+  'apple_cider',
+  'peach_iced_tea',
+  'melon_cooler',
+  'hot_cocoa',
+  'orchard_punch',
+];
+
+/** Every recipe: dishes, then drinks. */
+export const ALL_RECIPE_IDS: readonly RecipeId[] = [...RECIPE_IDS, ...DRINK_IDS];
 
 export const PARCEL_IDS: readonly ParcelId[] = ['orchard', 'yard', 'meadow', 'north_fields', 'terraces'];
 
@@ -501,4 +562,12 @@ export function isJunkId(id: string): id is JunkId {
 
 export function isDishId(id: string): id is DishId {
   return (RECIPE_IDS as readonly string[]).includes(id);
+}
+
+export function isDrinkId(id: string): id is DrinkId {
+  return (DRINK_IDS as readonly string[]).includes(id);
+}
+
+export function isRecipeId(id: string): id is RecipeId {
+  return isDishId(id) || isDrinkId(id);
 }

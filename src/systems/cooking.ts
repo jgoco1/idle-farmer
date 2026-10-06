@@ -9,6 +9,7 @@ import {
   EXPERIMENT_MAX_ITEMS,
   EXPERIMENT_MIN_ITEMS,
   TIER_COOK_DIV,
+  TIER_PRESS_DIV,
   TIER_THRESHOLDS,
   TIER_VALUE_DIV,
 } from '../data/balance';
@@ -30,10 +31,14 @@ export function ingredientValue(
   return recipe.ingredients.reduce((v, i) => v + i.qty * (items[i.item]?.basePrice ?? 0), 0);
 }
 
-/** `units + value / 50 + cookSec / 30` (BALANCE.md §7). */
+/**
+ * `units + value / 50 + cookSec / 30` (BALANCE.md §7); a drink's long press time counts one point per
+ * 10 minutes instead (`TIER_PRESS_DIV`, BALANCE.md §14.4), or every drink would be T4.
+ */
 export function recipeScore(recipe: RecipeDef, items: Readonly<Partial<Record<ItemId, ItemDef>>>): number {
   const units = recipe.ingredients.reduce((n, i) => n + i.qty, 0);
-  return units + ingredientValue(recipe, items) / TIER_VALUE_DIV + recipe.cookSec / TIER_COOK_DIV;
+  const timeDiv = recipe.station === 'press' ? TIER_PRESS_DIV : TIER_COOK_DIV;
+  return units + ingredientValue(recipe, items) / TIER_VALUE_DIV + recipe.cookSec / timeDiv;
 }
 
 /** The tier a recipe's inputs work out to: never declared by hand. */
@@ -97,7 +102,7 @@ export function learn(
   state: GameState,
   ctx: SimContext,
   id: RecipeId,
-  how: 'card' | 'milestone' | 'experiment',
+  how: 'card' | 'milestone' | 'experiment' | 'press',
 ): void {
   if (isKnown(state, id)) return;
   state.kitchen.known.push(id);
@@ -261,6 +266,7 @@ export function experiment(state: GameState, ctx: SimContext, items: readonly It
       def.category === 'seed' ||
       def.category === 'sapling' ||
       def.category === 'dish' ||
+      def.category === 'drink' ||
       def.category === 'feed'
     )
       return fail("That isn't an ingredient.");

@@ -1,11 +1,12 @@
-// The 32 recipes (docs/BALANCE.md §7, §13.8): 8 × T1, 11 × T2, 9 × T3, 4 × T4 (v2 phase 03 added the four fruit ones, v2 phase 04 six with eggs and milk). `tier` is declared here for
+// The 34 dishes (docs/BALANCE.md §7, §13.8, §14.5): 8 × T1, 13 × T2, 9 × T3, 4 × T4 (v2 phase 03 added the four fruit ones, v2 phase 04 six with eggs and milk, v4 phase 03 two with honey); drinks are in drinks.ts. `tier` is declared here for
 // readability and checked against `recipeTier()` by a test, as is `basePrice`. Dishes are items
 // whose id is the recipe id (see items.ts).
 
-import type { RecipeId } from './ids';
+import { DRINKS } from './drinks';
+import type { DishId, RecipeId } from './ids';
 import type { RecipeDef } from './types';
 
-export const RECIPES: Readonly<Record<RecipeId, RecipeDef>> = Object.freeze({
+const DISHES: Readonly<Record<DishId, RecipeDef>> = Object.freeze({
   // ---- T1
   roasted_turnip: {
     id: 'roasted_turnip',
@@ -454,4 +455,37 @@ export const RECIPES: Readonly<Record<RecipeId, RecipeDef>> = Object.freeze({
     discovery: { kind: 'card', price: 12000, unlock: [{ kind: 'caught', fish: 'moonfin' }] },
     description: 'Silver and shimmering, best on a cold night. It sharpens the mind.',
   },
+  // ---- honey dishes (v4 phase 03, BALANCE.md §14.5)
+  honey_cake: {
+    id: 'honey_cake',
+    name: 'Honey Cake',
+    ingredients: [
+      { item: 'wheat', qty: 2 },
+      { item: 'egg', qty: 1 },
+      { item: 'honey', qty: 1 },
+    ],
+    cookSec: 60,
+    tier: 2,
+    buff: 'automationSpeed',
+    basePrice: 406,
+    discovery: { kind: 'milestone', id: 'm27_first_honey' },
+    description: 'A golden sponge soaked in honey. Busy as a bee, everyone says, and they mean it.',
+  },
+  honey_roast_yams: {
+    id: 'honey_roast_yams',
+    name: 'Honey-Roast Yams',
+    ingredients: [
+      { item: 'yam', qty: 2 },
+      { item: 'honey', qty: 1 },
+    ],
+    cookSec: 45,
+    tier: 2,
+    buff: 'growth',
+    basePrice: 521,
+    discovery: { kind: 'card', price: 5_000, unlock: [{ kind: 'press', level: 1 }] },
+    description: 'Sticky, caramel-edged yams. The garden leans in to smell them.',
+  },
 });
+
+/** Every recipe: the kitchen's dishes and (v4-03) the Press House's drinks (`station: 'press'`). */
+export const RECIPES: Readonly<Record<RecipeId, RecipeDef>> = Object.freeze({ ...DISHES, ...DRINKS });

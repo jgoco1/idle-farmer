@@ -16,21 +16,22 @@ import {
   isCropId,
   isDecorId,
   isDishId,
+  isDrinkId,
   isFruitId,
   isNorthFieldId,
   isParcelId,
   isTownProjectId,
 } from '../data/ids';
 import { GAME_DATA } from '../data';
-import { MENU_SLOT_CAP, SEED_ORDER_RESERVES } from '../data/balance';
+import { HIVE_STORE, MENU_SLOT_CAP, PRESS_SLOT_STORE, SEED_ORDER_RESERVES } from '../data/balance';
 import { WORLD_BOTTOM, WORLD_COLS, WORLD_LAYOUT, WORLD_TOP } from '../data/world';
 
-export const SAVE_VERSION = 16;
+export const SAVE_VERSION = 17;
 /** The most menu slots a save may hold: the top level's tables plus the Press House bundle's fifth (v4-03). */
 const MAX_MENU_SLOTS = 5;
-/** What a menu slot may hold. v4-03 adds drinks. */
+/** What a menu slot may hold: a dish or (v4-03) a drink. */
 function isMenuableId(id: string): boolean {
-  return isDishId(id);
+  return isDishId(id) || isDrinkId(id);
 }
 export const SAVE_KEY = 'hearthfield-idle/save';
 export const AUTOSAVE_MS = 15_000;
@@ -269,6 +270,16 @@ export const migrations: Record<number, Migration> = {
     restaurant: { level: 0, menu: [], today: { day: old.calendar?.maxDayIndex ?? 0, gold: 0, served: 0 } },
     stats: { ...old.stats, restaurantGold: 0, served: 0 },
   }),
+  /**
+   * v16 → v17 (v4 phase 03, the Press House and the apiary): neither built yet, and the two statistics at
+   * zero. Known recipes need nothing: the starter drinks are learned when the Press House is built.
+   */
+  16: (old) => ({
+    ...old,
+    press: { level: 0, slots: [] },
+    apiary: { hives: [] },
+    stats: { ...old.stats, drinksPressed: 0, honeyCollected: 0 },
+  }),
 };
 
 export class SaveError extends Error {
@@ -388,6 +399,8 @@ function economyProblem(s: Record<string, unknown>): string | null {
     'productsCollected',
     'restaurantGold',
     'served',
+    'drinksPressed',
+    'honeyCollected',
   ]) {
     if (!isInt(stats[k])) return 'bad stats';
   }
@@ -629,6 +642,42 @@ function restaurantProblem(s: Record<string, unknown>): string | null {
   return null;
 }
 
+function pressProblem(s: Record<string, unknown>): string | null {
+  const { press } = s;
+  if (!isObj(press) || !isInt(press.level) || !Array.isArray(press.slots)) return 'bad press';
+  const levels = GAME_DATA.press.levels;
+  if (press.level < 0 || press.level > levels.length) return 'bad press';
+  // One slot per press: none before it is built, at most the level's.
+  const slots = press.level === 0 ? 0 : levels[press.level - 1]!.slots;
+  if (press.slots.length > slots) return 'bad press';
+  for (const p of press.slots) {
+    if (!isObj(p) || !isInt(p.remainingMs) || !isInt(p.done) || typeof p.repeat !== 'boolean')
+      return 'bad press';
+    if (p.remainingMs < 0 || p.done < 0 || p.done > PRESS_SLOT_STORE) return 'bad press';
+    if (p.recipe === null) {
+      if (p.remainingMs !== 0 || p.done !== 0) return 'bad press';
+    } else if (typeof p.recipe !== 'string' || !isDrinkId(p.recipe)) return 'bad press';
+  }
+  return null;
+}
+
+function apiaryProblem(s: Record<string, unknown>): string | null {
+  const { apiary } = s;
+  if (!isObj(apiary) || !Array.isArray(apiary.hives)) return 'bad hive';
+  const spots = new Set<number>();
+  const ids = new Set<number>();
+  for (const h of apiary.hives) {
+    if (!isObj(h) || !isInt(h.id) || !isInt(h.spot) || !isInt(h.honey) || !isInt(h.cycleMs))
+      return 'bad hive';
+    if (h.spot < 0 || h.spot >= WORLD_LAYOUT.hiveSpots.length || spots.has(h.spot) || ids.has(h.id))
+      return 'bad hive';
+    if (h.honey < 0 || h.honey > HIVE_STORE || h.cycleMs < 0) return 'bad hive';
+    spots.add(h.spot);
+    ids.add(h.id);
+  }
+  return null;
+}
+
 function catsProblem(s: Record<string, unknown>): string | null {
   const { cats } = s;
   if (!isObj(cats) || !Array.isArray(cats.adopted) || typeof cats.active !== 'string') return 'bad cats';
@@ -713,7 +762,9 @@ export function validateState(s: unknown): string | null {
     ranchProblem(s) ??
     catsProblem(s) ??
     seedOrderProblem(s) ??
-    restaurantProblem(s)
+    restaurantProblem(s) ??
+    pressProblem(s) ??
+    apiaryProblem(s)
   );
 }
 

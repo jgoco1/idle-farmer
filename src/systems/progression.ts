@@ -67,6 +67,8 @@ import { goalSlots } from './townProjects';
 import { fruitXp, ownsMatureTree, treeAge } from './orchard';
 import { animalsOfKind, productXp } from './ranch';
 import { servingsPerHour } from './restaurant';
+import { honeyXp } from './apiary';
+import { pressSlots } from './press';
 
 // ---- XP
 
@@ -206,6 +208,10 @@ function advance(state: GameState, data: GameData, o: QuestObjective, e: GameEve
         : 0;
     case 'serve':
       return e.type === 'served' ? e.qty : 0;
+    case 'press':
+      return e.type === 'drinkPressed' ? 1 : 0;
+    case 'collectHoney':
+      return e.type === 'honeyCollected' ? e.qty : 0;
     case 'reachFarmLevel':
     case 'ownParcel':
     case 'ownNorthField':
@@ -238,6 +244,8 @@ const EVENT_FOR: Readonly<Record<QuestObjective['kind'], GameEvent['type'] | nul
   pickFruit: 'fruitPicked',
   collectProduct: 'collected',
   serve: 'served',
+  press: 'drinkPressed',
+  collectHoney: 'honeyCollected',
 };
 
 /** What a goal's progress is measured against. */
@@ -348,6 +356,9 @@ export function recipeObtainable(state: GameState, data: GameData, season: Seaso
     // Eggs and milk are obtainable once the animal that gives them lives on the ranch.
     if (item === 'egg' || item === 'large_egg') return animalsOfKind(state, 'chicken') > 0;
     if (item === 'milk') return animalsOfKind(state, 'cow') > 0;
+    // v4-03: honey once a hive stands in the apiary; cocoa from the Press House shelf.
+    if (item === 'honey') return state.apiary.hives.length > 0;
+    if (item === 'cocoa') return state.press.level > 0;
     const junk = data.junk[item as JunkId];
     return junk ? junk.locations.some((l) => isLocationUnlocked(state, l)) : false;
   };
@@ -488,6 +499,11 @@ function variantsOf(state: GameState, data: GameData, season: SeasonId, id: Goal
         });
       return out;
     }
+    case 'press_drinks':
+      // One drink per press slot (BALANCE.md §14.6), once the Press House is built.
+      return state.press.level > 0
+        ? [{ key: id, objective: { kind: 'press', count: Math.max(1, pressSlots(state, data)) } }]
+        : [];
     case 'serve_dishes':
       // About an hour of the menu's servings (an empty table counts as a T2 dish), at least 3.
       return state.restaurant.level > 0
@@ -677,6 +693,12 @@ function handle(state: GameState, ctx: SimContext, e: GameEvent): void {
     }
     case 'cooked':
       grantXp(state, ctx, 'cooking', cookingXp(e.tier));
+      break;
+    case 'drinkPressed': // v4-03: a drink is Cooking work, paid like a dish of its tier
+      grantXp(state, ctx, 'cooking', cookingXp(e.tier));
+      break;
+    case 'honeyCollected':
+      grantXp(state, ctx, 'farming', honeyXp(e.qty, e.auto));
       break;
     case 'bundleCompleted': {
       const r = data.bundles[e.bundle].reward;
