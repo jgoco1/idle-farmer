@@ -19,6 +19,7 @@ import type {
   ItemId,
   JunkId,
   MilestoneId,
+  NorthFieldId,
   PanelId,
   ParcelId,
   RecipeId,
@@ -43,7 +44,8 @@ export type GameEvent =
   | { type: 'planted'; crop: CropId; plots: number[]; auto?: true }
   /** `shipped`: how many of the `qty` went straight to the Shipping Bin (Auto-Seller). */
   | { type: 'harvested'; crop: CropId; qty: number; plot: number; auto: boolean; shipped: number }
-  | { type: 'placed' | 'pickedUp'; kind: PlacedKind; col: number; row: number }
+  /** `field` (v4-01): a north field's plot (col, row); absent for the home field. */
+  | { type: 'placed' | 'pickedUp'; kind: PlacedKind; col: number; row: number; field?: NorthFieldId }
   | { type: 'sold'; item: ItemId; qty: number; gold: number; via: 'market' | 'bin' }
   | { type: 'goldEarned'; amount: number; source: 'sale' | 'quest' | 'other' }
   | {
@@ -63,6 +65,8 @@ export type GameEvent =
       gold: number;
     }
   | { type: 'parcelBought'; parcel: ParcelId }
+  /** v4-01: a north parcel was bought and its field's plots now exist (with `parcelBought`). */
+  | { type: 'northFieldBought'; field: NorthFieldId }
   | { type: 'decorPlaced' | 'decorMoved' | 'decorPickedUp'; decor: DecorId; id: number }
   /** Charm changed (pushed by decoration and project actions); `gainCharm` goals sum the rises. */
   | { type: 'charmChanged'; from: number; to: number }

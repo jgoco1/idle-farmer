@@ -627,6 +627,7 @@ describe('milestones', () => {
       'm21_first_egg',
       'm22_first_milk',
       'm23_charm_100',
+      'm24_north_field',
     ]);
     for (const m of MILESTONES) {
       expect(m.flavor.length, m.id).toBeGreaterThan(20);

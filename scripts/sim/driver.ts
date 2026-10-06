@@ -22,7 +22,9 @@ import {
   type LocalClock,
 } from '../../src/core/time';
 import type { GameData } from '../../src/data';
-import type { MilestoneId } from '../../src/data/ids';
+import { PARCEL_IDS, type MilestoneId, type NorthFieldId } from '../../src/data/ids';
+import { isUnlocked } from '../../src/systems/unlocks';
+import { northFieldOf, plotCount } from '../../src/systems/farming';
 import { farmLevel as farmLevelOf } from '../../src/systems/unlocks';
 import { charmOf } from '../../src/systems/charm';
 import { toSpend } from './catalogue';
@@ -59,6 +61,12 @@ export interface Snapshot {
   animalGold: number;
   /** Simulated ms so far with an empty trough while animals lived there (v2 phase 04). */
   hungryMs: number;
+  /** v4-01: the price of the cheapest parcel on sale (every condition met, not owned), 0 when none: what gold is saved for. */
+  parcelSaving: number;
+  /** Gold from selling crops so far, and the crops harvested so far at base price, in all and per north field (v4-01). */
+  cropGold: number;
+  harvestValue: number;
+  northValue: Record<NorthFieldId, number>;
 }
 
 export interface Metrics {
@@ -91,6 +99,10 @@ export interface Metrics {
   /** Gold from selling eggs and milk, and the simulated ms (while playing) an animal's trough was empty (v2 phase 04). */
   animalGold: number;
   hungryMs: number;
+  /** v4-01: gold from selling crops, the base-price value of every harvest, and of the harvests on each north field. */
+  cropGold: number;
+  harvestValue: number;
+  northValue: Record<NorthFieldId, number>;
   /** Every absence: when it began (real ms since the start), how long it was, and the gold earned during it (v2 phase 06). */
   aways: { startMs: number; ms: number; gold: number }[];
 }
@@ -123,6 +135,9 @@ export class SimRun {
     orchardGold: 0,
     animalGold: 0,
     hungryMs: 0,
+    cropGold: 0,
+    harvestValue: 0,
+    northValue: { north_fields: 0, terraces: 0 },
     aways: [],
   };
   private lastUsefulPlayMs = 0;
@@ -150,8 +165,16 @@ export class SimRun {
       if (cat === 'dish') this.metrics.dishGold += e.gold;
       else if (cat === 'fruit') this.metrics.orchardGold += e.gold;
       else if (cat === 'animal') this.metrics.animalGold += e.gold;
+      else if (cat === 'crop') this.metrics.cropGold += e.gold;
     });
-    bus.on('harvested', () => this.mark('first_harvest'));
+    bus.on('harvested', (e) => {
+      this.mark('first_harvest');
+      // v4-01: which field the crop grew in, valued at its base price (the share of crop gold each field earns).
+      const value = e.qty * data.crops[e.crop].basePrice;
+      this.metrics.harvestValue += value;
+      const field = northFieldOf(e.plot);
+      if (field) this.metrics.northValue[field] += value;
+    });
     bus.on('cooked', (e) => {
       this.metrics.cooked += 1;
       this.mark(`dish_t${e.tier}`);
@@ -320,15 +343,30 @@ export class SimRun {
       lifetimeGold: s.stats.lifetimeGold,
       farmLevel: farmLevelOf(s),
       recipesKnown: s.kitchen.known.length,
-      plots: s.farm.plots.length + s.farm.greenhouse.length,
+      plots: plotCount(s),
       milestones: s.progression.milestones.done.length,
       toSpend: toSpend(s, this.data),
       charm: charmOf(s, this.data),
       orchardGold: this.metrics.orchardGold,
       animalGold: this.metrics.animalGold,
       hungryMs: this.metrics.hungryMs,
+      parcelSaving: parcelSaving(s, this.data),
+      cropGold: this.metrics.cropGold,
+      harvestValue: this.metrics.harvestValue,
+      northValue: { ...this.metrics.northValue },
     });
   }
+}
+
+/** The price of the cheapest parcel the farm could buy now (every condition met, not owned), or 0. */
+function parcelSaving(s: GameState, data: GameData): number {
+  let best = 0;
+  for (const id of PARCEL_IDS) {
+    if (s.land.parcels.includes(id) || !isUnlocked(s, data.parcels[id].requires, data)) continue;
+    const price = data.parcels[id].price;
+    if (best === 0 || price < best) best = price;
+  }
+  return best;
 }
 
 /** The first moment at or after `t` whose local wall-clock time is `hour:minute`. */

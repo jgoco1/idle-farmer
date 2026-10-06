@@ -495,3 +495,9 @@ Drinks share three vessel families so the bag reads at a glance: **bottles** (co
 ### 7.6 Checklist
 
 Check each new sprite at 1× and 3× beside the farmhouse, a crop and the orchard, by day, at midnight (debug time-warp) and in winter (snow dusting); check the restaurant's lit windows and halos against the night tint; check the tree line along the top of a phone scrolled all the way north.
+
+### 7.7 As built in v4 phase 01
+
+- `src/render/sprites/north.ts`: `obj_pine` and a second shape `obj_pine_b` (stacked tiers built in code, light on the left edge, a `K` trunk shadow), each with a `_winter` look (snow on the top edge of every tier); `tile_woods_a`/`_b`; `obj_hedge` (summer) and `_spring`, `_autumn`, `_winter`, tiling left to right; `tile_lake_a`/`_b` (2 × 700 ms); `obj_jetty`; `obj_lot_sign` on the restaurant's and the Press House's lots.
+- **Deviation:** the lake's banks are the pond's edge and corner tiles recoloured to the lake's palette (`tile_lake_edge_n/e/s/w`, `tile_lake_corner_nw/ne/se/sw`) rather than §7.2's 16-mask set; the lake is a plain rectangle, so the eight pieces cover it. v4-04, which fishes the lake, may replace them.
+- Seasonal scenery is a `PlacedSprite.seasonal` list (spring, summer, autumn, winter) read in the depth-merged object loop; the woods floor is snowed like grass in winter. The tree line alternates the two pines with the occasional v1 `obj_tree`.

@@ -53,10 +53,10 @@ import { SKILL_NAMES } from '../data/skills';
 import type { CropDef, QuestDef, QuestObjective, QuestReward, RecipeDef } from '../data/types';
 import { earn } from './economy';
 import type { SimContext } from './context';
-import { inSeason } from './farming';
+import { inSeason, plotCount } from './farming';
 import { addItem, countItem } from './inventory';
 import { unlockedLocations, isLocationUnlocked } from './locations';
-import { FRUIT_IDS, RECIPE_IDS, treeOfFruit } from '../data/ids';
+import { FRUIT_IDS, NORTH_FIELD_IDS, RECIPE_IDS, treeOfFruit } from '../data/ids';
 import { addToBin } from './shippingBin';
 import { farmLevel, isUnlocked } from './unlocks';
 import { levelForXp, skillLevel } from './skills';
@@ -205,6 +205,7 @@ function advance(state: GameState, data: GameData, o: QuestObjective, e: GameEve
         : 0;
     case 'reachFarmLevel':
     case 'ownParcel':
+    case 'ownNorthField':
     case 'reachCharm':
       return 0;
   }
@@ -226,6 +227,7 @@ const EVENT_FOR: Readonly<Record<QuestObjective['kind'], GameEvent['type'] | nul
   completeBundle: 'bundleCompleted',
   reachFarmLevel: null,
   ownParcel: null,
+  ownNorthField: null,
   placeDecor: 'decorPlaced',
   reachCharm: null,
   gainCharm: 'charmChanged',
@@ -314,14 +316,14 @@ export function plantableCrops(state: GameState, data: GameData, season: SeasonI
 
 /** Ideal units per real minute if every plot grows `c` (cycle = grow time + a moment to come back). */
 function unitsPerMin(state: GameState, c: CropDef): number {
-  const plots = state.farm.plots.length + state.farm.greenhouse.length;
+  const plots = plotCount(state);
   const cycleMin = (c.regrowSec ?? c.growSec) / 60 + GOAL_CYCLE_OVERHEAD_MIN;
   return (plots * avgYield(c)) / cycleMin;
 }
 
 /** A rough gold-per-real-minute for the current farm: the best crop's profit on every plot. Sizes gold targets and rewards. */
 export function estimatedGoldPerMin(state: GameState, data: GameData, season: SeasonId): number {
-  const plots = state.farm.plots.length + state.farm.greenhouse.length;
+  const plots = plotCount(state);
   let best = 0;
   for (const c of plantableCrops(state, data, season)) {
     const cycleMin = (c.regrowSec ?? c.growSec) / 60 + GOAL_CYCLE_OVERHEAD_MIN;
@@ -676,13 +678,16 @@ function handle(state: GameState, ctx: SimContext, e: GameEvent): void {
   // Only the milestones and goals this kind of event can move are looked at (an offline walk
   // reports thousands of harvests; checking all fifteen milestones against each was the walk's
   // biggest cost).
-  for (const m of data.milestones) {
-    if (EVENT_FOR[m.objective.kind] !== e.type) continue;
-    if (state.progression.milestones.done.includes(m.id as never)) continue;
-    if (advance(state, data, m.objective, e) >= Math.max(1, 'count' in m.objective ? m.objective.count : 1)) {
-      completeMilestone(state, ctx, m);
+  const ms = milestoneIndex(data).byEvent.get(e.type);
+  if (ms)
+    for (const m of ms) {
+      if (state.progression.milestones.done.includes(m.id as never)) continue;
+      if (
+        advance(state, data, m.objective, e) >= Math.max(1, 'count' in m.objective ? m.objective.count : 1)
+      ) {
+        completeMilestone(state, ctx, m);
+      }
     }
-  }
   // Goals: count, then finish the ones that are there. A finished goal pays out and leaves the board.
   const goals = state.progression.goals;
   if (!goals.some((g) => EVENT_FOR[g.objective.kind] === e.type)) return;
@@ -711,11 +716,40 @@ function stateMet(state: GameState, data: GameData, o: QuestObjective): boolean 
       return farmLevel(state) >= o.level;
     case 'ownParcel':
       return state.land.parcels.length >= o.count;
+    case 'ownNorthField': {
+      let n = 0;
+      for (const f of NORTH_FIELD_IDS) if (state.farm.north[f]) n++;
+      return n >= o.count;
+    }
     case 'reachCharm':
       return charmOf(state, data) >= o.amount;
     default:
       return false;
   }
+}
+
+/** The milestones each event type can advance, and the ones checked against state, in table order (per data). */
+interface MilestoneIndex {
+  byEvent: Map<GameEvent['type'], QuestDef[]>;
+  stateChecked: QuestDef[];
+}
+const milestoneIndexes = new WeakMap<readonly QuestDef[], MilestoneIndex>();
+function milestoneIndex(data: GameData): MilestoneIndex {
+  let idx = milestoneIndexes.get(data.milestones);
+  if (!idx) {
+    idx = { byEvent: new Map(), stateChecked: [] };
+    for (const m of data.milestones) {
+      const type = EVENT_FOR[m.objective.kind];
+      if (type === null) idx.stateChecked.push(m);
+      else {
+        const list = idx.byEvent.get(type) ?? [];
+        list.push(m);
+        idx.byEvent.set(type, list);
+      }
+    }
+    milestoneIndexes.set(data.milestones, idx);
+  }
+  return idx;
 }
 
 /** States that have been through one full settle, so a loaded save gets its state-checked milestones on the first step. */
@@ -726,7 +760,7 @@ function settle(state: GameState, ctx: SimContext, levelBefore: number): number 
   let level = levelBefore;
   for (let guard = 0; guard < 8; guard++) {
     let changed = false;
-    for (const m of ctx.data.milestones) {
+    for (const m of milestoneIndex(ctx.data).stateChecked) {
       if (
         state.progression.milestones.done.includes(m.id as never) ||
         !stateMet(state, ctx.data, m.objective)

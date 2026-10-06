@@ -16,14 +16,15 @@ import {
   isCropId,
   isDecorId,
   isFruitId,
+  isNorthFieldId,
   isParcelId,
   isTownProjectId,
 } from '../data/ids';
 import { GAME_DATA } from '../data';
 import { SEED_ORDER_RESERVES } from '../data/balance';
-import { WORLD_COLS, WORLD_ROWS, WORLD_LAYOUT } from '../data/world';
+import { WORLD_BOTTOM, WORLD_COLS, WORLD_LAYOUT, WORLD_TOP } from '../data/world';
 
-export const SAVE_VERSION = 14;
+export const SAVE_VERSION = 15;
 export const SAVE_KEY = 'hearthfield-idle/save';
 export const AUTOSAVE_MS = 15_000;
 /** Where the previous good save is kept (v3 phase 00). Same format as the main save. */
@@ -246,6 +247,12 @@ export const migrations: Record<number, Migration> = {
    * out; written out here so a later change of the default never alters this migration). The upgrade itself is level 0.
    */
   13: (old) => ({ ...old, seedOrder: { reservePct: 25, off: [] } }),
+  /**
+   * v14 → v15 (v4 phase 01, the north fields): no north field is owned yet, so `farm.north` starts empty.
+   * Placed objects stay as they are (no `field` means the home field), and no position moves: the world
+   * grew north into negative rows, so every stored tile keeps its meaning.
+   */
+  14: (old) => ({ ...old, farm: { ...old.farm, north: {} } }),
 };
 
 export class SaveError extends Error {
@@ -297,7 +304,7 @@ function plotProblem(p: unknown): string | null {
   return null;
 }
 
-function farmProblem(farm: unknown): string | null {
+function farmProblem(farm: unknown, parcels: unknown): string | null {
   if (!isObj(farm) || !isObj(farm.grid) || !isInt(farm.grid.cols) || !isInt(farm.grid.rows))
     return 'bad farm';
   if (!Array.isArray(farm.plots) || farm.plots.length !== farm.grid.cols * farm.grid.rows) return 'bad plots';
@@ -305,6 +312,20 @@ function farmProblem(farm: unknown): string | null {
   for (const p of [...farm.plots, ...farm.greenhouse]) {
     const problem = plotProblem(p);
     if (problem) return problem;
+  }
+  // v4-01: each owned north field's plots and planter memory, the length of its layout.
+  if (!isObj(farm.north)) return 'bad north field';
+  for (const [id, f] of Object.entries(farm.north)) {
+    if (!isNorthFieldId(id) || !isObj(f) || !Array.isArray(f.plots) || !Array.isArray(f.lastPlantedCrop))
+      return 'bad north field';
+    if (!Array.isArray(parcels) || !parcels.includes(id)) return 'bad north field';
+    const { cols, rows } = WORLD_LAYOUT.northFields[id].grid;
+    if (f.plots.length !== cols * rows || f.lastPlantedCrop.length !== cols * rows) return 'bad north field';
+    if (!f.lastPlantedCrop.every((c) => c === null || typeof c === 'string')) return 'bad north field';
+    for (const p of f.plots) {
+      const problem = plotProblem(p);
+      if (problem) return problem;
+    }
   }
   return null;
 }
@@ -370,8 +391,16 @@ function automationProblem(s: Record<string, unknown>): string | null {
       return 'bad placed object';
     const at = o.at;
     if (!isObj(at) || !isInt(at.col) || !isInt(at.row)) return 'bad placed object';
-    if (at.col < 0 || at.row < 0 || at.col >= grid.cols || at.row >= grid.rows) return 'bad placed object';
-    const key = `${at.col},${at.row}`;
+    // v4-01: `field` names a north field the farm owns; `at` lies inside that field's grid.
+    let g = grid;
+    if (o.field !== undefined) {
+      const north = (farm as { north?: Record<string, unknown> }).north;
+      if (typeof o.field !== 'string' || !isNorthFieldId(o.field) || !isObj(north) || !north[o.field])
+        return 'bad placed object';
+      g = WORLD_LAYOUT.northFields[o.field].grid;
+    }
+    if (at.col < 0 || at.row < 0 || at.col >= g.cols || at.row >= g.rows) return 'bad placed object';
+    const key = `${String(o.field ?? 'home')}:${at.col},${at.row}`;
     if (seen.has(key)) return 'bad placed object';
     seen.add(key);
   }
@@ -482,7 +511,8 @@ function decorProblem(s: Record<string, unknown>): string | null {
       return 'bad decoration';
     const at = p.at;
     if (!isObj(at) || !isInt(at.col) || !isInt(at.row)) return 'bad decoration';
-    if (at.col < 0 || at.row < 0 || at.col >= WORLD_COLS || at.row >= WORLD_ROWS) return 'bad decoration';
+    if (at.col < 0 || at.row < WORLD_TOP || at.col >= WORLD_COLS || at.row >= WORLD_BOTTOM)
+      return 'bad decoration';
     if (p.flipped !== undefined && p.flipped !== true) return 'bad decoration';
     if (ids.has(p.id)) return 'bad decoration';
     ids.add(p.id);
@@ -627,7 +657,7 @@ export function validateState(s: unknown): string | null {
     return 'bad meta';
   if (!Number.isInteger(s.gold) || s.gold < 0) return 'bad gold';
   return (
-    farmProblem(s.farm) ??
+    farmProblem(s.farm, isObj(s.land) ? s.land.parcels : undefined) ??
     inventoryProblem(s.inventory) ??
     economyProblem(s) ??
     automationProblem(s) ??

@@ -6,7 +6,7 @@
 
 import type { SeasonId } from '../data/ids';
 import { PALETTE } from './palette';
-import { WORLD_H, WORLD_W } from './scene';
+import { WORLD_H, WORLD_W, WORLD_Y0, WORLD_Y1 } from './scene';
 
 export interface AmbientClock {
   hour: number;
@@ -90,7 +90,8 @@ export class Ambient {
     for (let i = 0; i < CLOUDS; i++) {
       const o = i * C_STRIDE;
       this.clouds[o + C_X] = (i * WORLD_W) / CLOUDS + this.rand() * 40;
-      this.clouds[o + C_Y] = 20 + ((i * 3) % CLOUDS) * ((WORLD_H - 60) / CLOUDS) + this.rand() * 30;
+      this.clouds[o + C_Y] =
+        WORLD_Y0 + 20 + ((i * 3) % CLOUDS) * ((WORLD_H - 60) / CLOUDS) + this.rand() * 30;
       this.clouds[o + C_W] = 46 + this.rand() * 34;
       this.clouds[o + C_H] = 14 + this.rand() * 8;
       this.clouds[o + C_SPEED] = 2.5 + this.rand() * 2.5;
@@ -130,11 +131,11 @@ export class Ambient {
     this.lastW = w;
     this.lastH = h;
     const x0 = Math.max(0, x);
-    const y0 = Math.max(0, y);
+    const y0 = Math.max(WORLD_Y0, y);
     this.bx = x0;
     this.by = y0;
     this.bw = Math.max(32, Math.min(WORLD_W, x + w) - x0);
-    this.bh = Math.max(32, Math.min(WORLD_H, y + h) - y0);
+    this.bh = Math.max(32, Math.min(WORLD_Y1, y + h) - y0);
   }
 
   /**

@@ -51,6 +51,7 @@ import type {
   FishLocationId,
   FruitId,
   ItemId,
+  NorthFieldId,
   ParcelId,
   RecipeId,
   TownProjectId,
@@ -82,7 +83,8 @@ export type Action =
   /** Upgrades › Land or a "For sale" sign: buy the next land parcel (v2 phase 01). */
   | { type: 'buyParcel'; parcel: ParcelId }
   /** Puts a bought sprinkler or scarecrow on plot (col, row), or takes a placed one back. */
-  | { type: 'place'; kind: PlacedKind; col: number; row: number }
+  /** `field` (v4-01): a plot of that north field; absent for the home field. */
+  | { type: 'place'; kind: PlacedKind; col: number; row: number; field?: NorthFieldId }
   | { type: 'pickUp'; id: number }
   /** Auto-Seller: ship (or keep) one item's harvests. */
   | { type: 'setAutoSell'; item: ItemId; on: boolean }
@@ -192,7 +194,7 @@ function handleAction(state: GameState, ctx: SimContext, action: Action): Action
     case 'buyParcel':
       return buyParcel(state, ctx, action.parcel);
     case 'place':
-      return placeObject(state, ctx, action.kind, action.col, action.row);
+      return placeObject(state, ctx, action.kind, action.col, action.row, action.field);
     case 'pickUp':
       return pickUpObject(state, ctx, action.id);
     case 'setAutoSell':
