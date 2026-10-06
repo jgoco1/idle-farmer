@@ -67,6 +67,10 @@ export interface Snapshot {
   cropGold: number;
   harvestValue: number;
   northValue: Record<NorthFieldId, number>;
+  /** v4-02: the restaurant's takings and servings so far, and the takings from the day's special. */
+  restaurantGold: number;
+  served: number;
+  specialGold: number;
 }
 
 export interface Metrics {
@@ -103,6 +107,10 @@ export interface Metrics {
   cropGold: number;
   harvestValue: number;
   northValue: Record<NorthFieldId, number>;
+  /** v4-02: gold the restaurant's guests paid, servings, and the gold from servings of the day's special. */
+  restaurantGold: number;
+  served: number;
+  specialGold: number;
   /** Every absence: when it began (real ms since the start), how long it was, and the gold earned during it (v2 phase 06). */
   aways: { startMs: number; ms: number; gold: number }[];
 }
@@ -138,6 +146,9 @@ export class SimRun {
     cropGold: 0,
     harvestValue: 0,
     northValue: { north_fields: 0, terraces: 0 },
+    restaurantGold: 0,
+    served: 0,
+    specialGold: 0,
     aways: [],
   };
   private lastUsefulPlayMs = 0;
@@ -175,6 +186,13 @@ export class SimRun {
       const field = northFieldOf(e.plot);
       if (field) this.metrics.northValue[field] += value;
     });
+    bus.on('served', (e) => {
+      this.mark('first_serving');
+      this.metrics.restaurantGold += e.gold;
+      this.metrics.served += e.qty;
+      if (e.special) this.metrics.specialGold += e.gold;
+    });
+    bus.on('restaurantUpgraded', (e) => this.mark(`restaurant_l${e.level}`));
     bus.on('cooked', (e) => {
       this.metrics.cooked += 1;
       this.mark(`dish_t${e.tier}`);
@@ -354,6 +372,9 @@ export class SimRun {
       cropGold: this.metrics.cropGold,
       harvestValue: this.metrics.harvestValue,
       northValue: { ...this.metrics.northValue },
+      restaurantGold: this.metrics.restaurantGold,
+      served: this.metrics.served,
+      specialGold: this.metrics.specialGold,
     });
   }
 }

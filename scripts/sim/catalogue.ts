@@ -62,6 +62,7 @@ export function catalogueParts(data: GameData): {
   ranch: number;
   decor: number;
   projects: number;
+  restaurant: number;
 } {
   let v1 = 0;
   let ranch = 0;
@@ -93,12 +94,13 @@ export function catalogueParts(data: GameData): {
       sum + data.townProjects[id].stages.reduce((n, _s, i) => n + stageGold(data.townProjects[id], i), 0),
     0,
   );
-  return { v1, parcels, saplings, ranch, decor, projects };
+  const restaurant = data.restaurant.levels.reduce((sum, l) => sum + l.price, 0); // v4-02
+  return { v1, parcels, saplings, ranch, decor, projects, restaurant };
 }
 
 export function catalogueTotal(data: GameData): number {
   const p = catalogueParts(data);
-  return p.v1 + p.parcels + p.saplings + p.ranch + p.decor + p.projects;
+  return p.v1 + p.parcels + p.saplings + p.ranch + p.decor + p.projects + p.restaurant;
 }
 
 /** The list price of everything in the catalogue this farm already owns (a known recipe card counts). */
@@ -115,6 +117,7 @@ export function catalogueOwned(s: GameState, data: GameData): number {
   for (const b of s.ranch.buildings)
     for (let l = 0; l < b.level; l++) sum += data.buildings[b.kind].levels[l]!.price;
   for (const a of s.ranch.animals) sum += data.animals[a.kind].price;
+  for (let l = 0; l < s.restaurant.level; l++) sum += data.restaurant.levels[l]!.price;
   for (const f of FRUIT_IDS) {
     // planted trees and saplings in the bag count as bought (a removed tree is not counted again)
     const have =

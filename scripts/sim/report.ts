@@ -156,6 +156,35 @@ export function animalShare(
 }
 
 /**
+ * v4-02 (BALANCE §14.9): the restaurant's takings as a share of the gold earned between real days `from` and `to`, its
+ * gold and servings a day, and the day's special's share of the takings (medians over seeds).
+ */
+export function restaurantShare(
+  runs: readonly RunResult[],
+  from: number,
+  to: number,
+): { share: number; perDay: number; servedPerDay: number; specialShare: number } {
+  const per = runs.map((r) => {
+    const a = snapshotAt(r, from * DAY);
+    const b = snapshotAt(r, to * DAY);
+    const gold = b.restaurantGold - a.restaurantGold;
+    return {
+      gold,
+      share: gold / Math.max(1, b.lifetimeGold - a.lifetimeGold),
+      served: b.served - a.served,
+      special: (b.specialGold - a.specialGold) / Math.max(1, gold),
+    };
+  });
+  const days = Math.max(1, to - from);
+  return {
+    share: median(per.map((p) => p.share)),
+    perDay: median(per.map((p) => p.gold)) / days,
+    servedPerDay: median(per.map((p) => p.served)) / days,
+    specialShare: median(per.map((p) => p.special)),
+  };
+}
+
+/**
  * v4-01 (BALANCE §14.9): the north fields' share of crop gold between real days `from` and `to`, median over seeds:
  * the base-price value of the crops harvested on the north fields over that of every harvest, per field and together.
  */
@@ -272,6 +301,9 @@ export const MOMENTS: readonly [key: string, label: string][] = [
   ['bought_meadow', 'Seaside Meadow bought'],
   ['bought_north_fields', 'North Fields bought'],
   ['bought_terraces', 'Upper Terraces bought'],
+  ['bought_restaurant', 'Restaurant built (L1)'],
+  ['first_serving', 'First serving'],
+  ['restaurant_l3', 'Restaurant L3'],
   ['first_sapling', 'First sapling bought'],
   ['first_mature_tree', 'First mature tree'],
   ['first_fruit', 'First fruit picked'],
@@ -385,10 +417,10 @@ export function markdownReport(result: SimResult): string {
   lines.push('');
   // Gold still to spend (BALANCE.md §13.4; v2 phase 02: v1, land, decorations and town projects).
   const parts = catalogueParts(GAME_DATA);
-  const total = parts.v1 + parts.parcels + parts.saplings + parts.ranch + parts.decor + parts.projects;
+  const total = catalogueTotal(GAME_DATA);
   const spendDays = SPEND_DAYS.filter((d) => d <= days);
   lines.push(
-    `Gold still to spend (BALANCE.md §13.4): the catalogue so far is v1 ${fmt(parts.v1)} + land ${fmt(parts.parcels)} + saplings ${fmt(parts.saplings)} + ranch ${fmt(parts.ranch)} + decorations ${fmt(parts.decor)} + town projects ${fmt(parts.projects)} = **${fmt(total)}**; gold still to spend · share of the catalogue at the end of real day *n*, and the day it reaches 0:`,
+    `Gold still to spend (BALANCE.md §13.4): the catalogue so far is v1 ${fmt(parts.v1)} + land ${fmt(parts.parcels)} + saplings ${fmt(parts.saplings)} + ranch ${fmt(parts.ranch)} + decorations ${fmt(parts.decor)} + town projects ${fmt(parts.projects)} + restaurant ${fmt(parts.restaurant)} = **${fmt(total)}**; gold still to spend · share of the catalogue at the end of real day *n*, and the day it reaches 0:`,
     '',
     `| Bot | ${spendDays.map((d) => `d${d}`).join(' | ')} | Spent out |`,
     `|---|${spendDays.map(() => '---|').join('')}---|`,
@@ -468,6 +500,27 @@ export function markdownReport(result: SimResult): string {
       };
       lines.push(
         `| ${BOTS[b].name} | ${pct(w.north_fields)} · ${pct(w.terraces)} · ${pct(w.total)} | ${fmt(w.perDay)} | ${pb('north_fields')} | ${pb('terraces')} |`,
+      );
+    }
+    lines.push('');
+  }
+  // The restaurant (v4-02)
+  if (days >= 14) {
+    lines.push(
+      "The restaurant (BALANCE §14.9): the guests' gold a day · its share of the gold earned in the window, servings a day, and the day's special's share of the takings (medians):",
+      '',
+      '| Bot | days 7–14 | days 14–' +
+        String(days) +
+        ' | servings a day (14–' +
+        String(days) +
+        ') | special |',
+      '|---|---|---|---|---|',
+    );
+    for (const b of bots) {
+      const w1 = restaurantShare(runs[b]!, 7, 14);
+      const w2 = restaurantShare(runs[b]!, 14, days);
+      lines.push(
+        `| ${BOTS[b].name} | ${fmt(w1.perDay)} · ${fmtShare(w1.share)} | ${days > 14 ? `${fmt(w2.perDay)} · ${fmtShare(w2.share)}` : '–'} | ${fmt(w2.servedPerDay)} | ${pct(w2.specialShare)} |`,
       );
     }
     lines.push('');
@@ -643,6 +696,26 @@ export function tuningChecks(result: SimResult, sums: Map<BotId, BotSummary>): C
         target: '≤ 10 days after buying (gross)',
         measured: d === null ? 'not bought' : Number.isFinite(d) ? `${fmt(d, 1)} days` : 'not yet',
         ok: d !== null && d <= 10,
+      });
+    }
+  }
+  // v4-02 (BALANCE §14.9, §14.12): the restaurant is a side income for a cook, never the main farm. The 5–15% band is
+  // read on the Chef who sells, whose income is the cooking itself; the eating Chef serves as much (its absolute
+  // takings are within a few percent of its control's) but its buffs lift the income it is divided by, so 3–15%.
+  if (days >= 21) {
+    const bands: [BotId, number, number][] = [
+      ['chef_sells', 0.05, 0.15],
+      ['chef', 0.03, 0.15],
+      ['active', 0, 0.15],
+    ];
+    for (const [b, lo, hi] of bands) {
+      if (!result.runs[b]) continue;
+      const w = restaurantShare(result.runs[b]!, 14, days);
+      out.push({
+        what: `${BOTS[b].name}: restaurant income (days 14–${days})`,
+        target: lo > 0 ? `${pct(lo)}–${pct(hi)} of gold` : `≤ ${pct(hi)} of gold`,
+        measured: `${fmtShare(w.share)} (${fmt(w.perDay)} gold and ${fmt(w.servedPerDay)} servings a day)`,
+        ok: w.share >= lo && w.share <= hi,
       });
     }
   }

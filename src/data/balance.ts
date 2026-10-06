@@ -305,7 +305,7 @@ export const FEED_AMOUNTS: readonly number[] = [1, 10];
 // ---- the restaurant (v4 phase 02, BALANCE.md §14.3)
 
 /** Minutes of simulated time per serving, × the item's tier (T1 20 min … T4 80 min). */
-export const SERVE_MIN_PER_TIER = 20;
+export const SERVE_MIN_PER_TIER = 15;
 /** A serving never pays more than this × the item's base price (premium and the day's special together). */
 export const RESTAURANT_MAX_MULT = 1.75;
 /** The day's special earns this on top of the level's premium. */

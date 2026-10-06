@@ -85,7 +85,7 @@ describe('the restaurant data (BALANCE.md §14.3)', () => {
       [350_000, 3, 1.45],
       [800_000, 4, 1.6],
     ]);
-    expect(SERVE_MIN_PER_TIER).toBe(20);
+    expect(SERVE_MIN_PER_TIER).toBe(15); // v4-02 tuning: 20 in BALANCE §14.3, see §14.12
     expect(RESTAURANT_MAX_MULT).toBe(1.75);
     expect(SPECIAL_BONUS).toBe(0.15);
     expect(MENU_SLOT_CAP).toBe(99);
@@ -226,7 +226,7 @@ describe('the menu: stocking and clearing, all or nothing', () => {
     addItem(s.inventory, 'baked_potato', 10);
     act(s, { type: 'stockMenu', slot: 0, item: 'roasted_turnip', qty: 2 });
     act(s, { type: 'stockMenu', slot: 1, item: 'baked_potato', qty: 3 });
-    step(s, ctxFor(s, NOON, [], QUIET), 2 * HOUR); // both run out: the turnip after 40 min, the potato after 60
+    step(s, ctxFor(s, NOON, [], QUIET), 2 * HOUR); // both run out: the turnip after 30 min, the potato after 45
     expect(s.restaurant.menu.map((m) => [m.item, m.qty])).toEqual([
       ['roasted_turnip', 0],
       ['baked_potato', 0],
@@ -239,7 +239,7 @@ describe('the menu: stocking and clearing, all or nothing', () => {
 });
 
 describe('serving', () => {
-  it('serves one item per 20 minutes × tier, in whole cycles, keeping the remainder', () => {
+  it('serves one item per 15 minutes × tier, in whole cycles, keeping the remainder', () => {
     const s = opened();
     const t1 = plainDish(s, 1);
     const t3 = plainDish(s, 3);
@@ -247,16 +247,16 @@ describe('serving', () => {
     addItem(s.inventory, t3, 20);
     act(s, { type: 'stockMenu', slot: 0, item: t1, qty: 20 });
     act(s, { type: 'stockMenu', slot: 1, item: t3, qty: 20 });
-    expect(serveIntervalMs(GAME_DATA, t1)).toBe(20 * MIN);
-    expect(serveIntervalMs(GAME_DATA, t3)).toBe(60 * MIN);
+    expect(serveIntervalMs(GAME_DATA, t1)).toBe(15 * MIN);
+    expect(serveIntervalMs(GAME_DATA, t3)).toBe(45 * MIN);
     const events: GameEvent[] = [];
     step(s, ctxFor(s, NOON, events, QUIET), 2 * HOUR + 10 * MIN);
-    expect(s.restaurant.menu[0]).toMatchObject({ qty: 14, cycleMs: 10 * MIN });
-    expect(s.restaurant.menu[1]).toMatchObject({ qty: 18, cycleMs: 10 * MIN });
-    expect(msToNextServing(GAME_DATA, s.restaurant.menu[1]!)).toBe(50 * MIN);
+    expect(s.restaurant.menu[0]).toMatchObject({ qty: 12, cycleMs: 10 * MIN });
+    expect(s.restaurant.menu[1]).toMatchObject({ qty: 18, cycleMs: 40 * MIN });
+    expect(msToNextServing(GAME_DATA, s.restaurant.menu[1]!)).toBe(5 * MIN);
     const served = events.filter((e) => e.type === 'served');
     expect(served.map((e) => (e.type === 'served' ? [e.slot, e.qty] : null))).toEqual([
-      [0, 6],
+      [0, 8],
       [1, 2],
     ]);
   });
@@ -348,7 +348,7 @@ describe('serving', () => {
     const gold = s.gold;
     step(s, ctxFor(s, NOON, [], QUIET), 2 * HOUR);
     expect(s.market).toEqual(market);
-    expect(s.gold - gold).toBe(6 * Math.round(GAME_DATA.items[dish]!.basePrice * 1.3));
+    expect(s.gold - gold).toBe(8 * Math.round(GAME_DATA.items[dish]!.basePrice * 1.3));
   });
 
   it('an empty menu changes nothing, however long', () => {
@@ -418,7 +418,7 @@ describe('offline correctness (one big step equals many small ones)', () => {
       left -= d;
     }
     expect(big).toEqual(small);
-    expect(big.stats.served).toBe(24 + 5);
+    expect(big.stats.served).toBe(32 + 5);
   });
 
   it('and across a level upgrade and a restock at the same moment', () => {
@@ -443,7 +443,7 @@ describe('offline correctness (one big step equals many small ones)', () => {
       Array.from({ length: 300 }, () => MIN),
     );
     expect(big).toEqual(small);
-    expect(big.restaurant.menu[2]!.qty).toBe(30 - Math.floor((5 * HOUR) / (40 * MIN)));
+    expect(big.restaurant.menu[2]!.qty).toBe(30 - Math.floor((5 * HOUR) / serveIntervalMs(GAME_DATA, dish)));
   });
 
   it('runOffline over a night away serves the menu and the away summary says so', () => {

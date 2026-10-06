@@ -112,7 +112,7 @@ test('build the restaurant from its lot, stock the menu, step away an hour: gold
     .toBe(2);
   await page.screenshot({ path: shot('v4-02-restaurant-day.png') });
 
-  // An hour away: three turnips (20 min each) and one pasta (T2, 40 min) at 1.30× base, and the summary says so.
+  // An hour away: four turnips (15 min each) and two pastas (T2, 30 min) at 1.30× base, and the summary says so.
   const gold = await page.evaluate(() => (window as unknown as Win).__game.state.gold);
   await page.evaluate((ms) => (window as unknown as Win).__view.awayFor(ms), HOUR);
   const away = page.getByRole('dialog', { name: 'While you were away…' });
@@ -121,11 +121,11 @@ test('build the restaurant from its lot, stock the menu, step away an hour: gold
     const s = (window as unknown as Win).__game.state;
     return { gold: s.gold, served: s.stats.served, takings: s.stats.restaurantGold };
   });
-  expect(after.served).toBe(4);
-  expect(after.takings).toBe(3 * Math.round(55 * 1.3) + Math.round(176 * 1.3));
+  expect(after.served).toBe(6);
+  expect(after.takings).toBe(4 * Math.round(55 * 1.3) + 2 * Math.round(176 * 1.3));
   expect(after.gold - gold).toBeGreaterThanOrEqual(after.takings);
   await expect(away).toContainText(
-    `The restaurant served 4 dishes for ${after.takings.toLocaleString('en-US')}g.`,
+    `The restaurant served 6 dishes for ${after.takings.toLocaleString('en-US')}g.`,
   );
   await page.keyboard.press('Escape');
   await expect(away).toBeHidden();
