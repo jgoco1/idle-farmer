@@ -228,6 +228,15 @@ export const MILESTONES: readonly QuestDef[] = Object.freeze([
     rewards: [{ kind: 'gold', amount: 50_000 }],
     requires: [],
   },
+  {
+    id: 'm25_first_serving',
+    kind: 'milestone',
+    title: 'Serve a dish at the restaurant',
+    flavor: 'A clean plate and a happy sigh from the terrace. The Bramble Table is open.',
+    objective: { kind: 'serve', count: 1 },
+    rewards: [{ kind: 'gold', amount: 30_000 }],
+    requires: [],
+  },
 ] satisfies QuestDef[]);
 
 export const MILESTONE_IDS: readonly MilestoneId[] = MILESTONES.map((m) => m.id as MilestoneId);
@@ -343,6 +352,15 @@ export const GOAL_TEMPLATES: Readonly<Record<GoalTemplateId, QuestDef>> = Object
     kind: 'goal',
     flavor: 'The ranch never sleeps in. Neither do you, apparently.',
     objective: { kind: 'collectProduct', count: 0 },
+    rewards: [],
+    requires: [],
+  },
+  serve_dishes: {
+    id: 'serve_dishes',
+    title: 'Serve {n} dishes at the restaurant',
+    kind: 'goal',
+    flavor: 'Keep the terrace tables laid and the guests coming.',
+    objective: { kind: 'serve', count: 0 },
     rewards: [],
     requires: [],
   },

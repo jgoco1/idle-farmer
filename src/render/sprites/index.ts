@@ -16,6 +16,7 @@ import { FARMHOUSE_SPRITES } from './farmhouse';
 import { FISHING_SPRITES } from './fishing';
 import { ITEM_SPRITES } from './items';
 import { NORTH_SPRITES } from './north';
+import { RESTAURANT_SPRITES } from './restaurant';
 import { RANCH_SPRITES } from './ranch';
 import { TOWN_SPRITES } from './town';
 import { TREE_SPRITES } from './trees';
@@ -42,6 +43,7 @@ export const ALL_SPRITES: readonly SpriteDef[] = [
   ...RANCH_SPRITES,
   ...FX_SPRITES,
   ...NORTH_SPRITES,
+  ...RESTAURANT_SPRITES,
 ];
 
 export const SPRITES: Readonly<Record<string, SpriteDef>> = Object.freeze(

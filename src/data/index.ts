@@ -33,6 +33,7 @@ import type {
 import { ITEMS } from './items';
 import { PARCELS } from './parcels';
 import { RECIPES } from './recipes';
+import { RESTAURANT } from './restaurant';
 import { SEASONS } from './seasons';
 import type {
   AnimalDef,
@@ -51,6 +52,7 @@ import type {
   ParcelDef,
   QuestDef,
   RecipeDef,
+  RestaurantDef,
   SeasonDef,
   SkillPerkDef,
   TownProjectDef,
@@ -102,6 +104,8 @@ export interface GameData {
   feeds: Readonly<Record<FeedId, FeedDef>>;
   /** The farm cats: the starting tabby and the ones to adopt (cosmetic). */
   cats: Readonly<Record<CatId, CatDef>>;
+  /** The restaurant's levels, unlock, special rota and sprites (v4 phase 02). */
+  restaurant: RestaurantDef;
 }
 
 export const GAME_DATA: GameData = Object.freeze({
@@ -129,4 +133,5 @@ export const GAME_DATA: GameData = Object.freeze({
   buildings: BUILDINGS,
   feeds: FEEDS,
   cats: CATS,
+  restaurant: RESTAURANT,
 });

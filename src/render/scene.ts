@@ -47,7 +47,17 @@ export const WORLD_Y1 = WORLD_BOTTOM * TILE;
 export const PLOT_ORIGIN = { col: 6, row: 2 } as const;
 
 export type ZoneId =
-  'plots' | 'pet' | 'farmhouse' | 'pond' | 'market' | 'bin' | 'greenhouse' | 'river' | 'dock' | 'board';
+  | 'plots'
+  | 'pet'
+  | 'farmhouse'
+  | 'pond'
+  | 'market'
+  | 'bin'
+  | 'greenhouse'
+  | 'river'
+  | 'dock'
+  | 'board'
+  | 'restaurant';
 
 /** The water tiles where each location's fish traps float, by slot (BALANCE.md §4: two per location, a third once the Pond Fish bundle is done). */
 export const TRAP_TILES: Readonly<Record<FishLocationId, readonly { col: number; row: number }[]>> = {
@@ -124,6 +134,8 @@ export function buildZones(grid: Grid): Zone[] {
     { id: 'river', rect: { col: 6, row: 10, cols: 9, rows: 2 }, label: 'Riverbank' },
     { id: 'dock', rect: { col: 15, row: 10, cols: 5, rows: 2 }, label: 'Old dock' },
     { id: 'board', rect: { ...WORLD_LAYOUT.boardTile, cols: 1, rows: 1 }, label: 'Community Board' },
+    // The north (v4-02): the restaurant's site opens its panel (the build card before it is built).
+    { id: 'restaurant', rect: WORLD_LAYOUT.restaurantSite, label: 'The Bramble Table' },
   ];
 }
 
@@ -412,9 +424,11 @@ export interface SceneLook {
   farmhouse: string;
   /** Stages finished per project; missing = 0 (the ruin). */
   stages: Readonly<Partial<Record<TownProjectId, number>>>;
+  /** The restaurant's level (v4-02): once built its lot becomes the inn's ground and terrace; missing = 0. */
+  restaurant?: number;
 }
 
-export const DEFAULT_LOOK: SceneLook = { farmhouse: 'obj_farmhouse', stages: {} };
+export const DEFAULT_LOOK: SceneLook = { farmhouse: 'obj_farmhouse', stages: {}, restaurant: 0 };
 
 /** The rectangle of a project's site in world tiles (the bridge's is `WORLD_LAYOUT.bridge`). */
 export function townSiteRect(id: TownProjectId): TileRect {
@@ -599,11 +613,14 @@ export function buildLayout(
   const zones = buildZones(grid);
   const scenery = sceneryFor(expansions, parcels);
   const sceneryTiles = new Set(scenery.map((d) => `${d.col},${d.row}`));
-  const sites = [
-    ...Object.values(WORLD_LAYOUT.townSites),
-    WORLD_LAYOUT.restaurantSite,
-    WORLD_LAYOUT.pressSite,
-  ];
+  const restaurantOpen = (look.restaurant ?? 0) > 0;
+  const lots = restaurantOpen
+    ? [WORLD_LAYOUT.pressSite]
+    : [WORLD_LAYOUT.restaurantSite, WORLD_LAYOUT.pressSite];
+  const sites = [...Object.values(WORLD_LAYOUT.townSites), ...lots];
+  // The inn's terrace (v4-02): a paved row under its tables; the inn itself is drawn by RestaurantLife.
+  const site = WORLD_LAYOUT.restaurantSite;
+  const terrace: TileRect = { col: site.col, row: site.row + site.rows - 1, cols: site.cols, rows: 1 };
   // The north (v4-01): an owned field's plots, fence, gate and path; the hedges, pines and lots.
   const ownedNorth = NORTH_FIELD_IDS.filter((f) => parcels.includes(f));
   const northPlots = ownedNorth.map((f) => {
@@ -645,6 +662,7 @@ export function buildLayout(
       else if (woods) tile = woods;
       else if (inRect(plots, col, row) || northPlots.some((r) => inRect(r, col, row))) tile = 'tile_soil_dry';
       else if (paths.has(key) || LANE_TILES.has(key)) tile = 'tile_path';
+      else if (restaurantOpen && inRect(terrace, col, row)) tile = 'tile_path';
       else if (sites.some((r) => inRect(r, col, row))) tile = 'tile_soil_untilled';
       else {
         const v = tileHash(col, row);
@@ -691,7 +709,7 @@ export function buildLayout(
     objects.push(o);
   }
   objects.push(placed('obj_jetty', WORLD_LAYOUT.jetty.col * TILE, WORLD_LAYOUT.jetty.row * TILE));
-  for (const site of [WORLD_LAYOUT.restaurantSite, WORLD_LAYOUT.pressSite])
+  for (const site of lots)
     objects.push(
       placedAt('obj_lot_sign', site.col + Math.floor(site.cols / 2), site.row + Math.floor(site.rows / 2)),
     );

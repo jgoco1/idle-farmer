@@ -115,3 +115,4 @@ v4 phase 00 (the North; ideas kept out of v4 on purpose):
 - **A third north field** ("High Meadow", 24 plots, in part of the woods): the owner chose two fields (GDD §13.12 decision 3); kept here if more land is wanted later.
 - **A brewery** with ale, cider and mead: the owner chose no alcohol (GDD §13.12 decision 1, store age ratings). Not planned.
 
+- **A menu-aware planter or Seed Order** (v4-02): let the player mark crops "for the kitchen" so the planter keeps some plots on a restaurant recipe's ingredients; the simulator shows the restaurant is ingredient-limited (the Chef's stove idles ~70% of a session once the Auto-Seller ships every harvest). A v4-04 balance pass or a later comforts phase could own it.

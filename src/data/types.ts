@@ -319,7 +319,9 @@ export type QuestObjective =
   // v2 phase 03
   | { kind: 'pickFruit'; fruit?: FruitId; count: number } // counts 'fruitPicked'
   // v2 phase 04
-  | { kind: 'collectProduct'; product?: AnimalProductId; count: number }; // counts 'collected'
+  | { kind: 'collectProduct'; product?: AnimalProductId; count: number } // counts 'collected'
+  // v4 phase 02
+  | { kind: 'serve'; count: number }; // counts 'served'
 
 export type QuestReward =
   | { kind: 'gold'; amount: number }
@@ -505,4 +507,28 @@ export interface FeedDef {
   from: CropId; // hay from wheat, corn feed from corn
   perUnit: number; // portions per unit of crop
   buyPrice: number; // at the Ranch
+}
+
+// ---- the restaurant (v4 phase 02, BALANCE.md §14.3, DATA_SCHEMAS.md §10.4)
+
+export interface RestaurantLevelDef {
+  price: number;
+  slots: number; // menu slots: one terrace table each
+  premium: number; // a serving pays base price × this (plus the day's special, capped)
+}
+
+export interface RestaurantDef {
+  name: string;
+  requires: readonly UnlockCondition[]; // to build level 1
+  levels: readonly [RestaurantLevelDef, RestaurantLevelDef, RestaurantLevelDef];
+  /**
+   * The Chef's special: 28 recipe ids, one per weekday of each season's week (Sunday first), so a
+   * seasonal dish is the special in its own season. The special on a day is a calendar fact, never a draw.
+   */
+  specialRota: readonly RecipeId[];
+  sprites: {
+    building: readonly [string, string, string]; // per level; frame 1 of each is the lit night look
+    table: string;
+    tableDish: string;
+  };
 }

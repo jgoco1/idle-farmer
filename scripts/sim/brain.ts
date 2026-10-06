@@ -15,7 +15,7 @@ import type { GameEvent } from '../../src/core/events';
 import { makeContext } from '../../src/core/sim';
 import type { GameState, PlacedKind } from '../../src/core/state';
 import type { GameData } from '../../src/data';
-import type { CropDef, FishDef } from '../../src/data/types';
+import type { CropDef, FishDef, RecipeDef } from '../../src/data/types';
 import { MARKET_CHANNEL, OFFLINE_FULL_MS, OFFLINE_REDUCED_RATE } from '../../src/data/balance';
 import {
   CROP_IDS,
@@ -97,11 +97,20 @@ import {
   placementProblem,
   stockOf,
 } from '../../src/systems/placement';
-import { runProgression } from '../../src/systems/progression';
+import { recipeObtainable, runProgression } from '../../src/systems/progression';
+import {
+  isMenuable,
+  restaurantBlock,
+  restaurantLevel,
+  serveIntervalMs,
+  servingPrice,
+  todaysSpecial,
+} from '../../src/systems/restaurant';
+import { MENU_SLOT_CAP } from '../../src/data/balance';
 import { orderedCrops } from '../../src/systems/seedOrder';
 import { isUnlocked } from '../../src/systems/unlocks';
 import { purchaseBlock, requirementsFor, upgradeCost, upgradeLevel } from '../../src/systems/upgrades';
-import { MIN, type SimRun } from './driver';
+import { HOUR, MIN, type SimRun } from './driver';
 
 /** Something the player saves up for: an expansion, or an upgrade up to a level (a count, for placeables). */
 export type Want =
@@ -126,6 +135,8 @@ export interface Style {
   shopping: readonly Want[];
   /** Stock the seeds the planter will need before each absence (default true; the forgetful control bot never does). Owning the Seed Order replaces it. */
   stocksSeeds?: boolean;
+  /** v4-02: buys the restaurant's levels as soon as the seeds allow (the Chefs), not in `spendV2`'s turns. */
+  menuFirst?: boolean;
 }
 
 const up = (id: UpgradeId, level: number): Want => ({ kind: 'upgrade', id, level });
@@ -169,6 +180,7 @@ export const FARM_SHOPPING: readonly Want[] = [
   up('greenhouse', 2),
   up('seed_order', 2),
   up('kitchen', 1),
+  up('kitchen', 2), // v4-02: the restaurant needs Kitchen Level 2
   up('fishing_rod', 1),
   up('fish_trap', 2),
   up('scarecrow', 4),
@@ -307,6 +319,13 @@ const RANCH_PLAN: readonly RanchStep[] = [
 /** Wheat and corn the player keeps in the bag for feed (and cooking) instead of selling. */
 const FEED_CROP_KEEP = SILO_RESERVE + 10;
 
+/** v4-02: dishes' worth of each menu recipe's ingredients kept in the bag (about a day of servings, capped). */
+const MENU_DISHES_KEPT = 40;
+/** v4-02: how many recipes the menu is cooked from (their ingredients stay out of the Auto-Seller during a session). */
+const MENU_RECIPES = 10;
+/** Simulated hours a real day of the schedule credits (two sessions and two capped absences). */
+const DAY_SIM_HOURS = 19.5;
+
 /** Seed gold kept back per plot when buying upgrades. */
 const SEED_RESERVE_PER_PLOT = 12.5;
 
@@ -352,6 +371,8 @@ export class Brain {
   private season: SeasonId = 'spring';
   /** Crops the Auto-Seller is told to keep (a town project asks for them). */
   private kept = new Set<ItemId>();
+  /** v4-02: ingredients of the menu's recipes the Auto-Seller is told to keep during a session. */
+  private menuKept = new Set<ItemId>();
 
   constructor(
     readonly style: Style,
@@ -434,10 +455,12 @@ export class Brain {
     if (this.style.cook !== 'none') useful = this.cook(run) || useful;
     if (this.style.cook === 'eat') useful = this.eat(run, false) || useful;
     else if (s.stats.dishesEaten === 0) useful = this.eatAny(run) || useful; // the "eat a dish" milestone
+    useful = this.menu(run, false) || useful; // v4-02: eat first, the restaurant second, sell the rest
     useful = this.sell(run, keep, false) || useful;
     useful = this.starters(run) || useful;
     useful = this.shop(run) || useful;
     this.keepProjectCrops(run);
+    this.keepForMenu(run, true);
     useful = this.errands(run, dt) || useful;
     useful = this.orchard(run, false) || useful;
     useful = this.ranch(run) || useful;
@@ -453,10 +476,13 @@ export class Brain {
     // The order buys what the planter last planted; seeds for a new season's crop (the fallback) are still stocked by hand.
     if (this.style.stocksSeeds !== false) this.stockSeeds(run, upgradeLevel(s, 'seed_order') > 0);
     if (this.style.cook === 'eat') this.eat(run, true);
+    this.menu(run, true); // v4-02: the menu for the absence, before the rest is shipped
     this.sell(run, this.keepList(s), true);
     this.starterYard(run); // v2-05: the coop, two hens, the barn and a cow come before saplings and the town
+    this.openRestaurant(run, this.seedGold(run)); // v4-02: right after the starter yard
     this.orchard(run, true); // v2-05: saplings out of what is left after the seeds the planter will need
     this.spendV2(run); // last: what is left after the seeds the planter will need
+    this.keepForMenu(run, false); // v4-02: the Auto-Seller ships everything again while away
   }
 
   // ---- pieces
@@ -489,6 +515,10 @@ export class Brain {
         .sort((a, b) => b.tier - a.tier || b.basePrice - a.basePrice)
         .slice(0, 2 + slots);
       for (const r of targets) for (const i of r.ingredients) add(i.item, i.qty * (1 + slots));
+      // v4-02: enough for a day of the menu's recipes (about a day of servings each, at most MENU_DISHES_KEPT).
+      for (const r of this.menuRecipes(s))
+        for (const i of r.ingredients)
+          add(i.item, i.qty * Math.min(MENU_DISHES_KEPT, Math.ceil((DAY_SIM_HOURS * 3) / r.tier)));
     }
     return keep;
   }
@@ -522,6 +552,7 @@ export class Brain {
     for (const w of [...this.projectWants(s), ...this.cropErrands(s, true)])
       if (w.item in this.data.crops) reserved.set(w.item, (reserved.get(w.item) ?? 0) + w.qty);
     const spare = (item: ItemId): number => countItem(s.inventory, item, false) - (reserved.get(item) ?? 0);
+    const premium = restaurantLevel(s, this.data)?.premium ?? 0;
     while (s.kitchen.queue.length < kitchenSlots(s, this.data)) {
       let best: RecipeId | null = null;
       let bestScore = 0;
@@ -531,8 +562,15 @@ export class Brain {
         const margin = (r.basePrice - ingredientValue(r, this.data.items)) / r.cookSec;
         // The highest tier first (it pays best and levels Cooking); keeping buffs up, a dish whose buff
         // earns gold (Silver Tongue, Green Thumb) ahead of the others of its tier; then the margin.
+        // v4-02: once the restaurant is open, the best margin per dish at its premium (base × premium −
+        // ingredients), not the quickest: the menu, not the stove, is the throttle.
         const goldBuff = r.buff === 'sellPrice' || r.buff === 'growth';
-        const score = r.tier * 1000 + (this.style.cook === 'eat' && goldBuff ? 500 : 0) + margin;
+        const score =
+          premium > 0
+            ? 1 +
+              Math.max(0, r.basePrice * premium - ingredientValue(r, this.data.items)) *
+                (this.style.cook === 'eat' && goldBuff ? 1.25 : 1)
+            : r.tier * 1000 + (this.style.cook === 'eat' && goldBuff ? 500 : 0) + margin;
         if (score > bestScore) {
           best = id;
           bestScore = score;
@@ -596,6 +634,7 @@ export class Brain {
     const s = run.state;
     let useful = false;
     const seen = new Set<ItemId>();
+    const forMenu = this.menuHold(run); // v4-02: dishes the coming absence's menu will use stay in the bag
     for (const stack of [...s.inventory.slots]) {
       if (!stack || seen.has(stack.item)) continue;
       seen.add(stack.item);
@@ -610,13 +649,16 @@ export class Brain {
                 ? 2
                 : 0,
               this.projectWants(s).find((w) => w.item === stack.item)?.qty ?? 0,
-            )
+            ) +
+            (forMenu.get(`${stack.item}|`) ?? 0) +
+            (forMenu.get(`${stack.item}|h`) ?? 0)
           : (keep.get(stack.item) ?? 0);
       const qty = countItem(s.inventory, stack.item) - hold;
       if (qty <= 0) continue;
-      const r = ship
-        ? run.game.dispatch({ type: 'ship', item: stack.item, qty })
-        : run.game.dispatch({ type: 'sell', item: stack.item, qty });
+      const r =
+        ship || this.menuKept.has(stack.item) // v4-02: the menu's ingredients the Auto-Seller would have shipped
+          ? run.game.dispatch({ type: 'ship', item: stack.item, qty })
+          : run.game.dispatch({ type: 'sell', item: stack.item, qty });
       if (r.ok) useful = true;
     }
     return useful;
@@ -834,7 +876,12 @@ export class Brain {
     const s = run.state;
     const yard = s.land.parcels.includes('yard') && !this.starterYardDone(s);
     const tree = s.land.parcels.includes('orchard') && s.orchard.trees.length === 0;
-    if (!yard && !tree) return false;
+    // v4-02: the restaurant straight after the starter yard, with gold the planter's seeds will not need.
+    let inn = s.restaurant.level === 0 && this.openRestaurant(run, this.seedGold(run));
+    // and its levels 2 and 3 for a player who cooks (a farmer who never cooks buys them in spendV2's turns).
+    if (this.style.menuFirst && s.restaurant.level > 0)
+      inn = this.restaurantOne(run, this.seedGold(run)) > 0 || inn;
+    if (!yard && !tree) return inn;
     const spare = s.gold - this.seedGold(run);
     if (spare <= 0) return false;
     let useful = false;
@@ -847,6 +894,240 @@ export class Brain {
     if (tree && s.gold > this.seedGold(run))
       useful = this.orchard(run, true, 1, this.seedGold(run)) || useful;
     return useful;
+  }
+
+  // ---- v4 phase 02: the restaurant (BALANCE §14.3, §14.10)
+
+  /**
+   * The recipes the menu is cooked from: known, obtainable now, and worth most per hour on a table at the premium
+   * ((base × premium − ingredients) / tier): the best MENU_RECIPES, so the stove has something to cook.
+   */
+  private menuRecipes(s: GameState): RecipeDef[] {
+    const premium = restaurantLevel(s, this.data)?.premium ?? 0;
+    if (premium <= 0 || this.style.cook === 'none') return [];
+    return s.kitchen.known
+      .map((id) => this.data.recipes[id])
+      .filter(
+        (r) =>
+          recipeObtainable(s, this.data, this.season, r) &&
+          r.ingredients.every((i) => this.comingIn(s, i.item)),
+      )
+      .map((r) => ({ r, v: (r.basePrice * premium - ingredientValue(r, this.data.items)) / r.tier }))
+      .filter((x) => x.v > 0)
+      .sort((a, b) => b.v - a.v)
+      .slice(0, MENU_RECIPES)
+      .map((x) => x.r);
+  }
+
+  /** Whether `item` is in the bag or on its way: a crop planted on some field, or anything that is not a crop (eggs, milk, fruit and fish come on their own). */
+  private comingIn(s: GameState, item: ItemId): boolean {
+    if (countItem(s.inventory, item) > 0) return true;
+    if (!(item in this.data.crops)) return true;
+    for (const i of allPlotIndexes(s)) if (plotAt(s, i)?.crop === item) return true;
+    return false;
+  }
+
+  /** During a session, keeps the menu recipes' ingredients out of the Auto-Seller; `on` false gives them all back. */
+  private keepForMenu(run: SimRun, on: boolean): void {
+    const need = new Set<ItemId>();
+    if (on) for (const r of this.menuRecipes(run.state)) for (const i of r.ingredients) need.add(i.item);
+    for (const item of need) {
+      if (this.menuKept.has(item)) continue;
+      run.game.dispatch({ type: 'setAutoSell', item, on: false });
+      this.menuKept.add(item);
+    }
+    for (const item of [...this.menuKept]) {
+      if (need.has(item)) continue;
+      if (!this.kept.has(item)) run.game.dispatch({ type: 'setAutoSell', item, on: true });
+      this.menuKept.delete(item);
+    }
+  }
+
+  /** Builds the restaurant once it can be had and the starter yard stands, with gold above `keep`. */
+  private openRestaurant(run: SimRun, keep: number): boolean {
+    const s = run.state;
+    if (s.restaurant.level > 0 || !this.starterYardDone(s)) return false;
+    if (restaurantBlock(s, this.data)) return false;
+    const price = this.data.restaurant.levels[0].price;
+    if (s.gold < price + keep) return false;
+    return run.game.dispatch({ type: 'buildRestaurant' }).ok;
+  }
+
+  /** The next restaurant level (2 or 3) if the gold above `keep` pays for it (one of `spendV2`'s turns). Returns the gold spent. */
+  private restaurantOne(run: SimRun, keep: number): number {
+    const s = run.state;
+    if (s.restaurant.level <= 0 || restaurantBlock(s, this.data)) return 0;
+    const next = this.data.restaurant.levels[s.restaurant.level];
+    if (!next || s.gold < next.price + keep) return 0;
+    const before = s.gold;
+    return run.game.dispatch({ type: 'upgradeRestaurant' }).ok ? before - s.gold : 0;
+  }
+
+  /**
+   * The menu: at every look, restock each table with what it serves and put the best dish in the bag on a free table;
+   * when leaving, lay the menu out for the absence: each table gets the dish with the most gold the absence can serve
+   * (price × the servings that fit in it, from the bag and what is on the menu), highest first. What the menu cannot
+   * use is sold as before.
+   */
+  private menu(run: SimRun, leaving: boolean): boolean {
+    const s = run.state;
+    if (s.restaurant.level <= 0) return false;
+    const game = run.game;
+    const special = todaysSpecial(s, this.data, game.calendar());
+    const horizon = leaving ? this.awayMs + HOUR : Math.max(HOUR, this.sessionLeftMs);
+    const servings = (item: ItemId): number =>
+      Math.max(1, Math.floor(horizon / serveIntervalMs(this.data, item)));
+    // Dishes the bag can spare (a Chef keeping buffs up holds two of each it eats; the town's asks stay too).
+    const hold = (item: ItemId): number =>
+      Math.max(
+        this.style.cook === 'eat' && buffPriority(this.style, s, this.data.recipes[item as DishId].buff) >= 2
+          ? 2
+          : 0,
+        this.projectWants(s).find((w) => w.item === item)?.qty ?? 0,
+      );
+    const spare = (item: ItemId, hearty: boolean): number =>
+      Math.max(0, countItem(s.inventory, item, hearty) - (hearty ? 0 : hold(item)));
+    let useful = false;
+    if (!leaving) {
+      if (game.dispatch({ type: 'restockMenu' }).ok) useful = true;
+      // A free table gets the dish worth most per serving that the bag can spare.
+      for (let i = 0; i < s.restaurant.menu.length; i++) {
+        const slot = s.restaurant.menu[i]!;
+        if (slot.qty > 0) continue;
+        // A whole stack: whatever the session does not serve waits for the absence (nothing on a menu spoils).
+        const best = this.bestDish(
+          s,
+          special,
+          (item, hearty) => Math.min(spare(item, hearty), MENU_SLOT_CAP),
+          () => MENU_SLOT_CAP,
+        );
+        if (!best) break;
+        if (slot.item !== null && (slot.item !== best.item || slot.hearty !== best.hearty))
+          game.dispatch({ type: 'clearMenuSlot', slot: i });
+        if (
+          game.dispatch({ type: 'stockMenu', slot: i, item: best.item, qty: best.qty, hearty: best.hearty })
+            .ok
+        )
+          useful = true;
+      }
+      return useful;
+    }
+    // Leaving: take the menu back into account (what is on it counts as available), then lay it out afresh.
+    const plan = this.absencePlan(s, special, servings, spare);
+    // Clear the tables whose dish changes (or that would hold more than planned), then stock the plan.
+    for (let i = 0; i < plan.length; i++) {
+      const slot = s.restaurant.menu[i]!;
+      const want = plan[i];
+      if (slot.item === null) continue;
+      if (!want || slot.item !== want.item || slot.hearty !== want.hearty || slot.qty > want.qty)
+        if (slot.qty > 0) game.dispatch({ type: 'clearMenuSlot', slot: i });
+    }
+    for (let i = 0; i < plan.length; i++) {
+      const want = plan[i];
+      if (!want) continue;
+      const slot = s.restaurant.menu[i]!;
+      const have = slot.item === want.item && slot.hearty === want.hearty ? slot.qty : 0;
+      const qty = Math.min(want.qty - have, countItem(s.inventory, want.item, want.hearty));
+      if (
+        qty > 0 &&
+        game.dispatch({ type: 'stockMenu', slot: i, item: want.item, qty, hearty: want.hearty }).ok
+      )
+        useful = true;
+    }
+    return useful;
+  }
+
+  /** What each table should hold for the coming absence: the greedy layout `menu` uses when leaving. */
+  private absencePlan(
+    s: GameState,
+    special: RecipeId | null,
+    servings: (item: ItemId) => number,
+    spare: (item: ItemId, hearty: boolean) => number,
+  ): ({ item: ItemId; hearty: boolean; qty: number } | null)[] {
+    const onMenu = (item: ItemId, hearty: boolean): number =>
+      s.restaurant.menu.reduce((n, m) => n + (m.item === item && m.hearty === hearty ? m.qty : 0), 0);
+    const taken = new Map<string, number>();
+    const key = (item: ItemId, hearty: boolean): string => `${item}|${hearty ? 'h' : ''}`;
+    const avail = (item: ItemId, hearty: boolean): number =>
+      Math.min(
+        MENU_SLOT_CAP,
+        spare(item, hearty) + onMenu(item, hearty) - (taken.get(key(item, hearty)) ?? 0),
+      );
+    const plan: ({ item: ItemId; hearty: boolean; qty: number } | null)[] = [];
+    for (let i = 0; i < s.restaurant.menu.length; i++) {
+      const best = this.bestDish(s, special, avail, servings);
+      plan.push(best);
+      if (best)
+        taken.set(key(best.item, best.hearty), (taken.get(key(best.item, best.hearty)) ?? 0) + best.qty);
+    }
+    return plan;
+  }
+
+  /**
+   * Dishes the bag keeps back from the Market for the coming absence's menu (what `absencePlan` would put on the tables
+   * beyond what they hold), by `item|h`.
+   */
+  private menuHold(run: SimRun): Map<string, number> {
+    const s = run.state;
+    const out = new Map<string, number>();
+    if (s.restaurant.level <= 0) return out;
+    const special = todaysSpecial(s, this.data, run.game.calendar());
+    const horizon = this.awayMs + HOUR;
+    const servings = (item: ItemId): number =>
+      Math.max(1, Math.floor(horizon / serveIntervalMs(this.data, item)));
+    const plan = this.absencePlan(s, special, servings, (item, hearty) =>
+      countItem(s.inventory, item, hearty),
+    );
+    for (const p of plan) {
+      if (!p) continue;
+      const k = `${p.item}|${p.hearty ? 'h' : ''}`;
+      out.set(k, (out.get(k) ?? 0) + p.qty);
+    }
+    for (const m of s.restaurant.menu) {
+      if (m.item === null) continue;
+      const k = `${m.item}|${m.hearty ? 'h' : ''}`;
+      if (out.has(k)) out.set(k, Math.max(0, out.get(k)! - m.qty));
+    }
+    return out;
+  }
+
+  /** The dish (and stack) worth the most gold over `servings` of it, with how many to put on: price × min(have, servings). */
+  private bestDish(
+    s: GameState,
+    special: RecipeId | null,
+    have: (item: ItemId, hearty: boolean) => number,
+    servings: (item: ItemId) => number,
+  ): { item: ItemId; hearty: boolean; qty: number } | null {
+    let best: { item: ItemId; hearty: boolean; qty: number } | null = null;
+    let bestValue = 0;
+    const seen = new Set<string>();
+    for (const stack of s.inventory.slots) {
+      if (!stack || !isMenuable(this.data, stack.item)) continue;
+      const hearty = stack.hearty === true;
+      const k = `${stack.item}|${hearty}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      const n = Math.min(have(stack.item, hearty), servings(stack.item));
+      if (n <= 0) continue;
+      const value = servingPrice(s, this.data, stack.item, special) * n;
+      if (value > bestValue) {
+        bestValue = value;
+        best = { item: stack.item, hearty, qty: n };
+      }
+    }
+    // A dish already on the menu (and no longer in the bag) is a candidate too.
+    for (const m of s.restaurant.menu) {
+      if (m.item === null || seen.has(`${m.item}|${m.hearty}`)) continue;
+      seen.add(`${m.item}|${m.hearty}`);
+      const n = Math.min(have(m.item, m.hearty), servings(m.item));
+      if (n <= 0) continue;
+      const value = servingPrice(s, this.data, m.item, special) * n;
+      if (value > bestValue) {
+        bestValue = value;
+        best = { item: m.item, hearty: m.hearty, qty: n };
+      }
+    }
+    return best;
   }
 
   /** Whether the starter yard (the first RANCH_STARTER_STEPS of the plan) stands. */
@@ -973,7 +1254,7 @@ export class Brain {
     }
     for (const item of [...this.kept]) {
       if (need.has(item)) continue;
-      run.game.dispatch({ type: 'setAutoSell', item, on: true });
+      if (!this.menuKept.has(item)) run.game.dispatch({ type: 'setAutoSell', item, on: true });
       this.kept.delete(item);
     }
   }
@@ -1103,6 +1384,8 @@ export class Brain {
       const turn = this.v2Turn++ % 3;
       let spent = 0;
       if (turn === 0) spent = this.ranchOne(run, reserve + hold);
+      // v4-02: the restaurant's levels 2 and 3 share the ranch's turn.
+      if (spent === 0 && turn === 0) spent = this.restaurantOne(run, reserve + hold);
       if (spent === 0 && turn !== 2) spent = this.donateGold(run, budget);
       if (spent === 0 && !saving) spent = this.buyDecor(run, budget);
       if (spent === 0 && turn === 2) spent = this.donateGold(run, budget);

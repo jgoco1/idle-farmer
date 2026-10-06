@@ -5,7 +5,7 @@
 import type { Rect } from './camera';
 import { TILE } from './scene';
 
-export type PipKind = 'crop' | 'trap' | 'dish' | 'tree' | 'store' | 'trough';
+export type PipKind = 'crop' | 'trap' | 'dish' | 'tree' | 'store' | 'trough' | 'menu';
 
 export interface PipTarget {
   kind: PipKind;
