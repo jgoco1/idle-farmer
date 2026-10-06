@@ -160,6 +160,7 @@ export const FARM_SHOPPING: readonly Want[] = [
   up('barn_storage', 4),
   up('backpack', 4),
   up('seed_order', 3),
+  up('backpack', 5),
   ...sprinklers(8, 9),
   // v2 (BALANCE.md §13.11): the land parcels in order, after the v1 wish list. Moving the orchard earlier
   // (after `farm_4`, or after the first scarecrow) puts it inside §13.10's day 2–4 but swings the phase 09

@@ -220,15 +220,18 @@ export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object
     description: 'More pockets for more things.',
     category: 'storage',
     kind: 'leveled',
-    max: 4,
-    cost: { base: 200, ratio: 2.2 }, // 200, 440, 970, 2100
-    effectText: ['12 slots', '16 slots', '20 slots', '24 slots', '28 slots'],
+    max: 5,
+    cost: { base: 200, ratio: 2.2 }, // 200, 440, 970, 2100, 4700
+    // Six slots a level (four before the polish after v4-01), and a fifth level: the bag filled up with v2's
+    // animal products and v4's north fields. Saves get the new slots on load (`syncBagSlots`).
+    effectText: ['12 slots', '18 slots', '24 slots', '30 slots', '36 slots', '42 slots'],
     effect: [
       { inventorySlots: 12 },
-      { inventorySlots: 16 },
-      { inventorySlots: 20 },
+      { inventorySlots: 18 },
       { inventorySlots: 24 },
-      { inventorySlots: 28 },
+      { inventorySlots: 30 },
+      { inventorySlots: 36 },
+      { inventorySlots: 42 },
     ],
     requires: [],
   },

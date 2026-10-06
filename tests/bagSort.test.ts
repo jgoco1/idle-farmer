@@ -10,6 +10,8 @@ import { GAME_DATA } from '../src/data';
 import { seedOf, type ItemId } from '../src/data/ids';
 import type { ItemStack } from '../src/data/types';
 import { countItem, mergeStacks } from '../src/systems/inventory';
+import { syncBagSlots } from '../src/systems/upgrades';
+import { Game } from '../src/core/game';
 import { at, NY } from './helpers';
 
 const T = at(NY, 2026, 1, 7, 12);
@@ -162,5 +164,37 @@ describe('bigger stacks merge', () => {
     expect(mergeStacks(s.inventory)).toBe(true);
     expect(s.inventory.slots.slice(0, 3)).toEqual([st('baked_potato', 7), st('baked_potato', 2, true), null]);
     expect(mergeStacks(s.inventory)).toBe(false);
+  });
+});
+
+describe('the bigger backpack (polish after v4-01)', () => {
+  it('a save made with the old levels gets its new slots on load, keeps every stack, and never shrinks', () => {
+    const s = bag([st('turnip', 5)]);
+    s.upgrades.backpack = 3; // 24 slots when it was bought; 30 now
+    s.inventory.slots = s.inventory.slots.concat(Array.from({ length: 12 }, () => null));
+    s.inventory.slots[23] = st('egg', 2);
+    const g = new Game(s, { data: GAME_DATA, lc: NY, now: () => T });
+    expect(g.state.inventory.slots).toHaveLength(30);
+    expect(g.state.inventory.slots[0]).toEqual(st('turnip', 5));
+    expect(g.state.inventory.slots[23]).toEqual(st('egg', 2));
+    syncBagSlots(g.state, GAME_DATA);
+    expect(g.state.inventory.slots).toHaveLength(30); // idempotent
+
+    const big = bag([]);
+    big.inventory.slots = Array.from({ length: 50 }, () => null); // more than any level gives: kept
+    syncBagSlots(big, GAME_DATA);
+    expect(big.inventory.slots).toHaveLength(50);
+  });
+
+  it('counts the Summer Crops bundle on top, and a new farm is unchanged', () => {
+    const fresh = createInitialState(T, NY, 1);
+    const n = fresh.inventory.slots.length;
+    syncBagSlots(fresh, GAME_DATA);
+    expect(fresh.inventory.slots).toHaveLength(n);
+    const s = bag([]);
+    s.upgrades.backpack = 5;
+    s.progression.completedBundles = ['summer_crops'];
+    syncBagSlots(s, GAME_DATA);
+    expect(s.inventory.slots).toHaveLength(42 + 4);
   });
 });

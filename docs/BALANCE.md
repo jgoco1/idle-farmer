@@ -225,7 +225,7 @@ cost(n) = roundNice(base * ratio ** n)
 | `hoe` | tools | leveled | 3 | 250 | 4.8 | 250, 1200, 5800 | — |
 | `barn_storage` | storage | leveled | 4 | 1000 | 2.5 | 1000, 2500, 6300, 16000 | FL2 |
 | `greenhouse` | farm | leveled | 2 | 25000 | 2.4 | 25000, 60000 | expansion `farm_3`, FL7, bundle `autumn_harvest` |
-| `backpack` | storage | leveled | 4 | 200 | 2.2 | 200, 440, 970, 2100 | — |
+| `backpack` | storage | leveled | 5 | 200 | 2.2 | 200, 440, 970, 2100, 4700 | — |
 | `fish_trap` | fishing | placeable (at water) | 6 | 500 | 1.5 | 500, 750, 1100, 1700, 2500, 3800 | 2 per unlocked location (+1 each with bundle `pond_fish`) |
 | `fishing_rod` | fishing | leveled | 3 | 300 | 8.0 | 300, 2400, 19000 | — ; L3 needs `ocean` |
 | `trap_collector` | fishing | leveled | 1 | 4000 | 1 | 4000 | `fish_trap` owned ≥ 2 |
@@ -247,7 +247,7 @@ Until phase 07 exists, `bundle` conditions evaluate as **met** (bundles are not 
 | `hoe` | Same areas as the watering can, for tilling and clearing dead crops. |
 | `barn_storage` | Stack size: 99 → 199 → 299 → 499 → 999. |
 | `greenhouse` | L1: 6 greenhouse plots (3 × 2) that ignore seasons and are always watered. L2: 12 plots (4 × 3). |
-| `backpack` | Inventory slots: 12 → 16 → 20 → 24 → 28. |
+| `backpack` | Inventory slots: 12 → 18 → 24 → 30 → 36 → 42 (12 → 16 → 20 → 24 → 28 until the polish after v4-01; saves get the new slots on load). |
 | `fish_trap` | Rolls one catch every 3 minutes of simulated time, holds up to 5 items. Pool: trappable fish in season at its location (any hour) and junk. Buying one sets it out at the next free water spot (pond 1, pond 2, then river 1, 2 and ocean 1, 2 as those open); the player does not choose the spot. Each location's traps float at fixed tiles (`TRAP_TILES` in `src/render/scene.ts`). |
 | `fishing_rod` | Starter "Old Rod" L0: zone ×1.00, luck 0. Bamboo L1: ×1.10, +0.05. Fiberglass L2: ×1.20, +0.15. Iridium L3: ×1.35, +0.30. |
 | `trap_collector` | `autoCollect`: at each shipping-bin pickup (every 60 min) each trap is emptied into the inventory (or the Shipping Bin if auto-sell is on for that item). |
