@@ -527,8 +527,7 @@ export interface RestaurantDef {
    */
   specialRota: readonly RecipeId[];
   sprites: {
-    building: readonly [string, string, string]; // per level
-    lit: readonly [string, string, string]; // the night frames
+    building: readonly [string, string, string]; // per level; frame 1 of each is the lit night look
     table: string;
     tableDish: string;
   };

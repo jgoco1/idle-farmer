@@ -12,6 +12,7 @@ import { MENU_SLOT_CAP, RESTAURANT_MAX_MULT, SERVE_MIN_PER_TIER, SPECIAL_BONUS }
 import { RECIPE_IDS, type RecipeId } from '../src/data/ids';
 import { RESTAURANT } from '../src/data/restaurant';
 import { awayRows } from '../src/ui/awaySummary';
+import { MAX_TABLES, NO_MORE, RestaurantLife, type RestaurantView } from '../src/render/restaurantLife';
 import { addItem, countItem } from '../src/systems/inventory';
 import { msToNextSimEvent, onDayStarted } from '../src/systems';
 import { goalText } from '../src/systems/progression';
@@ -491,5 +492,74 @@ describe('progression', () => {
     s.progression.goals = [goal];
     step(s, ctxFor(s, NOON), 60 * MIN);
     expect(s.progression.goalsDone + (s.progression.goals[0]?.progress ?? 0)).toBeGreaterThan(0);
+  });
+});
+
+describe('diners are render only (src/render/restaurantLife.ts)', () => {
+  const view = (s: GameState): RestaurantView => {
+    const serving = new Uint8Array(MAX_TABLES);
+    s.restaurant.menu.forEach((m, i) => (serving[i] = m.qty > 0 ? 1 : 0));
+    return { level: s.restaurant.level, tables: s.restaurant.menu.length, serving };
+  };
+
+  it('come to the tables that serve, sit, leave when served, and never touch the state or rngState', () => {
+    const s = opened(2);
+    addItem(s.inventory, 'roasted_turnip', 10);
+    act(s, { type: 'stockMenu', slot: 0, item: 'roasted_turnip', qty: 5 });
+    act(s, { type: 'stockMenu', slot: 2, item: 'roasted_turnip', qty: 5 });
+    const before = JSON.stringify(s);
+    const rng = s.rngState;
+    const life = new RestaurantLife();
+    const v = view(s);
+    for (let t = 0; t < 30_000; t += 50) {
+      life.sync(v);
+      life.update(50, false);
+    }
+    expect(life.seatedCount).toBe(2);
+    expect(life.prepare()).toBe(1 + 3 + 2); // the inn, three tables, two diners
+    life.served(0);
+    for (let t = 0; t < 30_000; t += 50) life.update(50, false);
+    expect(life.seatedCount).toBe(2); // one left and the next one sat down
+    // At night everyone dines inside: the terrace empties.
+    for (let t = 0; t < 30_000; t += 50) life.update(50, true);
+    expect(life.dinerCount).toBe(0);
+    expect(JSON.stringify(s)).toBe(before);
+    expect(s.rngState).toBe(rng);
+  });
+
+  it('under reduced motion a diner simply sits at every serving table by day', () => {
+    const s = opened(1);
+    addItem(s.inventory, 'roasted_turnip', 2);
+    act(s, { type: 'stockMenu', slot: 1, item: 'roasted_turnip', qty: 2 });
+    const life = new RestaurantLife(() => true);
+    life.sync(view(s));
+    life.update(16, false);
+    expect(life.seatedCount).toBe(1);
+    expect(life.dinerCount).toBe(1);
+  });
+
+  it('nothing is drawn before the restaurant is built', () => {
+    const life = new RestaurantLife();
+    life.sync({ level: 0, tables: 0, serving: new Uint8Array(MAX_TABLES) });
+    life.update(1000, false);
+    expect(life.prepare()).toBe(0);
+    expect(life.bottomAt(0)).toBe(NO_MORE);
+    expect(life.steamAt({ x: 0, y: 0 })).toBe(false);
+  });
+
+  it('steam rises from the kitchen chimney only while a table serves, and the windows glow per level', () => {
+    const s = opened(3);
+    const life = new RestaurantLife();
+    const pt = { x: 0, y: 0 };
+    life.sync(view(s));
+    expect(life.steamAt(pt)).toBe(false);
+    let windows = 0;
+    while (life.windowOf(windows, pt)) windows++;
+    expect(windows).toBe(6);
+    addItem(s.inventory, 'roasted_turnip', 1);
+    act(s, { type: 'stockMenu', slot: 3, item: 'roasted_turnip', qty: 1 });
+    life.sync(view(s));
+    expect(life.steamAt(pt)).toBe(true);
+    expect(pt.y).toBeLessThan(RestaurantLife.innRect.y + 8);
   });
 });

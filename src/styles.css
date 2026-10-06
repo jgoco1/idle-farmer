@@ -2003,3 +2003,46 @@ body.tutorial-on .toasts {
   border: 1px solid var(--c-outline);
   pointer-events: none;
 }
+
+/* ---------- the restaurant (v4 phase 02) */
+.restaurant .crate-row {
+  grid-template-columns: 48px 1fr;
+}
+.restaurant .restaurant-table,
+.restaurant .restaurant-bag .crate-row {
+  grid-template-columns: 32px 1fr;
+}
+.restaurant-icon {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  object-position: center bottom;
+}
+.restaurant h3 {
+  margin: 10px 0 4px;
+}
+.restaurant-menu-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.restaurant-status,
+.restaurant-today {
+  color: var(--c-wood_dark);
+}
+.restaurant-specials {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 13px;
+}
+.restaurant-specials .is-today {
+  font-weight: bold;
+}
+.restaurant-specials .is-unknown {
+  opacity: 0.6;
+}

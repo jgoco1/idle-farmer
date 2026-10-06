@@ -76,6 +76,7 @@ import {
   type Viewport,
 } from './camera';
 import { RanchLife, type RanchView } from './ranchLife';
+import { RestaurantLife, type RestaurantView } from './restaurantLife';
 import {
   clearInspected,
   INSPECT_ANIMAL,
@@ -173,6 +174,8 @@ export interface SceneView {
   trees: readonly TreeState[];
   /** The coop, barn and silo and the animals in the Old Paddock (v2 phase 04). */
   ranch: RanchView;
+  /** The restaurant's level and which tables serve (v4 phase 02). */
+  restaurant: RestaurantView;
   /** The cosmetic rewards of finished town projects. */
   cosmetics: { bakerySmoke: boolean; band: boolean; lighthouseBeam: boolean; festival: boolean };
   /** Sprite of the farm cat napping by the door (`CatDef.sprite` of the chosen cat). */
@@ -225,6 +228,7 @@ function rowsKey(placed: readonly PlacedObject[]): number {
 const FX_RISE_PX = 10;
 /** The halo of a lit coop or barn window (one object, never rebuilt per frame). */
 const WINDOW_GLOW: GlowPoint = { dx: 0, dy: 0, large: false };
+const LANTERN_GLOW: GlowPoint = { dx: 0, dy: 0, large: false };
 
 function context2d(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   const ctx = canvas.getContext('2d');
@@ -326,6 +330,10 @@ export class Renderer {
   /** The Old Paddock's buildings, troughs and wandering animals (render only; v2 phase 04). */
   readonly ranch = new RanchLife(() => this.reducedMotion());
   private readonly ranchPt = { x: 0, y: 0 };
+  /** The inn, its tables and diners (v4-02): render only, like the ranch. */
+  readonly restaurant = new RestaurantLife(() => this.reducedMotion());
+  private restaurantSteamClock = 0;
+  private lookRestaurant = 0;
   private shakeUntil = 0;
   private steamClock = 0;
   private lastTime = 0;
@@ -911,7 +919,7 @@ export class Renderer {
     look: SceneLook = DEFAULT_LOOK,
   ): void {
     // Called every frame: compare without building the key string unless something may have changed.
-    let lookSame = look.farmhouse === this.lookFarmhouse;
+    let lookSame = look.farmhouse === this.lookFarmhouse && (look.restaurant ?? 0) === this.lookRestaurant;
     for (let i = 0; lookSame && i < TOWN_PROJECT_IDS.length; i++)
       lookSame = (look.stages[TOWN_PROJECT_IDS[i]!] ?? 0) === this.lookStages[i];
     if (
@@ -925,10 +933,11 @@ export class Renderer {
     this.sceneExpansions = expansions.length;
     this.sceneParcels = parcels.length;
     this.lookFarmhouse = look.farmhouse;
+    this.lookRestaurant = look.restaurant ?? 0;
     for (let i = 0; i < TOWN_PROJECT_IDS.length; i++)
       this.lookStages[i] = look.stages[TOWN_PROJECT_IDS[i]!] ?? 0;
-    this.look = { farmhouse: look.farmhouse, stages: { ...look.stages } };
-    const key = `${grid.cols}x${grid.rows}|${expansions.join(',')}|${parcels.join(',')}|${look.farmhouse}|${this.lookStages.join('')}`;
+    this.look = { farmhouse: look.farmhouse, stages: { ...look.stages }, restaurant: this.lookRestaurant };
+    const key = `${grid.cols}x${grid.rows}|${expansions.join(',')}|${parcels.join(',')}|${look.farmhouse}|${this.lookStages.join('')}|${this.lookRestaurant}`;
     if (key === this.sceneKey) return;
     this.sceneKey = key;
     const resized = grid.cols !== this.grid.cols || grid.rows !== this.grid.rows;
@@ -1008,7 +1017,17 @@ export class Renderer {
     this.ambient.update(dtMs, aclock);
     this.ranch.sync(view.ranch);
     this.ranch.update(dtMs, calendar.isNight);
+    this.restaurant.sync(view.restaurant);
+    this.restaurant.update(dtMs, calendar.isNight);
     this.particles.update(dtMs);
+    if (!this.reducedMotion() && this.restaurant.steamAt(this.ranchPt)) {
+      // Steam from the kitchen chimney while anything is on the menu (v4-02).
+      this.restaurantSteamClock += dtMs;
+      if (this.restaurantSteamClock > 420) {
+        this.restaurantSteamClock = 0;
+        this.particles.emit('steam', this.ranchPt.x, this.ranchPt.y);
+      }
+    }
     if (view.cooking && !this.reducedMotion()) {
       this.steamClock += dtMs;
       if (this.steamClock > 380) {
@@ -1079,11 +1098,15 @@ export class Renderer {
     let di = 0;
     let ri = 0;
     const ranchN = this.ranch.prepare();
+    let qi = 0;
+    const innN = this.restaurant.prepare();
     for (let i = 0; i < objects.length; i++) {
       const o = objects[i]!;
       const bottom = o.y + o.h;
       while (ri < ranchN && this.ranch.bottomAt(ri) < bottom * 2)
         this.ranch.draw(f, ri++, timeMs, vis, winter, lit);
+      while (qi < innN && this.restaurant.bottomAt(qi) < bottom * 2)
+        this.restaurant.draw(f, qi++, timeMs, vis, winter, lit);
       while (di < decor.length && decor[di]!.bottom < bottom)
         this.drawDecor(decor[di++]!, season, winter, lit, vis, timeMs);
       while (ti < SPOT_ORDER.length && (WORLD_LAYOUT.treeSpots[SPOT_ORDER[ti]!]!.row + 2) * TILE < bottom)
@@ -1096,6 +1119,7 @@ export class Renderer {
     while (ti < SPOT_ORDER.length)
       this.drawTree(this.spotTree[SPOT_ORDER[ti++]!], season, calendar.dayIndex, vis);
     while (ri < ranchN) this.ranch.draw(f, ri++, timeMs, vis, winter, lit);
+    while (qi < innN) this.restaurant.draw(f, qi++, timeMs, vis, winter, lit);
     this.objectsDrawn = drawn;
     this.drawTownLife(view, calendar, timeMs, vis, dtMs);
     if (view.cooking)
@@ -1255,7 +1279,17 @@ export class Renderer {
         if (!overlaps(vis, this.ranchPt.x - 16, this.ranchPt.y - 16, 32, 32)) continue;
         this.halo(this.ranchPt.x, this.ranchPt.y, WINDOW_GLOW);
       }
+      // The inn's windows (small halos) and the lantern by its door (a large one), v4-02.
+      for (let w = 0; this.restaurant.windowOf(w, this.ranchPt); w++) {
+        if (overlaps(vis, this.ranchPt.x - 16, this.ranchPt.y - 16, 32, 32))
+          this.halo(this.ranchPt.x, this.ranchPt.y, WINDOW_GLOW);
+      }
       f.globalAlpha = strength * 0.8 * flicker;
+      if (
+        this.restaurant.lanternAt(this.ranchPt) &&
+        overlaps(vis, this.ranchPt.x - 24, this.ranchPt.y - 24, 48, 48)
+      )
+        this.halo(this.ranchPt.x, this.ranchPt.y, LANTERN_GLOW);
     }
     for (let i = 0; i < TOWN_PROJECT_IDS.length; i++) {
       const id = TOWN_PROJECT_IDS[i]!;

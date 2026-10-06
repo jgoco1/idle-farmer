@@ -55,7 +55,6 @@ export const RESTAURANT: RestaurantDef = Object.freeze({
   specialRota: SPECIAL_ROTA,
   sprites: {
     building: ['obj_restaurant_1', 'obj_restaurant_2', 'obj_restaurant_3'],
-    lit: ['obj_restaurant_1_lit', 'obj_restaurant_2_lit', 'obj_restaurant_3_lit'],
     table: 'obj_table',
     tableDish: 'obj_table_dish',
   },

@@ -18,6 +18,7 @@ export function bindAudioEvents(bus: EventBus, sfx: Sfx, quiet: () => boolean): 
   on('harvested', (e) => e.auto || sfx.play('harvest'));
   on('sold', (e) => e.via === 'market' && sfx.play('coin', { amount: e.gold }));
   on('binCollected', (e) => sfx.play('coin', { amount: e.gold }));
+  on('served', (e) => sfx.play('coin', { amount: e.gold })); // the restaurant's takings (v4-02)
   on('purchased', () => sfx.play('purchase'));
   on('bite', () => sfx.play('bite'));
   on('escaped', () => sfx.play('escape'));

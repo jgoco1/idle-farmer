@@ -91,6 +91,9 @@ import { buildSceneControls } from './ui/sceneControls';
 import { PlantMode } from './ui/plantMode';
 import { ripeTrees } from './systems/orchard';
 import { ranchPanel } from './ui/ranchPanel';
+import { restaurantPanel } from './ui/restaurantPanel';
+import { MAX_TABLES } from './render/restaurantLife';
+import { restaurantBuilt } from './systems/restaurant';
 import { BuildMode } from './ui/buildMode';
 import { buildingById, ranchOpen, storeCount, storeIsFull, troughIsEmpty, troughSize } from './systems/ranch';
 import { BUILDINGS } from './data/animals';
@@ -316,6 +319,7 @@ panels.register(
     },
   }),
 );
+panels.register(restaurantPanel({ ...view, dispatch }));
 panels.register(
   upgradesPanel({
     ...view,
@@ -635,6 +639,45 @@ game.bus.on('troughEmpty', (e) => {
   const at = buildingTile(e.building);
   toastAt(
     e.animal === 'cow' ? 'The cows would love some hay.' : 'The hens would love some feed.',
+    'info',
+    at.col,
+    at.row,
+  );
+});
+
+// ---- the restaurant (v4 phase 02): toasts for building it and for a table that has served everything
+const restaurantTile = (): { col: number; row: number } => {
+  const site = WORLD_LAYOUT.restaurantSite;
+  return { col: site.col + 2, row: site.row + 2 };
+};
+game.bus.on('restaurantBuilt', () => {
+  if (quiet()) return;
+  const at = restaurantTile();
+  toasts.show(`${GAME_DATA.restaurant.name} is open! Put some dishes on the menu.`, 'good');
+  for (let i = 0; i < 8; i++)
+    renderer.particles.emit('leaf', (at.col - 2 + (i % 5) + 0.5) * PX, (at.row + 1.5) * PX, 1);
+});
+game.bus.on('restaurantUpgraded', (e) => {
+  if (quiet()) return;
+  const at = restaurantTile();
+  toasts.show(
+    `${GAME_DATA.restaurant.name} is bigger now (level ${e.level}): another table on the terrace.`,
+    'good',
+  );
+  renderer.particles.emit('sparkle', (at.col + 0.5) * PX, at.row * PX, 1);
+});
+game.bus.on('served', (e) => {
+  if (quiet()) return;
+  const site = WORLD_LAYOUT.restaurantSite;
+  renderer.restaurant.served(e.slot);
+  if (renderer.isTileVisible(site.col + e.slot, site.row + site.rows - 1))
+    renderer.addTileFx(site.col + e.slot, site.row + site.rows - 1, 'ui_gold', performance.now());
+});
+game.bus.on('menuEmpty', (e) => {
+  if (catchingUp()) return;
+  const at = restaurantTile();
+  toastAt(
+    `Table ${e.slot + 1} has served all its ${GAME_DATA.items[e.item]?.name.toLowerCase() ?? 'dishes'}.`,
     'info',
     at.col,
     at.row,
@@ -1021,9 +1064,10 @@ function syncPlacement(): void {
 
 // ---- scene
 /** What the town and the farmhouse look like, reused every frame (the renderer compares it without allocating). */
-const look: { farmhouse: string; stages: Record<string, number> } = {
+const look: { farmhouse: string; stages: Record<string, number>; restaurant: number } = {
   farmhouse: 'obj_farmhouse',
   stages: {},
+  restaurant: 0,
 };
 let lookPaint: string | null = null;
 let lookRoof: string | null = null;
@@ -1041,6 +1085,7 @@ function updateLook(): SceneLook {
     const id = TOWN_PROJECT_IDS[i]!;
     look.stages[id] = s.town.projects[id]?.stagesDone ?? 0;
   }
+  look.restaurant = s.restaurant.level;
   return look as SceneLook;
 }
 const renderer = new Renderer({
@@ -1095,6 +1140,8 @@ const renderer = new Renderer({
         return openWater('ocean');
       case 'board':
         return panels.open('goals');
+      case 'restaurant':
+        return panels.open('restaurant');
     }
   },
   onPlotClick({ plot, shiftKey }) {
@@ -1185,6 +1232,11 @@ function updatePips(): void {
     if (!GAME_DATA.buildings[b.kind].houses) continue;
     if (storeIsFull(GAME_DATA, b)) pipTargets.push({ kind: 'store', col: b.at.col, row: b.at.row });
     if (troughIsEmpty(s, b)) pipTargets.push({ kind: 'trough', col: b.at.col, row: b.at.row });
+  }
+  // The restaurant (v4-02): a table that has served everything it held.
+  if (s.restaurant.menu.some((m) => m.item !== null && m.qty === 0)) {
+    const site = WORLD_LAYOUT.restaurantSite;
+    pipTargets.push({ kind: 'menu', col: site.col + 2, row: site.row + 2 });
   }
   pips.update(pipTargets);
 }
@@ -1289,6 +1341,7 @@ const view$: SceneView = {
   decor: [],
   trees: [],
   ranch: { buildings: [], animals: [], troughLevel: [] },
+  restaurant: { level: 0, tables: 0, serving: new Uint8Array(MAX_TABLES) },
   cosmetics: { bakerySmoke: false, band: false, lighthouseBeam: false, festival: false },
   cat: GAME_DATA.cats.cat_tabby.sprite,
 };
@@ -1344,6 +1397,10 @@ function sceneView(): SceneView {
   view$.ranch.buildings = s.ranch.buildings;
   view$.ranch.animals = s.ranch.animals;
   view$.ranch.troughLevel = troughLevels;
+  const inn = view$.restaurant;
+  inn.level = s.restaurant.level;
+  inn.tables = Math.min(MAX_TABLES, s.restaurant.menu.length);
+  for (let i = 0; i < inn.tables; i++) inn.serving[i] = s.restaurant.menu[i]!.qty > 0 ? 1 : 0;
   view$.placed = s.placed;
   view$.farmhand = (s.upgrades.farmhand ?? 0) > 0;
   trapsView.length = s.fishing.traps.length;
@@ -1408,6 +1465,7 @@ const loop = startLoop(game, {
     hud.update(game.state, cal);
     tools.update();
     toolbar.setVisible('ranch', ranchOpen(game.state));
+    toolbar.setVisible('restaurant', restaurantBuilt(game.state));
     if (panelsDirty) {
       panelsDirty = false;
       panels.refreshOpen();
@@ -1538,6 +1596,10 @@ function exposeHooks(): void {
     /** What a touch tap is inspecting, and whether a paint stroke is under way (v2-05, e2e). */
     inspected: () => ({ ...renderer.inspected }),
     painting: () => renderer.isPainting,
+    /** Diners at the restaurant (v4-02, e2e): on the terrace or on their way, and seated. */
+    diners: () => ({ count: renderer.restaurant.dinerCount, seated: renderer.restaurant.seatedCount }),
+    /** Time passes away from the game (e2e: the offline catch-up and its away summary, like returning to the tab). */
+    awayFor: (ms: number) => onResume(game.debugFakeOffline(ms)),
     /** World px → client point (e2e: tap an animal where it stands now). */
     worldClient: (x: number, y: number) => renderer.worldToClient(x, y),
   };
