@@ -94,6 +94,19 @@ import { ranchPanel } from './ui/ranchPanel';
 import { restaurantPanel } from './ui/restaurantPanel';
 import { MAX_TABLES } from './render/restaurantLife';
 import { restaurantBuilt } from './systems/restaurant';
+import { pressPanel } from './ui/pressPanel';
+import {
+  HIVE_FULL,
+  HIVE_NONE,
+  HIVE_PLAIN,
+  MAX_HIVES,
+  MAX_PRESSES,
+  PRESS_BUSY,
+  PRESS_DONE,
+  PRESS_IDLE,
+} from './render/pressLife';
+import { pressBuilt } from './systems/press';
+import { hiveOnSpot } from './systems/apiary';
 import { BuildMode } from './ui/buildMode';
 import { buildingById, ranchOpen, storeCount, storeIsFull, troughIsEmpty, troughSize } from './systems/ranch';
 import { BUILDINGS } from './data/animals';
@@ -320,6 +333,17 @@ panels.register(
   }),
 );
 panels.register(restaurantPanel({ ...view, dispatch }));
+panels.register(
+  pressPanel({
+    ...view,
+    dispatch,
+    sort: { get: () => prefs.value.kitchenSort, set: (mode) => prefs.set('kitchenSort', mode) },
+    favourites: {
+      get: () => prefs.value.kitchenFavourites,
+      set: (list) => prefs.set('kitchenFavourites', list),
+    },
+  }),
+);
 panels.register(
   upgradesPanel({
     ...view,
@@ -684,6 +708,48 @@ game.bus.on('menuEmpty', (e) => {
   );
 });
 
+// ---- the Press House and the apiary (v4 phase 03): toasts for building, a press that rests, a new hive
+const pressTile = (): { col: number; row: number } => {
+  const site = WORLD_LAYOUT.pressSite;
+  return { col: site.col + 2, row: site.row + 2 };
+};
+game.bus.on('pressBuilt', () => {
+  if (quiet()) return;
+  const at = pressTile();
+  toasts.show(
+    `The ${GAME_DATA.press.name} is built! Start a drink in a press, and buy a hive or two.`,
+    'good',
+  );
+  for (let i = 0; i < 8; i++)
+    renderer.particles.emit('leaf', (at.col - 2 + (i % 4) + 0.5) * PX, (at.row + 1.5) * PX, 1);
+});
+game.bus.on('pressUpgraded', (e) => {
+  if (quiet()) return;
+  const at = pressTile();
+  toasts.show(
+    `The ${GAME_DATA.press.name} is bigger now (level ${e.level}): another press in the yard.`,
+    'good',
+  );
+  renderer.particles.emit('sparkle', (at.col + 0.5) * PX, at.row * PX, 1);
+});
+game.bus.on('hiveBought', (e) => {
+  if (quiet()) return;
+  const spot = WORLD_LAYOUT.hiveSpots[e.spot]!;
+  renderer.particles.emit('sparkle', (spot.col + 0.5) * PX, spot.row * PX, 1);
+});
+game.bus.on('pressStopped', (e) => {
+  if (catchingUp()) return;
+  const at = pressTile();
+  toastAt(
+    e.reason === 'full'
+      ? `Press ${e.slot + 1} is full of ${GAME_DATA.recipes[e.recipe].name}. Collect it to keep pressing.`
+      : `Press ${e.slot + 1} is resting: the bag is out of ingredients for ${GAME_DATA.recipes[e.recipe].name}.`,
+    'info',
+    at.col,
+    at.row,
+  );
+});
+
 // ---- first-time tutorial: plots → seeds → water → harvest → sell → shop, then the milestones take over
 const tutorial = new TutorialFlow();
 const tutorialRects = {
@@ -727,7 +793,10 @@ function maybeStartTutorial(): void {
 
 game.bus.on('notify', (e) => toasts.show(e.text, e.tone));
 game.bus.on('recipeLearned', (e) => {
-  toasts.show(`New recipe: ${GAME_DATA.recipes[e.recipe].name}! Find it in the Kitchen.`, 'good');
+  // The two starter drinks come with the Press House, whose own toast says so (v4-03).
+  if (e.how === 'press') return;
+  const where = GAME_DATA.recipes[e.recipe].station === 'press' ? 'the Press House' : 'the Kitchen';
+  toasts.show(`New recipe: ${GAME_DATA.recipes[e.recipe].name}! Find it in ${where}.`, 'good');
 });
 game.bus.on('cooked', (e) => {
   const name = GAME_DATA.recipes[e.recipe].name;
@@ -1064,10 +1133,11 @@ function syncPlacement(): void {
 
 // ---- scene
 /** What the town and the farmhouse look like, reused every frame (the renderer compares it without allocating). */
-const look: { farmhouse: string; stages: Record<string, number>; restaurant: number } = {
+const look: { farmhouse: string; stages: Record<string, number>; restaurant: number; press: number } = {
   farmhouse: 'obj_farmhouse',
   stages: {},
   restaurant: 0,
+  press: 0,
 };
 let lookPaint: string | null = null;
 let lookRoof: string | null = null;
@@ -1086,6 +1156,7 @@ function updateLook(): SceneLook {
     look.stages[id] = s.town.projects[id]?.stagesDone ?? 0;
   }
   look.restaurant = s.restaurant.level;
+  look.press = s.press.level;
   return look as SceneLook;
 }
 const renderer = new Renderer({
@@ -1142,6 +1213,30 @@ const renderer = new Renderer({
         return panels.open('goals');
       case 'restaurant':
         return panels.open('restaurant');
+      case 'press': {
+        // A press in the yard with finished drinks: collect them; anywhere else, the panel (v4-03).
+        const site = WORLD_LAYOUT.pressSite;
+        const slot = col - site.col;
+        const p = row === site.row + site.rows - 1 ? game.state.press.slots[slot] : undefined;
+        if (p && p.done > 0) {
+          const r = game.dispatch({ type: 'collectPress', slot });
+          if (!r.ok) toasts.show(r.reason, 'warn');
+          return;
+        }
+        return panels.open('press');
+      }
+      case 'apiary': {
+        // A hive with honey: collect it; an empty spot or an empty hive opens the Apiary card.
+        const spot = WORLD_LAYOUT.hiveSpots.findIndex((t) => t.col === col && t.row === row);
+        const hive = spot >= 0 ? hiveOnSpot(game.state, spot) : undefined;
+        if (hive && hive.honey > 0) {
+          const r = game.dispatch({ type: 'collectHive', hive: hive.id });
+          if (!r.ok) toasts.show(r.reason, 'warn');
+          return;
+        }
+        panels.open('press');
+        return;
+      }
     }
   },
   onPlotClick({ plot, shiftKey }) {
@@ -1237,6 +1332,16 @@ function updatePips(): void {
   if (s.restaurant.menu.some((m) => m.item !== null && m.qty === 0)) {
     const site = WORLD_LAYOUT.restaurantSite;
     pipTargets.push({ kind: 'menu', col: site.col + 2, row: site.row + 2 });
+  }
+  // The Press House and the apiary (v4-03): finished drinks waiting, and a full hive.
+  if (s.press.slots.some((p) => p.done > 0)) {
+    const site = WORLD_LAYOUT.pressSite;
+    pipTargets.push({ kind: 'drink', col: site.col + 1, row: site.row + site.rows - 1 });
+  }
+  for (const hv of s.apiary.hives) {
+    if (hv.honey < GAME_DATA.hive.store) continue;
+    const spot = WORLD_LAYOUT.hiveSpots[hv.spot]!;
+    pipTargets.push({ kind: 'hive', col: spot.col, row: spot.row });
   }
   pips.update(pipTargets);
 }
@@ -1342,6 +1447,7 @@ const view$: SceneView = {
   trees: [],
   ranch: { buildings: [], animals: [], troughLevel: [] },
   restaurant: { level: 0, tables: 0, serving: new Uint8Array(MAX_TABLES) },
+  press: { level: 0, presses: 0, slot: new Uint8Array(MAX_PRESSES), hive: new Uint8Array(MAX_HIVES) },
   cosmetics: { bakerySmoke: false, band: false, lighthouseBeam: false, festival: false },
   cat: GAME_DATA.cats.cat_tabby.sprite,
 };
@@ -1401,6 +1507,18 @@ function sceneView(): SceneView {
   inn.level = s.restaurant.level;
   inn.tables = Math.min(MAX_TABLES, s.restaurant.menu.length);
   for (let i = 0; i < inn.tables; i++) inn.serving[i] = s.restaurant.menu[i]!.qty > 0 ? 1 : 0;
+  const yard = view$.press;
+  yard.level = s.press.level;
+  yard.presses = Math.min(MAX_PRESSES, s.press.slots.length);
+  for (let i = 0; i < yard.presses; i++) {
+    const p = s.press.slots[i]!;
+    yard.slot[i] = p.remainingMs > 0 ? PRESS_BUSY : p.done > 0 ? PRESS_DONE : PRESS_IDLE;
+  }
+  yard.hive.fill(HIVE_NONE);
+  for (let i = 0; i < s.apiary.hives.length; i++) {
+    const hv = s.apiary.hives[i]!;
+    yard.hive[hv.spot] = hv.honey >= GAME_DATA.hive.store ? HIVE_FULL : HIVE_PLAIN;
+  }
   view$.placed = s.placed;
   view$.farmhand = (s.upgrades.farmhand ?? 0) > 0;
   trapsView.length = s.fishing.traps.length;
@@ -1466,6 +1584,7 @@ const loop = startLoop(game, {
     tools.update();
     toolbar.setVisible('ranch', ranchOpen(game.state));
     toolbar.setVisible('restaurant', restaurantBuilt(game.state));
+    toolbar.setVisible('press', pressBuilt(game.state));
     if (panelsDirty) {
       panelsDirty = false;
       panels.refreshOpen();

@@ -52,6 +52,20 @@ import { goalText } from '../src/systems/progression';
 import { isUnlocked } from '../src/systems/unlocks';
 import { menuSlots, serveIntervalMs } from '../src/systems/restaurant';
 import { awayRows } from '../src/ui/awaySummary';
+import {
+  HIVE_FULL,
+  HIVE_NONE,
+  HIVE_PLAIN,
+  MAX_HIVES,
+  MAX_PRESSES,
+  PRESS_BUSY,
+  PRESS_DONE,
+  PRESS_IDLE,
+  PRESS_NO_MORE,
+  PressLife,
+  type PressView,
+} from '../src/render/pressLife';
+import { buildLayout, buildZones, DEFAULT_LOOK, zoneAt, type SceneLook } from '../src/render/scene';
 import { at, HOUR, NY, setFarmLevel } from './helpers';
 
 // Wednesday 7 January 2026, 10:00 (winter in the game's calendar does not matter here).
@@ -643,5 +657,59 @@ describe('progression', () => {
     const cond = [{ kind: 'knownRecipes' as const, count: dishes + 1, minTier: 1 as const }];
     expect(isUnlocked(s, cond, GAME_DATA)).toBe(false);
     expect(pressMs(RECIPES.orchard_punch)).toBe(3 * HOUR);
+  });
+});
+
+describe('the yard and the hives on the map (render only)', () => {
+  const view = (s: GameState): PressView => {
+    const slot = new Uint8Array(MAX_PRESSES);
+    s.press.slots.forEach(
+      (p, i) => (slot[i] = p.remainingMs > 0 ? PRESS_BUSY : p.done > 0 ? PRESS_DONE : PRESS_IDLE),
+    );
+    const hive = new Uint8Array(MAX_HIVES).fill(HIVE_NONE);
+    for (const hv of s.apiary.hives) hive[hv.spot] = hv.honey >= HIVE_STORE ? HIVE_FULL : HIVE_PLAIN;
+    return { level: s.press.level, presses: s.press.slots.length, slot, hive };
+  };
+
+  it('draws the house, a press per slot and each hive, with bees by day only, never touching the state', () => {
+    const s = built(2);
+    act(s, { type: 'buyHive' });
+    act(s, { type: 'buyHive' });
+    const before = JSON.stringify(s);
+    const life = new PressLife();
+    life.sync(view(s));
+    life.update(false);
+    expect(life.prepare()).toBe(1 + 3 + 2);
+    expect(life.beesShown(false)).toBe(6);
+    expect(life.beesShown(true)).toBe(0); // winter: snow caps, no bees
+    life.update(true);
+    expect(life.beesShown(false)).toBe(0); // night
+    expect(new PressLife(() => true).beesShown(false)).toBe(0);
+    const pt = { x: 0, y: 0 };
+    expect(life.windowOf(0, pt)).toBe(true);
+    expect(pt.y).toBeGreaterThan(PressLife.houseRect.y);
+    expect(JSON.stringify(s)).toBe(before);
+  });
+
+  it('nothing but hives is drawn before the Press House is built', () => {
+    const life = new PressLife();
+    const hive = new Uint8Array(MAX_HIVES);
+    life.sync({ level: 0, presses: 0, slot: new Uint8Array(MAX_PRESSES), hive });
+    expect(life.prepare()).toBe(0);
+    expect(life.bottomAt(0)).toBe(PRESS_NO_MORE);
+  });
+
+  it('the lot sign gives way to the yard once built, and the site and hive spots are zones', () => {
+    const grid = GAME_DATA.startGrid;
+    const site = WORLD_LAYOUT.pressSite;
+    const signAt = (look: SceneLook): boolean =>
+      buildLayout(grid, [], [], look).objects.some(
+        (o) => o.sprite === 'obj_lot_sign' && o.x >= site.col * 16 && o.x < (site.col + site.cols) * 16,
+      );
+    expect(signAt({ ...DEFAULT_LOOK })).toBe(true);
+    expect(signAt({ ...DEFAULT_LOOK, press: 1 })).toBe(false);
+    const zones = buildZones(grid);
+    expect(zoneAt(zones, site.col + 1, site.row + 1)?.id).toBe('press');
+    for (const t of WORLD_LAYOUT.hiveSpots) expect(zoneAt(zones, t.col, t.row)?.id).toBe('apiary');
   });
 });

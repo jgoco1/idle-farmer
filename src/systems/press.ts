@@ -83,6 +83,14 @@ export function maxPressBatch(state: GameState, recipe: RecipeDef): number {
   return Math.max(0, n);
 }
 
+/** The slot a new run of `id` goes in: one already holding that drink (with room) first, else the first free one; -1 if none. */
+export function pressSlotFor(state: GameState, id: RecipeId): number {
+  const slots = state.press.slots;
+  for (let i = 0; i < slots.length; i++) if (slots[i]!.done > 0 && canTake(slots[i]!, id)) return i;
+  for (let i = 0; i < slots.length; i++) if (canTake(slots[i]!, id)) return i;
+  return -1;
+}
+
 /** Whether slot `s` can start a run of `id`: idle, and empty or already holding that drink with room. */
 function canTake(s: PressSlot, id: RecipeId): boolean {
   return s.remainingMs === 0 && (s.done === 0 || (s.recipe === id && s.done < PRESS_SLOT_STORE));

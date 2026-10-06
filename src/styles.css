@@ -2046,3 +2046,29 @@ body.tutorial-on .toasts {
 .restaurant-specials .is-unknown {
   opacity: 0.6;
 }
+
+/* ---------- the Press House and the apiary (v4 phase 03) */
+.press .crate-row {
+  grid-template-columns: 32px 1fr;
+}
+.press .press-card {
+  grid-template-columns: 48px 1fr;
+}
+.press-icon {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  object-position: center bottom;
+}
+.press h3 {
+  margin: 10px 0 4px;
+}
+.press-slot .btn-row {
+  align-items: center;
+}
+.press-keep {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}

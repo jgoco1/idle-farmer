@@ -3,7 +3,6 @@
 // plus the Market and Upgrades panels in marketPanel.ts and upgradesPanel.ts).
 
 import type { GameState } from '../core/state';
-import type { DishId } from '../data/ids';
 import { capitalize, seasonOfWeek, type Calendar } from '../core/time';
 import type { GameData } from '../data';
 import { SHOP_BUY_AMOUNTS } from '../data/balance';
@@ -390,12 +389,16 @@ export function inventoryPanel(hooks: InventoryHooks): PanelDef {
             type: 'button',
             class: 'btn btn-small btn-primary',
             'data-eat': def.id,
-            text: 'Eat',
-            'aria-label': `Eat ${def.name}`,
+            text: def.category === 'drink' ? 'Drink' : 'Eat',
+            'aria-label': `${def.category === 'drink' ? 'Drink' : 'Eat'} ${def.name}`,
           });
           eat.addEventListener('click', () => {
-            eatWithConfirm(hooks, def.id as DishId, hearty, (r) => {
-              eatMsg.textContent = r ? (r.ok ? `You ate the ${def.name}. Delicious!` : r.reason) : '';
+            eatWithConfirm(hooks, def.id as RecipeId, hearty, (r) => {
+              const done =
+                def.category === 'drink'
+                  ? `You drank the ${def.name}. Refreshing!`
+                  : `You ate the ${def.name}. Delicious!`;
+              eatMsg.textContent = r ? (r.ok ? done : r.reason) : '';
               eatMsg.className = r && !r.ok ? 'form-msg form-error' : 'form-msg form-ok';
             });
           });

@@ -15,6 +15,8 @@ const ICON: Record<PipKind, string> = {
   store: 'item_egg',
   trough: 'obj_trough_empty',
   menu: 'obj_table',
+  drink: 'item_apple_cider',
+  hive: 'item_honey',
 };
 const LABEL: Record<PipKind, string> = {
   crop: 'Ready crops',
@@ -24,6 +26,8 @@ const LABEL: Record<PipKind, string> = {
   store: 'A full egg or milk store',
   trough: 'The animals would love some feed',
   menu: 'A restaurant table waiting for dishes',
+  drink: 'Drinks ready at the Press House',
+  hive: 'A hive full of honey',
 };
 const ROTATE = { right: 0, bottom: 90, left: 180, top: 270 } as const;
 
