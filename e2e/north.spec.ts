@@ -69,18 +69,23 @@ test('scroll north, buy the North Fields from its sign, farm a north plot and wa
   await readyForTheNorth(page);
   await setLocalTime(page, 11);
 
-  // Scroll north with the mouse: the view travels up past row 0 and stops at the tree line.
+  // Scroll north with the mouse: the view travels up past row 0 and stops at the tree line. Buying the
+  // paddock glides the camera there, so wait for it to settle (tilePoint does) before measuring, and drag
+  // from the middle of the window, clear of the HUD. On a slow runner the glide can still land after a
+  // drag, so the drags repeat until the view is north.
+  await tilePoint(page, 10, 4);
   const start = await camera(page);
-  const mid = await tilePoint(page, 10, 4);
-  for (let i = 0; i < 3; i++) {
-    await page.mouse.move(mid.x, mid.y - 200);
-    await page.mouse.down();
-    await page.mouse.move(mid.x, mid.y + 250, { steps: 8 });
-    await page.mouse.up();
-  }
-  const north = await camera(page);
-  expect(north.y).toBeLessThan(start.y - 100);
-  expect(north.y).toBeLessThan(0); // the view is centred above row 0
+  await expect(async () => {
+    for (let i = 0; i < 3; i++) {
+      await page.mouse.move(640, 260);
+      await page.mouse.down();
+      await page.mouse.move(640, 640, { steps: 8 });
+      await page.mouse.up();
+    }
+    const north = await camera(page);
+    expect(north.y).toBeLessThan(start.y - 100);
+    expect(north.y).toBeLessThan(0); // the view is centred above row 0
+  }).toPass({ timeout: 10_000 });
   expect(await page.evaluate(() => (window as unknown as Win).__view.tileClient(18, -6).visible)).toBe(true);
 
   // The North Fields' sign: a dialog with the price, then the field is ours with its 32 untilled plots.
