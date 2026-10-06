@@ -1588,8 +1588,8 @@ The **Press House bundle** (§14.6) adds a fifth slot (the terrace has five tabl
 **Serving** (per slot, exact for any step size; no RNG):
 
 ```ts
-SERVE_MIN_PER_TIER   = 20                         // minutes of simulated time per serving, × the item's tier
-interval(item)       = SERVE_MIN_PER_TIER * 60_000 * tier(item)   // T1 20 min · T2 40 · T3 60 · T4 80
+SERVE_MIN_PER_TIER   = 15                         // minutes of simulated time per serving, × the item's tier (v4-00: 20; v4-02 tuned, §14.12)
+interval(item)       = SERVE_MIN_PER_TIER * 60_000 * tier(item)   // T1 15 min · T2 30 · T3 45 · T4 60
 // each step, for each slot holding qty > 0 of an item:
 servings  = min(slot.qty, floor((slot.cycleMs + dtMs) / interval))
 slot.cycleMs = (slot.cycleMs + dtMs) - servings * interval;   slot.qty -= servings
@@ -1601,7 +1601,7 @@ RESTAURANT_MAX_MULT = 1.75; SPECIAL_BONUS = 0.15; MENU_SLOT_CAP = 99
 
 Nothing changes the interval mid-step (no modifier reads it), so `msToNextSimEvent` does not need to split at servings; a level upgrade or a restock is an action, which is already a step boundary. The day's special is fixed for the calendar segment the core steps through.
 
-**The special rota.** `SPECIAL_ROTA` is a fixed list of 28 recipe and drink ids (every T2–T4 dish and drink at least once, seasonal ones in their season's weeks); the special on day `d` is `SPECIAL_ROTA[d % 28]`. The panel lists the next seven days. If the player does not know that recipe, there is simply no special for them that day.
+**The special rota.** `SPECIAL_ROTA` is a fixed list of 28 recipe and drink ids (every T2–T4 dish and drink at least once, seasonal ones in their season's weeks); the special on day `d` is the entry for that day's season and weekday, `SPECIAL_ROTA[season(d) × 7 + weekday(d)]` (as built in v4-02: `d % 28` could not keep seasonal dishes in their season, since a save's day 0 is any weekday). The panel lists the next seven days. If the player does not know that recipe, there is simply no special for them that day.
 
 **What it can earn.** Per slot per simulated hour at Level 3 (premium 1.60), with average base prices by tier (T1 125, T2 361, T3 1,079, T4 2,409):
 
@@ -1834,7 +1834,7 @@ The bots still act only through `Game.dispatch`; each phase extends `scripts/sim
 
 ### 14.11 v4 constants
 
-In `src/data/balance.ts`: `FIELD_BASE = { north_fields: 2000, terraces: 3000 }` (v4-01); `SERVE_MIN_PER_TIER = 20`, `RESTAURANT_MAX_MULT = 1.75`, `SPECIAL_BONUS = 0.15`, `MENU_SLOT_CAP = 99` (v4-02); `TIER_PRESS_DIV = 600`, `COCOA_PRICE = 60`, `HIVE_CYCLE_SEC = 3600`, `HIVE_STORE = 10`, `HIVE_BASE_PRICE = 10_000`, `HIVE_PRICE_RATIO = 1.5` (v4-03); `FORAGE_CAP_DAYS = 3`, `FORAGER_BONUS_DAYS = 1` (v4-04). World size constants live in `src/data/world.ts` (§14.2). Content tables (restaurant levels, Press House levels, drinks, the special rota, forage kinds, lake fish) live in their data files.
+In `src/data/balance.ts`: `FIELD_BASE = { north_fields: 2000, terraces: 3000 }` (v4-01); `SERVE_MIN_PER_TIER = 15` (v4-00: 20), `RESTAURANT_MAX_MULT = 1.75`, `SPECIAL_BONUS = 0.15`, `MENU_SLOT_CAP = 99` (v4-02); `TIER_PRESS_DIV = 600`, `COCOA_PRICE = 60`, `HIVE_CYCLE_SEC = 3600`, `HIVE_STORE = 10`, `HIVE_BASE_PRICE = 10_000`, `HIVE_PRICE_RATIO = 1.5` (v4-03); `FORAGE_CAP_DAYS = 3`, `FORAGER_BONUS_DAYS = 1` (v4-04). World size constants live in `src/data/world.ts` (§14.2). Content tables (restaurant levels, Press House levels, drinks, the special rota, forage kinds, lake fish) live in their data files.
 
 ### 14.12 v4 tuning notes
 
@@ -1856,3 +1856,41 @@ In `src/data/balance.ts`: `FIELD_BASE = { north_fields: 2000, terraces: 3000 }` 
 - **No strategy dominates** at day 30 reads **1.37×** (was 1.30×): the Angler buys the fields earliest and ends at 45.7M. Runaway growth: Greedy Farmer day 28 / day 14 **1.46×** (§14.9 allows 1.5×).
 - **Seed Order.** No stall from the order: the Greedy Farmer's north stays planted across absences. `seedTarget` is unchanged (1,000).
 
+
+**v4 phase 02 notes** (`npm run simulate -- --seeds 1,2,3,4,5,6,7,8`, 30 days, medians; the buffs check on its own 24 seeds; **every check passes, 44 of 44**). The full report is §14.13.
+- **`SERVE_MIN_PER_TIER` 20 → 15.** With every lever of the brain in place (below) the Chef's restaurant took 3.2% of its gold (days 14–30) at 20 minutes a tier; at 15 it takes 3.8% and the Chef who sells 5.4%. The restaurant is **supply-limited**, not table-limited: the stove stands idle about 70% of a session for want of ingredients once the Auto-Seller ships every harvest (from about day 8), and the Chef cooks 100–150 dishes a day; a shorter interval still helps because tables that serve faster are restocked during the session and the stove keeps cooking for them. The premium (owner decision 2) and the restaurant's opening were not moved.
+- **The restaurant income check** reads 5–15% on the **Chef who sells** (its income is the cooking itself) and 3–15% on the eating Chef: both serve about as much (81k and 86k gold a day), but the eating Chef's buffs (+42% at day 14) lift the income its share is divided by. Active Player ≤ 15% as §14.9 says.
+- **The buffs check keeps its rule** (§14.3, v4-00's decision, confirmed by the simulator): the Chef against the Chef who sells, **both stocking the restaurant first**, day 10, 24 seeds. Before this phase (v4-01): **+16%**; this phase's code with the restaurant unused: **+14%**; with both Chefs using it: **+18%** at 15 minutes (+23% at 20). Day 14 reads +42% (+43% without the restaurant): the ceiling moves with the north fields, not with the restaurant. No buff constant moved.
+- **What the brain learned** (§14.10): Kitchen Level 2 joins the farm list after Kitchen Level 1 (the restaurant needs it); the restaurant is built right after the starter yard with gold the planter's seeds do not need; the Chefs (`menuFirst`) buy levels 2 and 3 the same way, the others in `spendV2`'s ranch turn; at every look the menu is restocked and a free table gets a whole stack of the dish worth most a serving; when leaving the menu is laid out for the absence (each table the dish with the most `price × servings that fit`, from the bag and what is on the menu), and during the session the bag keeps those dishes back from the Market; the stove cooks for margin at the premium; and during a session the Auto-Seller keeps the ingredients of the ten best menu recipes whose crops are planted (the excess is shipped, and everything ships again while away). The order is eat → menu → Market.
+- **Pacing against §14.9:** restaurant L1 day 7.3 (Greedy Farmer, 6–9), 6.3 (Chef, 5–8), 9.5 (Active Player, 9–14); first serving the same session for the cooks (the Farmer and the Angler never cook enough to stock it); L3 day 12.0 (Chef, 10–15), 24.5 (Greedy Farmer, 12–18: a farmer who does not cook buys it in the v2 spending turns, after the town), and the Active Player has not bought L3 by day 30 (20–30). The North Fields come on day 15 (Chef), 17.2 (Greedy Farmer) and 22.5 (Active Player), as in v4-01.
+- **No strategy dominates:** 1.08× · 1.03× · 1.27× at days 3, 7 and 30 (v4-01: 1.37× at day 30; the Chef ends at 45.3M, the Angler 38.3M, the Greedy Farmer 35.7M). Runaway growth: day 28 / day 14 1.49× (Greedy Farmer), 1.57× (Angler), 1.20× (Chef). The catalogue is **20,184,030** with the restaurant's 1,270,000.
+
+### 14.13 v4-02 balance report
+
+`npm run simulate -- --seeds 1,2,3,4,5,6,7,8` on the v4-02 branch, 30 days from Wed 25 Feb 2026 19:00 in New York, medians; the buffs check on its own 24 seeds at day 10. **44 of 44 checks pass.**
+
+| Bot | Gold d3 | Gold d7 | Gold d14 | Gold d30 | Restaurant L1 · L3 | Restaurant gold a day (days 14–30) · share | Servings a day | Special's share |
+|---|---|---|---|---|---|---|---|---|
+| Greedy Farmer | 618,377 | 2,895,900 | 8,313,553 | 35,732,009 | d7.3 · d24.5 | 0 (never cooks enough) | 0 | – |
+| Angler | 646,290 | 2,958,052 | 8,988,793 | 38,281,530 | d5.0 · d21.5 | 0 | 0 | – |
+| Chef | 595,814 | 2,984,724 | 11,488,501 | 45,260,341 | d6.3 · d12.0 | 80,817 · 3.8% | 133 | 10% |
+| Chef who sells (control) | 589,621 | 2,853,529 | 8,395,983 | 33,690,605 | d6.3 · d14.5 | 86,445 · 5.4% | 122 | 8% |
+| Casual Idler | 278,380 | 2,084,607 | 6,967,927 | 38,066,767 | d6.2 · d19.2 | 0 | 0 | – |
+| Active Player | 142,425 | 900,245 | 4,453,491 | 19,306,360 | d9.5 · – | 25,792 · 2.8% | 31 | 8% |
+
+Before (v4-01, §14.12): Greedy Farmer 33.3M, Angler 45.7M, Chef 39.3M at day 30; this phase's code with the brain not yet using the restaurant: 35.7M, 39.2M, 49.6M (Chef who sells 34.7M). The Angler's day 30 moved 45.7M → 38–39M between v4-01's report and this branch's baseline before any restaurant purchase (most likely the new `serve_dishes` template, which changes which goals the seeded generator draws for everyone; the Angler's gold leans most on goal rewards and the timing of its early purchases); the restaurant itself moved the strategy bots' day-30 gold by −0% (Farmer), −2% (Angler) and −9% (Chef, which now spends 1.27M on the restaurant on days 6–12 and sells fewer dishes at the Market) and the Chef who sells by −3%.
+
+| Check | Target | Measured |
+|---|---|---|
+| No strategy dominates (days 3 · 7 · 30) | ≤ 1.5× | 1.08× · 1.03× · 1.27× |
+| Buffs kept up (day 10, 24 seeds) | +10% to +25% | **+18%** (day 3 +3%, day 7 +4%, day 14 +42%) |
+| Chef who sells: restaurant income (days 14–30) | 5–15% | 5.4% |
+| Chef: restaurant income (days 14–30) | 3–15% | 3.8% |
+| Active Player: restaurant income (days 14–30) | ≤ 15% | 2.8% |
+| North fields' share of crop gold: Greedy Farmer · Chef · Active Player | 25–45% · 20–45% · 15–40% | 28% · 39% · 20% |
+| The North Fields pay back (Greedy Farmer) | ≤ 10 days | 6.0 days |
+| Gold still to spend, Greedy Farmer d7 · d14 · d21 · d30 | 85–95 · 55–75 · 30–50 · 10–30% (±10) | 94 · 81 · 54 · 15% |
+| Gold still to spend, Active Player d7 · d14 · d21 · d30 | 90–97 · 75–90 · 60–80 · 40–60% (±10) | 97 · 89 · 86 · 57% |
+| Runaway growth, day 28 / day 14 (Farmer · Angler · Chef) | ≤ 3× (§14.9 allows 1.5× from the fields) | 1.49× · 1.57× · 1.20× |
+
+The rest (early dead time, the Casual Idler at 195% of the Active Player on day 3, orchard 3.7%, animals 4% and 1%, no hoard) passes as in v4-01.
