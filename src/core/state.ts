@@ -36,6 +36,7 @@ import type {
   ItemId,
   JunkId,
   MilestoneId,
+  NorthFieldId,
   ParcelId,
   RecipeId,
   RecipeTier,
@@ -60,13 +61,23 @@ export interface Plot {
   waterMsLeft: number; // hand watering left (2 h per watering)
 }
 
-/** Objects the player places on the plot grid (@04). `at` is a plot (col, row) inside the grid. */
+/**
+ * Objects the player places on a plot grid (@04). `at` is a plot (col, row) inside the home grid, or,
+ * with `field` (v4-01), inside that north field's grid.
+ */
 export type PlacedKind = 'sprinkler' | 'scarecrow' | 'golden_scarecrow';
 
 export interface PlacedObject {
   id: number; // unique, monotonically increasing
   kind: PlacedKind;
   at: { col: number; row: number };
+  field?: NorthFieldId; // absent = the home field
+}
+
+/** A north field's plots (v4-01, save 15): present once its parcel is bought. */
+export interface NorthField {
+  plots: Plot[]; // row-major, cols × rows of its layout (WORLD_LAYOUT.northFields)
+  lastPlantedCrop: (CropId | null)[]; // same length: the planter's memory for this field
 }
 
 export interface Inventory {
@@ -130,6 +141,7 @@ export interface GameState {
     grid: { cols: number; rows: number }; // starts 4 × 2; grows with expansions (@03)
     plots: Plot[]; // row-major, length = cols * rows
     greenhouse: Plot[]; // @04, empty until built
+    north: Partial<Record<NorthFieldId, NorthField>>; // v4-01: an entry once the parcel is bought
   };
   inventory: Inventory;
 
@@ -148,7 +160,7 @@ export interface GameState {
   autoSell: Partial<Record<ItemId, boolean>>;
   /** The farmhand's timer: simulated ms until the next visit (0 while nobody is hired). */
   automation: { farmhandCooldownMs: number };
-  /** The crop last planted on each plot, for the seed planter: field plots first, then greenhouse plots. */
+  /** The crop last planted on each plot, for the seed planter: home field plots first, then greenhouse plots (north fields keep their own). */
   lastPlantedCrop: (CropId | null)[];
 
   // ---- fishing (@05). Unlocked locations are derived from `expansions` (river, ocean).
@@ -451,7 +463,7 @@ export function createStartingFarm(): GameState['farm'] {
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) plots.push(emptyPlot(c < START_TILLED_COLS ? 'tilled' : 'untilled'));
   }
-  return { grid: { cols, rows }, plots, greenhouse: [] };
+  return { grid: { cols, rows }, plots, greenhouse: [], north: {} };
 }
 
 export function createStartingInventory(): Inventory {

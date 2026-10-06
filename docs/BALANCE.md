@@ -1551,8 +1551,10 @@ Two things follow. Dishes are a small share of gold, so the restaurant can be ge
 
 | id | Name | World rect | Field (plot origin, size) | Plot index base | Price | Requires | Opens |
 |---|---|---|---|---|---|---|---|
-| `north_fields` | North Fields | (0, −7) 20 × 6 | (6, −6), 8 × 4 = 32 plots | 2000 | 1,500,000 | parcel `yard`, expansion `farm_4`, Farm Level 7 | the first north field |
-| `terraces` | Upper Terraces | (0, −13) 20 × 5 | (6, −12), 8 × 3 = 24 plots | 3000 | 2,400,000 | parcel `north_fields`, Farm Level 8 | the second north field |
+| `north_fields` | North Fields | (0, −7) 20 × 6 | (6, −6), 8 × 4 = 32 plots | 2000 | **3,000,000** (v4-00: 1,500,000) | parcel `yard`, expansion `farm_4`, Farm Level 7 | the first north field |
+| `terraces` | Upper Terraces | (0, −13) 20 × 5 | (6, −12), 8 × 3 = 24 plots | 3000 | **4,500,000** (v4-00: 2,400,000) | parcel `north_fields`, Farm Level 8 | the second north field |
+
+**v4-01 measured the fields and moved both prices** (the rule below: "under 5 days"): at v4-00's prices the North Fields paid back in **2.5 days** and the Upper Terraces in **5.7** (8 seeds, Greedy Farmer), because a north plot earns about what a home plot does, not 70% of it. See §14.12.
 
 **What a field is worth.** From day 14 the Greedy Farmer earns 56–63k gold per simulated hour from 60 plots (48 + the greenhouse's 12), of which about 90% is crops (the orchard is 4%, animals 6%): roughly 850 gold per plot per hour, gross. A new field's crops meet the same market depth, so count on about 70% of that per plot: **North Fields ≈ 19k gold per simulated hour gross (≈ 370k a real day)**, Upper Terraces ≈ 14k (≈ 270k a day). After seeds (35–40% of crop gold goes back into seeds) that is ≈ 220k and ≈ 165k a day net, so North Fields pays back in about **7 real days** and the Terraces in about **15**: a strong mid-game buy and a long late one. v4-01 measures it (the "north fields' share" row) and moves the prices if a field pays back in under 5 or over 12 days (North Fields) / under 10 or over 20 (Terraces).
 
@@ -1560,8 +1562,8 @@ Two things follow. Dishes are a small share of gold, so the restaurant can be ge
 
 | Upgrade | Max today | Max with North Fields · with Terraces | New units' costs |
 |---|---|---|---|
-| `sprinkler` (base 300, ratio 1.35) | 12 | 14 · 16 | 10,900, 14,700 · 19,900, 26,800 |
-| `scarecrow` (base 600, ratio 1.8) | 4 | 5 · 6 | 6,300 · 11,300 |
+| `sprinkler` (base 300, ratio 1.35) | 12 | 14 · 16 | 11,000, 15,000 · 20,000, 27,000 (`roundNice`) |
+| `scarecrow` (base 600, ratio 1.8) | 4 | 5 · 6 | 6,300 · 11,000 |
 
 With Sprinkler Tech L2 (a 5 × 5 square) two sprinklers cover a north field, so the new units are a comfort, not a requirement. The farmhand needs nothing new: Level 5 reaches about 133 plots a minute against 116 plots of 5–20-minute crops.
 
@@ -1775,17 +1777,17 @@ Junk: `old_boot`, `driftwood`. Whitefish bites at every hour of every season, so
 
 | Part | Cost |
 |---|---|
-| North Fields and Upper Terraces (§14.1) | 3,900,000 |
-| Sprinklers 13–16 and scarecrows 5–6 (§14.1) | 89,900 |
+| North Fields and Upper Terraces (§14.1; v4-01's prices) | 7,500,000 |
+| Sprinklers 13–16 and scarecrows 5–6 (§14.1) | 90,300 |
 | Restaurant, three levels (§14.3) | 1,270,000 |
 | Press House, three levels (§14.4) | 940,000 |
 | Six hives (§14.5) | 209,000 |
 | v4 recipe cards: 8 drinks, 3 dishes | 86,000 |
 | Mountain Lake and two more fish traps (§14.7) | 314,200 |
 | Forager's Basket | 120,000 |
-| **v4 total** | **6,929,100** |
+| **v4 total** | **10,529,500** (v4-00: 6,929,100) |
 
-The whole catalogue becomes 11,319,030 + 6,929,100 = **18,248,130**. The north fields add about +30–40% to crop income from day 10–18, the restaurant, presses and hives a few percent more.
+The whole catalogue becomes 11,319,030 + 10,529,500 = **21,848,530** with v4-01's field prices (v4-00 planned 18,248,130; after v4-01 alone it is 18,909,330). The north fields add about +30–40% to crop income from day 10–18, the restaurant, presses and hives a few percent more.
 
 **Target curve** (share of the catalogue still to spend, medians, ±10 points). v4 lengthens the curve: the simulator runs **60 days** for these rows from v4-04 (30 days for everything else, as now).
 
@@ -1841,3 +1843,16 @@ In `src/data/balance.ts`: `FIELD_BASE = { north_fields: 2000, terraces: 3000 }` 
 - The restaurant numbers come from the cooking probe and the four stand-in runs above (`PROBE_PREMIUM`, a temporary change to `settleSale` that was not committed). The stand-in is a ceiling: it has no table limit and pays the premium on every dish sold, so v4-02's real restaurant (2–4 slots, 20 minutes per tier) earns less than it did.
 - The paired buffs figure moved between +18% and +37% across the stand-in runs while lifetime gold moved within ±10%: it reacts to *when* gold arrives in the first ten days more than to how much. v4-02 should read it on 24 seeds after every change, as the v2-06 review set up.
 - Field, drink, honey and forage numbers are estimates from the per-plot and per-hour figures above; v4-01, v4-03 and v4-04 measure them and record the changes here.
+
+**v4 phase 01 notes** (`npm run simulate -- --seeds 1,2,3,4,5,6,7,8`, 30 days, medians; **every check passes, 41 of 41**).
+- **What a north field is worth.** A north plot earns about what a home plot does: the north is 26–31% (North Fields) and 2–15% (Upper Terraces) of the strategy bots' crop gold from day 14, and the keen bots' day-30 gold rises from 27.7M to 33.3M (Greedy Farmer), 45.7M (Angler) and 39.3M (Chef). At v4-00's prices (1.5M, 2.4M) the North Fields paid back in 2.5 days and the Terraces in 5.7, under §14.1's floors (5 and 10 days), and the bots' day-30 gold was 48–50M.
+- **Prices: North Fields 3,000,000, Upper Terraces 4,500,000.** The North Fields now pay back in **5.8 days** (Greedy Farmer; 4.3–6.3 for the others), inside 5–12. The Terraces are bought on day 21–28 and only the Casual Idler's (9.2 days) has paid back by day 30; their payback is v4-04's to read on 60-day runs. 4,000,000 / 6,000,000 was tried: the North Fields paid back in 6.8 days but the Terraces came on day 23–26 and the hoard and spend checks failed for the Active Player.
+- **Pacing moves later than §14.9's targets:** North Fields day 13–18 for the strategy bots (target 9–13), day 23.5 for the Active Player (target 15–20); Upper Terraces day 21–28 (target 14–18). The bots buy the Seaside Meadow first: with the North Fields ahead of it, saving 3M from day 7 moved the **buffs check from +16% to +37%** (the Chef reached the field days before its control; the check reacts to *when* gold arrives, as v4-00 found). With the meadow first the buffs check reads **+16%** (day 10, 24 seeds).
+- **Checks that moved, with the reasons:**
+  - **Gold still to spend** uses §14.8's v4 curve for days 7–30 (Greedy Farmer 85–95 / 55–75 / 30–50 / 10–30%, Active Player 90–97 / 75–90 / 60–80 / 40–60%, ±10 points); days 1 and 3 keep §13.4's. The catalogue is now **18,909,330** (v1 680,330 with the new sprinklers and scarecrows; land 8,180,000). Measured: Greedy Farmer 93 / 79 / 54 / 12%, Active Player 97 / 89 / 85 / 59%.
+  - **No hoard** subtracts the gold put by for a parcel on sale (every condition met, not owned) before comparing with three days' income: saving 3M for a field is not a hoard. Worst: 0.5–2.0 days' income.
+  - **Orchard income** (Greedy Farmer, days 14–21) **3%–8%** (was 4%–8%): the fruit is unchanged (57,700 gold a day) but now **4.0%** of a larger income, the same dilution v2-06 recorded.
+- **New report rows and checks** (§14.10): moments "North Fields bought" and "Upper Terraces bought"; a north-fields table (share of crop gold by field, the north's gold a day, payback per field); checks: the north's share of crop gold from day 14 (Greedy Farmer **29%** in 25–45%, Chef **39%** in 20–45%, Active Player **17%** in 15–40%) and the North Fields' payback (**5.8 days** ≤ 10).
+- **No strategy dominates** at day 30 reads **1.37×** (was 1.30×): the Angler buys the fields earliest and ends at 45.7M. Runaway growth: Greedy Farmer day 28 / day 14 **1.46×** (§14.9 allows 1.5×).
+- **Seed Order.** No stall from the order: the Greedy Farmer's north stays planted across absences. `seedTarget` is unchanged (1,000).
+

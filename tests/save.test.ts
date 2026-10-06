@@ -36,7 +36,12 @@ import {
   trapTile,
   zoneAt,
 } from '../src/render/scene';
-import fixture from './fixtures/save-v14.json';
+import fixture from './fixtures/save-v15.json';
+import { newNorthField } from '../src/systems/farming';
+import hitmapV14 from './fixtures/hitmap-v14.json';
+import { hitMap } from './hitMap';
+import { clampCamera, defaultZoom } from '../src/render/camera';
+import fixtureV14 from './fixtures/save-v14.json';
 import fixtureV13 from './fixtures/save-v13.json';
 import fixtureV12 from './fixtures/save-v12.json';
 import fixtureV11 from './fixtures/save-v11.json';
@@ -55,6 +60,7 @@ function withoutV10(rest: Record<string, unknown>): Record<string, unknown> {
   delete rest.ranch;
   delete rest.cats;
   delete rest.seedOrder;
+  delete (rest.farm as Record<string, unknown>).north;
   delete (rest.stats as Record<string, unknown>).fruitPicked;
   delete (rest.stats as Record<string, unknown>).productsCollected;
   const cal = rest.calendar as Record<string, unknown>;
@@ -74,8 +80,8 @@ function memoryStorage(initial: Record<string, string> = {}): SaveStorage & { da
 }
 
 describe('save file', () => {
-  it('is at version 14 (Seed Order settings) with one migration per older version', () => {
-    expect(SAVE_VERSION).toBe(14);
+  it('is at version 15 (the north fields) with one migration per older version', () => {
+    expect(SAVE_VERSION).toBe(15);
     expect(Object.keys(migrations)).toEqual([
       '1',
       '2',
@@ -90,11 +96,12 @@ describe('save file', () => {
       '11',
       '12',
       '13',
+      '14',
     ]);
     expect(SAVE_KEY).toBe('hearthfield-idle/save');
   });
 
-  it('the v14 fixture loads unchanged', () => {
+  it('the v15 fixture loads unchanged', () => {
     const file = parseSave(FIXTURE_TEXT);
     expect(file).toEqual(fixture);
   });
@@ -108,6 +115,7 @@ describe('save file', () => {
       'progression.bundles',
       'decor.owned',
       'town.projects',
+      'farm.north',
     ]);
     const keys = (o: object, path = ''): string[] => {
       const out = new Set<string>();
@@ -124,6 +132,9 @@ describe('save file', () => {
     };
     const fresh = createInitialState(0, NY);
     fresh.upgrades.backpack = 1; // a new save owns no upgrades yet, so give the record an entry
+    fresh.farm.north.north_fields = newNorthField('north_fields'); // v4-01
+    fresh.placed.push({ id: 1, kind: 'sprinkler', at: { col: 0, row: 0 } });
+    fresh.placed.push({ id: 2, kind: 'sprinkler', at: { col: 1, row: 0 }, field: 'north_fields' });
     fresh.shippingBin.items.push({ item: 'turnip', qty: 1 });
     fresh.expansions.push('farm_1');
     fresh.land.parcels.push('orchard', 'yard');
@@ -349,7 +360,7 @@ describe('migrations', () => {
     expect(s.calendar).toEqual({ ...old.calendar, dayZeroKey: old.calendar.lastDayKey, maxDayIndex: 0 });
     expect(s.rngState).toBe(old.rngState);
     expect(s.gold).toBe(old.gold);
-    expect(s.farm).toEqual(old.farm);
+    expect(s.farm).toEqual({ ...old.farm, north: {} });
     expect(s.inventory).toEqual(old.inventory);
     // Every item is at demand 1.0 (no entries), no specials until the next 06:00, an empty bin.
     expect(s.market).toEqual({ items: {}, specials: [] });
@@ -378,7 +389,7 @@ describe('migrations', () => {
     const s = file.state;
     const { state: old } = fixtureV4;
     expect(s.gold).toBe(old.gold);
-    expect(s.farm).toEqual(old.farm);
+    expect(s.farm).toEqual({ ...old.farm, north: {} });
     expect(s.upgrades).toEqual(old.upgrades);
     expect(s.expansions).toEqual(old.expansions);
     expect(s.placed).toEqual(old.placed);
@@ -405,7 +416,7 @@ describe('migrations', () => {
     const s = file.state;
     const { state: old } = fixtureV5;
     expect(s.gold).toBe(old.gold);
-    expect(s.farm).toEqual(old.farm);
+    expect(s.farm).toEqual({ ...old.farm, north: {} });
     expect(s.inventory).toEqual(old.inventory);
     expect(s.fishing).toEqual(old.fishing);
     expect(s.upgrades).toEqual(old.upgrades);
@@ -431,7 +442,7 @@ describe('migrations', () => {
     const s = file.state;
     const { state: old } = fixtureV6;
     expect(s.gold).toBe(old.gold); // no milestone gold is paid a second time
-    expect(s.farm).toEqual(old.farm);
+    expect(s.farm).toEqual({ ...old.farm, north: {} });
     expect(s.stats).toEqual({ ...old.stats, fruitPicked: 0, productsCollected: 0 });
     expect(s.upgrades).toEqual(old.upgrades);
     // Deeds the save already shows: planted, harvested, sold, expanded, sprinkler, fish, dish, ate, farmhand, river.
@@ -609,6 +620,7 @@ describe('migrations', () => {
     delete rest.cats;
     delete rest.seedOrder;
     delete (rest.stats as Record<string, unknown>).productsCollected;
+    delete (rest.farm as Record<string, unknown>).north;
     expect(rest).toEqual(fixtureV10.state);
     // Eggs and milk are not shipped automatically until the player says so.
     expect(s.autoSell).toEqual(fixtureV10.state.autoSell);
@@ -623,6 +635,7 @@ describe('migrations', () => {
     delete rest.cats;
     delete rest.seedOrder;
     delete (rest.ranch as Record<string, unknown>).feedStore;
+    delete (rest.farm as Record<string, unknown>).north;
     expect(rest).toEqual(fixtureV11.state);
   });
 
@@ -636,6 +649,7 @@ describe('migrations', () => {
     };
     delete rest.ranch.feedStore;
     delete (rest as { seedOrder?: unknown }).seedOrder;
+    delete (rest.farm as Record<string, unknown>).north;
     expect(rest).toEqual(fixtureV12.state);
   });
 
@@ -666,7 +680,56 @@ describe('migrations', () => {
     expect(file.state.upgrades.seed_order).toBeUndefined(); // the upgrade itself is level 0
     const rest = JSON.parse(JSON.stringify(file.state)) as Record<string, unknown>;
     delete rest.seedOrder;
+    delete (rest.farm as Record<string, unknown>).north;
     expect(rest).toEqual(fixtureV13.state);
+  });
+
+  it('migrates a v14 save (v15): no north field yet, and every stored tile hit-tests exactly as before', () => {
+    const file = parseSave(JSON.stringify(fixtureV14));
+    expect(file.version).toBe(SAVE_VERSION);
+    expect(validateState(file.state)).toBeNull();
+    expect(file.state.farm.north).toEqual({});
+    const rest = JSON.parse(JSON.stringify(file.state)) as Record<string, unknown>;
+    delete (rest.farm as Record<string, unknown>).north;
+    expect(rest).toEqual(fixtureV14.state);
+    // The world grew north into negative rows: every zone, plot, placed object, town site, sign, decoration,
+    // tree, trap, region, blocked tile and building tile of the old world is found where the v2-06 code
+    // found it (tests/fixtures/hitmap-v14.json was written by tests/hitMap.ts at the v4-00 commit).
+    expect(hitMap(JSON.stringify(fixtureV14))).toEqual(hitmapV14);
+    // A camera stored in prefs (world px, per device) keeps its view: inside the old world it clamps as before.
+    for (const view of [
+      { w: 1280, h: 640, dpr: 1 },
+      { w: 360, h: 560, dpr: 1 },
+    ]) {
+      const zoom = defaultZoom(view);
+      const halfH = view.h / 2 / zoom;
+      for (const y of [halfH, 120, 200, 352 - halfH]) {
+        if (y < halfH || y > 352 - halfH) continue;
+        const cam = clampCamera({ x: 200, y, zoom }, view);
+        expect(cam.y).toBe(y);
+      }
+    }
+  });
+
+  it('refuses damaged north fields and placed objects outside their field', () => {
+    const bad = (mutate: (c: typeof fixture.state) => void): string | null => {
+      const c = structuredClone(fixture.state);
+      mutate(c);
+      return validateState(c);
+    };
+    expect(bad(() => {})).toBeNull();
+    expect(bad((c) => c.farm.north.north_fields!.plots.pop())).toBe('bad north field');
+    expect(bad((c) => c.farm.north.north_fields!.lastPlantedCrop.pop())).toBe('bad north field');
+    expect(bad((c) => (c.land.parcels = c.land.parcels.filter((p) => p !== 'north_fields')))).toBe(
+      'bad north field',
+    );
+    expect(bad((c) => ((c.farm.north as Record<string, unknown>).meadow = c.farm.north.north_fields))).toBe(
+      'bad north field',
+    );
+    expect(bad((c) => (c.placed[3]!.at.col = 8))).toBe('bad placed object'); // the field is 8 wide
+    expect(bad((c) => (c.placed[3]!.field = 'terraces'))).toBe('bad placed object'); // not owned
+    expect(bad((c) => (c.placed[3]!.at = { col: 3, row: 0 }))).toBeNull(); // (3, 0) up north is not the home sprinkler's
+    expect(bad((c) => (c.decor.placed.at(-1)!.at.row = -15))).toBe('bad decoration');
   });
 
   it('refuses damaged Seed Order settings', () => {
@@ -750,6 +813,7 @@ describe('migrations', () => {
     const cal = rest.calendar as Record<string, unknown>;
     delete cal.dayZeroKey;
     delete cal.maxDayIndex;
+    delete (rest.farm as Record<string, unknown>).north;
     expect(rest).toEqual(fixtureV9.state);
   });
 
@@ -785,7 +849,7 @@ describe('migrations', () => {
     const s = file.state;
     const { state: old } = fixtureV3;
     expect(s.gold).toBe(old.gold);
-    expect(s.farm).toEqual(old.farm);
+    expect(s.farm).toEqual({ ...old.farm, north: {} });
     expect(s.inventory).toEqual(old.inventory);
     expect(s.market).toEqual(old.market);
     expect(s.shippingBin).toEqual(old.shippingBin);

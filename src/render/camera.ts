@@ -7,7 +7,7 @@
 // display); "world" is logical pixels (a tile is 16).
 
 import { HOME_RECT } from '../data/world';
-import { TILE, WORLD_H, WORLD_W } from './scene';
+import { TILE, WORLD_H, WORLD_W, WORLD_Y0, WORLD_Y1 } from './scene';
 
 /** A press that moves farther than this (CSS px) becomes a pan and never runs a farm tool. */
 export const DRAG_THRESHOLD_PX = 6;
@@ -81,9 +81,10 @@ export function clampCamera(cam: Camera, view: Viewport): Camera {
   const halfW = view.w / 2 / cam.zoom;
   const halfH = view.h / 2 / cam.zoom;
   cam.x = WORLD_W <= halfW * 2 ? WORLD_W / 2 : Math.min(WORLD_W - halfW, Math.max(halfW, cam.x));
-  cam.y = WORLD_H <= halfH * 2 ? WORLD_H / 2 : Math.min(WORLD_H - halfH, Math.max(halfH, cam.y));
+  const midY = (WORLD_Y0 + WORLD_Y1) / 2;
+  cam.y = WORLD_H <= halfH * 2 ? midY : Math.min(WORLD_Y1 - halfH, Math.max(WORLD_Y0 + halfH, cam.y));
   if (!Number.isFinite(cam.x)) cam.x = WORLD_W / 2;
-  if (!Number.isFinite(cam.y)) cam.y = WORLD_H / 2;
+  if (!Number.isFinite(cam.y)) cam.y = midY;
   return cam;
 }
 
@@ -101,8 +102,15 @@ export function defaultCamera(
   out.x = focus ? focus.x : (HOME_RECT.col + HOME_RECT.cols / 2) * TILE;
   out.y = focus ? focus.y : (HOME_RECT.row + HOME_RECT.rows / 2) * TILE;
   out.zoom = defaultZoom(view);
-  return clampCamera(out, view);
+  clampCamera(out, view);
+  // v4: the north band lies above row 0, but the default view frames the farm exactly as before:
+  // its top edge stays at or below row 0 while the world below leaves room (GDD §13.2).
+  const halfH = view.h / 2 / out.zoom;
+  if (out.y - halfH < HOME_TOP_PX && halfH * 2 <= WORLD_Y1 - HOME_TOP_PX) out.y = HOME_TOP_PX + halfH;
+  return out;
 }
+
+const HOME_TOP_PX = HOME_RECT.row * TILE;
 
 /** World pixel → screen (device) pixel. */
 export function worldToScreen(
@@ -162,13 +170,14 @@ export const CHUNK_ROWS = Math.ceil(WORLD_H / CHUNK_PX);
 
 /**
  * Indexes (row-major, CHUNK_COLS wide) of the ground chunks that overlap `rect`, written into `out`
- * (reused every frame). The renderer draws only these.
+ * (reused every frame). The renderer draws only these. Chunk rows are anchored at the world's top
+ * (WORLD_Y0), so chunk row 0 holds the north edge.
  */
 export function visibleChunks(rect: Rect, out: number[] = []): number[] {
   const c0 = Math.max(0, Math.floor(rect.x / CHUNK_PX));
-  const r0 = Math.max(0, Math.floor(rect.y / CHUNK_PX));
+  const r0 = Math.max(0, Math.floor((rect.y - WORLD_Y0) / CHUNK_PX));
   const c1 = Math.min(CHUNK_COLS - 1, Math.floor((rect.x + rect.w - 1e-6) / CHUNK_PX));
-  const r1 = Math.min(CHUNK_ROWS - 1, Math.floor((rect.y + rect.h - 1e-6) / CHUNK_PX));
+  const r1 = Math.min(CHUNK_ROWS - 1, Math.floor((rect.y - WORLD_Y0 + rect.h - 1e-6) / CHUNK_PX));
   // Written by index and trimmed after, so the array's storage is reused (no garbage per frame).
   let n = 0;
   for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) out[n++] = r * CHUNK_COLS + c;

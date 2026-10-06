@@ -104,7 +104,33 @@ for (const scenario of ['farm', 'world'] as const)
           calendar: { maxDayIndex: number };
           ranch: { buildings: unknown[]; animals: unknown[] };
         };
-        s.land.parcels = ['orchard', 'yard', 'meadow'];
+        s.land.parcels = ['orchard', 'yard', 'meadow', 'north_fields', 'terraces'];
+        // v4-01: both north fields planted and automated, with a sprinkler and a scarecrow each.
+        const st = s as unknown as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+        const crops = ['turnip', 'potato', 'garlic', 'strawberry', 'cauliflower'];
+        for (const [field, n] of [
+          ['north_fields', 32],
+          ['terraces', 24],
+        ] as const) {
+          st.farm.north[field] = {
+            plots: Array.from({ length: n }, (_, i) => ({
+              state: 'planted',
+              crop: crops[i % crops.length],
+              growthMs: (i * 41_000) % 240_000,
+              harvests: 0,
+              waterMsLeft: 0,
+            })),
+            lastPlantedCrop: Array.from({ length: n }, (_, i) => crops[i % crops.length]),
+          };
+        }
+        st.upgrades.sprinkler = 11;
+        st.upgrades.scarecrow = 4;
+        st.placed.push(
+          { id: 20, kind: 'sprinkler', at: { col: 2, row: 1 }, field: 'north_fields' },
+          { id: 21, kind: 'scarecrow', at: { col: 5, row: 2 }, field: 'north_fields' },
+          { id: 22, kind: 'sprinkler', at: { col: 2, row: 1 }, field: 'terraces' },
+          { id: 23, kind: 'scarecrow', at: { col: 5, row: 1 }, field: 'terraces' },
+        );
         // The orchard in full: eight trees of every stage and kind, some laden (v2 phase 03).
         const kinds = ['cherry', 'apricot', 'peach', 'apple', 'pear', 'persimmon', 'lemon', 'apple'];
         const ages = [1, 2, 3, 40, 40, 40, 40, 40];
@@ -178,7 +204,7 @@ for (const scenario of ['farm', 'world'] as const)
         await page.waitForTimeout(1000);
         await page.keyboard.press('h');
         await page.waitForTimeout(300);
-        for (const key of ['ArrowRight', 'ArrowDown', 'ArrowLeft']) {
+        for (const key of ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp']) {
           await page.keyboard.down(key);
           await page.waitForTimeout(900);
           await page.keyboard.up(key);
@@ -238,7 +264,7 @@ for (const scenario of ['farm', 'world'] as const)
     expect(result.worstFrameMs).toBeLessThan(50); // no visible garbage-collection hitch
   });
 
-test('loading after 8 hours away with that farm catches up in well under 100 ms', async ({
+test('loading after 8 hours away with that farm (and both north fields) catches up in well under 100 ms', async ({
   page,
   context,
 }) => {
@@ -259,11 +285,27 @@ test('loading after 8 hours away with that farm catches up in well under 100 ms'
       waterMsLeft: 0,
     }));
     s.lastPlantedCrop = Array.from({ length: 48 }, () => 'turnip');
+    // v4-01: every field automated: both north fields tilled, with the planter's memory and two sprinklers each.
+    s.land.parcels = ['orchard', 'yard', 'north_fields', 'terraces'];
+    for (const [field, n] of [
+      ['north_fields', 32],
+      ['terraces', 24],
+    ] as const)
+      s.farm.north[field] = {
+        plots: Array.from({ length: n }, () => ({
+          state: 'tilled',
+          crop: null,
+          growthMs: 0,
+          harvests: 0,
+          waterMsLeft: 0,
+        })),
+        lastPlantedCrop: Array.from({ length: n }, (_, i) => (i % 2 ? 'potato' : 'turnip')),
+      };
     Object.assign(s.upgrades, {
       farmhand: 5,
       seed_planter: 3,
       auto_seller: 2,
-      sprinkler: 8,
+      sprinkler: 12,
       sprinkler_tech: 2,
     });
     s.automation.farmhandCooldownMs = 9000;
@@ -282,9 +324,15 @@ test('loading after 8 hours away with that farm catches up in well under 100 ms'
       [5, 3],
     ];
     s.placed = spots.map(([col, row], i) => ({ id: i + 1, kind: 'sprinkler', at: { col, row } }));
+    s.placed.push(
+      { id: 9, kind: 'sprinkler', at: { col: 2, row: 1 }, field: 'north_fields' },
+      { id: 10, kind: 'sprinkler', at: { col: 5, row: 2 }, field: 'north_fields' },
+      { id: 11, kind: 'sprinkler', at: { col: 2, row: 1 }, field: 'terraces' },
+      { id: 12, kind: 'sprinkler', at: { col: 5, row: 1 }, field: 'terraces' },
+    );
     const savedAt = Date.now() - 8 * 3_600_000;
     s.meta.lastSavedAt = savedAt;
-    return JSON.stringify({ version: 10, savedAt, state: s });
+    return JSON.stringify({ version: 15, savedAt, state: s });
   });
   await page.close();
   // A fresh page finds the save in place before the game starts (so the load is cold, as for a player). The

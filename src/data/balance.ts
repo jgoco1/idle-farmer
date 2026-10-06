@@ -1,6 +1,6 @@
 // Formula parameters from docs/BALANCE.md. Gameplay numbers live here, never in systems or UI.
 
-import type { Rarity, RecipeTier } from './ids';
+import type { NorthFieldId, Rarity, RecipeTier } from './ids';
 
 /** BALANCE.md §1: the first 8 real hours away count fully. */
 export const OFFLINE_FULL_MS = 8 * 3600_000;
@@ -88,8 +88,13 @@ export function roundNice(x: number): number {
 
 // ---- automation (BALANCE.md §4)
 
-/** Plot indexes at or above this address greenhouse plots (index - GREENHOUSE_BASE) instead of field plots. */
+/** Plot indexes from this one address greenhouse plots (index - GREENHOUSE_BASE) instead of home field plots. */
 export const GREENHOUSE_BASE = 1000;
+/**
+ * v4-01 (DATA_SCHEMAS §10.3): each north field's plots are FIELD_BASE[field] + row × cols + col, so an index
+ * says which field it is in without a lookup and no existing index ever changes.
+ */
+export const FIELD_BASE: Readonly<Record<NorthFieldId, number>> = { north_fields: 2000, terraces: 3000 };
 /** Auto-Seller level 2 keeps up to this many of each item in the bag for cooking and ships the rest. */
 export const AUTO_SELLER_RESERVE = 10;
 /** Seed Order (v2 phase 06): the delivery fee on top of the Shop price, and the gold reserves the player can choose (percent of current gold). */

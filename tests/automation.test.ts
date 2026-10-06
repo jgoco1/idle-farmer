@@ -89,9 +89,12 @@ describe('upgrade data', () => {
       const def = UPGRADES[id]!;
       return Array.from({ length: def.max }, (_, n) => upgradeCost(def, n));
     };
-    expect(costs('sprinkler')).toEqual([300, 410, 550, 740, 1000, 1300, 1800, 2500, 3300, 4500, 6000, 8100]);
+    // v4-01: units 13–14 with the North Fields, 15–16 with the Upper Terraces (BALANCE §14.1).
+    expect(costs('sprinkler')).toEqual([
+      300, 410, 550, 740, 1000, 1300, 1800, 2500, 3300, 4500, 6000, 8100, 11000, 15000, 20000, 27000,
+    ]);
     expect(costs('sprinkler_tech')).toEqual([6000, 30000]); // phase 09 (was 2500, 12000)
-    expect(costs('scarecrow')).toEqual([600, 1100, 1900, 3500]);
+    expect(costs('scarecrow')).toEqual([600, 1100, 1900, 3500, 6300, 11000]); // v4-01: 5 and 6 with the north fields
     expect(costs('farmhand')).toEqual([1000, 3000, 9000, 27000, 81000]); // phase 09 (was 800 × 2.2ⁿ)
     expect(costs('seed_planter')).toEqual([2000, 6000, 18000]); // phase 09 (was 1200 × 2.5ⁿ)
     expect(costs('auto_seller')).toEqual([5000, 20000]); // phase 09 (was 1500, 6000)
@@ -165,6 +168,16 @@ describe('buying upgrades', () => {
     }
     expect(s.gold).toBe(1_000_000 - spent);
     expect(s.upgrades.sprinkler).toBe(12);
+    // v4-01: two more with each north field, then no more.
+    expect(buyUpgrade(s, ctx, 'sprinkler')).toEqual({ ok: false, reason: 'Buy the North Fields first.' });
+    s.land.parcels.push('north_fields');
+    expect(buyUpgrade(s, ctx, 'sprinkler').ok).toBe(true);
+    expect(buyUpgrade(s, ctx, 'sprinkler').ok).toBe(true);
+    expect(buyUpgrade(s, ctx, 'sprinkler')).toEqual({ ok: false, reason: 'Buy the Upper Terraces first.' });
+    s.land.parcels.push('terraces');
+    expect(buyUpgrade(s, ctx, 'sprinkler').ok).toBe(true);
+    expect(buyUpgrade(s, ctx, 'sprinkler').ok).toBe(true);
+    expect(s.upgrades.sprinkler).toBe(16);
     expect(buyUpgrade(s, ctx, 'sprinkler')).toEqual({
       ok: false,
       reason: 'You own every Sprinkler you can use.',

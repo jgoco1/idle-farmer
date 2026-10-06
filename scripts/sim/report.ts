@@ -156,6 +156,59 @@ export function animalShare(
 }
 
 /**
+ * v4-01 (BALANCE §14.9): the north fields' share of crop gold between real days `from` and `to`, median over seeds:
+ * the base-price value of the crops harvested on the north fields over that of every harvest, per field and together.
+ */
+export function northShare(
+  runs: readonly RunResult[],
+  from: number,
+  to: number,
+): { north_fields: number; terraces: number; total: number; perDay: number } {
+  const per = runs.map((r) => {
+    const a = snapshotAt(r, from * DAY);
+    const b = snapshotAt(r, to * DAY);
+    const all = Math.max(1, b.harvestValue - a.harvestValue);
+    const nf = b.northValue.north_fields - a.northValue.north_fields;
+    const t = b.northValue.terraces - a.northValue.terraces;
+    const crop = b.cropGold - a.cropGold;
+    return { nf: nf / all, t: t / all, total: (nf + t) / all, gold: (crop * (nf + t)) / all };
+  });
+  return {
+    north_fields: median(per.map((p) => p.nf)),
+    terraces: median(per.map((p) => p.t)),
+    total: median(per.map((p) => p.total)),
+    perDay: median(per.map((p) => p.gold)) / Math.max(1, to - from),
+  };
+}
+
+/**
+ * v4-01 (BALANCE §14.1): real days from buying a north field until the crops grown on it have earned its price, gross
+ * (its share of the crop gold sold since). Median over the seeds that bought it; null when fewer than half did, and a
+ * seed that has not paid back by the end counts as never (Infinity).
+ */
+export function northPayback(runs: readonly RunResult[], field: 'north_fields' | 'terraces'): number | null {
+  const price = GAME_DATA.parcels[field].price;
+  const days: number[] = [];
+  for (const r of runs) {
+    const bought = r.metrics.moments[`bought_${field}`];
+    if (!bought) continue;
+    const a = snapshotAt(r, bought.realMs);
+    let paid = Infinity;
+    for (const b of r.metrics.snapshots) {
+      if (b.realMs <= bought.realMs) continue;
+      const all = Math.max(1, b.harvestValue - a.harvestValue);
+      const gold = ((b.cropGold - a.cropGold) * (b.northValue[field] - a.northValue[field])) / all;
+      if (gold >= price) {
+        paid = (b.realMs - bought.realMs) / DAY;
+        break;
+      }
+    }
+    days.push(paid);
+  }
+  return days.length * 2 > runs.length ? median(days) : null;
+}
+
+/**
  * The idle stretches of a run after the Seed Order was bought (v2 phase 06): per seed, the gold earned while away in the
  * first absence that began after the purchase ("the night after buying it") and the median per absence over every
  * absence after it. The purchase day is the one in `ordered`'s run; the controls are read at the same absences, so the
@@ -217,6 +270,8 @@ export const MOMENTS: readonly [key: string, label: string][] = [
   ['bought_orchard', 'Hilltop Orchard bought'],
   ['bought_yard', 'Old Paddock bought'],
   ['bought_meadow', 'Seaside Meadow bought'],
+  ['bought_north_fields', 'North Fields bought'],
+  ['bought_terraces', 'Upper Terraces bought'],
   ['first_sapling', 'First sapling bought'],
   ['first_mature_tree', 'First mature tree'],
   ['first_fruit', 'First fruit picked'],
@@ -395,6 +450,28 @@ export function markdownReport(result: SimResult): string {
     }
     lines.push('');
   }
+  // The north fields (v4-01)
+  if (days >= 14) {
+    lines.push(
+      "The north fields (BALANCE §14.9): their share of crop gold (the base-price value of what they grew over that of every harvest), North Fields · Upper Terraces · together, the north's crop gold a day, and the real days each field took to pay back its price (gross; medians):",
+      '',
+      '| Bot | days 14–' +
+        String(days) +
+        ' | gold a day | North Fields paid back | Upper Terraces paid back |',
+      '|---|---|---|---|---|',
+    );
+    for (const b of bots) {
+      const w = northShare(runs[b]!, 14, days);
+      const pb = (f: 'north_fields' | 'terraces'): string => {
+        const d = northPayback(runs[b]!, f);
+        return d === null ? '–' : Number.isFinite(d) ? `${fmt(d, 1)} days` : 'not yet';
+      };
+      lines.push(
+        `| ${BOTS[b].name} | ${pct(w.north_fields)} · ${pct(w.terraces)} · ${pct(w.total)} | ${fmt(w.perDay)} | ${pb('north_fields')} | ${pb('terraces')} |`,
+      );
+    }
+    lines.push('');
+  }
   // Seed Order (v2 phase 06)
   if (runs.farmer && (runs.farmer_plain || runs.farmer_forgetful)) {
     lines.push(
@@ -516,9 +593,9 @@ export function tuningChecks(result: SimResult, sums: Map<BotId, BotSummary>): C
     const w = orchardShare(result.runs.farmer, 14, 21);
     out.push({
       what: `${BOTS.farmer.name}: orchard income (days 14–21, a full orchard)`,
-      target: '4%–8% of gold (a side income worth planting)',
+      target: '3%–8% of gold (a side income worth planting)',
       measured: `${fmtShare(w.share)} (${fmt(w.perDay)} gold a day)`,
-      ok: w.share >= 0.04 && w.share <= 0.08,
+      ok: w.share >= 0.03 && w.share <= 0.08,
     });
   }
   if (days >= 14 && result.runs.active) {
@@ -542,16 +619,46 @@ export function tuningChecks(result: SimResult, sums: Map<BotId, BotSummary>): C
       });
     }
   }
+  // v4-01 (BALANCE §14.9): the north fields' share of crop gold from day 14, and the North Fields' payback.
+  if (days >= 21) {
+    const bands: [BotId, number, number][] = [
+      ['farmer', 0.25, 0.45],
+      ['chef', 0.2, 0.45],
+      ['active', 0.15, 0.4],
+    ];
+    for (const [b, lo, hi] of bands) {
+      if (!result.runs[b]) continue;
+      const w = northShare(result.runs[b]!, 14, days);
+      out.push({
+        what: `${BOTS[b].name}: north fields' share of crop gold (days 14–${days})`,
+        target: `${pct(lo)}–${pct(hi)}`,
+        measured: `${pct(w.total)} (${pct(w.north_fields)} · ${pct(w.terraces)})`,
+        ok: w.total >= lo && w.total <= hi,
+      });
+    }
+    if (result.runs.farmer) {
+      const d = northPayback(result.runs.farmer, 'north_fields');
+      out.push({
+        what: `${BOTS.farmer.name}: the North Fields pay back`,
+        target: '≤ 10 days after buying (gross)',
+        measured: d === null ? 'not bought' : Number.isFinite(d) ? `${fmt(d, 1)} days` : 'not yet',
+        ok: d !== null && d <= 10,
+      });
+    }
+  }
   out.push(...spendChecks(result));
   return out;
 }
 
-/** The target share of the catalogue still to spend, by day (BALANCE.md §13.4): [low, high]. */
+/**
+ * The target share of the catalogue still to spend, by day: [low, high]. v4-01 moves days 7–30 to BALANCE.md §14.8's
+ * v4 curve (the north's land is most of v4's catalogue); days 1 and 3 keep §13.4's.
+ */
 export const SPEND_TARGETS: Readonly<
   Partial<Record<BotId, Readonly<Record<number, readonly [number, number]>>>>
 > = {
-  active: { 1: [0.99, 1], 3: [0.97, 1], 7: [0.85, 0.95], 14: [0.55, 0.75], 21: [0.3, 0.55], 30: [0.05, 0.3] },
-  farmer: { 1: [0.99, 1], 3: [0.9, 0.97], 7: [0.65, 0.85], 14: [0.3, 0.55], 21: [0.05, 0.3], 30: [0, 0.1] },
+  active: { 1: [0.99, 1], 3: [0.97, 1], 7: [0.9, 0.97], 14: [0.75, 0.9], 21: [0.6, 0.8], 30: [0.4, 0.6] },
+  farmer: { 1: [0.99, 1], 3: [0.9, 0.97], 7: [0.85, 0.95], 14: [0.55, 0.75], 21: [0.3, 0.5], 30: [0.1, 0.3] },
 };
 /**
  * What the bots never buy, as a share of the catalogue: below this nothing is "still to buy". The v1 content the wish
@@ -615,14 +722,16 @@ export function spendChecks(result: SimResult): Check[] {
           if (snap.realMs < 7 * DAY || snap.toSpend <= SPEND_FLOOR * total) continue;
           const before = snapshotAt(r, snap.realMs - DAY).lifetimeGold;
           const income = Math.max(1, snap.lifetimeGold - before);
-          w = Math.max(w, snap.gold / income);
+          // v4-01: gold put by for a parcel the farm can buy (a north field costs days of income) is not a hoard.
+          w = Math.max(w, Math.max(0, snap.gold - snap.parcelSaving) / income);
         }
         return w;
       });
       const m = median(worst);
       out.push({
         what: `${BOTS[b].name}: no hoard after day 7`,
-        target: 'gold in hand ≤ 3 days’ income while there is still something to buy',
+        target:
+          'gold in hand (less savings for a parcel on sale) ≤ 3 days’ income while there is still something to buy',
         measured: `${fmt(m, 2)} days’ income at worst (median over seeds)`,
         ok: m <= 3,
       });

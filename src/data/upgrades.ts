@@ -19,12 +19,12 @@ function perUnit(
 }
 
 const [sprinklerText, sprinklerEffect] = perUnit(
-  12,
+  16,
   (n) => (n === 0 ? 'none yet' : n === 1 ? '1 sprinkler' : `${n} sprinklers`),
   {},
 );
 const [scarecrowText, scarecrowEffect] = perUnit(
-  4,
+  6,
   (n) => (n === 0 ? 'none yet' : n === 1 ? '1 scarecrow' : `${n} scarecrows`),
   { shape: 'square', radius: 2, growthBonus: 0.2 },
 );
@@ -42,11 +42,18 @@ export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object
     category: 'farm',
     kind: 'placeable',
     placeOn: 'plot',
-    max: 12,
-    cost: { base: 300, ratio: 1.35 }, // 300, 410, 550, 740, 1000, 1300, 1800, 2500, 3300, 4500, 6000, 8100
+    max: 16,
+    cost: { base: 300, ratio: 1.35 }, // 300, 410, 550, 740, 1000, 1300, 1800, 2500, 3300, 4500, 6000, 8100, then 10,900, 14,700 · 19,900, 26,800
     effectText: sprinklerText,
     effect: sprinklerEffect,
     requires: [],
+    // v4-01 (BALANCE §14.1): two more with each north field.
+    levelRequires: {
+      13: [{ kind: 'parcel', id: 'north_fields' }],
+      14: [{ kind: 'parcel', id: 'north_fields' }],
+      15: [{ kind: 'parcel', id: 'terraces' }],
+      16: [{ kind: 'parcel', id: 'terraces' }],
+    },
   },
   sprinkler_tech: {
     id: 'sprinkler_tech',
@@ -72,11 +79,13 @@ export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object
     category: 'farm',
     kind: 'placeable',
     placeOn: 'plot',
-    max: 4,
-    cost: { base: 600, ratio: 1.8 }, // 600, 1100, 1900, 3500
+    max: 6,
+    cost: { base: 600, ratio: 1.8 }, // 600, 1100, 1900, 3500, then 6,300 · 11,300
     effectText: scarecrowText,
     effect: scarecrowEffect,
     requires: [{ kind: 'expansion', id: 'farm_1' }],
+    // v4-01 (BALANCE §14.1): one more with each north field.
+    levelRequires: { 5: [{ kind: 'parcel', id: 'north_fields' }], 6: [{ kind: 'parcel', id: 'terraces' }] },
   },
   farmhand: {
     id: 'farmhand',

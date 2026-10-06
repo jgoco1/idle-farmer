@@ -4,17 +4,28 @@
 // unit-tested.
 
 import type { Plot } from '../core/state';
-import { GREENHOUSE_BASE } from '../data/balance';
+import { FIELD_BASE, GREENHOUSE_BASE } from '../data/balance';
 import {
+  NORTH_FIELD_IDS,
   PARCEL_IDS,
   TOWN_PROJECT_IDS,
   type ExpansionId,
   type FishLocationId,
+  type NorthFieldId,
   type ParcelId,
   type TownProjectId,
 } from '../data/ids';
 import type { TileRect } from '../data/types';
-import { HOME_RECT, WORLD_COLS, WORLD_LAYOUT, WORLD_ROWS } from '../data/world';
+import {
+  HOME_RECT,
+  northFenceRect,
+  regionAt,
+  WORLD_BOTTOM,
+  WORLD_COLS,
+  WORLD_LAYOUT,
+  WORLD_ROWS,
+  WORLD_TOP,
+} from '../data/world';
 import { anchoredPosition } from './spriteCache';
 import { spriteDef } from './sprites';
 import { townSpriteId } from './sprites/town';
@@ -25,9 +36,12 @@ export const TILE = 16;
 /** The home region (the whole v1 scene) in logical pixels: 320 × 192. */
 export const HOME_W = HOME_RECT.cols * TILE;
 export const HOME_H = HOME_RECT.rows * TILE;
-/** The world in logical pixels: 576 × 352. */
+/** The world's size in logical pixels: 576 × 576 (v4). Sizes, never bounds: see WORLD_Y0 / WORLD_Y1. */
 export const WORLD_W = WORLD_COLS * TILE;
 export const WORLD_H = WORLD_ROWS * TILE;
+/** The world's top and bottom edges in world pixels (−224 and 352): the north band has negative rows. */
+export const WORLD_Y0 = WORLD_TOP * TILE;
+export const WORLD_Y1 = WORLD_BOTTOM * TILE;
 
 /** Top-left tile of the plot grid. The grid grows right and down from here (4 × 2 → 8 × 6). */
 export const PLOT_ORIGIN = { col: 6, row: 2 } as const;
@@ -123,7 +137,7 @@ export function zoneAt(zones: readonly Zone[], col: number, row: number): Zone |
 
 /** World pixel → world tile, or null outside the world. */
 export function tileAt(x: number, y: number): { col: number; row: number } | null {
-  if (x < 0 || y < 0 || x >= WORLD_W || y >= WORLD_H) return null;
+  if (x < 0 || y < WORLD_Y0 || x >= WORLD_W || y >= WORLD_Y1) return null;
   return { col: Math.floor(x / TILE), row: Math.floor(y / TILE) };
 }
 
@@ -163,15 +177,21 @@ export function greenhouseTile(i: number): { col: number; row: number } {
 }
 
 /**
- * Tile of any plot index (field row-major, or GREENHOUSE_BASE + n). `out` lets the renderer reuse
- * one object every frame instead of allocating one per plot.
+ * Tile of any plot index (home field row-major, GREENHOUSE_BASE + n, or a north field's
+ * FIELD_BASE[field] + row × cols + col, v4-01). `out` lets the renderer reuse one object every frame
+ * instead of allocating one per plot.
  */
 export function tileOfPlot(
   grid: Grid,
   index: number,
   out: { col: number; row: number } = { col: 0, row: 0 },
 ): { col: number; row: number } {
-  if (index >= GREENHOUSE_BASE) {
+  if (index >= FIELD_BASE.north_fields) {
+    const n = WORLD_LAYOUT.northFields[index >= FIELD_BASE.terraces ? 'terraces' : 'north_fields'];
+    const i = index - (index >= FIELD_BASE.terraces ? FIELD_BASE.terraces : FIELD_BASE.north_fields);
+    out.col = n.origin.col + (i % n.grid.cols);
+    out.row = n.origin.row + Math.floor(i / n.grid.cols);
+  } else if (index >= GREENHOUSE_BASE) {
     const at = GREENHOUSE_LAYOUT[index - GREENHOUSE_BASE];
     out.col = GREENHOUSE_ORIGIN.col + (at ? at[0] : 0);
     out.row = GREENHOUSE_ORIGIN.row + (at ? at[1] : 0);
@@ -182,11 +202,34 @@ export function tileOfPlot(
   return out;
 }
 
+/** The plot rectangle of a north field, in world tiles. */
+export function northPlotRect(field: NorthFieldId): TileRect {
+  const n = WORLD_LAYOUT.northFields[field];
+  return { col: n.origin.col, row: n.origin.row, cols: n.grid.cols, rows: n.grid.rows };
+}
+
 /**
- * Plot index of a tile: row-major inside the field, GREENHOUSE_BASE + n on a built greenhouse
- * plot, else -1.
+ * Plot index of a tile: row-major inside the home field, GREENHOUSE_BASE + n on a built greenhouse
+ * plot, FIELD_BASE[field] + n inside an owned north field (`north`: the owned ones), else -1.
  */
-export function plotIndexAt(grid: Grid, col: number, row: number, greenhousePlots = 0): number {
+export function plotIndexAt(
+  grid: Grid,
+  col: number,
+  row: number,
+  greenhousePlots = 0,
+  north: readonly string[] = [],
+): number {
+  if (row < 0) {
+    for (let k = 0; k < NORTH_FIELD_IDS.length; k++) {
+      const f = NORTH_FIELD_IDS[k]!;
+      if (!north.includes(f)) continue;
+      const n = WORLD_LAYOUT.northFields[f];
+      const c = col - n.origin.col;
+      const r = row - n.origin.row;
+      if (c >= 0 && r >= 0 && c < n.grid.cols && r < n.grid.rows) return FIELD_BASE[f] + r * n.grid.cols + c;
+    }
+    return -1;
+  }
   for (let i = 0; i < greenhousePlots; i++) {
     const t = greenhouseTile(i);
     if (t.col === col && t.row === row) return GREENHOUSE_BASE + i;
@@ -200,6 +243,8 @@ export function plotIndexAt(grid: Grid, col: number, row: number, greenhousePlot
 
 export interface PlacedSprite {
   sprite: string;
+  /** A sprite per season (spring, summer, autumn, winter) instead of `sprite` (v4: hedges, pines). */
+  seasonal?: readonly string[];
   x: number; // logical px, top-left
   y: number;
   w: number; // size in px, for culling
@@ -207,12 +252,17 @@ export interface PlacedSprite {
 }
 
 export interface SceneLayout {
-  /** Ground sprite id for every tile, [row][col]. */
+  /** Ground sprite id for every tile, [row − WORLD_TOP][col] (see `groundAt`). */
   ground: string[][];
   /** Tiles whose ground animates (water), redrawn every frame. */
   animated: { col: number; row: number; sprite: string }[];
   /** Objects drawn over the ground, sorted by their bottom edge so nearer things overlap farther ones. */
   objects: PlacedSprite[];
+}
+
+/** The ground sprite at world tile (col, row) (rows may be negative), or '' outside the world. */
+export function groundAt(ground: readonly (readonly string[])[], col: number, row: number): string {
+  return ground[row - WORLD_TOP]?.[col] ?? '';
 }
 
 /** Cheap deterministic hash for cosmetic variety (never game state, never the game RNG). */
@@ -384,7 +434,98 @@ export function townSpritePos(id: TownProjectId, spriteH: number): { x: number; 
 }
 
 /** Water tiles that animate every frame. */
-const ANIMATED_TILES: readonly string[] = ['tile_water', 'tile_river', 'tile_sea'];
+const ANIMATED_TILES: readonly string[] = [
+  'tile_water',
+  'tile_river',
+  'tile_sea',
+  'tile_lake_a',
+  'tile_lake_b',
+];
+
+/** The mountain lake (v4-01: scenery water; v4-04 fishes it): banks like the pond's, slate in its depths. */
+function lakeTile(col: number, row: number): string | null {
+  const r = WORLD_LAYOUT.lake;
+  if (!inRect(r, col, row)) return null;
+  const top = row === r.row;
+  const bottom = row === r.row + r.rows - 1;
+  const left = col === r.col;
+  const right = col === r.col + r.cols - 1;
+  if (top && left) return 'tile_lake_corner_nw';
+  if (top && right) return 'tile_lake_corner_ne';
+  if (bottom && left) return 'tile_lake_corner_sw';
+  if (bottom && right) return 'tile_lake_corner_se';
+  if (top) return 'tile_lake_edge_n';
+  if (bottom) return 'tile_lake_edge_s';
+  if (left) return 'tile_lake_edge_w';
+  if (right) return 'tile_lake_edge_e';
+  return tileHash(col, row) < 0.5 ? 'tile_lake_a' : 'tile_lake_b';
+}
+
+/** The north band's woods floor: the tree line along the world's top and the North Woods. */
+function woodsTile(col: number, row: number): string | null {
+  if (row !== WORLD_TOP && regionAt(col, row) !== 'woods') return null;
+  return tileHash(col, row) < 0.5 ? 'tile_woods_a' : 'tile_woods_b';
+}
+
+const PINE_LOOKS: readonly (readonly string[])[] = [
+  ['obj_pine', 'obj_pine', 'obj_pine', 'obj_pine_winter'],
+  ['obj_pine_b', 'obj_pine_b', 'obj_pine_b', 'obj_pine_b_winter'],
+];
+const HEDGE_LOOK: readonly string[] = [
+  'obj_hedge_spring',
+  'obj_hedge',
+  'obj_hedge_autumn',
+  'obj_hedge_winter',
+];
+
+/** The tree line along the world's north edge: pines in two shapes, with an old round tree here and there. */
+export function treeLineSprites(): {
+  col: number;
+  row: number;
+  sprite: string;
+  seasonal?: readonly string[];
+}[] {
+  const out: { col: number; row: number; sprite: string; seasonal?: readonly string[] }[] = [];
+  const line = WORLD_LAYOUT.treeLine;
+  for (let col = line.col; col < line.col + line.cols; col++) {
+    const v = tileHash(col + 7, line.row);
+    if (v > 0.86 && col % 3 === 1) out.push({ col, row: line.row, sprite: 'obj_tree' });
+    else {
+      const look = PINE_LOOKS[v < 0.5 ? 0 : 1]!;
+      out.push({ col, row: line.row, sprite: look[0]!, seasonal: look });
+    }
+  }
+  return out;
+}
+
+/** The fence ring around a north field (fixed size) with its gate on the east rail. */
+function northFence(field: (typeof NORTH_FIELD_IDS)[number]): { rect: TileRect; gates: FenceGate[] } {
+  const g = WORLD_LAYOUT.northFields[field].gate;
+  return { rect: northFenceRect(field), gates: [{ col: g.col, row: g.row, sprite: 'obj_fence_gate_v' }] };
+}
+
+/** Pushes a fence ring: corner posts, rails along the top and bottom, a rail with posts down each side, and its gates. */
+function pushFence(objects: PlacedSprite[], fence: TileRect, gates: readonly FenceGate[]): void {
+  const right = fence.col + fence.cols - 1;
+  const bottom = fence.row + fence.rows - 1;
+  for (let row = fence.row; row <= bottom; row++)
+    for (let col = fence.col; col <= right; col++) {
+      const top = row === fence.row;
+      const low = row === bottom;
+      const side = col === fence.col || col === right;
+      if (!top && !low && !side) continue;
+      let sprite: string;
+      const gate = gates.find((g) => g.col === col && g.row === row);
+      if (gate) sprite = gate.sprite;
+      else if (top && col === fence.col) sprite = 'obj_fence_nw';
+      else if (top && col === right) sprite = 'obj_fence_ne';
+      else if (low && col === fence.col) sprite = 'obj_fence_sw';
+      else if (low && col === right) sprite = 'obj_fence_se';
+      else if (top || low) sprite = 'obj_fence_h';
+      else sprite = 'obj_fence_v';
+      objects.push(placed(sprite, col * TILE, row * TILE));
+    }
+}
 
 /** The river along the bottom edge (row 10 is the bank, row 11 the current). */
 function riverTile(col: number, row: number): string | null {
@@ -458,24 +599,51 @@ export function buildLayout(
   const zones = buildZones(grid);
   const scenery = sceneryFor(expansions, parcels);
   const sceneryTiles = new Set(scenery.map((d) => `${d.col},${d.row}`));
-  const sites = [...Object.values(WORLD_LAYOUT.townSites)];
+  const sites = [
+    ...Object.values(WORLD_LAYOUT.townSites),
+    WORLD_LAYOUT.restaurantSite,
+    WORLD_LAYOUT.pressSite,
+  ];
+  // The north (v4-01): an owned field's plots, fence, gate and path; the hedges, pines and lots.
+  const ownedNorth = NORTH_FIELD_IDS.filter((f) => parcels.includes(f));
+  const northPlots = ownedNorth.map((f) => {
+    const n = WORLD_LAYOUT.northFields[f];
+    return { col: n.origin.col, row: n.origin.row, cols: n.grid.cols, rows: n.grid.rows };
+  });
+  const northFences = ownedNorth.map(northFence);
+  for (const f of ownedNorth) {
+    const n = WORLD_LAYOUT.northFields[f];
+    for (const t of n.path) paths.add(`${t.col},${t.row}`);
+    paths.add(`${n.gate.col},${n.gate.row}`);
+  }
+  // Tiles where north scenery stands, kept free of wild flowers.
+  const busy = new Set<string>();
+  for (const h of WORLD_LAYOUT.hedges) for (let c = h.col; c < h.col + h.cols; c++) busy.add(`${c},${h.row}`);
+  for (const p of WORLD_LAYOUT.pines) busy.add(`${p.col},${p.row}`);
+  for (const { rect } of northFences)
+    for (let r = rect.row; r < rect.row + rect.rows; r++)
+      for (let c = rect.col; c < rect.col + rect.cols; c++) busy.add(`${c},${r}`);
 
   const ground: string[][] = [];
   const animated: SceneLayout['animated'] = [];
   const objects: PlacedSprite[] = [];
 
-  for (let row = 0; row < WORLD_ROWS; row++) {
+  for (let row = WORLD_TOP; row < WORLD_BOTTOM; row++) {
     const line: string[] = [];
     for (let col = 0; col < WORLD_COLS; col++) {
       const pond = pondTile(col, row);
       const river = expansions.includes('river') ? riverTile(col, row) : null;
       const sea = seaTile(col, row);
+      const lake = row < 0 ? lakeTile(col, row) : null;
+      const woods = row < 0 && !lake ? woodsTile(col, row) : null;
       const key = `${col},${row}`;
       let tile: string;
       if (pond) tile = pond;
       else if (river) tile = river;
       else if (sea) tile = sea;
-      else if (inRect(plots, col, row)) tile = 'tile_soil_dry';
+      else if (lake) tile = lake;
+      else if (woods) tile = woods;
+      else if (inRect(plots, col, row) || northPlots.some((r) => inRect(r, col, row))) tile = 'tile_soil_dry';
       else if (paths.has(key) || LANE_TILES.has(key)) tile = 'tile_path';
       else if (sites.some((r) => inRect(r, col, row))) tile = 'tile_soil_untilled';
       else {
@@ -487,7 +655,13 @@ export function buildLayout(
 
       // Wild flowers on open grass, away from buildings, zones, paths, fences and scenery.
       const onFence = inRect(fence, col, row) && !inRect(plots, col, row);
-      if (tile.startsWith('tile_grass') && !onFence && !zoneAt(zones, col, row) && !sceneryTiles.has(key)) {
+      if (
+        tile.startsWith('tile_grass') &&
+        !onFence &&
+        !busy.has(key) &&
+        !zoneAt(zones, col, row) &&
+        !sceneryTiles.has(key)
+      ) {
         const f = tileHash(col + 101, row + 57);
         if (f < 0.1) objects.push(placed('obj_flower_a', col * TILE, row * TILE));
         else if (f < 0.16) objects.push(placed('obj_flower_b', col * TILE, row * TILE));
@@ -496,29 +670,31 @@ export function buildLayout(
     ground.push(line);
   }
 
-  // Fence around the plot grid: corner posts, rails along the top and bottom, a rail with posts down
-  // each side, and a gate wherever the path meets it.
-  const right = fence.col + fence.cols - 1;
-  const bottom = fence.row + fence.rows - 1;
-  const gateAt = (col: number, row: number): FenceGate | undefined =>
-    path.gates.find((g) => g.col === col && g.row === row);
-  for (let row = fence.row; row <= bottom; row++)
-    for (let col = fence.col; col <= right; col++) {
-      const top = row === fence.row;
-      const low = row === bottom;
-      const side = col === fence.col || col === right;
-      if (!top && !low && !side) continue;
-      let sprite: string;
-      const gate = gateAt(col, row);
-      if (gate) sprite = gate.sprite;
-      else if (top && col === fence.col) sprite = 'obj_fence_nw';
-      else if (top && col === right) sprite = 'obj_fence_ne';
-      else if (low && col === fence.col) sprite = 'obj_fence_sw';
-      else if (low && col === right) sprite = 'obj_fence_se';
-      else if (top || low) sprite = 'obj_fence_h';
-      else sprite = 'obj_fence_v';
-      objects.push(placed(sprite, col * TILE, row * TILE));
+  // Fence around the plot grid, with a gate wherever the path meets it; and each owned north field's.
+  pushFence(objects, fence, path.gates);
+  for (const nf of northFences) pushFence(objects, nf.rect, nf.gates);
+  for (const h of WORLD_LAYOUT.hedges)
+    for (let c = h.col; c < h.col + h.cols; c++) {
+      const o = placed(HEDGE_LOOK[1]!, c * TILE, h.row * TILE);
+      o.seasonal = HEDGE_LOOK;
+      objects.push(o);
     }
+  for (const t of treeLineSprites()) {
+    const o = placedAt(t.sprite, t.col, t.row);
+    if (t.seasonal) o.seasonal = t.seasonal;
+    objects.push(o);
+  }
+  for (const p of WORLD_LAYOUT.pines) {
+    const look = PINE_LOOKS[tileHash(p.col, p.row) < 0.5 ? 0 : 1]!;
+    const o = placedAt(look[0]!, p.col, p.row);
+    o.seasonal = look;
+    objects.push(o);
+  }
+  objects.push(placed('obj_jetty', WORLD_LAYOUT.jetty.col * TILE, WORLD_LAYOUT.jetty.row * TILE));
+  for (const site of [WORLD_LAYOUT.restaurantSite, WORLD_LAYOUT.pressSite])
+    objects.push(
+      placedAt('obj_lot_sign', site.col + Math.floor(site.cols / 2), site.row + Math.floor(site.rows / 2)),
+    );
 
   // A loft rises one tile above the farmhouse's usual spot; its bottom stays where it was.
   const house = placed(look.farmhouse, 1 * TILE, 1 * TILE);

@@ -100,6 +100,12 @@ export async function hoverTile(page: Page, col: number, row: number): Promise<v
 /** Plot i of a field `cols` wide sits at world tile (6 + i % cols, 2 + floor(i / cols)). */
 export const plotTile = (i: number, cols = 4): [number, number] => [6 + (i % cols), 2 + Math.floor(i / cols)];
 
+/** Plot i of a north field (v4-01): North Fields 8 × 4 from (6, −6), Upper Terraces 8 × 3 from (6, −12). */
+export const fieldPlotTile = (field: 'north_fields' | 'terraces', i: number): [number, number] => [
+  6 + (i % 8),
+  (field === 'north_fields' ? -6 : -12) + Math.floor(i / 8),
+];
+
 export async function clickPlot(
   page: Page,
   i: number,

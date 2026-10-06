@@ -180,7 +180,7 @@ test('buy the Hilltop Orchard from its sign, the Old Paddock from Upgrades › L
   // Zoomed all the way out, the whole world fits.
   for (let i = 0; i < 6; i++) await page.getByRole('button', { name: 'Zoom out' }).click();
   expect((await camera(page)).zoom).toBe(1);
-  expect(await page.evaluate(() => (window as unknown as Win).__view.chunksDrawn())).toBe(6);
+  expect(await page.evaluate(() => (window as unknown as Win).__view.chunksDrawn())).toBe(9); // v4: 3 × 3 chunks
   await page.mouse.move(0, 0);
   await page.waitForTimeout(400);
   await page.evaluate(() => document.getElementById('toasts')!.replaceChildren());
@@ -190,7 +190,8 @@ test('buy the Hilltop Orchard from its sign, the Old Paddock from Upgrades › L
   await page.getByRole('button', { name: 'Back to the farm' }).click();
   for (let i = 0; i < 2; i++) await page.getByRole('button', { name: 'Zoom in' }).click();
   expect((await camera(page)).zoom).toBe(5); // 256 × 144 world px in view
-  await page.evaluate(() => (window as unknown as Win).__view.showTile(2, 2));
+  // In the world's top-left corner (v4: the tree line), the view fits inside one 256 px chunk.
+  await page.evaluate(() => (window as unknown as Win).__view.showTile(2, -12));
   await expect.poll(() => page.evaluate(() => (window as unknown as Win).__view.chunksDrawn())).toBe(1);
   expect(errors).toEqual([]);
 });

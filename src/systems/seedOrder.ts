@@ -13,7 +13,7 @@ import { SEED_ORDER_FEE, SEED_ORDER_RESERVES } from '../data/balance';
 import { CROP_IDS, seedOf, type CropId } from '../data/ids';
 import { fail, OK, type ActionResult, type SimContext } from './context';
 import { spend } from './economy';
-import { finishesBeforeSeasonEnds, inSeason } from './farming';
+import { rememberedCrops, finishesBeforeSeasonEnds, inSeason } from './farming';
 import { addItem, countItem, spaceFor } from './inventory';
 import { effectOf } from './upgrades';
 
@@ -33,11 +33,9 @@ export function reserveOf(state: GameState, gold: number): number {
   return Math.floor((gold * state.seedOrder.reservePct) / 100);
 }
 
-/** Crops the planter last planted on any plot, in table order. */
+/** Crops the planter last planted on any plot of any field (v4-01: the north fields too). */
 function plantedCrops(state: GameState): Set<CropId> {
-  const set = new Set<CropId>();
-  for (const c of state.lastPlantedCrop) if (c) set.add(c);
-  return set;
+  return rememberedCrops(state);
 }
 
 /** The crops the order would stock right now: planted by the planter, in season, ripe in time, not opted out. */

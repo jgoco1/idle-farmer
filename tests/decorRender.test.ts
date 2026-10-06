@@ -9,7 +9,15 @@ import type { PlacedDecor } from '../src/core/state';
 import { GAME_DATA } from '../src/data';
 import { DECOR } from '../src/data/decor';
 import { TOWN_PROJECT_IDS } from '../src/data/ids';
-import { DECOR_BLOCKED, fixedBlockReason, WORLD_COLS, WORLD_LAYOUT, WORLD_ROWS } from '../src/data/world';
+import {
+  DECOR_BLOCKED,
+  fixedBlockReason,
+  WORLD_BOTTOM,
+  WORLD_COLS,
+  WORLD_LAYOUT,
+  WORLD_ROWS,
+  WORLD_TOP,
+} from '../src/data/world';
 import {
   buildDecorDraws,
   decorKey,
@@ -27,6 +35,7 @@ import {
   townSiteRect,
   townSpritePos,
   zoneAt,
+  groundAt,
 } from '../src/render/scene';
 import { SPRITES } from '../src/render/sprites';
 import { farmhouseSpriteId } from '../src/render/sprites/farmhouse';
@@ -232,7 +241,7 @@ describe('where decorations may not go', () => {
       const zones = buildZones(grid);
       for (let row = 0; row < 12; row++)
         for (let col = 0; col < 20; col++) {
-          const tile = layout.ground[row]![col]!;
+          const tile = groundAt(layout.ground, col, row);
           const zone = zoneAt(zones, col, row);
           const blocked = fixedBlockReason(col, row) !== null;
           if (zone || !tile.startsWith('tile_grass'))
@@ -253,7 +262,7 @@ describe('where decorations may not go', () => {
       expect(fixedBlockReason(s.col + 1, s.row + 1)).toMatch(/tree spot/);
     }
     let free = 0;
-    for (let row = 0; row < WORLD_ROWS; row++)
+    for (let row = WORLD_TOP; row < WORLD_BOTTOM; row++)
       for (let col = 0; col < WORLD_COLS; col++) if (!fixedBlockReason(col, row)) free++;
     expect(free).toBeGreaterThan(300);
     expect(DECOR_BLOCKED.every((b) => b.why.length > 5)).toBe(true);
@@ -261,9 +270,11 @@ describe('where decorations may not go', () => {
 
   it('every decoration blocked rectangle lies inside the world', () => {
     for (const { rect } of DECOR_BLOCKED) {
-      expect(inRect({ col: 0, row: 0, cols: WORLD_COLS, rows: WORLD_ROWS }, rect.col, rect.row)).toBe(true);
+      expect(inRect({ col: 0, row: WORLD_TOP, cols: WORLD_COLS, rows: WORLD_ROWS }, rect.col, rect.row)).toBe(
+        true,
+      );
       expect(rect.col + rect.cols).toBeLessThanOrEqual(WORLD_COLS);
-      expect(rect.row + rect.rows).toBeLessThanOrEqual(WORLD_ROWS);
+      expect(rect.row + rect.rows).toBeLessThanOrEqual(WORLD_BOTTOM);
     }
   });
 });

@@ -218,6 +218,16 @@ export const MILESTONES: readonly QuestDef[] = Object.freeze([
     rewards: [{ kind: 'decor', id: 'rose_arch', qty: 1 }],
     requires: [],
   },
+  // ---- v4 (BALANCE.md §14.6): no farm points.
+  {
+    id: 'm24_north_field',
+    kind: 'milestone',
+    title: 'Own a north field',
+    flavor: 'Fresh soil up the north road, and the pines watching over it.',
+    objective: { kind: 'ownNorthField', count: 1 },
+    rewards: [{ kind: 'gold', amount: 50_000 }],
+    requires: [],
+  },
 ] satisfies QuestDef[]);
 
 export const MILESTONE_IDS: readonly MilestoneId[] = MILESTONES.map((m) => m.id as MilestoneId);

@@ -37,6 +37,7 @@ import {
   BIN_TILE,
   PET_TILE,
   PLOT_ORIGIN,
+  plotIndexAt,
   plotSpritesInto,
   tileOfPlot,
   trapTile,
@@ -46,6 +47,7 @@ import {
   allPlotIndexes,
   autoToolFor,
   isReady,
+  northFieldOf,
   plotAt,
   plotStage,
   type ConcreteTool,
@@ -54,18 +56,19 @@ import {
   areaOf,
   areaOffsets,
   coverageOf,
-  inGrid,
   objectAt,
   placementProblem,
+  plotCoordsOf,
   stockOf,
   type Coverage,
+  type PlotCoords,
 } from './systems/placement';
 import { PlacementMode } from './ui/placement';
 import { fishingPanel } from './ui/fishingPanel';
 import { expansionFor, isLocationUnlocked } from './systems/locations';
 import { unlockHints } from './systems/unlocks';
 import { LOCATION_NAMES } from './data/fish';
-import type { FishLocationId } from './data/ids';
+import { NORTH_FIELD_IDS, type FishLocationId } from './data/ids';
 import { computeModifiers } from './systems/modifiers';
 import { showAwaySummary, type AwayFarm } from './ui/awaySummary';
 import { byId, h } from './ui/dom';
@@ -101,7 +104,7 @@ import { EdgePips } from './ui/edgePips';
 import type { PipTarget } from './render/pips';
 import { buyParcelDialog } from './ui/parcelSign';
 import { REGION_NAMES, regionAt } from './data/world';
-import { TRAP_CAPACITY } from './data/balance';
+import { FIELD_BASE, TRAP_CAPACITY } from './data/balance';
 import { applyMotionPrefs, isReducedMotion } from './ui/motion';
 import { flyCoins } from './ui/coinFly';
 import { TutorialOverlay } from './ui/tutorial';
@@ -784,7 +787,7 @@ game.bus.on('planted', (e) => {
   if (!e.auto) return;
   for (const p of e.plots) {
     const t = tileOfPlot(game.state.farm.grid, p);
-    renderer.farmhand.enqueue({ ...t, sprite: null });
+    renderer.farmhand.enqueue({ ...t, sprite: null, area: northFieldOf(p) ?? 'home' });
   }
 });
 // Traps: what a click or the Trap Collector took out of them.
@@ -846,7 +849,12 @@ game.bus.on('parcelBought', (e) => {
     }
     renderer.panToTile(r.col + Math.floor(r.cols / 2), r.row + Math.floor(r.rows / 2));
   }
-  toasts.showKept(`${def.name} is yours! The brambles are cleared. ${def.opens}, later on.`, 'good');
+  toasts.showKept(
+    def.field
+      ? `${def.name} is yours! The brambles are cleared: ${def.opens.toLowerCase()} waits for the hoe.`
+      : `${def.name} is yours! The brambles are cleared. ${def.opens}, later on.`,
+    'good',
+  );
 });
 // A town project stage is finished: the town changes, with a flourish, and the camera shows it.
 game.bus.on('projectStageDone', (e) => {
@@ -894,7 +902,7 @@ let strokeFull = false;
 game.bus.on('harvested', (e) => {
   if (e.auto) {
     const t = tileOfPlot(game.state.farm.grid, e.plot);
-    renderer.farmhand.enqueue({ ...t, sprite: `item_${e.crop}` });
+    renderer.farmhand.enqueue({ ...t, sprite: `item_${e.crop}`, area: northFieldOf(e.plot) ?? 'home' });
     return;
   }
   strokeHarvest.set(e.crop, (strokeHarvest.get(e.crop) ?? 0) + e.qty);
@@ -933,17 +941,23 @@ function startStroke(plot: number, shiftKey: boolean): boolean {
     return false;
   }
   stroke = { tool, seed };
-  const all = bulkPlots(game.state);
+  const all = bulkPlots(game.state, plot); // Shift-click: the clicked field (v4-01)
   usePlotTool(shiftKey ? [plot, ...all.filter((i) => i !== plot)] : [plot], true);
   return true;
 }
 
-/** Harvest all / Water all: the Shift-click action on the whole field, with the same toasts (v2-06). */
+/** Harvest all / Water all: the Shift-click action on every open field, with the same toasts (v2-06, v4-01). */
 function useOnField(tool: 'hand' | 'water'): void {
   if (placement.kind) return;
   const r = game.dispatch({ type: 'useTool', tool, plots: bulkPlots(game.state), seed: null });
   if (!r.ok) toasts.show(r.reason);
-  else if (tool === 'water') toasts.show('The whole field is watered.', 'good');
+  else if (tool === 'water')
+    toasts.show(
+      Object.keys(game.state.farm.north).length > 0
+        ? 'Every field is watered.'
+        : 'The whole field is watered.',
+      'good',
+    );
   flushStrokeToasts();
 }
 
@@ -959,16 +973,21 @@ function usePlotTool(plots: number[], first: boolean): void {
 }
 
 // ---- placement mode: click a plot to place, a placed object to pick it up
+const placeScratch: PlotCoords = { field: null, col: 0, row: 0 };
+const previewScratch: PlotCoords = { field: null, col: 0, row: 0 };
 function placeAt(plot: number): void {
   const kind = placement.kind;
-  if (!kind || plot < 0 || plot >= game.state.farm.plots.length) return;
-  const { cols } = game.state.farm.grid;
-  const col = plot % cols;
-  const row = Math.floor(plot / cols);
-  const there = objectAt(game.state, col, row);
+  const at = placeScratch;
+  if (!kind || !plotCoordsOf(game.state, plot, at)) return;
+  const field = at.field ?? undefined;
+  const there = objectAt(game.state, at.col, at.row, field);
   const r = there
     ? game.dispatch({ type: 'pickUp', id: there.id })
-    : game.dispatch({ type: 'place', kind, col, row });
+    : game.dispatch(
+        field
+          ? { type: 'place', kind, col: at.col, row: at.row, field }
+          : { type: 'place', kind, col: at.col, row: at.row },
+      );
   if (!r.ok) toasts.show(r.reason, 'warn');
   syncPlacement();
 }
@@ -982,11 +1001,21 @@ function syncPlacement(): void {
   const st = game.state;
   placement.describe(stockOf(st, kind));
   const offsets = areaOffsets(areaOf(st, GAME_DATA, kind));
+  // The renderer asks with world tiles; a tile is a placement spot if it is a plot of the home field or an owned
+  // north field (v4-01), never the greenhouse.
+  const at = previewScratch;
+  const spot = (c: number, r: number): boolean =>
+    plotCoordsOf(st, plotIndexAt(st.farm.grid, c, r, 0, st.land.parcels), at);
   renderer.setPreview({
     offsets,
-    validAt: (c, r) =>
-      inGrid(st, c, r) && (!!objectAt(st, c, r) || placementProblem(st, kind, c, r) === null),
-    isPlot: (c, r) => inGrid(st, c - PLOT_ORIGIN.col, r - PLOT_ORIGIN.row),
+    validAt: (c, r) => {
+      if (!spot(c, r)) return false;
+      const field = at.field ?? undefined;
+      return (
+        !!objectAt(st, at.col, at.row, field) || placementProblem(st, kind, at.col, at.row, field) === null
+      );
+    },
+    isPlot: spot,
   });
 }
 
@@ -1137,6 +1166,12 @@ function updatePips(): void {
   for (let i = 0; i < s.farm.greenhouse.length; i++)
     if (isReady(s.farm.greenhouse[i]!, GAME_DATA))
       pipTargets.push({ kind: 'crop', ...tileOfPlot(s.farm.grid, 1000 + i) });
+  for (const f of NORTH_FIELD_IDS) {
+    const plots = s.farm.north[f]?.plots ?? [];
+    for (let i = 0; i < plots.length; i++)
+      if (isReady(plots[i]!, GAME_DATA))
+        pipTargets.push({ kind: 'crop', ...tileOfPlot(s.farm.grid, FIELD_BASE[f] + i) });
+  }
   for (const t of s.fishing.traps) {
     const n = t.contents.reduce((a, c) => a + c.qty, 0);
     if (n >= TRAP_CAPACITY) pipTargets.push({ kind: 'trap', ...trapTile(t.location, t.slot) });
@@ -1157,7 +1192,7 @@ window.setInterval(updatePips, 250);
 
 // ---- offline catch-up for the time since the last save
 function awayFarm(): AwayFarm {
-  const all = [...game.state.farm.plots, ...game.state.farm.greenhouse];
+  const all = allPlotIndexes(game.state).map((i) => plotAt(game.state, i)!);
   return {
     readyPlots: all.filter((p) => isReady(p, GAME_DATA)).length,
     dryPlots: allPlotIndexes(game.state).filter((i) => {
@@ -1246,6 +1281,7 @@ if (loaded.kind === 'error') {
 const view$: SceneView = {
   plots: [],
   greenhouse: [],
+  north: [],
   placed: [],
   farmhand: false,
   traps: [],
@@ -1258,6 +1294,13 @@ const view$: SceneView = {
 };
 const plotsView: PlotSprites[] = [];
 const greenhouseView: PlotSprites[] = [];
+const northViews: PlotSprites[][] = NORTH_FIELD_IDS.map(() => []);
+const noPlots: readonly Plot[] = [];
+/** Per north field: a plot is wet from the can or a sprinkler of that field (made once, not per frame). */
+const northWetAt = NORTH_FIELD_IDS.map((f) => (i: number): boolean => {
+  const plot = game.state.farm.north[f]?.plots[i];
+  return (plot?.waterMsLeft ?? 0) > 0 || coverage?.byField[f]?.sprinkled[i] === 1;
+});
 const trapsView: { col: number; row: number; full: boolean }[] = [];
 const troughLevels: number[] = [];
 let coverage: Coverage | null = null;
@@ -1282,6 +1325,14 @@ function sceneView(): SceneView {
     plotsState = s;
     view$.plots = plotSpritesInto(plotsView, s.farm.plots, stageOf, wetAt);
     view$.greenhouse = plotSpritesInto(greenhouseView, s.farm.greenhouse, stageOf, alwaysWet);
+    for (let k = 0; k < NORTH_FIELD_IDS.length; k++)
+      plotSpritesInto(
+        northViews[k]!,
+        s.farm.north[NORTH_FIELD_IDS[k]!]?.plots ?? noPlots,
+        stageOf,
+        northWetAt[k],
+      );
+    view$.north = northViews;
     // How full each trough looks (0 empty, 1 some, 2 full): needs the bundle bonus, so it is worked out here, not per frame.
     troughLevels.length = s.ranch.buildings.length;
     for (let i = 0; i < s.ranch.buildings.length; i++) {
@@ -1478,6 +1529,8 @@ function exposeHooks(): void {
     lightsLit: () => renderer.lightsLit,
     decorMode: () => decorate.on,
     sceneSprites: () => renderer.layoutSpriteIds(),
+    /** The farmhand figure: its feet in world px and the field it is in (v4-01, e2e). */
+    farmhand: () => ({ x: renderer.farmhand.x, y: renderer.farmhand.y, area: renderer.farmhand.area }),
     /** Where an animal's feet are in world px (e2e: click an animal). */
     animalAt: (id: number) => renderer.ranch.positionOf(id),
     /** Building mode (e2e). */
