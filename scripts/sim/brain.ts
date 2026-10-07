@@ -115,7 +115,6 @@ import {
   pressBlock,
   pressMs,
   pressSlotFor,
-  runsInBag,
 } from '../../src/systems/press';
 import { hiveBlock, honeyWaiting, nextHivePrice } from '../../src/systems/apiary';
 import { orderedCrops } from '../../src/systems/seedOrder';
@@ -571,23 +570,34 @@ export class Brain {
     }
   }
 
-  /** Fills the stove: highest margin per second (or, keeping buffs up, the highest tier first). */
-  private cook(run: SimRun): boolean {
-    const s = run.state;
-    let useful = false;
-    // What the Community Board still needs is not cooked.
+  /**
+   * Items the stove and the presses leave in the bag: what the Community Board still needs, fruit for the town's later
+   * stages, and the crops a project asks for (`anyKind`: whatever a project's current stage asks for, fruit and
+   * products too: the presses once took the bakery's apples and stalled the town, v4-03).
+   */
+  private reserved(s: GameState, anyKind: boolean): Map<ItemId, number> {
     const reserved = new Map<ItemId, number>();
+    const add = (item: ItemId, qty: number): void => void reserved.set(item, (reserved.get(item) ?? 0) + qty);
     if (this.style.bundles) {
       for (const id of BUNDLE_IDS) {
         if (isBundleDone(s, id)) continue;
         for (const slot of bundleSlots(s, this.data, id))
-          if (!slot.done) reserved.set(slot.item, (reserved.get(slot.item) ?? 0) + slot.need - slot.have);
+          if (!slot.done) add(slot.item, slot.need - slot.have);
       }
     }
-    for (const [item, qty] of this.fruitStock(s)) reserved.set(item, (reserved.get(item) ?? 0) + qty); // for the town's later stages
+    for (const [item, qty] of this.fruitStock(s)) add(item, qty); // for the town's later stages
     // v2-05: and the crops a project asks for (the bandstand's pumpkins), which the stove used to take, stalling it a year.
     for (const w of [...this.projectWants(s), ...this.cropErrands(s, true)])
-      if (w.item in this.data.crops) reserved.set(w.item, (reserved.get(w.item) ?? 0) + w.qty);
+      if (anyKind || w.item in this.data.crops) add(w.item, w.qty);
+    return reserved;
+  }
+
+  /** Fills the stove: highest margin per second (or, keeping buffs up, the highest tier first). */
+  private cook(run: SimRun): boolean {
+    const s = run.state;
+    let useful = false;
+    // What the Community Board and the town still need is not cooked.
+    const reserved = this.reserved(s, false);
     const spare = (item: ItemId): number => countItem(s.inventory, item, false) - (reserved.get(item) ?? 0);
     const premium = restaurantLevel(s, this.data)?.premium ?? 0;
     while (s.kitchen.queue.length < kitchenSlots(s, this.data)) {
@@ -1270,17 +1280,30 @@ export class Brain {
         useful = game.dispatch({ type: 'buyCocoa', qty: want }).ok || useful;
     }
     const horizon = leaving ? this.awayMs + HOUR : Math.max(HOUR, this.sessionLeftMs);
+    // The Board's and the town's asks stay in the bag; a drink that uses one never keeps pressing (a restart would take it).
+    const reserved = this.reserved(s, true);
+    const touchesReserved = (r: RecipeDef): boolean =>
+      r.ingredients.some((i) => (reserved.get(i.item) ?? 0) > 0);
+    const runsSpare = (r: RecipeDef): number => {
+      let n = Infinity;
+      for (const i of r.ingredients)
+        n = Math.min(n, Math.floor((countItem(s.inventory, i.item) - (reserved.get(i.item) ?? 0)) / i.qty));
+      return Math.max(0, n);
+    };
     for (let i = 0; i < s.press.slots.length; i++) {
       const slot = s.press.slots[i]!;
       if (slot.remainingMs > 0) {
-        // Leaving: a press at work keeps pressing what it presses.
-        if (leaving && !slot.repeat) game.dispatch({ type: 'setPressRepeat', slot: i, repeat: true });
+        // A press at work keeps pressing what it presses, unless that would take something the town needs.
+        const r = this.data.recipes[slot.recipe!];
+        const keep = !touchesReserved(r);
+        if (slot.repeat !== keep && (leaving || !keep))
+          game.dispatch({ type: 'setPressRepeat', slot: i, repeat: keep });
         continue;
       }
       let best: RecipeDef | null = null;
       let bestValue = 0;
       for (const r of choices) {
-        const runs = Math.min(runsInBag(s, r), Math.max(1, Math.floor(horizon / pressMs(r))));
+        const runs = Math.min(runsSpare(r), Math.max(1, Math.floor(horizon / pressMs(r))));
         if (runs <= 0 || pressSlotFor(s, r.id) < 0) continue;
         const margin = r.basePrice - ingredientValue(r, this.data.items);
         const value = Math.max(margin, 1) * runs + (this.bundleWants(s, r.id) > 0 ? 1e6 : 0);
