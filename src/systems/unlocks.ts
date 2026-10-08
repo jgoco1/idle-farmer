@@ -7,6 +7,7 @@ import { FARM_LEVEL_GOLD_UNIT } from '../data/balance';
 import type { GameData } from '../data';
 import { SKILL_NAMES } from '../data/skills';
 import type { UnlockCondition } from '../data/types';
+import { isDishId } from '../data/ids';
 import { charmOf } from './charm';
 import { earnedFarmLevel, farmPoints, pointsForFarmLevel, skillLevel } from './skills';
 
@@ -22,8 +23,9 @@ export function farmLevel(state: GameState): number {
 
 /** How many known recipes are at least `minTier`. Tiers come from `data`; without it every recipe counts. */
 function knownOfTier(state: GameState, data: GameData | undefined, minTier: number): number {
-  if (!data) return state.kitchen.known.length;
-  return state.kitchen.known.filter((id) => data.recipes[id].tier >= minTier).length;
+  // The kitchen's dishes only (v4-03): a drink learned with the Press House does not open cooking goals.
+  if (!data) return state.kitchen.known.filter(isDishId).length;
+  return state.kitchen.known.filter((id) => isDishId(id) && data.recipes[id].tier >= minTier).length;
 }
 
 function conditionMet(state: GameState, c: UnlockCondition, data?: GameData): boolean {
@@ -54,6 +56,8 @@ function conditionMet(state: GameState, c: UnlockCondition, data?: GameData): bo
       return data !== undefined && charmOf(state, data) >= c.amount;
     case 'building':
       return state.ranch.buildings.some((b) => b.kind === c.id && b.level >= c.level);
+    case 'press':
+      return state.press.level >= c.level;
     case 'townProject':
       return (
         data !== undefined &&
@@ -119,6 +123,10 @@ function hintFor(state: GameState, data: GameData, c: UnlockCondition): string {
       return `Reach charm ${c.amount}.`;
     case 'building':
       return `Build the ${data.buildings[c.id].name}${c.level > 1 ? ` to level ${c.level}` : ''} first.`;
+    case 'press':
+      return c.level > 1
+        ? `Upgrade the ${data.press.name} to level ${c.level} first.`
+        : `Build the ${data.press.name} first.`;
     case 'townProject': {
       const p = data.townProjects[c.id];
       return c.stage === undefined || c.stage >= p.stages.length

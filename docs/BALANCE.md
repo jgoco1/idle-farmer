@@ -1601,7 +1601,7 @@ RESTAURANT_MAX_MULT = 1.75; SPECIAL_BONUS = 0.15; MENU_SLOT_CAP = 99
 
 Nothing changes the interval mid-step (no modifier reads it), so `msToNextSimEvent` does not need to split at servings; a level upgrade or a restock is an action, which is already a step boundary. The day's special is fixed for the calendar segment the core steps through.
 
-**The special rota.** `SPECIAL_ROTA` is a fixed list of 28 recipe and drink ids (every T2–T4 dish and drink at least once, seasonal ones in their season's weeks); the special on day `d` is the entry for that day's season and weekday, `SPECIAL_ROTA[season(d) × 7 + weekday(d)]` (as built in v4-02: `d % 28` could not keep seasonal dishes in their season, since a save's day 0 is any weekday). The panel lists the next seven days. If the player does not know that recipe, there is simply no special for them that day.
+**The special rota.** `SPECIAL_ROTA` is a fixed list of 28 recipe and drink ids (every T2–T4 dish and drink at least once, seasonal ones in their season's weeks); the special on day `d` is the entry for that day's season and weekday, `SPECIAL_ROTA[season(d) × 7 + weekday(d)]` (as built in v4-02: `d % 28` could not keep seasonal dishes in their season, since a save's day 0 is any weekday). The panel lists the next seven days. If the player does not know that recipe, there is simply no special for them that day. v4-03 put Honey-Roast Yams, Hot Cocoa, Honey Cake and Lemonade in place of four repeated dishes (a second Corn Chowder, Scholar's Stew, Apricot Custard and Lemon Meringue Pie), so every T2–T4 dish is on the rota once and two drinks are specials in winter.
 
 **What it can earn.** Per slot per simulated hour at Level 3 (premium 1.60), with average base prices by tier (T1 125, T2 361, T3 1,079, T4 2,409):
 
@@ -1834,7 +1834,7 @@ The bots still act only through `Game.dispatch`; each phase extends `scripts/sim
 
 ### 14.11 v4 constants
 
-In `src/data/balance.ts`: `FIELD_BASE = { north_fields: 2000, terraces: 3000 }` (v4-01); `SERVE_MIN_PER_TIER = 15` (v4-00: 20), `RESTAURANT_MAX_MULT = 1.75`, `SPECIAL_BONUS = 0.15`, `MENU_SLOT_CAP = 99` (v4-02); `TIER_PRESS_DIV = 600`, `COCOA_PRICE = 60`, `HIVE_CYCLE_SEC = 3600`, `HIVE_STORE = 10`, `HIVE_BASE_PRICE = 10_000`, `HIVE_PRICE_RATIO = 1.5` (v4-03); `FORAGE_CAP_DAYS = 3`, `FORAGER_BONUS_DAYS = 1` (v4-04). World size constants live in `src/data/world.ts` (§14.2). Content tables (restaurant levels, Press House levels, drinks, the special rota, forage kinds, lake fish) live in their data files.
+In `src/data/balance.ts`: `FIELD_BASE = { north_fields: 2000, terraces: 3000 }` (v4-01); `SERVE_MIN_PER_TIER = 15` (v4-00: 20), `RESTAURANT_MAX_MULT = 1.75`, `SPECIAL_BONUS = 0.15`, `MENU_SLOT_CAP = 99` (v4-02); `TIER_PRESS_DIV = 600`, `COCOA_PRICE = 60`, `HIVE_CYCLE_SEC = 3600`, `HIVE_STORE = 10`, `HIVE_BASE_PRICE = 10_000`, `HIVE_PRICE_RATIO = 1.5`, and as built `HONEY_PRICE = 150`, `HONEY_XP = 10`, `PRESS_SLOT_STORE = 24`, `COCOA_AMOUNTS` (v4-03); `FORAGE_CAP_DAYS = 3`, `FORAGER_BONUS_DAYS = 1` (v4-04). World size constants live in `src/data/world.ts` (§14.2). Content tables (restaurant levels, Press House levels, drinks, the special rota, forage kinds, lake fish) live in their data files.
 
 ### 14.12 v4 tuning notes
 
@@ -1894,3 +1894,42 @@ Before (v4-01, §14.12): Greedy Farmer 33.3M, Angler 45.7M, Chef 39.3M at day 30
 | Runaway growth, day 28 / day 14 (Farmer · Angler · Chef) | ≤ 3× (§14.9 allows 1.5× from the fields) | 1.49× · 1.57× · 1.20× |
 
 The rest (early dead time, the Casual Idler at 195% of the Active Player on day 3, orchard 3.7%, animals 4% and 1%, no hoard) passes as in v4-01.
+
+**v4 phase 03 notes** (`npm run simulate -- --seeds 1,2,3,4,5,6,7,8`, 30 days, medians; the buffs check on its own 24 seeds; **every check passes, 47 of 47**). The full report is §14.14.
+- **No number in §14.4–§14.6 moved.** The ten v4-03 drinks, the Press House's levels (90,000 / 250,000 / 600,000), the hives (10,000 × 1.5ⁿ, a jar an hour, ten a hive), honey at 150, cocoa at 60 and the two honey dishes are as planned; the tier test covers every drink with `TIER_PRESS_DIV` = 600. One constant is new: `PRESS_SLOT_STORE` = 24, the finished drinks a press slot holds (DATA_SCHEMAS §10.12).
+- **The catalogue** gains the Press House, six hives, the seven drink cards (58,000) and Honey-Roast Yams (5,000): 1,212,000, so it is **21,396,030**. The bots buy it on days 5.5–10 (Press House L1 and the first hive together, straight after the restaurant), L3 on day 11.7 (Chef) to 25 (Greedy Farmer).
+- **Drink income is a side income** (§14.9): Greedy Farmer 3.8% (≤ 5%), Chef 2.6% (2–10%), Active Player 2.4% (≤ 10%); the Chef who sells 4.5%, the Casual Idler 5.8%. Honey is collected at 118–146 jars a day (six hives, the Collecting Basket at each pickup) and mostly pressed; what is sold is 5–10k gold a day (≤ 0.5%).
+- **What the brain learned** (§14.10): the Press House and every hive straight after the restaurant with gold the planter's seeds do not need; its levels in `spendV2`'s ranch turn (the Chefs at once); honey collected at every look; finished drinks collected and every idle press started on "keep pressing" with the drink whose runs the bag sustains earn most (margin × runs over the session or the absence), each press's runs counted against the bag before the next chooses; cocoa bought in winter; drink cards on the same thrift as recipe cards; drinks on the menu after a dish of the same value; drinks drunk for buffs like dishes.
+- **Two traps found on the way, fixed in the brain, not the numbers.** (1) The presses took the bakery's 30 apples for Sweet Cider and stalled the town: the Chef ended day 30 with 4.4M unspent and the no-hoard check failed (3.70 days' income). The presses now leave what the Board and the current project stages ask for, and the town's fruit for later stages (it only comes in season). (2) Keeping 30 milk and eggs for a later stage too starved the presses (the Chef's drinks fell to 1.5%): milk and eggs come every day, so the presses do not hold them back.
+- **The buffs check** reads **+12%** (day 10, 24 seeds; v4-02 +18%): drinks give both Chefs a third side income and the Chef who sells sells its drinks, the eating Chef drinks some of them. Day 14 reads +31%. No buff constant moved.
+- **No strategy dominates:** 1.08× · 1.03× · 1.22× at days 3, 7 and 30. Runaway growth: day 28 / day 14 1.46× (Greedy Farmer), 1.62× (Angler), 1.15× (Chef).
+
+### 14.14 v4-03 balance report
+
+`npm run simulate -- --seeds 1,2,3,4,5,6,7,8` on the v4-03 branch, 30 days from Wed 25 Feb 2026 19:00 in New York, medians; the buffs check on its own 24 seeds at day 10. **47 of 47 checks pass.**
+
+| Bot | Gold d3 | Gold d7 | Gold d14 | Gold d30 | Press House L1 · L3 | Drinks: gold a day · share (days 14–30) | Drinks pressed a day | Honey: jars · sold gold a day |
+|---|---|---|---|---|---|---|---|---|
+| Greedy Farmer | 618,377 | 2,895,900 | 8,277,260 | 37,692,039 | d8.8 · d25.0 | 70,178 · 3.8% | 84 | 118 · 5,172 |
+| Angler | 646,290 | 2,955,096 | 9,575,703 | 40,210,891 | d5.5 · d23.0 | 68,452 · 3.7% | 79 | 118 · 5,830 |
+| Chef | 595,814 | 2,990,218 | 11,770,980 | 46,079,299 | d6.8 · d11.7 | 55,289 · 2.6% | 55 | 125 · 10,505 |
+| Chef who sells (control) | 589,621 | 2,826,912 | 8,338,282 | 32,892,645 | d6.8 · d15.2 | 72,722 · 4.5% | 67 | 118 · 7,739 |
+| Casual Idler | 278,380 | 2,062,605 | 7,091,445 | 41,849,285 | d6.5 · d18.7 | 122,086 · 5.8% | 146 | 146 · 0 |
+| Active Player | 142,425 | 900,245 | 4,688,854 | 18,944,289 | d10.0 · – | 20,154 · 2.4% | 25 | 76 · 7,195 |
+
+Before (v4-02, §14.13): Greedy Farmer 35.7M, Angler 38.3M, Chef 45.3M, Chef who sells 33.7M at day 30.
+
+| Check | Target | Measured |
+|---|---|---|
+| No strategy dominates (days 3 · 7 · 30) | ≤ 1.5× | 1.08× · 1.03× · 1.22× |
+| Buffs kept up (day 10, 24 seeds) | +10% to +25% | **+12%** (day 3 +3%, day 7 +5%, day 14 +31%) |
+| Greedy Farmer · Chef · Active Player: drink income (days 14–30) | ≤ 5% · 2–10% · ≤ 10% | 3.8% · 2.6% · 2.4% |
+| Chef who sells · Chef · Active Player: restaurant income (days 14–30) | 5–15% · 3–15% · ≤ 15% | 6.6% · 4.9% · 3.1% |
+| North fields' share of crop gold: Greedy Farmer · Chef · Active Player | 25–45% · 20–45% · 15–40% | 28% · 34% · 20% |
+| The North Fields pay back (Greedy Farmer) | ≤ 10 days | 5.8 days |
+| Gold still to spend, Greedy Farmer d7 · d14 · d21 · d30 | 85–95 · 55–75 · 30–50 · 10–30% (±10) | 94 · 82 · 55 · 12% |
+| Gold still to spend, Active Player d7 · d14 · d21 · d30 | 90–97 · 75–90 · 60–80 · 40–60% (±10) | 97 · 89 · 85 · 64% |
+| No hoard (Greedy Farmer · Angler · Chef · Active Player) | ≤ 3 days' income | 0.43 · 0.95 · 1.50 · 0.00 |
+| Runaway growth, day 28 / day 14 (Farmer · Angler · Chef) | ≤ 3× (§14.9 allows 1.5× from the fields) | 1.46× · 1.62× · 1.15× |
+
+The rest (early dead time, the Casual Idler at 195% of the Active Player on day 3, orchard 3.4%, animals 3% and 1%) passes as in v4-02. Pacing against §14.9: the Press House comes on day 8.8 (Greedy Farmer, 8–12), 6.8 (Chef, 7–11: a few hours early, straight after its restaurant) and 10.0 (Active Player, 12–18: early, the Active Player opens the restaurant on day 9.5 and the Press House with it); the first hive with it and the first honey within the hour.

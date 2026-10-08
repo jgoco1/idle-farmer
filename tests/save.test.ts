@@ -36,7 +36,8 @@ import {
   trapTile,
   zoneAt,
 } from '../src/render/scene';
-import fixture from './fixtures/save-v16.json';
+import fixture from './fixtures/save-v17.json';
+import fixtureV16 from './fixtures/save-v16.json';
 import fixtureV15 from './fixtures/save-v15.json';
 import { newNorthField } from '../src/systems/farming';
 import hitmapV14 from './fixtures/hitmap-v14.json';
@@ -65,17 +66,27 @@ function withoutV10(rest: Record<string, unknown>): Record<string, unknown> {
   delete (rest.stats as Record<string, unknown>).fruitPicked;
   delete (rest.stats as Record<string, unknown>).productsCollected;
   withoutV16(rest);
+  withoutV17(rest);
   const cal = rest.calendar as Record<string, unknown>;
   delete cal.dayZeroKey;
   delete cal.maxDayIndex;
   return rest;
 }
 
-/** Removes what the v15 → v16 migration added (the restaurant and its two statistics). */
+/** Removes what the v15 → v16 migration added (the restaurant and its two statistics), and v17's after it. */
 function withoutV16(rest: Record<string, unknown>): Record<string, unknown> {
   delete rest.restaurant;
   delete (rest.stats as Record<string, unknown>).restaurantGold;
   delete (rest.stats as Record<string, unknown>).served;
+  return withoutV17(rest);
+}
+
+/** Removes what the v16 → v17 migration added (the Press House, the apiary and their two statistics). */
+function withoutV17(rest: Record<string, unknown>): Record<string, unknown> {
+  delete rest.press;
+  delete rest.apiary;
+  delete (rest.stats as Record<string, unknown>).drinksPressed;
+  delete (rest.stats as Record<string, unknown>).honeyCollected;
   return rest;
 }
 
@@ -90,8 +101,8 @@ function memoryStorage(initial: Record<string, string> = {}): SaveStorage & { da
 }
 
 describe('save file', () => {
-  it('is at version 16 (the restaurant) with one migration per older version', () => {
-    expect(SAVE_VERSION).toBe(16);
+  it('is at version 17 (the Press House and the apiary) with one migration per older version', () => {
+    expect(SAVE_VERSION).toBe(17);
     expect(Object.keys(migrations)).toEqual([
       '1',
       '2',
@@ -108,11 +119,12 @@ describe('save file', () => {
       '13',
       '14',
       '15',
+      '16',
     ]);
     expect(SAVE_KEY).toBe('hearthfield-idle/save');
   });
 
-  it('the v16 fixture loads unchanged', () => {
+  it('the v17 fixture loads unchanged', () => {
     const file = parseSave(FIXTURE_TEXT);
     expect(file).toEqual(fixture);
   });
@@ -207,6 +219,10 @@ describe('save file', () => {
     // The restaurant (v4-02): built, with a slot on the menu.
     fresh.restaurant.level = 1;
     fresh.restaurant.menu.push({ item: 'vegetable_soup', qty: 3, hearty: false, cycleMs: 0 });
+    // The Press House and a hive (v4-03).
+    fresh.press.level = 1;
+    fresh.press.slots.push({ recipe: 'tomato_juice', remainingMs: 1, done: 0, repeat: false });
+    fresh.apiary.hives.push({ id: 1, spot: 0, honey: 1, cycleMs: 0 });
     fresh.fishing.traps.push({
       id: 1,
       location: 'pond',
@@ -385,6 +401,8 @@ describe('migrations', () => {
       productsCollected: 0,
       restaurantGold: 0,
       served: 0,
+      drinksPressed: 0,
+      honeyCollected: 0,
       lifetimeGold: 0,
       goldToday: 0,
       cropsHarvested: 0,
@@ -416,6 +434,8 @@ describe('migrations', () => {
       productsCollected: 0,
       restaurantGold: 0,
       served: 0,
+      drinksPressed: 0,
+      honeyCollected: 0,
       fishCaught: 0,
       dishesCooked: 0,
       dishesEaten: 0,
@@ -444,6 +464,8 @@ describe('migrations', () => {
       productsCollected: 0,
       restaurantGold: 0,
       served: 0,
+      drinksPressed: 0,
+      honeyCollected: 0,
       dishesCooked: 0,
       dishesEaten: 0,
       bestDishTier: 0,
@@ -469,6 +491,8 @@ describe('migrations', () => {
       productsCollected: 0,
       restaurantGold: 0,
       served: 0,
+      drinksPressed: 0,
+      honeyCollected: 0,
     });
     expect(s.upgrades).toEqual(old.upgrades);
     // Deeds the save already shows: planted, harvested, sold, expanded, sprinkler, fish, dish, ate, farmhand, river.
@@ -752,6 +776,45 @@ describe('migrations', () => {
     expect(withoutV16(rest)).toEqual(fixtureV15.state);
   });
 
+  it('migrates a v16 save (v17): no Press House, no hives, the statistics at zero, nothing else changes', () => {
+    const file = parseSave(JSON.stringify(fixtureV16));
+    expect(file.version).toBe(SAVE_VERSION);
+    expect(validateState(file.state)).toBeNull();
+    expect(file.state.press).toEqual({ level: 0, slots: [] });
+    expect(file.state.apiary).toEqual({ hives: [] });
+    expect(file.state.stats.drinksPressed).toBe(0);
+    expect(file.state.stats.honeyCollected).toBe(0);
+    const rest = JSON.parse(JSON.stringify(file.state)) as Record<string, unknown>;
+    expect(withoutV17(rest)).toEqual(fixtureV16.state);
+  });
+
+  it('refuses a damaged Press House or apiary', () => {
+    const bad = (mutate: (c: typeof fixture.state) => void): string | null => {
+      const c = structuredClone(fixture.state);
+      mutate(c);
+      return validateState(c);
+    };
+    expect(bad(() => {})).toBeNull();
+    expect(bad((c) => void ((c as Record<string, unknown>).press = undefined))).toBe('bad press');
+    expect(bad((c) => void (c.press.level = 4))).toBe('bad press');
+    expect(bad((c) => void (c.press.level = 1))).toBe('bad press'); // three slots at level 1
+    expect(bad((c) => void (c.press.level = 0))).toBe('bad press'); // presses before the building
+    expect(bad((c) => void (c.press.slots[0]!.recipe = 'vegetable_soup'))).toBe('bad press'); // a dish
+    expect(bad((c) => void (c.press.slots[0]!.remainingMs = -1))).toBe('bad press');
+    expect(bad((c) => void (c.press.slots[1]!.done = 25))).toBe('bad press');
+    expect(bad((c) => void ((c.press.slots[1] as { recipe: string | null }).recipe = null))).toBe(
+      'bad press',
+    );
+    expect(bad((c) => void (c.press.slots[2]!.repeat = 1 as unknown as boolean))).toBe('bad press');
+    expect(bad((c) => void ((c as Record<string, unknown>).apiary = undefined))).toBe('bad hive');
+    expect(bad((c) => void (c.apiary.hives[1]!.spot = 0))).toBe('bad hive'); // two on one spot
+    expect(bad((c) => void (c.apiary.hives[1]!.spot = 6))).toBe('bad hive'); // only six spots
+    expect(bad((c) => void (c.apiary.hives[1]!.id = 1))).toBe('bad hive');
+    expect(bad((c) => void (c.apiary.hives[0]!.honey = 11))).toBe('bad hive');
+    expect(bad((c) => void (c.apiary.hives[2]!.cycleMs = -1))).toBe('bad hive');
+    expect(bad((c) => void (c.stats.honeyCollected = 0.5))).toBe('bad stats');
+  });
+
   it('refuses a damaged restaurant or menu', () => {
     const bad = (mutate: (c: typeof fixture.state) => void): string | null => {
       const c = structuredClone(fixture.state);
@@ -765,12 +828,22 @@ describe('migrations', () => {
     expect(bad((c) => void (c.restaurant.level = 0))).toBe('bad menu'); // a menu before the building
     expect(bad((c) => void (c.restaurant.menu[0]!.qty = 100))).toBe('bad menu');
     expect(bad((c) => void (c.restaurant.menu[0]!.item = 'turnip'))).toBe('bad menu'); // not a dish
-    expect(bad((c) => void (c.restaurant.menu[2]!.qty = 3))).toBe('bad menu'); // a count on a clear table
+    expect(bad((c) => void (c.restaurant.menu[2]!.item = 'honey_milk'))).toBeNull(); // a drink (v4-03)
+    expect(bad((c) => void (c.restaurant.menu[2]!.item = 'honey'))).toBe('bad menu'); // honey is not served
+    expect(
+      bad((c) => {
+        const m = c.restaurant.menu[2] as unknown as { item: string | null; qty: number; cycleMs: number };
+        m.item = null;
+        m.qty = 3;
+        m.cycleMs = 0;
+      }),
+    ).toBe('bad menu'); // a count on a clear table
     expect(bad((c) => void (c.restaurant.menu[1]!.cycleMs = -5))).toBe('bad menu');
     expect(bad((c) => void (c.restaurant.menu[1]!.hearty = 1 as unknown as boolean))).toBe('bad menu');
     expect(
       bad((c) => {
-        for (let i = 0; i < 3; i++) c.restaurant.menu.push({ item: null, qty: 0, hearty: false, cycleMs: 0 });
+        for (let i = 0; i < 3; i++)
+          (c.restaurant.menu as unknown[]).push({ item: null, qty: 0, hearty: false, cycleMs: 0 });
       }),
     ).toBe('bad menu'); // six tables
     expect(bad((c) => void (c.stats.served = 1.5))).toBe('bad stats');
@@ -925,6 +998,8 @@ describe('migrations', () => {
       productsCollected: 0,
       restaurantGold: 0,
       served: 0,
+      drinksPressed: 0,
+      honeyCollected: 0,
       fishCaught: 0,
       dishesCooked: 0,
       dishesEaten: 0,

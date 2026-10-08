@@ -77,6 +77,7 @@ import {
 } from './camera';
 import { RanchLife, type RanchView } from './ranchLife';
 import { RestaurantLife, type RestaurantView } from './restaurantLife';
+import { PressLife, type PressView } from './pressLife';
 import {
   clearInspected,
   INSPECT_ANIMAL,
@@ -176,6 +177,8 @@ export interface SceneView {
   ranch: RanchView;
   /** The restaurant's level and which tables serve (v4 phase 02). */
   restaurant: RestaurantView;
+  /** The Press House's level, its presses and the hives (v4 phase 03). */
+  press: PressView;
   /** The cosmetic rewards of finished town projects. */
   cosmetics: { bakerySmoke: boolean; band: boolean; lighthouseBeam: boolean; festival: boolean };
   /** Sprite of the farm cat napping by the door (`CatDef.sprite` of the chosen cat). */
@@ -334,6 +337,9 @@ export class Renderer {
   readonly restaurant = new RestaurantLife(() => this.reducedMotion());
   private restaurantSteamClock = 0;
   private lookRestaurant = 0;
+  /** The Press House, its presses, the hives and their bees (v4-03): render only. */
+  readonly pressHouse = new PressLife(() => this.reducedMotion());
+  private lookPress = 0;
   private shakeUntil = 0;
   private steamClock = 0;
   private lastTime = 0;
@@ -919,7 +925,10 @@ export class Renderer {
     look: SceneLook = DEFAULT_LOOK,
   ): void {
     // Called every frame: compare without building the key string unless something may have changed.
-    let lookSame = look.farmhouse === this.lookFarmhouse && (look.restaurant ?? 0) === this.lookRestaurant;
+    let lookSame =
+      look.farmhouse === this.lookFarmhouse &&
+      (look.restaurant ?? 0) === this.lookRestaurant &&
+      (look.press ?? 0) === this.lookPress;
     for (let i = 0; lookSame && i < TOWN_PROJECT_IDS.length; i++)
       lookSame = (look.stages[TOWN_PROJECT_IDS[i]!] ?? 0) === this.lookStages[i];
     if (
@@ -934,10 +943,16 @@ export class Renderer {
     this.sceneParcels = parcels.length;
     this.lookFarmhouse = look.farmhouse;
     this.lookRestaurant = look.restaurant ?? 0;
+    this.lookPress = look.press ?? 0;
     for (let i = 0; i < TOWN_PROJECT_IDS.length; i++)
       this.lookStages[i] = look.stages[TOWN_PROJECT_IDS[i]!] ?? 0;
-    this.look = { farmhouse: look.farmhouse, stages: { ...look.stages }, restaurant: this.lookRestaurant };
-    const key = `${grid.cols}x${grid.rows}|${expansions.join(',')}|${parcels.join(',')}|${look.farmhouse}|${this.lookStages.join('')}|${this.lookRestaurant}`;
+    this.look = {
+      farmhouse: look.farmhouse,
+      stages: { ...look.stages },
+      restaurant: this.lookRestaurant,
+      press: this.lookPress,
+    };
+    const key = `${grid.cols}x${grid.rows}|${expansions.join(',')}|${parcels.join(',')}|${look.farmhouse}|${this.lookStages.join('')}|${this.lookRestaurant}|${this.lookPress}`;
     if (key === this.sceneKey) return;
     this.sceneKey = key;
     const resized = grid.cols !== this.grid.cols || grid.rows !== this.grid.rows;
@@ -1019,6 +1034,8 @@ export class Renderer {
     this.ranch.update(dtMs, calendar.isNight);
     this.restaurant.sync(view.restaurant);
     this.restaurant.update(dtMs, calendar.isNight);
+    this.pressHouse.sync(view.press);
+    this.pressHouse.update(calendar.isNight);
     this.particles.update(dtMs);
     if (!this.reducedMotion() && this.restaurant.steamAt(this.ranchPt)) {
       // Steam from the kitchen chimney while anything is on the menu (v4-02).
@@ -1100,6 +1117,8 @@ export class Renderer {
     const ranchN = this.ranch.prepare();
     let qi = 0;
     const innN = this.restaurant.prepare();
+    let pi = 0;
+    const pressN = this.pressHouse.prepare();
     for (let i = 0; i < objects.length; i++) {
       const o = objects[i]!;
       const bottom = o.y + o.h;
@@ -1107,6 +1126,8 @@ export class Renderer {
         this.ranch.draw(f, ri++, timeMs, vis, winter, lit);
       while (qi < innN && this.restaurant.bottomAt(qi) < bottom * 2)
         this.restaurant.draw(f, qi++, timeMs, vis, winter, lit);
+      while (pi < pressN && this.pressHouse.bottomAt(pi) < bottom * 2)
+        this.pressHouse.draw(f, pi++, timeMs, vis, winter, lit);
       while (di < decor.length && decor[di]!.bottom < bottom)
         this.drawDecor(decor[di++]!, season, winter, lit, vis, timeMs);
       while (ti < SPOT_ORDER.length && (WORLD_LAYOUT.treeSpots[SPOT_ORDER[ti]!]!.row + 2) * TILE < bottom)
@@ -1120,6 +1141,7 @@ export class Renderer {
       this.drawTree(this.spotTree[SPOT_ORDER[ti++]!], season, calendar.dayIndex, vis);
     while (ri < ranchN) this.ranch.draw(f, ri++, timeMs, vis, winter, lit);
     while (qi < innN) this.restaurant.draw(f, qi++, timeMs, vis, winter, lit);
+    while (pi < pressN) this.pressHouse.draw(f, pi++, timeMs, vis, winter, lit);
     this.objectsDrawn = drawn;
     this.drawTownLife(view, calendar, timeMs, vis, dtMs);
     if (view.cooking)
@@ -1281,6 +1303,11 @@ export class Renderer {
       }
       // The inn's windows (small halos) and the lantern by its door (a large one), v4-02.
       for (let w = 0; this.restaurant.windowOf(w, this.ranchPt); w++) {
+        if (overlaps(vis, this.ranchPt.x - 16, this.ranchPt.y - 16, 32, 32))
+          this.halo(this.ranchPt.x, this.ranchPt.y, WINDOW_GLOW);
+      }
+      // The Press House's lamp-lit window (v4-03).
+      for (let w = 0; this.pressHouse.windowOf(w, this.ranchPt); w++) {
         if (overlaps(vis, this.ranchPt.x - 16, this.ranchPt.y - 16, 32, 32))
           this.halo(this.ranchPt.x, this.ranchPt.y, WINDOW_GLOW);
       }

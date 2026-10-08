@@ -4,7 +4,7 @@
 import type { Action } from '../core/actions';
 import type { GameState } from '../core/state';
 import type { GameData } from '../data';
-import type { DishId } from '../data/ids';
+import type { RecipeId } from '../data/ids';
 import type { ActionResult } from '../systems/context';
 import { planEat } from '../systems/buffs';
 import { formatCountdown } from './buffBar';
@@ -20,7 +20,7 @@ export interface EatHooks {
 /** Eats one `dish` (from the hearty stack when `hearty`). `done` gets the result once it is known. */
 export function eatWithConfirm(
   hooks: EatHooks,
-  dish: DishId,
+  dish: RecipeId,
   hearty: boolean,
   done: (r: ActionResult | null) => void,
 ): void {

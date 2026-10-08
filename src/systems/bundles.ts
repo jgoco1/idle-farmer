@@ -55,6 +55,7 @@ export interface BundleBonuses {
   greenhouse: boolean;
   treeSpots: number;
   troughBonus: number;
+  menuSlots: number; // v4-03: the Press House bundle's fifth restaurant table
 }
 
 const NO_BUNDLE_BONUSES: Readonly<BundleBonuses> = Object.freeze({
@@ -66,6 +67,7 @@ const NO_BUNDLE_BONUSES: Readonly<BundleBonuses> = Object.freeze({
   greenhouse: false,
   treeSpots: 0,
   troughBonus: 0,
+  menuSlots: 0,
 });
 
 /** What the completed bundles give, in total. Do not modify the result. */
@@ -80,6 +82,7 @@ export function bundleBonuses(state: GameState, data: GameData): Readonly<Bundle
     greenhouse: false,
     treeSpots: 0,
     troughBonus: 0,
+    menuSlots: 0,
   };
   for (const id of state.progression.completedBundles) {
     const r = data.bundles[id].reward;
@@ -104,6 +107,9 @@ export function bundleBonuses(state: GameState, data: GameData): Readonly<Bundle
         break;
       case 'troughBonus':
         b.troughBonus += r.bonus;
+        break;
+      case 'menuSlot':
+        b.menuSlots += r.count;
         break;
       case 'unlockGreenhouse':
         b.greenhouse = true;
@@ -157,6 +163,11 @@ function completeBundle(state: GameState, ctx: SimContext, id: BundleId): void {
   const reward = ctx.data.bundles[id].reward;
   if (reward.kind === 'inventorySlots') {
     for (let i = 0; i < reward.count; i++) state.inventory.slots.push(null);
+  }
+  // The restaurant's fifth table: laid now if the restaurant is open, else when it is built.
+  if (reward.kind === 'menuSlot' && state.restaurant.level > 0) {
+    for (let i = 0; i < reward.count; i++)
+      state.restaurant.menu.push({ item: null, qty: 0, hearty: false, cycleMs: 0 });
   }
   ctx.events.push({ type: 'bundleCompleted', bundle: id });
 }

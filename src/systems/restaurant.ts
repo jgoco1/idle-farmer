@@ -1,6 +1,6 @@
 // The restaurant, The Bramble Table (GDD §13.4, BALANCE.md §14.3, DATA_SCHEMAS.md §10.4–10.8). A building
-// on its fixed north-road site with 2, 3 or 4 menu slots. Each slot holds a stack of one dish (drinks
-// join in v4-03) and serves one of it every SERVE_MIN_PER_TIER minutes × the dish's tier of simulated
+// on its fixed north-road site with 2, 3 or 4 menu slots (a fifth with the Press House bundle). Each slot
+// holds a stack of one dish or (v4-03) drink and serves one of it every SERVE_MIN_PER_TIER minutes × the dish's tier of simulated
 // time. A serving pays base price × the level's premium (+ the day's special), capped at
 // RESTAURANT_MAX_MULT × base, straight to the purse: guests are not the Market, so demand, specials,
 // Silver Tongue and the winter dish bonus are never read or touched.
@@ -17,9 +17,10 @@ import type { GameState, MenuSlot } from '../core/state';
 import { SEASONS, seasonOfDay, weekdayOfDay, type Calendar } from '../core/time';
 import type { GameData } from '../data';
 import { MENU_SLOT_CAP, RESTAURANT_MAX_MULT, SERVE_MIN_PER_TIER, SPECIAL_BONUS } from '../data/balance';
-import { isDishId, type ItemId, type RecipeId, type RecipeTier } from '../data/ids';
+import { isDishId, isDrinkId, isRecipeId, type ItemId, type RecipeId, type RecipeTier } from '../data/ids';
 import type { RestaurantLevelDef } from '../data/types';
 import { fail, OK, type ActionResult, type SimContext } from './context';
+import { bundleBonuses } from './bundles';
 import { canAfford, earn, spend } from './economy';
 import { addItem, countItem, removeItem, spaceFor } from './inventory';
 import { isUnlocked, unlockHint } from './unlocks';
@@ -36,19 +37,21 @@ export function restaurantLevel(state: GameState, data: GameData): RestaurantLev
   return level > 0 ? (data.restaurant.levels[level - 1] ?? null) : null;
 }
 
-/** Menu slots the level gives (the Press House bundle's fifth table arrives in v4-03). */
+/** Menu slots the level gives, plus the Press House bundle's fifth table (v4-03). */
 export function menuSlots(state: GameState, data: GameData): number {
-  return restaurantLevel(state, data)?.slots ?? 0;
+  const level = restaurantLevel(state, data);
+  return level ? level.slots + bundleBonuses(state, data).menuSlots : 0;
 }
 
-/** Whether `item` can go on the menu: a dish (and, from v4-03, a drink). */
+/** Whether `item` can go on the menu: a dish or (v4-03) a drink. */
 export function isMenuable(data: GameData, item: ItemId): boolean {
-  return isDishId(item) && data.items[item]?.category === 'dish';
+  const category = data.items[item]?.category;
+  return (isDishId(item) && category === 'dish') || (isDrinkId(item) && category === 'drink');
 }
 
-/** The tier that sets a menu item's serving time. */
+/** The tier that sets a menu item's serving time: its recipe's (a drink's too). */
 export function menuTier(data: GameData, item: ItemId): RecipeTier {
-  return isDishId(item) ? data.recipes[item].tier : 1;
+  return isRecipeId(item) ? data.recipes[item].tier : 1;
 }
 
 /** Simulated ms between servings of `item`: SERVE_MIN_PER_TIER minutes × its tier. */
@@ -139,7 +142,8 @@ function buyLevel(state: GameState, ctx: SimContext): ActionResult {
   if (!canAfford(state, next.price)) return fail(`You need ${next.price.toLocaleString('en-US')}g for that.`);
   spend(state, next.price);
   state.restaurant.level += 1;
-  while (state.restaurant.menu.length < next.slots) state.restaurant.menu.push(emptySlot());
+  const slots = menuSlots(state, ctx.data);
+  while (state.restaurant.menu.length < slots) state.restaurant.menu.push(emptySlot());
   ctx.events.push({ type: 'purchased', what: 'restaurant', gold: next.price });
   return OK;
 }
@@ -192,7 +196,7 @@ export function stockMenu(
   const s = slotAt(state, slot);
   if (!s) return fail('There is no such table.');
   const def = ctx.data.items[item];
-  if (!def || !isMenuable(ctx.data, item)) return fail('Only dishes go on the menu.');
+  if (!def || !isMenuable(ctx.data, item)) return fail('Only dishes and drinks go on the menu.');
   if (!Number.isInteger(qty) || qty <= 0) return fail('Choose how many to put on the menu.');
   const kind = hearty === true;
   const name = kind ? `hearty ${def.name}` : def.name;

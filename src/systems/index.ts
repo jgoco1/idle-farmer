@@ -17,6 +17,8 @@ import { growOrchard } from './orchard';
 import { runSeedOrder } from './seedOrder';
 import { ranchPickup, tickRanch } from './ranch';
 import { openRestaurantDay, tickRestaurant } from './restaurant';
+import { tickApiary } from './apiary';
+import { msToNextPressFinish, tickPress } from './press';
 import { resetDailyGoals, revalidateGoals, runProgression } from './progression';
 
 /**
@@ -26,6 +28,7 @@ import { resetDailyGoals, revalidateGoals, runProgression } from './progression'
  */
 export function tickSystems(state: GameState, ctx: SimContext, dtMs: number): void {
   tickRanch(state, ctx, dtMs); // first: its large-egg rolls keep their order whatever the step size (see ranch.ts)
+  tickApiary(state, ctx, dtMs); // honey in whole cycles; no RNG
   tickFarming(state, ctx, dtMs);
   tickAutomation(state, ctx, dtMs); // farmhand harvest → planter (auto-ship is part of harvesting), before the bin
   tickTraps(state, ctx, dtMs); // idle fishing: one roll per trap per 3 simulated minutes
@@ -41,13 +44,14 @@ export function tickSystems(state: GameState, ctx: SimContext, dtMs: number): vo
   if (pickup) runSeedOrder(state, ctx); // the Seed Order buys with what the pickup just paid (v2-06)
   tickCooking(state, ctx, dtMs); // dishes finish (hearty in winter) into the bag
   tickRestaurant(state, ctx, dtMs); // after cooking: the menu serves what was stocked; whole servings, no RNG
+  tickPress(state, ctx, dtMs); // drinks finish into their slots; "keep pressing" restarts from the bag
   tickBuffs(state, ctx, dtMs); // this step's bonuses were applied through ctx.mods
   runProgression(state, ctx); // last: XP, milestones and goals from everything this step reported
 }
 
 /**
  * Simulated ms until the next moment a large step must stop at (a buff expiring, a dish finishing,
- * a watering running out, a shipping-bin pickup, the next farmhand visit with work to do, a trap roll:
+ * a watering running out, a shipping-bin pickup, a press run finishing, the next farmhand visit with work to do, a trap roll:
  * a catch pays XP and a level-up can change a rate). `Infinity` when nothing is pending. Used by the
  * core to split steps.
  */
@@ -59,6 +63,7 @@ export function msToNextSimEvent(state: GameState, ctx: SimContext): number {
     msToNextCookFinish(state, ctx),
     msToNextBuffExpiry(state),
     msToNextTrapRoll(state, ctx),
+    msToNextPressFinish(state),
   );
 }
 

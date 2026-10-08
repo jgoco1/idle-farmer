@@ -179,7 +179,9 @@ const SORT_CATEGORIES: readonly ItemCategory[] = [
   'animal',
   'fish',
   'dish',
+  'drink',
   'feed',
+  'ingredient',
   'junk',
 ];
 

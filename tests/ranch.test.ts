@@ -931,7 +931,7 @@ describe('recipes (BALANCE.md §13.8)', () => {
     ] as const) {
       expect(recipeTier(R[id], GAME_DATA.items), id).toBe(R[id].tier); // the existing formula, not a new one
     }
-    expect(RECIPE_IDS).toHaveLength(32);
+    expect(RECIPE_IDS).toHaveLength(34);
   });
 
   it('Persimmon Pudding is the winter gold-buff dish: Silver Tongue, cookable from winter-fresh persimmon', () => {

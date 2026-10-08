@@ -116,3 +116,4 @@ v4 phase 00 (the North; ideas kept out of v4 on purpose):
 - **A brewery** with ale, cider and mead: the owner chose no alcohol (GDD §13.12 decision 1, store age ratings). Not planned.
 
 - **A menu-aware planter or Seed Order** (v4-02): let the player mark crops "for the kitchen" so the planter keeps some plots on a restaurant recipe's ingredients; the simulator shows the restaurant is ingredient-limited (the Chef's stove idles ~70% of a session once the Auto-Seller ships every harvest). A v4-04 balance pass or a later comforts phase could own it.
+- **A honey shelf or bigger hives** (v4-03): drinks are honey-limited (six hives, a jar an hour each, and most drinks use one). If v4-04's balance pass wants more drinks, a second hive level or honey on the Press House shelf at a premium would lift it without touching the press times. Owner: v4-04 or a later content pass.

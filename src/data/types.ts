@@ -54,7 +54,8 @@ export type UnlockCondition =
   | { kind: 'parcel'; id: ParcelId } // a land parcel is owned (v2 phase 01)
   | { kind: 'charm'; amount: number } // derived charm is at least this (v2 phase 02)
   | { kind: 'townProject'; id: TownProjectId; stage?: number } // stages done ≥ stage; omitted = complete (v2 phase 02)
-  | { kind: 'building'; id: BuildingId; level: number }; // a ranch building of at least this level (v2 phase 04)
+  | { kind: 'building'; id: BuildingId; level: number } // a ranch building of at least this level (v2 phase 04)
+  | { kind: 'press'; level: number }; // the Press House built to at least this level (v4 phase 03)
 
 /** A rectangle of world tiles: top-left (col, row) and size (DATA_SCHEMAS.md §9.3). */
 export interface TileRect {
@@ -72,8 +73,10 @@ export type ItemCategory =
   | 'dish'
   | 'fruit'
   | 'sapling'
-  | 'animal' // egg, large egg, milk (sellable)
-  | 'feed'; // hay, corn feed (not sellable, like seeds)
+  | 'animal' // egg, large egg, milk, and (v4-03) honey (sellable)
+  | 'feed' // hay, corn feed (not sellable, like seeds)
+  | 'drink' // v4-03: pressed drinks (sellable, edible, menuable)
+  | 'ingredient'; // v4-03: cocoa from the Press House shelf (not sellable, like feed)
 
 export interface ItemDef {
   id: ItemId;
@@ -82,7 +85,7 @@ export interface ItemDef {
   category: ItemCategory;
   basePrice: number; // market base price; seeds use their shop price here but are not sellable
   sellable: boolean; // seeds: false
-  edible: boolean; // dishes only
+  edible: boolean; // dishes and drinks
   sprite: string; // sprite id, e.g. 'item_turnip'
 }
 
@@ -222,13 +225,19 @@ export type RecipeDiscovery =
   | { kind: 'starter' }
   | { kind: 'card'; price: number; unlock: readonly UnlockCondition[] } // bought in the Shop
   | { kind: 'milestone'; id: MilestoneId }
-  | { kind: 'experiment' }; // only by experimenting
+  | { kind: 'experiment' } // only by experimenting
+  | { kind: 'press' }; // v4-03: learned when the Press House is built (its two starter drinks)
 
 export interface RecipeDef {
   id: RecipeId;
   name: string;
-  ingredients: readonly ItemStack[]; // crops, fish and seaweed only (no dish in a dish)
-  cookSec: number; // seconds of simulated time at 1× cook speed
+  ingredients: readonly ItemStack[]; // crops, fish, fruit, products, honey, cocoa (no dish in a dish)
+  /** Seconds of simulated time: at 1× cook speed on the stove, or (`station: 'press'`) the press time, never sped up. */
+  cookSec: number;
+  /** Where it is made (v4-03): absent = the kitchen's stove; `'press'` = a Press House slot (a drink). */
+  station?: 'kitchen' | 'press';
+  /** The seasons its ingredients are fresh in, for the Press House's book (drinks only; display). */
+  fresh?: readonly SeasonId[];
   tier: RecipeTier; // declared; tests check it against recipeTier()
   buff: BuffType;
   basePrice: number; // round(ingredient value × TIER_SELL_MULT[tier])
@@ -321,7 +330,10 @@ export type QuestObjective =
   // v2 phase 04
   | { kind: 'collectProduct'; product?: AnimalProductId; count: number } // counts 'collected'
   // v4 phase 02
-  | { kind: 'serve'; count: number }; // counts 'served'
+  | { kind: 'serve'; count: number } // counts 'served'
+  // v4 phase 03
+  | { kind: 'press'; count: number } // counts 'drinkPressed'
+  | { kind: 'collectHoney'; count: number }; // counts 'honeyCollected'
 
 export type QuestReward =
   | { kind: 'gold'; amount: number }
@@ -349,7 +361,8 @@ export type BundleReward =
   | { kind: 'fishingLuck'; bonus: number }
   | { kind: 'goldenScarecrow' }
   | { kind: 'treeSpots'; count: number } // the Orchard Basket (v2 phase 03)
-  | { kind: 'troughBonus'; bonus: number }; // the Barnyard: every trough holds this much more (v2 phase 04)
+  | { kind: 'troughBonus'; bonus: number } // the Barnyard: every trough holds this much more (v2 phase 04)
+  | { kind: 'menuSlot'; count: number }; // the Press House bundle: the restaurant's fifth table (v4 phase 03)
 
 export interface BundleDef {
   id: BundleId;
@@ -531,4 +544,35 @@ export interface RestaurantDef {
     table: string;
     tableDish: string;
   };
+}
+
+// ---- the Press House and the apiary (v4 phase 03, BALANCE.md §14.4–14.5, DATA_SCHEMAS.md §10.4)
+
+export interface PressLevelDef {
+  price: number;
+  slots: number; // press slots: one press in the yard each
+}
+
+export interface PressHouseDef {
+  name: string;
+  requires: readonly UnlockCondition[]; // to build level 1
+  levels: readonly [PressLevelDef, PressLevelDef, PressLevelDef];
+  /** What the Press House shelf sells, and for how much (cocoa: the winter drink never waits on a season). */
+  shelf: { cocoa: number };
+  sprites: {
+    building: readonly [string, string, string]; // per level; frame 1 is the lit night look
+    press: string; // an idle press in the yard
+    pressBusy: string; // a press at work (animated)
+    pressDone: string; // a press with a finished jug on it
+  };
+}
+
+export interface HiveDef {
+  basePrice: number; // the (n+1)th hive costs roundNice(basePrice × ratio^n)
+  ratio: number;
+  cycleSec: number; // one jar per cycle, shortened by Busy Bees (animalSpeedModifier)
+  store: number; // jars a hive holds; full = it waits
+  product: 'honey';
+  requires: readonly UnlockCondition[];
+  sprite: string;
 }

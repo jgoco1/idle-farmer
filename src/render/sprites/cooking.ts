@@ -2,7 +2,7 @@
 // icon per buff type for the HUD, the winter snowflake badge for hearty dishes, and the chimney
 // steam. Dishes are authored as fills and wrapped in `outlined()`.
 
-import { RECIPE_IDS, type RecipeId } from '../../data/ids';
+import { RECIPE_IDS, type DishId } from '../../data/ids';
 import { BUFF_TYPES } from '../../data/buffs';
 import { outlined, recolored, type SpriteDef } from './types';
 
@@ -45,7 +45,7 @@ function inBowl(top: readonly string[]): string[] {
 
 // ---- dishes
 
-const DISH_ART: Record<RecipeId, readonly string[]> = {
+const DISH_ART: Record<DishId, readonly string[]> = {
   fried_egg: onPlate([
     '',
     '....wwwwwww',
@@ -269,6 +269,25 @@ const DISH_ART: Record<RecipeId, readonly string[]> = {
     '..qqqq..pppppp',
     '',
   ]),
+  // v4-03: a golden sponge with a honey glaze, and glossy roast yams
+  honey_cake: onPlate([
+    '.....uuUuu',
+    '...uUUUUUUuu',
+    '..uuuuuuuuuuu',
+    '..PPPPPPPPPPP',
+    '..PpPPPPPPpPP',
+    '..ppppppppppp',
+    '',
+  ]),
+  honey_roast_yams: onPlate([
+    '',
+    '...oOo...oOOo',
+    '..oOuOo.oOuOOo',
+    '.oOOOOooOOOOOo.',
+    '..ooooo.ooooou',
+    '....u......u',
+    '',
+  ]),
   moonfin_sushi: onPlate([
     '',
     '',
@@ -281,7 +300,7 @@ const DISH_ART: Record<RecipeId, readonly string[]> = {
 };
 
 /** Recolours so two dishes never share pixels even if their art is close. */
-const TWEAKS: Partial<Record<RecipeId, Record<string, string>>> = {};
+const TWEAKS: Partial<Record<DishId, Record<string, string>>> = {};
 
 const DISH_SPRITES: SpriteDef[] = RECIPE_IDS.map((id) => ({
   id: `item_${id}`,

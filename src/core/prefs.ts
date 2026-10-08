@@ -1,7 +1,7 @@
 // Player preferences that belong to the browser, not the farm: volumes, motion, UI scale, number
 // format and (v2) the camera and Paint mode. Stored under their own key so they survive a hard reset and never touch SAVE_VERSION.
 
-import { RECIPE_IDS, type RecipeId } from '../data/ids';
+import { ALL_RECIPE_IDS, type RecipeId } from '../data/ids';
 import type { SaveStorage } from './save';
 
 export const PREFS_KEY = 'hearthfield-idle/prefs';
@@ -68,7 +68,7 @@ function sanitizeFavourites(raw: unknown): RecipeId[] {
   for (const id of raw)
     if (
       typeof id === 'string' &&
-      (RECIPE_IDS as readonly string[]).includes(id) &&
+      (ALL_RECIPE_IDS as readonly string[]).includes(id) &&
       !out.includes(id as RecipeId)
     )
       out.push(id as RecipeId);

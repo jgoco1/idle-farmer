@@ -16,7 +16,7 @@ import {
   HEARTY_DURATION_BONUS,
   MAX_BUFF_SLOTS,
 } from '../data/balance';
-import type { BuffType, DishId, RecipeTier } from '../data/ids';
+import type { BuffType, RecipeId, RecipeTier } from '../data/ids';
 import { fail, OK, type ActionResult, type SimContext } from './context';
 import { bundleBonuses } from './bundles';
 import { countItem, removeItem } from './inventory';
@@ -61,8 +61,8 @@ export type EatPlan =
   | { kind: 'refresh'; existing: ActiveBuff } // same type already active: the stronger and longer wins
   | { kind: 'replace'; existing: ActiveBuff }; // slots full: needs the player's OK to replace `existing`
 
-/** What eating `dish` would do right now (no changes). The UI asks before a `replace`. */
-export function planEat(state: GameState, data: GameData, dish: DishId): EatPlan {
+/** What eating `dish` (or, v4-03, drinking a drink) would do right now (no changes). The UI asks before a `replace`. */
+export function planEat(state: GameState, data: GameData, dish: RecipeId): EatPlan {
   const recipe = data.recipes[dish];
   const same = activeBuff(state, recipe.buff);
   if (same) return { kind: 'refresh', existing: same };
@@ -73,7 +73,7 @@ export function planEat(state: GameState, data: GameData, dish: DishId): EatPlan
 /** The buff a dish gives: its type, magnitude and duration (hearty lengthens it). */
 export function dishBuff(
   data: GameData,
-  dish: DishId,
+  dish: RecipeId,
   hearty: boolean,
   perkBonus = 0,
 ): { type: BuffType; tier: RecipeTier; magnitude: number; durationMs: number } {
@@ -93,7 +93,7 @@ export function dishBuff(
 export function eatDish(
   state: GameState,
   ctx: SimContext,
-  dish: DishId,
+  dish: RecipeId,
   hearty: boolean | undefined,
   replace: boolean,
 ): ActionResult {

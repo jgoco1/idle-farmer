@@ -107,7 +107,7 @@ export function restaurantPanel(hooks: RestaurantHooks): PanelDef {
             h('span', { text: `${def.name} · ${num(first.price)}g` }),
             h('span', {
               class: 'seed-note',
-              text: `A little inn on the north road. Guests buy the dishes you put on its ${first.slots} tables for ${first.premium.toFixed(2)}× their price, one every ${SERVE_MIN_PER_TIER} minutes × the dish's tier, even while you are away. Nothing on the menu ever spoils.`,
+              text: `A little inn on the north road. Guests buy the dishes and drinks you put on its ${first.slots} tables for ${first.premium.toFixed(2)}× their price, one every ${SERVE_MIN_PER_TIER} minutes × the dish's tier, even while you are away. Nothing on the menu ever spoils.`,
             }),
             block ? h('span', { class: 'seed-note', text: `Locked. ${block}` }) : null,
           ),
@@ -205,7 +205,9 @@ export function restaurantPanel(hooks: RestaurantHooks): PanelDef {
         const lines: (HTMLElement | null)[] = [];
         if (slot.item === null) {
           lines.push(h('span', { text: `Table ${i + 1} · free` }));
-          lines.push(h('span', { class: 'seed-note', text: 'Put a dish on it from your bag below.' }));
+          lines.push(
+            h('span', { class: 'seed-note', text: 'Put a dish or a drink on it from your bag below.' }),
+          );
         } else {
           const name = itemName(slot.item, slot.hearty);
           const price = servingPrice(state, hooks.data, slot.item, special);
@@ -275,7 +277,10 @@ export function restaurantPanel(hooks: RestaurantHooks): PanelDef {
         );
         if (dishes.length === 0) {
           box.append(
-            h('p', { class: 'muted', text: 'No dishes in your bag. Cook something in the Kitchen.' }),
+            h('p', {
+              class: 'muted',
+              text: 'No dishes or drinks in your bag. Cook something in the Kitchen, or press a drink.',
+            }),
           );
           return box;
         }

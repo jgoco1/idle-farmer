@@ -17,6 +17,7 @@ import {
   treeOfFruit,
   JUNK_IDS,
   RECIPE_IDS,
+  DRINK_IDS,
   seedOf,
   type AnimalProductId,
   type CropId,
@@ -25,8 +26,11 @@ import {
   type FruitId,
   type ItemId,
   type JunkId,
-  type RecipeId,
+  type DishId,
+  type DrinkId,
+  type PressItemId,
 } from './ids';
+import { COCOA_PRICE, HONEY_PRICE } from './balance';
 import type { ItemDef } from './types';
 
 function cropItem(id: CropId): ItemDef {
@@ -90,7 +94,7 @@ function junkItem(id: JunkId): ItemDef {
   };
 }
 
-function dishItem(id: RecipeId): ItemDef {
+function dishItem(id: DishId): ItemDef {
   const r = RECIPES[id];
   return {
     id,
@@ -103,6 +107,45 @@ function dishItem(id: RecipeId): ItemDef {
     sprite: `item_${id}`,
   };
 }
+
+/** A pressed drink (v4-03): sellable, drunk for a buff like a dish, and it goes on the restaurant's menu. */
+function drinkItem(id: DrinkId): ItemDef {
+  const r = RECIPES[id];
+  return {
+    id,
+    name: r.name,
+    description: r.description,
+    category: 'drink',
+    basePrice: r.basePrice,
+    sellable: true,
+    edible: true,
+    sprite: `item_${id}`,
+  };
+}
+
+/** Honey from the apiary and cocoa from the Press House shelf (v4-03). */
+const PRESS_ITEMS: Record<PressItemId, ItemDef> = {
+  honey: {
+    id: 'honey',
+    name: 'Honey',
+    description: 'A jar of golden honey from the hives on the north road. Sweetens drinks and a cake or two.',
+    category: 'animal',
+    basePrice: HONEY_PRICE,
+    sellable: true,
+    edible: false,
+    sprite: 'item_honey',
+  },
+  cocoa: {
+    id: 'cocoa',
+    name: 'Cocoa Beans',
+    description: 'A little sack from the Press House shelf, for Hot Cocoa in any season. Not for selling.',
+    category: 'ingredient',
+    basePrice: COCOA_PRICE,
+    sellable: false,
+    edible: false,
+    sprite: 'item_cocoa',
+  },
+};
 
 function fruitItem(id: FruitId): ItemDef {
   const t = TREES[treeOfFruit(id)];
@@ -189,6 +232,9 @@ const ENTRIES: [FarmItemId, ItemDef][] = [
   ...FISH_IDS.map((id): [FarmItemId, ItemDef] => [id, fishItem(id)]),
   ...JUNK_IDS.map((id): [FarmItemId, ItemDef] => [id, junkItem(id)]),
   ...RECIPE_IDS.map((id): [FarmItemId, ItemDef] => [id, dishItem(id)]),
+  ...DRINK_IDS.map((id): [FarmItemId, ItemDef] => [id, drinkItem(id)]),
+  ['honey', PRESS_ITEMS.honey],
+  ['cocoa', PRESS_ITEMS.cocoa],
 ];
 
 export const ITEMS: Readonly<Record<FarmItemId, ItemDef>> = Object.freeze(

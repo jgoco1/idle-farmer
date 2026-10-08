@@ -5,7 +5,7 @@ import type { OfflineReport } from '../core/offline';
 import { capitalize, formatDuration } from '../core/time';
 import { GAME_DATA } from '../data';
 import type { AnimalId, AnimalProductId, CropId, FruitId, RecipeId, SkillId, TreeId } from '../data/ids';
-import { fruitOfTree } from '../data/ids';
+import { fruitOfTree, isDrinkId } from '../data/ids';
 import { SKILL_ICONS, SKILL_NAMES } from '../data/skills';
 import { spriteDataUrl } from '../render/spriteCache';
 import { h } from './dom';
@@ -47,6 +47,15 @@ export interface AwayTotals {
   served: number;
   servedGold: number;
   menuEmptied: number;
+  /** Of those servings, how many were drinks (v4-03). */
+  servedDrinks: number;
+  /** The Press House and the apiary (v4 phase 03): drinks pressed (by recipe), presses that stopped, honey made and the Basket's. */
+  pressed: Partial<Record<RecipeId, number>>;
+  pressedTotal: number;
+  pressStopped: number;
+  honeyMade: number;
+  honeyByBasket: number;
+  drinksByBasket: number;
 }
 
 export function awayTotals(report: OfflineReport): AwayTotals {
@@ -76,6 +85,13 @@ export function awayTotals(report: OfflineReport): AwayTotals {
     served: 0,
     servedGold: 0,
     menuEmptied: 0,
+    servedDrinks: 0,
+    pressed: {},
+    pressedTotal: 0,
+    pressStopped: 0,
+    honeyMade: 0,
+    honeyByBasket: 0,
+    drinksByBasket: 0,
   };
   for (const e of report.events) {
     if (e.type === 'harvested') {
@@ -115,6 +131,18 @@ export function awayTotals(report: OfflineReport): AwayTotals {
     } else if (e.type === 'served') {
       t.served += e.qty;
       t.servedGold += e.gold;
+      if (isDrinkId(e.item)) t.servedDrinks += e.qty;
+    } else if (e.type === 'drinkPressed') {
+      t.pressed[e.recipe] = (t.pressed[e.recipe] ?? 0) + 1;
+      t.pressedTotal += 1;
+    } else if (e.type === 'pressStopped') {
+      t.pressStopped += 1;
+    } else if (e.type === 'honeyMade') {
+      t.honeyMade += e.qty;
+    } else if (e.type === 'honeyCollected') {
+      if (e.auto) t.honeyByBasket += e.qty;
+    } else if (e.type === 'pressCollected') {
+      if (e.auto) t.drinksByBasket += e.qty;
     } else if (e.type === 'menuEmpty') {
       t.menuEmptied += 1;
     } else if (e.type === 'questDone') {
@@ -203,9 +231,52 @@ export function awayRows(report: OfflineReport, farm: AwayFarm): AwayRow[] {
     });
   }
   if (t.served > 0) {
+    const dishes = t.served - t.servedDrinks;
+    const what =
+      t.servedDrinks === 0
+        ? `${t.served.toLocaleString('en-US')} dish${t.served === 1 ? '' : 'es'}`
+        : dishes === 0
+          ? `${t.served.toLocaleString('en-US')} drink${t.served === 1 ? '' : 's'}`
+          : `${dishes.toLocaleString('en-US')} dish${dishes === 1 ? '' : 'es'} and ${t.servedDrinks.toLocaleString('en-US')} drink${t.servedDrinks === 1 ? '' : 's'}`;
     rows.push({
       icon: 'obj_table_dish',
-      text: `The restaurant served ${t.served.toLocaleString('en-US')} dish${t.served === 1 ? '' : 'es'} for ${t.servedGold.toLocaleString('en-US')}g.`,
+      text: `The restaurant served ${what} for ${t.servedGold.toLocaleString('en-US')}g.`,
+    });
+  }
+  // The Press House and the apiary (v4 phase 03).
+  if (t.pressedTotal > 0) {
+    const [first] = (Object.entries(t.pressed) as [RecipeId, number][]).sort((a, b) => b[1] - a[1]);
+    const kinds = Object.keys(t.pressed).length;
+    const rest = kinds > 1 ? ` and ${kinds - 1} other kind${kinds > 2 ? 's' : ''}` : '';
+    rows.push({
+      icon: `item_${first![0]}`,
+      text: `The presses made ${t.pressedTotal} drink${t.pressedTotal === 1 ? '' : 's'} (${first![1]} ${GAME_DATA.recipes[first![0]].name}${rest}).`,
+    });
+  }
+  if (t.drinksByBasket > 0) {
+    rows.push({
+      icon: 'obj_press_done',
+      text: `The Collecting Basket bottled ${t.drinksByBasket} drink${t.drinksByBasket === 1 ? '' : 's'} into your bag.`,
+    });
+  }
+  if (t.pressStopped > 0) {
+    rows.push({
+      icon: 'obj_press_idle',
+      text:
+        t.pressStopped === 1
+          ? 'A press is resting until you bring it more fruit (or make room in it).'
+          : `${t.pressStopped} presses are resting until you bring them more fruit (or make room in them).`,
+    });
+  }
+  if (t.honeyMade > 0) {
+    rows.push({
+      icon: 'item_honey',
+      text: `The bees made ${t.honeyMade} jar${t.honeyMade === 1 ? '' : 's'} of honey${t.honeyByBasket > 0 ? `, and the Collecting Basket brought in ${t.honeyByBasket}` : ''}.`,
+    });
+  } else if (t.honeyByBasket > 0) {
+    rows.push({
+      icon: 'item_honey',
+      text: `The Collecting Basket brought in ${t.honeyByBasket} jars of honey.`,
     });
   }
   if (t.menuEmptied > 0) {

@@ -33,6 +33,7 @@ import {
   ANIMAL_PRODUCT_IDS,
   FRUIT_IDS,
   RECIPE_IDS,
+  DRINK_IDS,
   type AnimalProductId,
   type FruitId,
   type ItemId,
@@ -255,7 +256,7 @@ export function tickMarket(state: GameState, _ctx: SimContext, dtMs: number): vo
 
 /**
  * Sellable items the player can obtain now: unlocked, in-season crops and the in-season fish of the
- * locations they have opened, and the dishes of known recipes.
+ * locations they have opened, and the dishes and (v4-03) drinks of known recipes.
  */
 export function specialCandidates(state: GameState, data: GameData, season: SeasonId): ItemId[] {
   const crops = CROP_IDS.filter((c) => {
@@ -272,11 +273,16 @@ export function specialCandidates(state: GameState, data: GameData, season: Seas
   const dishes = RECIPE_IDS.filter((r) => state.kitchen.known.includes(r));
   // Eggs and milk once the hen or cow that gives them lives on the ranch (v2 phase 04).
   const products = ANIMAL_PRODUCT_IDS.filter((a) => hasAnimalFor(state, a));
-  return [...crops, ...fish, ...fruit, ...products, ...dishes];
+  // v4-03: honey once a hive stands in the apiary, and the drinks the player knows (after the dishes,
+  // so a save without them draws exactly as before).
+  const honey: ItemId[] = hasAnimalFor(state, 'honey') ? ['honey'] : [];
+  const drinks = DRINK_IDS.filter((r) => state.kitchen.known.includes(r));
+  return [...crops, ...fish, ...fruit, ...products, ...dishes, ...honey, ...drinks];
 }
 
-/** Whether the animal that gives `product` is on the ranch (a large egg comes from a hen). */
-function hasAnimalFor(state: GameState, product: AnimalProductId): boolean {
+/** Whether the animal that gives `product` is on the ranch (a large egg comes from a hen; honey from a hive, v4-03). */
+function hasAnimalFor(state: GameState, product: AnimalProductId | 'honey'): boolean {
+  if (product === 'honey') return state.apiary.hives.length > 0;
   return animalsOfKind(state, product === 'milk' ? 'cow' : 'chicken') > 0;
 }
 
@@ -301,9 +307,13 @@ export function rollSpecials(state: GameState, data: GameData, rng: Rng, season:
 export function recordHistory(state: GameState, data: GameData): void {
   for (const def of Object.values(data.items)) {
     if (!def?.sellable) continue;
-    if (def.category === 'dish' && !state.kitchen.known.includes(def.id as never)) continue;
+    if (
+      (def.category === 'dish' || def.category === 'drink') &&
+      !state.kitchen.known.includes(def.id as never)
+    )
+      continue;
     if (def.category === 'fruit' && !hasTreeOf(state, def.id as FruitId)) continue;
-    if (def.category === 'animal' && !hasAnimalFor(state, def.id as AnimalProductId)) continue;
+    if (def.category === 'animal' && !hasAnimalFor(state, def.id as AnimalProductId | 'honey')) continue;
     const e = entry(state, def.id);
     e.history.push(Math.round(effectiveMultiplier(state, def.id) * 1000) / 1000);
     if (e.history.length > MARKET_HISTORY_DAYS) e.history.splice(0, e.history.length - MARKET_HISTORY_DAYS);

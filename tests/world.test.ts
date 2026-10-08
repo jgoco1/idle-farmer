@@ -419,6 +419,8 @@ describe('gold still to spend (BALANCE §13.4, simulator)', () => {
     // v2-04: every building level (955,000), 12 hens and 6 cows (108,000), the Collecting Basket (50,000) and the two building cards (27,000).
     expect(parts.ranch).toBe(1_140_000);
     expect(parts.projects).toBe(Math.round(8_500_000 * TOWN_PROJECT_SCALE));
+    // v4-03: the Press House's three levels (940,000), six hives (209,000), the drink cards (58,000) and Honey-Roast Yams (5,000).
+    expect(parts.press).toBe(940_000 + 209_000 + 58_000 + 5_000);
     expect(parts.v1).toBeGreaterThan(560_000); // ≈ 590,000: 538,000 before v2-06 plus the Seed Order's 4,000 + 12,000 + 36,000
     expect(parts.v1).toBeLessThan(620_000 + 90_300); // v4-01: sprinklers 13–16 and scarecrows 5–6 add 90,300
     const s = createInitialState(CREATED, NY, 1);

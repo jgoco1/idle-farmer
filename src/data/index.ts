@@ -32,6 +32,7 @@ import type {
 } from './ids';
 import { ITEMS } from './items';
 import { PARCELS } from './parcels';
+import { HIVE, PRESS_HOUSE } from './press';
 import { RECIPES } from './recipes';
 import { RESTAURANT } from './restaurant';
 import { SEASONS } from './seasons';
@@ -51,6 +52,8 @@ import type {
   JunkDef,
   ParcelDef,
   QuestDef,
+  HiveDef,
+  PressHouseDef,
   RecipeDef,
   RestaurantDef,
   SeasonDef,
@@ -106,6 +109,9 @@ export interface GameData {
   cats: Readonly<Record<CatId, CatDef>>;
   /** The restaurant's levels, unlock, special rota and sprites (v4 phase 02). */
   restaurant: RestaurantDef;
+  /** The Press House's levels, unlock, shelf and sprites, and the beehives (v4 phase 03). */
+  press: PressHouseDef;
+  hive: HiveDef;
 }
 
 export const GAME_DATA: GameData = Object.freeze({
@@ -134,4 +140,6 @@ export const GAME_DATA: GameData = Object.freeze({
   feeds: FEEDS,
   cats: CATS,
   restaurant: RESTAURANT,
+  press: PRESS_HOUSE,
+  hive: HIVE,
 });
