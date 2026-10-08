@@ -253,13 +253,20 @@ function stepReel(reel: ReelState, rng: Rng, holding: boolean, ms: number): 'cau
   return null;
 }
 
-/** The starting reel for a fish: zone in the middle, meter at 30%. */
+/**
+ * The starting reel for a fish at `location` (by default the fish's own water): zone in the middle,
+ * meter at 30%. The water's tuning (v4-04: the lake's still water) multiplies the zone's width and speed;
+ * Relaxed fishing and the rod multiply on top, as everywhere.
+ */
 export function startReel(
   state: GameState,
   ctx: Pick<SimContext, 'data' | 'rng' | 'mods'>,
   id: FishId | JunkId,
+  location: FishLocationId = (ctx.data.fish as Partial<Record<string, { location: FishLocationId }>>)[id]
+    ?.location ?? 'pond',
 ): ReelState {
   const rod = effectOf(state, ctx.data, 'fishing_rod');
+  const tuning = ctx.data.locationReel[location];
   const p = reelParams(
     difficultyOf(ctx.data, id),
     (rod?.reelZoneMult ?? 1) * (1 + ctx.mods.reelZoneBonus),
@@ -269,8 +276,8 @@ export function startReel(
     marker: 0.5,
     zoneCenter: 0.5,
     zoneVel: 0,
-    zoneWidth: Math.min(1, p.zoneWidth),
-    zoneSpeed: p.zoneSpeed,
+    zoneWidth: Math.min(1, p.zoneWidth * tuning.zoneWidthMult),
+    zoneSpeed: p.zoneSpeed * tuning.zoneSpeedMult,
     retargetMs: 0,
     drainPerSec: p.drainPerSec,
     meter: REEL.meterStart,
@@ -306,7 +313,9 @@ export function cancelCast(state: GameState): ActionResult {
 
 function release(s: FishingSession, state: GameState, ctx: SimContext): void {
   const speed = Math.max(0.1, ctx.mods.fishingSpeedModifier);
-  const wait = BITE_WAIT_MIN_MS + ctx.rng.next() * (BITE_WAIT_MAX_MS - BITE_WAIT_MIN_MS);
+  const wait =
+    (BITE_WAIT_MIN_MS + ctx.rng.next() * (BITE_WAIT_MAX_MS - BITE_WAIT_MIN_MS)) *
+    ctx.data.locationReel[s.location].biteWaitMult;
   s.phase = 'waiting';
   s.waitMs = Math.round(wait / speed);
   void state;
@@ -351,7 +360,7 @@ export function stepFishing(state: GameState, ctx: SimContext, holding: boolean,
     }
     if (s.phase === 'bite') {
       if (holding) {
-        s.reel = startReel(state, ctx, s.fish!);
+        s.reel = startReel(state, ctx, s.fish!, s.location);
         s.phase = 'reeling';
         continue;
       }

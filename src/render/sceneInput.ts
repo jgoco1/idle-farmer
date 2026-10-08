@@ -5,11 +5,14 @@
 export const INSPECT_NONE = 0;
 export const INSPECT_TREE = 1;
 export const INSPECT_ANIMAL = 2;
-export type InspectKind = typeof INSPECT_NONE | typeof INSPECT_TREE | typeof INSPECT_ANIMAL;
+/** v4-04: a forage spot in the North Woods (its id is the spot's index). */
+export const INSPECT_FORAGE = 3;
+export type InspectKind =
+  typeof INSPECT_NONE | typeof INSPECT_TREE | typeof INSPECT_ANIMAL | typeof INSPECT_FORAGE;
 
 export interface Inspected {
   kind: InspectKind;
-  /** The tree's or the animal's id (-1 with nothing). */
+  /** The tree's or the animal's id, or the forage spot's index (-1 with nothing). */
   id: number;
 }
 

@@ -7,6 +7,7 @@ import { ANIMALS, FEEDS } from './animals';
 import { TREES } from './trees';
 import { FISH, JUNK } from './fish';
 import { RECIPES } from './recipes';
+import { FORAGE } from './forage';
 import {
   CROP_IDS,
   FISH_IDS,
@@ -18,6 +19,7 @@ import {
   JUNK_IDS,
   RECIPE_IDS,
   DRINK_IDS,
+  FORAGE_IDS,
   seedOf,
   type AnimalProductId,
   type CropId,
@@ -28,6 +30,7 @@ import {
   type JunkId,
   type DishId,
   type DrinkId,
+  type ForageId,
   type PressItemId,
 } from './ids';
 import { COCOA_PRICE, HONEY_PRICE } from './balance';
@@ -147,6 +150,21 @@ const PRESS_ITEMS: Record<PressItemId, ItemDef> = {
   },
 };
 
+/** A wild thing from the North Woods (v4-04): sold at the Market, and an ingredient in two drinks and two dishes. */
+function forageItem(id: ForageId): ItemDef {
+  const f = FORAGE.items[id];
+  return {
+    id,
+    name: f.name,
+    description: f.description,
+    category: 'forage',
+    basePrice: f.basePrice,
+    sellable: true,
+    edible: false,
+    sprite: `item_${id}`,
+  };
+}
+
 function fruitItem(id: FruitId): ItemDef {
   const t = TREES[treeOfFruit(id)];
   return {
@@ -235,6 +253,7 @@ const ENTRIES: [FarmItemId, ItemDef][] = [
   ...DRINK_IDS.map((id): [FarmItemId, ItemDef] => [id, drinkItem(id)]),
   ['honey', PRESS_ITEMS.honey],
   ['cocoa', PRESS_ITEMS.cocoa],
+  ...FORAGE_IDS.map((id): [FarmItemId, ItemDef] => [id, forageItem(id)]),
 ];
 
 export const ITEMS: Readonly<Record<FarmItemId, ItemDef>> = Object.freeze(

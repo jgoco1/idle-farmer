@@ -29,10 +29,14 @@ const [scarecrowText, scarecrowEffect] = perUnit(
   { shape: 'square', radius: 2, growthBonus: 0.2 },
 );
 
-const [trapText, trapEffect] = perUnit(9, (n) => (n === 0 ? 'none yet' : n === 1 ? '1 trap' : `${n} traps`), {
-  intervalSec: TRAP_INTERVAL_SEC,
-  capacity: TRAP_CAPACITY,
-});
+const [trapText, trapEffect] = perUnit(
+  12,
+  (n) => (n === 0 ? 'none yet' : n === 1 ? '1 trap' : `${n} traps`),
+  {
+    intervalSec: TRAP_INTERVAL_SEC,
+    capacity: TRAP_CAPACITY,
+  },
+);
 
 export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object.freeze({
   sprinkler: {
@@ -252,8 +256,8 @@ export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object
     category: 'fishing',
     kind: 'placeable',
     placeOn: 'water',
-    max: 9, // 3 waters × (2 spots + 1 from the Pond Fish bundle)
-    cost: { base: 500, ratio: 1.5 }, // 500, 750, 1100, 1700, 2500, 3800, 5700, 8600, 12800
+    max: 12, // 4 waters (v4-04: the mountain lake) × (2 spots + 1 from the Pond Fish bundle)
+    cost: { base: 500, ratio: 1.5 }, // 500, 750, 1100, 1700, 2500, 3800, 5700, 8600, 12800, 19000, 29000, 43000
     effectText: trapText,
     effect: trapEffect,
     requires: [],
@@ -306,6 +310,19 @@ export const UPGRADES: Readonly<Partial<Record<UpgradeId, UpgradeDef>>> = Object
     effectText: ['not built', 'empties the stores at every bin pickup'],
     effect: [{}, { flags: ['autoCollect'] }],
     requires: [{ kind: 'building', id: 'coop', level: 1 }],
+  },
+  forager_basket: {
+    id: 'forager_basket',
+    name: "Forager's Basket",
+    description:
+      'A deep willow basket and a map of the woods: every ripe forage spot is picked into your bag each time the Shipping Bin is collected.',
+    category: 'farm',
+    kind: 'leveled',
+    max: 1,
+    cost: { base: 120_000, ratio: 1 },
+    effectText: ['not built', 'picks the North Woods at every bin pickup'],
+    effect: [{}, { flags: ['autoForage'] }],
+    requires: [{ kind: 'milestone', id: 'm28_first_forage' }],
   },
   kitchen: {
     id: 'kitchen',

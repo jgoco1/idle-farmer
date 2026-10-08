@@ -42,6 +42,7 @@ import {
   seedOf,
   type CropId,
   type FishId,
+  type ForageId,
   type GoalTemplateId,
   type ItemId,
   type JunkId,
@@ -68,6 +69,7 @@ import { fruitXp, ownsMatureTree, treeAge } from './orchard';
 import { animalsOfKind, productXp } from './ranch';
 import { servingsPerHour } from './restaurant';
 import { honeyXp } from './apiary';
+import { forageInSeason, forageXp, woodsOpen } from './forage';
 import { pressSlots } from './press';
 
 // ---- XP
@@ -212,6 +214,8 @@ function advance(state: GameState, data: GameData, o: QuestObjective, e: GameEve
       return e.type === 'drinkPressed' ? 1 : 0;
     case 'collectHoney':
       return e.type === 'honeyCollected' ? e.qty : 0;
+    case 'forage':
+      return e.type === 'foragePicked' ? e.qty : 0;
     case 'reachFarmLevel':
     case 'ownParcel':
     case 'ownNorthField':
@@ -246,6 +250,7 @@ const EVENT_FOR: Readonly<Record<QuestObjective['kind'], GameEvent['type'] | nul
   serve: 'served',
   press: 'drinkPressed',
   collectHoney: 'honeyCollected',
+  forage: 'foragePicked',
 };
 
 /** What a goal's progress is measured against. */
@@ -359,6 +364,9 @@ export function recipeObtainable(state: GameState, data: GameData, season: Seaso
     // v4-03: honey once a hive stands in the apiary; cocoa from the Press House shelf.
     if (item === 'honey') return state.apiary.hives.length > 0;
     if (item === 'cocoa') return state.press.level > 0;
+    // v4-04: forage once the woods are open and some spot of its kind grows it this season.
+    const wild = data.forage.items[item as ForageId];
+    if (wild) return woodsOpen(state) && forageInSeason(data, wild.id, season);
     const junk = data.junk[item as JunkId];
     return junk ? junk.locations.some((l) => isLocationUnlocked(state, l)) : false;
   };
@@ -699,6 +707,9 @@ function handle(state: GameState, ctx: SimContext, e: GameEvent): void {
       break;
     case 'honeyCollected':
       grantXp(state, ctx, 'farming', honeyXp(e.qty, e.auto));
+      break;
+    case 'foragePicked':
+      grantXp(state, ctx, 'farming', forageXp(data, e.item, e.qty, e.auto));
       break;
     case 'bundleCompleted': {
       const r = data.bundles[e.bundle].reward;

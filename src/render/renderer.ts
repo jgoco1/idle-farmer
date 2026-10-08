@@ -4,12 +4,19 @@
 // camera's integer zoom. The renderer only reads state; clicks go out through the callbacks, and a
 // press that moves more than a few pixels is a pan, never a click.
 
-import type { PlacedDecor, PlacedObject, TreeState } from '../core/state';
+import type { ForageSpotState, PlacedDecor, PlacedObject, TreeState } from '../core/state';
 import { TREES } from '../data/trees';
 import { fruitLevel, TREE_SPRITE_IDS } from './sprites/trees';
 import { stageForAge } from '../systems/orchard';
 import { DECOR } from '../data/decor';
-import { NORTH_FIELD_IDS, TOWN_PROJECT_IDS, type NorthFieldId, type TownProjectId } from '../data/ids';
+import {
+  FORAGE_IDS,
+  NORTH_FIELD_IDS,
+  TOWN_PROJECT_IDS,
+  type ForageId,
+  type NorthFieldId,
+  type TownProjectId,
+} from '../data/ids';
 import { FIELD_BASE, GREENHOUSE_BASE } from '../data/balance';
 import { WORLD_LAYOUT } from '../data/world';
 import {
@@ -81,6 +88,7 @@ import { PressLife, type PressView } from './pressLife';
 import {
   clearInspected,
   INSPECT_ANIMAL,
+  INSPECT_FORAGE,
   INSPECT_NONE,
   INSPECT_TREE,
   paintArmed,
@@ -110,6 +118,20 @@ function treeAtTileIn(trees: readonly TreeState[], col: number, row: number): Tr
   return null;
 }
 
+/** Sprite ids of the forage spots (made once, never per frame). */
+const FORAGE_SPRITE = Object.fromEntries(FORAGE_IDS.map((id) => [id, `forage_${id}`])) as Readonly<
+  Record<ForageId, string>
+>;
+
+/** The forage spot on tile (col, row) among the woods' open spots, or -1. */
+export function forageSpotAt(spots: readonly ForageSpotState[], col: number, row: number): number {
+  for (let i = 0; i < spots.length; i++) {
+    const t = WORLD_LAYOUT.forageSpots[spots[i]!.spot]!;
+    if (t.col === col && t.row === row) return spots[i]!.spot;
+  }
+  return -1;
+}
+
 export interface ZoneClick {
   zone: Zone;
   col: number;
@@ -133,6 +155,8 @@ export interface RendererOptions {
   onSignClick(parcel: ParcelId): void;
   /** A click on a fruit tree (v2 phase 03). */
   onTreeClick?(id: number): void;
+  /** A click on a forage spot in the North Woods (v4 phase 04); on touch, the second tap. */
+  onForageClick?(spot: number): void;
   /** A click on a hen or a cow, with the world point under the pointer (v2 phase 04: petting). */
   onAnimalClick?(id: number): void;
   /** A click on a coop, barn, silo or trough (v2 phase 04). */
@@ -179,6 +203,8 @@ export interface SceneView {
   restaurant: RestaurantView;
   /** The Press House's level, its presses and the hives (v4 phase 03). */
   press: PressView;
+  /** The North Woods' forage spots (v4 phase 04); empty until the woods open. */
+  forage: readonly ForageSpotState[];
   /** The cosmetic rewards of finished town projects. */
   cosmetics: { bakerySmoke: boolean; band: boolean; lighthouseBeam: boolean; festival: boolean };
   /** Sprite of the farm cat napping by the door (`CatDef.sprite` of the chosen cat). */
@@ -309,6 +335,7 @@ export class Renderer {
   /** The planted trees by spot index (rebuilt each frame in place) and the list the last frame drew, for clicks. */
   private readonly spotTree: (TreeState | null)[] = WORLD_LAYOUT.treeSpots.map(() => null);
   private treeList: readonly TreeState[] = [];
+  private forageList: readonly ForageSpotState[] = [];
   private preview: PlacementPreview | null = null;
   private greenhousePlots = 0;
   private look: SceneLook = DEFAULT_LOOK;
@@ -774,6 +801,11 @@ export class Renderer {
         if (!tapActs(this.inspected, INSPECT_TREE, tree.id, touch)) return;
         return this.opts.onTreeClick(tree.id);
       }
+      const spot = forageSpotAt(this.forageList, t.col, t.row);
+      if (spot >= 0 && this.opts.onForageClick) {
+        if (!tapActs(this.inspected, INSPECT_FORAGE, spot, touch)) return;
+        return this.opts.onForageClick(spot);
+      }
       this.clearInspect();
       const building = this.ranch.buildingAt(t.col, t.row);
       if (building >= 0 && this.opts.onBuildingClick) return this.opts.onBuildingClick(building);
@@ -1089,6 +1121,7 @@ export class Renderer {
       if (view.north[k]!.length > 0 && this.northVisible(field, vis))
         this.drawPlots(view.north[k]!, timeMs, FIELD_BASE[field]);
     }
+    this.drawForage(view.forage, calendar.season, vis);
     if (view.greenhouse.length > 0) {
       f.drawImage(
         spriteFrame('obj_greenhouse_roof'),
@@ -1188,6 +1221,24 @@ export class Renderer {
       c.fillRect(0, 0, this.view.w, this.view.h);
     }
     if (x1 > x0 && y1 > y0) c.drawImage(this.frame, x0, y0 - WORLD_Y0, x1 - x0, y1 - y0, dx, dy, dw, dh);
+  }
+
+  /** The North Woods' forage spots (v4-04): low and flat, drawn on the woods floor before the pines. */
+  private drawForage(spots: readonly ForageSpotState[], season: Calendar['season'], vis: Rect): void {
+    this.forageList = spots;
+    const f = this.fctx;
+    for (let i = 0; i < spots.length; i++) {
+      const s = spots[i]!;
+      const t = WORLD_LAYOUT.forageSpots[s.spot]!;
+      if (!overlaps(vis, t.col * TILE, t.row * TILE, TILE, TILE)) continue;
+      const id =
+        s.item && s.qty > 0
+          ? FORAGE_SPRITE[s.item]
+          : season === 'winter'
+            ? 'forage_rest_winter'
+            : 'forage_rest';
+      f.drawImage(spriteFrame(id), t.col * TILE, t.row * TILE);
+    }
   }
 
   /** One fruit tree: its stage's sprite (a mature one in the season's look) with the fruit hanging on it. */
@@ -1595,7 +1646,8 @@ export class Renderer {
       t &&
       (zoneAt(this.zones, t.col, t.row) ||
         forSaleSignAt(this.owned, t.col, t.row) ||
-        treeAtTileIn(this.treeList, t.col, t.row));
+        treeAtTileIn(this.treeList, t.col, t.row) ||
+        forageSpotAt(this.forageList, t.col, t.row) >= 0);
     this.canvas.style.cursor = clickable ? 'pointer' : 'grab';
   }
 

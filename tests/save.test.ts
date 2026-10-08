@@ -18,6 +18,8 @@ import {
   type SaveStorage,
 } from '../src/core/save';
 import { createInitialState } from '../src/core/state';
+import { Game } from '../src/core/game';
+import { GAME_DATA } from '../src/data';
 import { computeSeasonEpoch } from '../src/core/time';
 import { unlockedLocations } from '../src/systems/locations';
 import fixtureV1 from './fixtures/save-v1.json';
@@ -36,7 +38,8 @@ import {
   trapTile,
   zoneAt,
 } from '../src/render/scene';
-import fixture from './fixtures/save-v17.json';
+import fixture from './fixtures/save-v18.json';
+import fixtureV17 from './fixtures/save-v17.json';
 import fixtureV16 from './fixtures/save-v16.json';
 import fixtureV15 from './fixtures/save-v15.json';
 import { newNorthField } from '../src/systems/farming';
@@ -87,6 +90,13 @@ function withoutV17(rest: Record<string, unknown>): Record<string, unknown> {
   delete rest.apiary;
   delete (rest.stats as Record<string, unknown>).drinksPressed;
   delete (rest.stats as Record<string, unknown>).honeyCollected;
+  return withoutV18(rest);
+}
+
+/** Removes what the v17 → v18 migration added (the North Woods and the foraging statistic). */
+function withoutV18(rest: Record<string, unknown>): Record<string, unknown> {
+  delete rest.forage;
+  delete (rest.stats as Record<string, unknown>).foraged;
   return rest;
 }
 
@@ -101,8 +111,8 @@ function memoryStorage(initial: Record<string, string> = {}): SaveStorage & { da
 }
 
 describe('save file', () => {
-  it('is at version 17 (the Press House and the apiary) with one migration per older version', () => {
-    expect(SAVE_VERSION).toBe(17);
+  it('is at version 18 (the North Woods) with one migration per older version', () => {
+    expect(SAVE_VERSION).toBe(18);
     expect(Object.keys(migrations)).toEqual([
       '1',
       '2',
@@ -120,11 +130,12 @@ describe('save file', () => {
       '14',
       '15',
       '16',
+      '17',
     ]);
     expect(SAVE_KEY).toBe('hearthfield-idle/save');
   });
 
-  it('the v17 fixture loads unchanged', () => {
+  it('the v18 fixture loads unchanged', () => {
     const file = parseSave(FIXTURE_TEXT);
     expect(file).toEqual(fixture);
   });
@@ -223,6 +234,8 @@ describe('save file', () => {
     fresh.press.level = 1;
     fresh.press.slots.push({ recipe: 'tomato_juice', remainingMs: 1, done: 0, repeat: false });
     fresh.apiary.hives.push({ id: 1, spot: 0, honey: 1, cycleMs: 0 });
+    // The North Woods (v4-04): a spot with something on it.
+    fresh.forage.spots.push({ spot: 0, item: 'morel', qty: 2, lastDay: 0 });
     fresh.fishing.traps.push({
       id: 1,
       location: 'pond',
@@ -403,6 +416,7 @@ describe('migrations', () => {
       served: 0,
       drinksPressed: 0,
       honeyCollected: 0,
+      foraged: 0,
       lifetimeGold: 0,
       goldToday: 0,
       cropsHarvested: 0,
@@ -436,6 +450,7 @@ describe('migrations', () => {
       served: 0,
       drinksPressed: 0,
       honeyCollected: 0,
+      foraged: 0,
       fishCaught: 0,
       dishesCooked: 0,
       dishesEaten: 0,
@@ -466,6 +481,7 @@ describe('migrations', () => {
       served: 0,
       drinksPressed: 0,
       honeyCollected: 0,
+      foraged: 0,
       dishesCooked: 0,
       dishesEaten: 0,
       bestDishTier: 0,
@@ -493,6 +509,7 @@ describe('migrations', () => {
       served: 0,
       drinksPressed: 0,
       honeyCollected: 0,
+      foraged: 0,
     });
     expect(s.upgrades).toEqual(old.upgrades);
     // Deeds the save already shows: planted, harvested, sold, expanded, sprinkler, fish, dish, ate, farmhand, river.
@@ -590,7 +607,7 @@ describe('migrations', () => {
     expect(
       bad(
         (c) =>
-          (c.fishing.traps = [{ id: 1, location: 'lake' as never, slot: 0, progressMs: 0, contents: [] }]),
+          (c.fishing.traps = [{ id: 1, location: 'sky' as never, slot: 0, progressMs: 0, contents: [] }]),
       ),
     ).toBe('bad trap');
     expect(
@@ -786,6 +803,53 @@ describe('migrations', () => {
     expect(file.state.stats.honeyCollected).toBe(0);
     const rest = JSON.parse(JSON.stringify(file.state)) as Record<string, unknown>;
     expect(withoutV17(rest)).toEqual(fixtureV16.state);
+  });
+
+  it('migrates a v17 save (v18): no forage spots yet, the statistic at zero, nothing else changes', () => {
+    const file = parseSave(JSON.stringify(fixtureV17));
+    expect(file.version).toBe(SAVE_VERSION);
+    expect(validateState(file.state)).toBeNull();
+    expect(file.state.forage).toEqual({ spots: [] });
+    expect(file.state.stats.foraged).toBe(0);
+    const rest = JSON.parse(JSON.stringify(file.state)) as Record<string, unknown>;
+    expect(withoutV18(rest)).toEqual(fixtureV17.state);
+  });
+
+  it('a v17 save that owns the North Fields opens the woods when it is loaded, with one day grown', () => {
+    const file = parseSave(JSON.stringify(fixtureV17));
+    expect(file.state.land.parcels).toContain('north_fields');
+    const g = new Game(file.state, { data: GAME_DATA, lc: NY, now: () => file.savedAt });
+    const today = g.calendar().dayIndex;
+    expect(g.state.forage.spots).toHaveLength(8);
+    for (const s of g.state.forage.spots) expect(s.lastDay).toBe(today);
+    // One day's growth of today's season: a spot whose kind rests this season stays bare.
+    const season = g.calendar().season;
+    for (const sp of g.state.forage.spots) {
+      const y = GAME_DATA.forage.kinds[GAME_DATA.forage.spotKinds[sp.spot]!][season];
+      expect([sp.item, sp.qty]).toEqual(y ? [y.item, y.perDay] : [null, 0]);
+    }
+    expect(validateState(JSON.parse(JSON.stringify(g.state)))).toBeNull();
+  });
+
+  it('refuses damaged forage spots', () => {
+    const bad = (mutate: (c: typeof fixture.state) => void): string | null => {
+      const c = structuredClone(fixture.state);
+      mutate(c);
+      return validateState(c);
+    };
+    expect(bad(() => {})).toBeNull();
+    expect(bad((c) => void ((c as Record<string, unknown>).forage = undefined))).toBe('bad forage');
+    expect(bad((c) => void c.forage.spots.pop())).toBe('bad forage'); // eight or none
+    expect(bad((c) => void (c.forage.spots[1]!.spot = 0))).toBe('bad forage');
+    expect(bad((c) => void (c.forage.spots[4]!.qty = 21))).toBe('bad forage');
+    expect(bad((c) => void (c.forage.spots[4]!.qty = -1))).toBe('bad forage');
+    expect(bad((c) => void ((c.forage.spots[4] as { item: string | null }).item = 'turnip'))).toBe(
+      'bad forage',
+    );
+    expect(bad((c) => void ((c.forage.spots[4] as { item: string | null }).item = null))).toBe('bad forage');
+    expect(bad((c) => void (c.forage.spots[0]!.lastDay = 1.5))).toBe('bad forage');
+    expect(bad((c) => void (c.stats.foraged = -0.5))).toBe('bad stats');
+    expect(bad((c) => void ((c.fishing.traps[1] as { location: string }).location = 'sky'))).toBe('bad trap');
   });
 
   it('refuses a damaged Press House or apiary', () => {
@@ -1000,6 +1064,7 @@ describe('migrations', () => {
       served: 0,
       drinksPressed: 0,
       honeyCollected: 0,
+      foraged: 0,
       fishCaught: 0,
       dishesCooked: 0,
       dishesEaten: 0,

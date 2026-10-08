@@ -15,6 +15,7 @@ import type {
   FishId,
   FruitId,
   FishLocationId,
+  ForageId,
   GoalTemplateId,
   ItemId,
   JunkId,
@@ -124,6 +125,11 @@ export type GameEvent =
   | { type: 'honeyMade'; qty: number }
   /** Honey left the hives for the bag or the bin; `auto` = the Collecting Basket. */
   | { type: 'honeyCollected'; qty: number; auto: boolean; shipped: number }
+  /** The North Woods (v4-04): the woods opened (spots created); wild things grew at a refresh (batched per item). */
+  | { type: 'woodsOpened' }
+  | { type: 'forageGrown'; item: ForageId; qty: number }
+  /** Forage left spot `spot` for the bag or the bin; `auto` = the Forager's Basket. */
+  | { type: 'foragePicked'; item: ForageId; qty: number; spot: number; auto: boolean; shipped: number }
   | { type: 'inventoryFull'; item: ItemId }
   /** Items thrown away from the bag (the Inventory's Discard button). */
   | { type: 'discarded'; item: ItemId; qty: number }

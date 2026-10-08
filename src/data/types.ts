@@ -17,6 +17,8 @@ import type {
   ExpansionId,
   FishId,
   FishLocationId,
+  ForageId,
+  ForageKind,
   ItemId,
   JunkId,
   MilestoneId,
@@ -76,7 +78,8 @@ export type ItemCategory =
   | 'animal' // egg, large egg, milk, and (v4-03) honey (sellable)
   | 'feed' // hay, corn feed (not sellable, like seeds)
   | 'drink' // v4-03: pressed drinks (sellable, edible, menuable)
-  | 'ingredient'; // v4-03: cocoa from the Press House shelf (not sellable, like feed)
+  | 'ingredient' // v4-03: cocoa from the Press House shelf (not sellable, like feed)
+  | 'forage'; // v4-04: wild things from the North Woods (sellable)
 
 export interface ItemDef {
   id: ItemId;
@@ -117,7 +120,7 @@ export type UpgradeCategory = 'farm' | 'tools' | 'storage' | 'fishing' | 'kitche
 
 /** What the farmhand-family upgrades switch on (BALANCE.md §4). Cumulative across levels. */
 export type AutomationFlag =
-  'replantHarvested' | 'plantEmpty' | 'autoTill' | 'autoShip' | 'keepReserve' | 'autoCollect';
+  'replantHarvested' | 'plantEmpty' | 'autoTill' | 'autoShip' | 'keepReserve' | 'autoCollect' | 'autoForage';
 
 /** Each upgrade uses the fields relevant to it; unused fields are omitted. */
 export interface UpgradeEffect {
@@ -333,7 +336,9 @@ export type QuestObjective =
   | { kind: 'serve'; count: number } // counts 'served'
   // v4 phase 03
   | { kind: 'press'; count: number } // counts 'drinkPressed'
-  | { kind: 'collectHoney'; count: number }; // counts 'honeyCollected'
+  | { kind: 'collectHoney'; count: number } // counts 'honeyCollected'
+  // v4 phase 04
+  | { kind: 'forage'; count: number }; // counts 'foragePicked'
 
 export type QuestReward =
   | { kind: 'gold'; amount: number }
@@ -362,7 +367,8 @@ export type BundleReward =
   | { kind: 'goldenScarecrow' }
   | { kind: 'treeSpots'; count: number } // the Orchard Basket (v2 phase 03)
   | { kind: 'troughBonus'; bonus: number } // the Barnyard: every trough holds this much more (v2 phase 04)
-  | { kind: 'menuSlot'; count: number }; // the Press House bundle: the restaurant's fifth table (v4 phase 03)
+  | { kind: 'menuSlot'; count: number } // the Press House bundle: the restaurant's fifth table (v4 phase 03)
+  | { kind: 'forageCap'; days: number }; // the Forager bundle: forage spots hold this many more days' worth (v4 phase 04)
 
 export interface BundleDef {
   id: BundleId;
@@ -575,4 +581,32 @@ export interface HiveDef {
   product: 'honey';
   requires: readonly UnlockCondition[];
   sprite: string;
+}
+
+// ---- the North Woods and the mountain lake (v4 phase 04, DATA_SCHEMAS.md §10.4)
+
+/** A wild item of the North Woods: an item (category 'forage') with its Farming XP per unit picked. */
+export interface ForageItemDef {
+  id: ForageId;
+  name: string;
+  basePrice: number;
+  xp: number;
+  description: string;
+}
+
+/** What a spot of one kind grows in a season (`perDay` a day), or null: it rests that season. */
+export type ForageSeasonYield = { item: ForageId; perDay: number } | null;
+
+export interface ForageDef {
+  items: Readonly<Record<ForageId, ForageItemDef>>;
+  kinds: Readonly<Record<ForageKind, Readonly<Record<SeasonId, ForageSeasonYield>>>>;
+  /** The kind of each spot of `WORLD_LAYOUT.forageSpots`, by index. */
+  spotKinds: readonly ForageKind[];
+}
+
+/** A fishing water's own reel tuning (the lake's still water), multiplied into the reel and the bite wait. */
+export interface ReelTuning {
+  zoneSpeedMult: number;
+  zoneWidthMult: number;
+  biteWaitMult: number;
 }

@@ -59,7 +59,9 @@ export type ZoneId =
   | 'board'
   | 'restaurant'
   | 'press'
-  | 'apiary';
+  | 'apiary'
+  | 'lake'
+  | 'forage';
 
 /** The water tiles where each location's fish traps float, by slot (BALANCE.md §4: two per location, a third once the Pond Fish bundle is done). */
 export const TRAP_TILES: Readonly<Record<FishLocationId, readonly { col: number; row: number }[]>> = {
@@ -78,6 +80,12 @@ export const TRAP_TILES: Readonly<Record<FishLocationId, readonly { col: number;
     { col: 19, row: 11 },
     { col: 19, row: 10 },
   ],
+  // v4-04: across the middle of the mountain lake, inside its banks
+  lake: [
+    { col: 29, row: -12 },
+    { col: 31, row: -12 },
+    { col: 32, row: -12 },
+  ],
 };
 
 export function trapTile(location: FishLocationId, slot: number): { col: number; row: number } {
@@ -90,6 +98,15 @@ export const LOCATION_ZONE: Readonly<Record<FishLocationId, ZoneId>> = {
   pond: 'pond',
   river: 'river',
   ocean: 'dock',
+  lake: 'lake',
+};
+
+/** The mountain lake's clickable area: the water and its south shore with the jetty (v4-04). */
+export const LAKE_ZONE: TileRect = {
+  col: WORLD_LAYOUT.lake.col,
+  row: WORLD_LAYOUT.lake.row,
+  cols: WORLD_LAYOUT.lake.cols,
+  rows: WORLD_LAYOUT.lake.rows + 1,
 };
 
 /** The Shipping Bin tile (GDD §5). */
@@ -145,6 +162,13 @@ export function buildZones(grid: Grid): Zone[] {
       rect: { col: t.col, row: t.row, cols: 1, rows: 1 },
       label: 'Apiary',
     })),
+    // v4-04: each forage spot in the North Woods (picks it), and the mountain lake (fishing, or its price).
+    ...WORLD_LAYOUT.forageSpots.map((t): Zone => ({
+      id: 'forage',
+      rect: { col: t.col, row: t.row, cols: 1, rows: 1 },
+      label: 'Forage spot',
+    })),
+    { id: 'lake', rect: LAKE_ZONE, label: 'Mountain Lake' },
   ];
 }
 
@@ -402,6 +426,8 @@ const SCENERY: readonly Scenery[] = [
   { sprite: 'obj_dock', col: 18, row: 10, from: 'ocean' },
   { sprite: 'obj_dock_post', col: 16, row: 11, from: 'ocean' },
   { sprite: 'obj_dock_post', col: 18, row: 11, from: 'ocean' },
+  // v4-04 Mountain Lake: a "For sale" sign on the shore by the jetty until it is bought.
+  { sprite: 'obj_for_sale', col: 31, row: -10, until: 'lake' },
   // The Community Board in the town square.
   { sprite: 'obj_board', col: WORLD_LAYOUT.boardTile.col, row: WORLD_LAYOUT.boardTile.row },
   // Each locked parcel: its "For sale" sign and overgrowth (tall grass, weeds and a stump or two).

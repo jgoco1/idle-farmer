@@ -64,9 +64,9 @@ function own(s: GameState, upgrades: Partial<Record<UpgradeId, number>>, expansi
 }
 
 describe('fish data (phase 05)', () => {
-  it('has the 16 fish and 3 junk items of BALANCE.md', () => {
-    expect(Object.keys(FISH)).toHaveLength(16);
-    expect(FISH_IDS).toHaveLength(16);
+  it('has the 22 fish (v4-04: six from the lake) and 3 junk items of BALANCE.md', () => {
+    expect(Object.keys(FISH)).toHaveLength(22);
+    expect(FISH_IDS).toHaveLength(22);
     expect(Object.keys(JUNK)).toHaveLength(3);
     expect(FISH.moonfin.hours).toEqual({ start: 16, end: 10 });
     expect(FISH.koi.basePrice).toBe(300);
@@ -91,7 +91,7 @@ describe('fish data (phase 05)', () => {
   });
 
   it('every location always has a common fish, in every season and at every hour', () => {
-    for (const loc of ['pond', 'river', 'ocean'] as FishLocationId[]) {
+    for (const loc of ['pond', 'river', 'ocean', 'lake'] as FishLocationId[]) {
       for (const season of ['spring', 'summer', 'autumn', 'winter'] as SeasonId[]) {
         for (let hour = 0; hour < 24; hour += 0.5) {
           const fish = catchTable(GAME_DATA, { location: loc, season, hour, mode: 'active', luck: 0 }).filter(

@@ -7,7 +7,8 @@ import { SKILL_PERKS } from './skills';
 import { CROPS } from './crops';
 import { DECOR, DECOR_SETS } from './decor';
 import { EXPANSIONS } from './expansions';
-import { FISH, JUNK } from './fish';
+import { FISH, JUNK, LOCATION_REEL } from './fish';
+import { FORAGE } from './forage';
 import type {
   AnimalId,
   BuffType,
@@ -20,6 +21,7 @@ import type {
   DecorSetId,
   ExpansionId,
   FishId,
+  FishLocationId,
   GoalTemplateId,
   ItemId,
   JunkId,
@@ -48,10 +50,12 @@ import type {
   DecorSetDef,
   ExpansionDef,
   FishDef,
+  ForageDef,
   ItemDef,
   JunkDef,
   ParcelDef,
   QuestDef,
+  ReelTuning,
   HiveDef,
   PressHouseDef,
   RecipeDef,
@@ -112,6 +116,10 @@ export interface GameData {
   /** The Press House's levels, unlock, shelf and sprites, and the beehives (v4 phase 03). */
   press: PressHouseDef;
   hive: HiveDef;
+  /** The North Woods' forage items, kinds and spots (v4 phase 04). */
+  forage: ForageDef;
+  /** Each fishing water's reel tuning (v4 phase 04: the lake's still water). */
+  locationReel: Readonly<Record<FishLocationId, ReelTuning>>;
 }
 
 export const GAME_DATA: GameData = Object.freeze({
@@ -142,4 +150,6 @@ export const GAME_DATA: GameData = Object.freeze({
   restaurant: RESTAURANT,
   press: PRESS_HOUSE,
   hive: HIVE,
+  forage: FORAGE,
+  locationReel: LOCATION_REEL,
 });

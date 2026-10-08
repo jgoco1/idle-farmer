@@ -6,6 +6,7 @@ import {
   CROP_IDS,
   ANIMAL_PRODUCT_IDS,
   DRINK_IDS,
+  FORAGE_IDS,
   FRUIT_IDS,
   PARCEL_IDS,
   type CropId,
@@ -355,7 +356,14 @@ export function upgradesPanel(hooks: UpgradesHooks): PanelDef {
           'div',
           { class: 'seller-toggles', role: 'group', 'aria-label': 'Ship automatically' },
           ...(
-            [...CROP_IDS, ...FRUIT_IDS, ...ANIMAL_PRODUCT_IDS, 'honey', ...DRINK_IDS] as readonly ItemId[]
+            [
+              ...CROP_IDS,
+              ...FRUIT_IDS,
+              ...ANIMAL_PRODUCT_IDS,
+              'honey',
+              ...DRINK_IDS,
+              ...FORAGE_IDS,
+            ] as readonly ItemId[]
           ).map((crop) => {
             const on = autoSellOn(state, hooks.data, crop);
             const box = h('input', { type: 'checkbox', 'data-role': `sell-${crop}` });

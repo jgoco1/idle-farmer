@@ -360,7 +360,7 @@ describe('land parcels (BALANCE §13.1)', () => {
   it('a bought parcel loses its overgrowth and sign, and changes no zone', () => {
     const before = buildLayout(GAME_DATA.startGrid, [], []);
     const after = buildLayout(GAME_DATA.startGrid, [], ['orchard']);
-    const inOrchard = (o: { x: number; y: number }) => o.x >= 21 * 16 && o.y < 7 * 16;
+    const inOrchard = (o: { x: number; y: number }) => o.x >= 21 * 16 && o.y >= 0 && o.y < 7 * 16;
     expect(before.objects.filter(inOrchard).some((o) => o.sprite === 'obj_tall_grass')).toBe(true);
     expect(
       after.objects
@@ -420,9 +420,12 @@ describe('gold still to spend (BALANCE §13.4, simulator)', () => {
     expect(parts.ranch).toBe(1_140_000);
     expect(parts.projects).toBe(Math.round(8_500_000 * TOWN_PROJECT_SCALE));
     // v4-03: the Press House's three levels (940,000), six hives (209,000), the drink cards (58,000) and Honey-Roast Yams (5,000).
-    expect(parts.press).toBe(940_000 + 209_000 + 58_000 + 5_000);
+    expect(parts.press).toBe(940_000 + 209_000 + 58_000 + 5_000 + 9_000); // v4-04: Elderflower Cordial's card
+    // v4-04: the Mountain Lake (300,000), the Forager's Basket (120,000), Mushroom Risotto and Blackberry Tart (14,000).
+    expect(parts.woods).toBe(300_000 + 120_000 + 14_000);
     expect(parts.v1).toBeGreaterThan(560_000); // ≈ 590,000: 538,000 before v2-06 plus the Seed Order's 4,000 + 12,000 + 36,000
-    expect(parts.v1).toBeLessThan(620_000 + 90_300); // v4-01: sprinklers 13–16 and scarecrows 5–6 add 90,300
+    // v4-01: sprinklers 13–16 and scarecrows 5–6 add 90,300; v4-04: fish traps 10–12 add 91,000
+    expect(parts.v1).toBeLessThan(620_000 + 90_300 + 91_000);
     const s = createInitialState(CREATED, NY, 1);
     expect(toSpend(s, GAME_DATA)).toBe(catalogueTotal(GAME_DATA) - 0);
     s.land.parcels.push('orchard');

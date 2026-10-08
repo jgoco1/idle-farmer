@@ -79,7 +79,7 @@ describe('scene layout', () => {
 
   it('overgrows locked parcels with a "For sale" sign, and clears them once bought', () => {
     const at = (parcels: Parameters<typeof sceneryFor>[1]) =>
-      sceneryFor([], parcels).filter((d) => d.col >= 21 && d.row <= 6);
+      sceneryFor([], parcels).filter((d) => d.col >= 21 && d.row >= 0 && d.row <= 6);
     expect(at([]).some((d) => d.sprite === 'obj_for_sale' && d.col === 21 && d.row === 3)).toBe(true);
     expect(at([]).filter((d) => d.sprite === 'obj_tall_grass').length).toBeGreaterThan(5);
     expect(at(['orchard'])).toEqual([]);

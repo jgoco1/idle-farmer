@@ -79,10 +79,25 @@ export const EXPANSIONS: Readonly<Record<ExpansionId, ExpansionDef>> = Object.fr
     sceneChange: 'a wooden dock and sea tiles appear in the bottom-right corner',
     description: 'Patch up the old dock and reach the open sea.',
   },
+  // v4-04 (GDD §13.8, BALANCE.md §14.7): the fourth water, in the North Woods
+  lake: {
+    id: 'lake',
+    name: 'Mountain Lake',
+    kind: 'fishing',
+    price: 300_000,
+    requires: [
+      { kind: 'expansion', id: 'ocean' },
+      { kind: 'parcel', id: 'north_fields' },
+      { kind: 'farmLevel', level: 7 },
+    ],
+    location: 'lake',
+    sceneChange: 'a fishing jetty opens on the mountain lake in the North Woods',
+    description: 'Mend the old jetty on the cold, clear lake under the pines.',
+  },
 });
 
 /** The farm steps in the order they are bought. */
 export const FARM_EXPANSIONS: readonly ExpansionId[] = ['farm_1', 'farm_2', 'farm_3', 'farm_4'];
 
 /** The fishing locations in the order they are bought. */
-export const FISHING_EXPANSIONS: readonly ExpansionId[] = ['river', 'ocean'];
+export const FISHING_EXPANSIONS: readonly ExpansionId[] = ['river', 'ocean', 'lake'];

@@ -99,6 +99,7 @@ export function msToNextPickup(state: GameState): number {
     (state.upgrades.auto_seller ?? 0) > 0 ||
     (state.upgrades.trap_collector ?? 0) > 0 ||
     (state.upgrades.ranch_collector ?? 0) > 0 ||
+    (state.upgrades.forager_basket ?? 0) > 0 || // picks the woods at each pickup (v4-04)
     (state.upgrades.seed_order ?? 0) > 0 || // the standing order buys at each pickup
     state.ranch.buildings.some((b) => b.kind === 'silo'); // the ranch acts at each pickup too
   return fills ? state.shippingBin.msToPickup : Infinity;

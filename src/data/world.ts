@@ -88,6 +88,8 @@ export interface WorldLayout {
   jetty: WorldTile;
   /** Pines in the North Woods (base tiles, bottom-centre anchored). */
   pines: readonly WorldTile[];
+  /** The North Woods' eight forage spots (v4-04); each spot's kind is `FORAGE.spotKinds[i]`. */
+  forageSpots: readonly WorldTile[];
 }
 
 const run = (col: number, row: number, dc: number, dr: number, n: number): WorldTile[] =>
@@ -204,6 +206,17 @@ export const WORLD_LAYOUT: WorldLayout = Object.freeze({
     { col: 28, row: -9 },
     { col: 31, row: -9 },
     { col: 35, row: -9 },
+  ],
+  // v4-04: clear of every pine's trunk and crown (a pine's crown is the tile above its base)
+  forageSpots: [
+    { col: 22, row: -12 }, // mushroom
+    { col: 25, row: -12 }, // herb
+    { col: 26, row: -9 }, // mushroom
+    { col: 23, row: -10 }, // herb
+    { col: 29, row: -9 }, // flower and berry
+    { col: 32, row: -9 }, // nut
+    { col: 34, row: -12 }, // flower and berry, on the lake's east bank
+    { col: 34, row: -10 }, // nut
   ],
 } satisfies WorldLayout);
 

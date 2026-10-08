@@ -631,6 +631,8 @@ describe('milestones', () => {
       'm25_first_serving',
       'm26_first_drink',
       'm27_first_honey',
+      'm28_first_forage',
+      'm29_lake_fish',
     ]);
     for (const m of MILESTONES) {
       expect(m.flavor.length, m.id).toBeGreaterThan(20);
@@ -1101,7 +1103,7 @@ describe('the Community Board', () => {
     for (const slot of BUNDLES[id].slots) expect(give(s, id, slot.item, slot.qty)).toEqual({ ok: true });
   }
 
-  it('has the 6 bundles of BALANCE.md, the Orchard Basket (v2-03), the Barnyard (v2-04) and the Press House (v4-03)', () => {
+  it('has the 6 bundles of BALANCE.md, the Orchard Basket (v2-03), the Barnyard (v2-04), the Press House (v4-03) and the Forager (v4-04)', () => {
     expect(BUNDLE_IDS).toEqual([
       'spring_crops',
       'summer_crops',
@@ -1112,6 +1114,7 @@ describe('the Community Board', () => {
       'orchard_basket',
       'barnyard',
       'press_house',
+      'forager',
     ]);
     expect(BUNDLES.spring_crops.slots).toEqual([
       { item: 'turnip', qty: 10 },

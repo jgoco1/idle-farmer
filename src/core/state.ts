@@ -32,6 +32,7 @@ import type {
   FeedId,
   FishId,
   FishLocationId,
+  ForageId,
   GoalTemplateId,
   ItemId,
   JunkId,
@@ -124,6 +125,7 @@ export interface Stats {
   served: number; // v4-02: servings at the restaurant
   drinksPressed: number; // v4-03: press runs finished
   honeyCollected: number; // v4-03: jars taken out of the hives
+  foraged: number; // v4-04: forage items picked
 }
 
 export interface Settings {
@@ -202,6 +204,25 @@ export interface GameState {
   // ---- the Press House and the apiary (v4 phase 03, save 17)
   press: PressState;
   apiary: ApiaryState;
+
+  // ---- the North Woods (v4 phase 04, save 18)
+  forage: ForageState;
+}
+
+/**
+ * A forage spot in the North Woods (DATA_SCHEMAS.md §10.5): what is waiting there and the last calendar
+ * day it grew. Its kind is the layout's (`FORAGE.spotKinds[spot]`); ripeness and the cap are derived.
+ */
+export interface ForageSpotState {
+  spot: number; // index into WORLD_LAYOUT.forageSpots
+  item: ForageId | null; // null = nothing waiting
+  qty: number; // waiting, 0 … the cap
+  lastDay: number; // calendar.dayIndex of its last refresh
+}
+
+/** The North Woods (v4-04): no spots until the woods open (with the North Fields). */
+export interface ForageState {
+  spots: ForageSpotState[];
 }
 
 /**
@@ -483,6 +504,7 @@ export function createInitialState(now: number, lc: LocalClock, seed: number = s
     restaurant: { level: 0, menu: [], today: { day: 0, gold: 0, served: 0 } },
     press: { level: 0, slots: [] },
     apiary: { hives: [] },
+    forage: { spots: [] },
   };
   // A new farm opens with today's specials and the first sparkline point (every save starts in spring).
   openMarketDay(state, GAME_DATA, createRng(state), 'spring');
@@ -511,6 +533,7 @@ export function createStartingStats(): Stats {
     served: 0,
     drinksPressed: 0,
     honeyCollected: 0,
+    foraged: 0,
   };
 }
 
