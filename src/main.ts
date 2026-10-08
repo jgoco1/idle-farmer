@@ -879,8 +879,11 @@ game.bus.on('purchased', (e) => {
     if (exp.kind === 'fishing') {
       // A water may be far from the view (v4-04: the mountain lake), so the toast names it and pans there.
       const at = WATER_SPOT[exp.location as FishLocationId];
+      const water = LOCATION_NAMES[exp.location as FishLocationId];
       toastAt(
-        `${exp.name}: the ${LOCATION_NAMES[exp.location as FishLocationId].toLowerCase()} is open for fishing!`,
+        water === exp.name
+          ? `The ${water} is open for fishing!`
+          : `${exp.name}: the ${water.toLowerCase()} is open for fishing!`,
         'good',
         at.col,
         at.row,
@@ -972,12 +975,13 @@ game.bus.on('foragePicked', (e) => {
   renderer.addTileFx(at.col, at.row - 1, `item_${e.item}`, performance.now());
   toasts.show(`+${e.qty} ${GAME_DATA.items[e.item]!.name}${e.shipped > 0 ? ' (shipped)' : ''}`, 'good');
 });
+let lastForageToast = -1e9;
 game.bus.on('woodsOpened', () => {
+  lastForageToast = performance.now(); // the day's first growth comes with it: one toast, not two
   if (catchingUp()) return;
   const at = WORLD_LAYOUT.forageSpots[0]!;
   toastAt('The North Woods are open: wild things grow there every day.', 'good', at.col, at.row);
 });
-let lastForageToast = -1e9;
 game.bus.on('forageGrown', () => {
   if (catchingUp() || performance.now() - lastForageToast < 5000) return;
   lastForageToast = performance.now();
