@@ -572,8 +572,9 @@ export class Brain {
 
   /**
    * Items the stove and the presses leave in the bag: what the Community Board still needs, fruit for the town's later
-   * stages, and the crops a project asks for (`anyKind`: whatever a project's current stage asks for, fruit and
-   * products too: the presses once took the bakery's apples and stalled the town, v4-03).
+   * stages, and the crops a project asks for. `anyKind` (the presses): whatever a project's current stage asks for,
+   * fruit and products too (the presses once took the bakery's apples and stalled the town, v4-03), and of the stock
+   * for later stages only the fruit.
    */
   private reserved(s: GameState, anyKind: boolean): Map<ItemId, number> {
     const reserved = new Map<ItemId, number>();
@@ -585,7 +586,11 @@ export class Brain {
           if (!slot.done) add(slot.item, slot.need - slot.have);
       }
     }
-    for (const [item, qty] of this.fruitStock(s)) add(item, qty); // for the town's later stages
+    // Fruit and products for the town's later stages: the stove keeps both; the presses keep the fruit (it only comes
+    // in its season: pressing the bakery's apples stalled the town until summer) but not the milk and eggs, which
+    // come every day (holding 30 milk for a later stage starved the presses, v4-03).
+    for (const [item, qty] of this.fruitStock(s))
+      if (!anyKind || this.data.items[item]?.category === 'fruit') add(item, qty);
     // v2-05: and the crops a project asks for (the bandstand's pumpkins), which the stove used to take, stalling it a year.
     for (const w of [...this.projectWants(s), ...this.cropErrands(s, true)])
       if (anyKind || w.item in this.data.crops) add(w.item, w.qty);
@@ -1282,14 +1287,24 @@ export class Brain {
     const horizon = leaving ? this.awayMs + HOUR : Math.max(HOUR, this.sessionLeftMs);
     // The Board's and the town's asks stay in the bag; a drink that uses one never keeps pressing (a restart would take it).
     const reserved = this.reserved(s, true);
-    const touchesReserved = (r: RecipeDef): boolean =>
-      r.ingredients.some((i) => (reserved.get(i.item) ?? 0) > 0);
+    // What the presses already planned take from the bag (each slot's runs over the horizon), so two presses do not
+    // count on the same honey.
+    const taken = new Map<ItemId, number>();
     const runsSpare = (r: RecipeDef): number => {
       let n = Infinity;
-      for (const i of r.ingredients)
-        n = Math.min(n, Math.floor((countItem(s.inventory, i.item) - (reserved.get(i.item) ?? 0)) / i.qty));
+      for (const i of r.ingredients) {
+        const spare = countItem(s.inventory, i.item) - (reserved.get(i.item) ?? 0) - (taken.get(i.item) ?? 0);
+        n = Math.min(n, Math.floor(spare / i.qty));
+      }
       return Math.max(0, n);
     };
+    const commit = (r: RecipeDef, runs: number): void => {
+      for (const i of r.ingredients) taken.set(i.item, (taken.get(i.item) ?? 0) + i.qty * runs);
+    };
+    const runsIn = (r: RecipeDef): number => Math.max(1, Math.floor(horizon / pressMs(r)));
+    // Keeping on pressing could take a reserved item only if the spare stock runs out within the horizon.
+    const touchesReserved = (r: RecipeDef): boolean =>
+      r.ingredients.some((i) => (reserved.get(i.item) ?? 0) > 0) && runsSpare(r) < runsIn(r);
     for (let i = 0; i < s.press.slots.length; i++) {
       const slot = s.press.slots[i]!;
       if (slot.remainingMs > 0) {
@@ -1298,12 +1313,13 @@ export class Brain {
         const keep = !touchesReserved(r);
         if (slot.repeat !== keep && (leaving || !keep))
           game.dispatch({ type: 'setPressRepeat', slot: i, repeat: keep });
+        if (keep) commit(r, Math.min(runsSpare(r), runsIn(r)));
         continue;
       }
       let best: RecipeDef | null = null;
       let bestValue = 0;
       for (const r of choices) {
-        const runs = Math.min(runsSpare(r), Math.max(1, Math.floor(horizon / pressMs(r))));
+        const runs = Math.min(runsSpare(r), runsIn(r));
         if (runs <= 0 || pressSlotFor(s, r.id) < 0) continue;
         const margin = r.basePrice - ingredientValue(r, this.data.items);
         const value = Math.max(margin, 1) * runs + (this.bundleWants(s, r.id) > 0 ? 1e6 : 0);
@@ -1314,8 +1330,12 @@ export class Brain {
       }
       if (!best) break;
       const at = pressSlotFor(s, best.id);
-      if (at >= 0 && game.dispatch({ type: 'startPress', slot: at, recipe: best.id, repeat: true }).ok)
+      const repeat = !touchesReserved(best);
+      const runs = Math.min(runsSpare(best), runsIn(best));
+      if (at >= 0 && game.dispatch({ type: 'startPress', slot: at, recipe: best.id, repeat }).ok) {
         useful = true;
+        commit(best, Math.max(0, runs - 1)); // the first run's ingredients have left the bag
+      }
     }
     return useful;
   }
