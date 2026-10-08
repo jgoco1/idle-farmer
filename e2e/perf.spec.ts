@@ -162,6 +162,46 @@ for (const scenario of ['farm', 'world'] as const)
             building: 2,
           })),
         ];
+        // v4-04: the whole north in use: the restaurant serving at four tables, four presses at work, six hives,
+        // the woods with something on every spot, and the mountain lake with its two traps.
+        st.restaurant = {
+          level: 3,
+          menu: Array.from({ length: 4 }, (_, i) => ({
+            item: 'vegetable_soup',
+            qty: 50,
+            hearty: false,
+            cycleMs: i * 60_000,
+          })),
+          today: { day: st.calendar.maxDayIndex, gold: 0, served: 0 },
+        };
+        st.press = {
+          level: 3,
+          slots: Array.from({ length: 4 }, (_, i) => ({
+            recipe: 'apple_cider',
+            remainingMs: 600_000 * (i + 1),
+            done: i,
+            repeat: true,
+          })),
+        };
+        st.apiary = {
+          hives: Array.from({ length: 6 }, (_, i) => ({ id: i + 1, spot: i, honey: i * 2, cycleMs: 0 })),
+        };
+        st.expansions.push('lake');
+        st.upgrades.fish_trap = 8;
+        st.upgrades.forager_basket = 1;
+        st.fishing.traps.push(
+          { id: 7, location: 'lake', slot: 0, progressMs: 0, contents: [] },
+          { id: 8, location: 'lake', slot: 1, progressMs: 0, contents: [{ item: 'whitefish', qty: 1 }] },
+        );
+        const finds = ['morel', 'wild_mint', 'morel', 'wild_mint', 'elderflower', null, 'elderflower', null];
+        st.forage = {
+          spots: finds.map((item, spot) => ({
+            spot,
+            item,
+            qty: item ? 4 : 0,
+            lastDay: st.calendar.maxDayIndex,
+          })),
+        };
       });
     }
     // Let the farmhand start walking and the scene settle.
@@ -264,7 +304,7 @@ for (const scenario of ['farm', 'world'] as const)
     expect(result.worstFrameMs).toBeLessThan(50); // no visible garbage-collection hitch
   });
 
-test('loading after 8 hours away with that farm (and both north fields) catches up within the 125 ms budget', async ({
+test('loading after 8 hours away with that farm (and the whole north in use) catches up within the 125 ms budget', async ({
   page,
   context,
 }) => {
@@ -331,8 +371,31 @@ test('loading after 8 hours away with that farm (and both north fields) catches 
       { id: 12, kind: 'sprinkler', at: { col: 5, row: 1 }, field: 'terraces' },
     );
     const savedAt = Date.now() - 8 * 3_600_000;
+    // v4-04: the whole north in use while away: the restaurant serving, the presses keeping on, the hives, the woods
+    // (opened on load) with the Forager's Basket, and every water's traps with the Trap Collector, the lake's too.
+    s.expansions.push('lake');
+    Object.assign(s.upgrades, { kitchen: 2, fish_trap: 8, trap_collector: 1, forager_basket: 1 });
+    s.fishing.traps = (['pond', 'pond', 'river', 'river', 'ocean', 'ocean', 'lake', 'lake'] as const).map(
+      (location, i) => ({ id: i + 1, location, slot: i % 2, progressMs: 0, contents: [] }),
+    );
+    s.restaurant = {
+      level: 3,
+      menu: Array.from({ length: 4 }, () => ({ item: 'vegetable_soup', qty: 99, hearty: false, cycleMs: 0 })),
+      today: { day: s.calendar.maxDayIndex, gold: 0, served: 0 },
+    };
+    s.press = {
+      level: 3,
+      slots: Array.from({ length: 4 }, () => ({
+        recipe: 'tomato_juice',
+        remainingMs: 600_000,
+        done: 0,
+        repeat: true,
+      })),
+    };
+    s.apiary = { hives: Array.from({ length: 6 }, (_, i) => ({ id: i + 1, spot: i, honey: 0, cycleMs: 0 })) };
+    s.inventory.slots[2] = { item: 'tomato', qty: 400 };
     s.meta.lastSavedAt = savedAt;
-    return JSON.stringify({ version: 15, savedAt, state: s });
+    return JSON.stringify({ version: 18, savedAt, state: s });
   });
   await page.close();
   // A fresh page finds the save in place before the game starts (so the load is cold, as for a player). The

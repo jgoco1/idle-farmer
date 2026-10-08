@@ -1552,9 +1552,9 @@ Two things follow. Dishes are a small share of gold, so the restaurant can be ge
 | id | Name | World rect | Field (plot origin, size) | Plot index base | Price | Requires | Opens |
 |---|---|---|---|---|---|---|---|
 | `north_fields` | North Fields | (0, −7) 20 × 6 | (6, −6), 8 × 4 = 32 plots | 2000 | **3,000,000** (v4-00: 1,500,000) | parcel `yard`, expansion `farm_4`, Farm Level 7 | the first north field |
-| `terraces` | Upper Terraces | (0, −13) 20 × 5 | (6, −12), 8 × 3 = 24 plots | 3000 | **4,500,000** (v4-00: 2,400,000) | parcel `north_fields`, Farm Level 8 | the second north field |
+| `terraces` | Upper Terraces | (0, −13) 20 × 5 | (6, −12), 8 × 3 = 24 plots | 3000 | **6,500,000** (v4-00: 2,400,000; v4-01: 4,500,000) | parcel `north_fields`, Farm Level 8 | the second north field |
 
-**v4-01 measured the fields and moved both prices** (the rule below: "under 5 days"): at v4-00's prices the North Fields paid back in **2.5 days** and the Upper Terraces in **5.7** (8 seeds, Greedy Farmer), because a north plot earns about what a home plot does, not 70% of it. See §14.12.
+**v4-01 measured the fields and moved both prices** (the rule below: "under 5 days"): at v4-00's prices the North Fields paid back in **2.5 days** and the Upper Terraces in **5.7** (8 seeds, Greedy Farmer), because a north plot earns about what a home plot does, not 70% of it. See §14.12. **v4-04 read the Terraces on 60-day runs:** at 4,500,000 they paid back in 8.2 days (under the floor of 10), so they cost **6,500,000** and pay back in 11.5 (§14.12).
 
 **What a field is worth.** From day 14 the Greedy Farmer earns 56–63k gold per simulated hour from 60 plots (48 + the greenhouse's 12), of which about 90% is crops (the orchard is 4%, animals 6%): roughly 850 gold per plot per hour, gross. A new field's crops meet the same market depth, so count on about 70% of that per plot: **North Fields ≈ 19k gold per simulated hour gross (≈ 370k a real day)**, Upper Terraces ≈ 14k (≈ 270k a day). After seeds (35–40% of crop gold goes back into seeds) that is ≈ 220k and ≈ 165k a day net, so North Fields pays back in about **7 real days** and the Terraces in about **15**: a strong mid-game buy and a long late one. v4-01 measures it (the "north fields' share" row) and moves the prices if a field pays back in under 5 or over 12 days (North Fields) / under 10 or over 20 (Terraces).
 
@@ -1671,8 +1671,8 @@ buff: magnitude and duration from tier exactly as dishes (§7)
 | `melon_cooler` | Melon Cooler | melon ×1, blueberry ×4 | 60 | 5 | 611 | 23.22 | T3 | 978 | `fishingLuck` | +39% | 3 h 45 | summer | card 8,000 | v4-03 |
 | `hot_cocoa` | Hot Cocoa | milk ×2, cocoa ×1, honey ×1 | 45 | 4 | 690 | 22.30 | T3 | 1,104 | `xp` | +58.5% | 3 h 45 | all (cocoa from the shelf) | card 10,000 | v4-03 |
 | `orchard_punch` | Orchard Punch | apple ×1, pear ×1, persimmon ×1, cranberry ×4, honey ×1 | 180 | 8 | 1,686 | 59.72 | T4 | 3,372 | `automationSpeed` | +52% | 11 h 15 | autumn | card 20,000 · Press House L2 | v4-03 |
-| `herbal_tea` | Herbal Tea | wild_mint ×2 | 20 | 2 | 90 | 5.80 | T1 | 112 | `xp` | +19.5% | 25 min | spring, summer, autumn | milestone `m28_first_forage` | v4-04 |
-| `elderflower_cordial` | Elderflower Cordial | elderflower ×3, honey ×1 | 60 | 4 | 330 | 16.60 | T3 | 528 | `cookSpeed` | +58.5% | 3 h 45 | spring | card 9,000 | v4-04 |
+| `herbal_tea` | Herbal Tea | wild_mint ×2 | 20 | 2 | 90 | 5.80 | T1 | 113 | `xp` | +19.5% | 25 min | spring, summer, autumn | milestone `m28_first_forage` | v4-04 |
+| `elderflower_cordial` | Elderflower Cordial | elderflower ×3, honey ×1 | 60 | 4 | 330 | 16.60 | T3 | 528 | `cookSpeed` | +58.5% | 3 h 45 | spring | card 9,000 · Press House L1 and `m28_first_forage` | v4-04 |
 
 Buffs: growth 2, automationSpeed 2, fishingSpeed 2, fishingLuck 2, cookSpeed 2, xp 2, **sellPrice 0** (drinks add choice, not gold power). Every season has drinks (spring 5, summer 7, autumn 4, winter 3 counting the all-season ones). The cards cost 67,000.
 
@@ -1758,7 +1758,7 @@ The woods earn 3–5k gold a day at base (well under 1% of a late farm): a gentl
 
 **Forage dishes** (v4-04): `mushroom_risotto` Mushroom Risotto (chanterelle ×2, wheat ×1, milk ×1; 90 s; score 17.90, **T3**, base 872, `xp`; card 8,000) and `blackberry_tart` Blackberry Tart (blackberry ×4, wheat ×2, egg ×1; 60 s; score 15.80, **T3**, base 544, `fishingSpeed`; card 6,000).
 
-**The mountain lake** (`lake`, an expansion of kind `fishing`: 300,000; requires expansion `ocean`, parcel `north_fields` and Farm Level 7). Two trap spots, a third with the Pond Fish bundle; `fish_trap`'s max rises 6 → 8 (the 7th and 8th cost 5,700 and 8,500).
+**The mountain lake** (`lake`, an expansion of kind `fishing`: 300,000; requires expansion `ocean`, parcel `north_fields` and Farm Level 7). Two trap spots, a third with the Pond Fish bundle; `fish_trap`'s max rises 9 → 12 as built (four waters × three spots; v4-00 counted 6 → 8 without the bundle's spot): the 10th–12th cost 19,000, 29,000 and 43,000.
 
 | id | Name | Seasons | Hours | Rarity | Difficulty | Size (cm) | Base price | Trap |
 |---|---|---|---|---|---|---|---|---|
@@ -1777,17 +1777,17 @@ Junk: `old_boot`, `driftwood`. Whitefish bites at every hour of every season, so
 
 | Part | Cost |
 |---|---|
-| North Fields and Upper Terraces (§14.1; v4-01's prices) | 7,500,000 |
+| North Fields and Upper Terraces (§14.1; v4-04's prices) | 9,500,000 |
 | Sprinklers 13–16 and scarecrows 5–6 (§14.1) | 90,300 |
 | Restaurant, three levels (§14.3) | 1,270,000 |
 | Press House, three levels (§14.4) | 940,000 |
 | Six hives (§14.5) | 209,000 |
 | v4 recipe cards: 8 drinks, 3 dishes | 86,000 |
-| Mountain Lake and two more fish traps (§14.7) | 314,200 |
+| Mountain Lake and three more fish traps (§14.7; as built the 10th–12th: 19,000, 29,000, 43,000) | 391,000 |
 | Forager's Basket | 120,000 |
-| **v4 total** | **10,529,500** (v4-00: 6,929,100) |
+| **v4 total** | **12,606,300** (v4-00: 6,929,100; v4-01's prices: 10,529,500) |
 
-The whole catalogue becomes 11,319,030 + 10,529,500 = **21,848,530** with v4-01's field prices (v4-00 planned 18,248,130; after v4-01 alone it is 18,909,330). The north fields add about +30–40% to crop income from day 10–18, the restaurant, presses and hives a few percent more.
+The whole catalogue is **23,930,030** as built in v4-04 (the simulator's count, which also has the v1 rounding; v4-00 planned 18,248,130; after v4-01 it was 18,909,330, after v4-03 21,396,030). The north fields add about +30–40% to crop income from day 10–18, the restaurant, presses and hives a few percent more.
 
 **Target curve** (share of the catalogue still to spend, medians, ±10 points). v4 lengthens the curve: the simulator runs **60 days** for these rows from v4-04 (30 days for everything else, as now).
 

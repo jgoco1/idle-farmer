@@ -202,7 +202,15 @@ export const DRINKS: Readonly<Record<DrinkId, RecipeDef>> = Object.freeze({
     buff: 'cookSpeed',
     basePrice: 528,
     fresh: ['spring'],
-    discovery: { kind: 'card', price: 9_000, unlock: FROM_THE_PRESS },
+    // Its card opens once the woods have been foraged: elderflower grows nowhere else.
+    discovery: {
+      kind: 'card',
+      price: 9_000,
+      unlock: [
+        { kind: 'press', level: 1 },
+        { kind: 'milestone', id: 'm28_first_forage' },
+      ],
+    },
     description: 'Flower heads steeped overnight with honey and lemon peel. The kitchen fairly flies.',
   },
 } satisfies Record<DrinkId, RecipeDef>);

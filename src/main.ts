@@ -679,16 +679,18 @@ const restaurantTile = (): { col: number; row: number } => {
 game.bus.on('restaurantBuilt', () => {
   if (quiet()) return;
   const at = restaurantTile();
-  toasts.show(`${GAME_DATA.restaurant.name} is open! Put some dishes on the menu.`, 'good');
+  toastAt(`${GAME_DATA.restaurant.name} is open! Put some dishes on the menu.`, 'good', at.col, at.row);
   for (let i = 0; i < 8; i++)
     renderer.particles.emit('leaf', (at.col - 2 + (i % 5) + 0.5) * PX, (at.row + 1.5) * PX, 1);
 });
 game.bus.on('restaurantUpgraded', (e) => {
   if (quiet()) return;
   const at = restaurantTile();
-  toasts.show(
+  toastAt(
     `${GAME_DATA.restaurant.name} is bigger now (level ${e.level}): another table on the terrace.`,
     'good',
+    at.col,
+    at.row,
   );
   renderer.particles.emit('sparkle', (at.col + 0.5) * PX, at.row * PX, 1);
 });
@@ -718,9 +720,11 @@ const pressTile = (): { col: number; row: number } => {
 game.bus.on('pressBuilt', () => {
   if (quiet()) return;
   const at = pressTile();
-  toasts.show(
+  toastAt(
     `The ${GAME_DATA.press.name} is built! Start a drink in a press, and buy a hive or two.`,
     'good',
+    at.col,
+    at.row,
   );
   for (let i = 0; i < 8; i++)
     renderer.particles.emit('leaf', (at.col - 2 + (i % 4) + 0.5) * PX, (at.row + 1.5) * PX, 1);
@@ -728,9 +732,11 @@ game.bus.on('pressBuilt', () => {
 game.bus.on('pressUpgraded', (e) => {
   if (quiet()) return;
   const at = pressTile();
-  toasts.show(
+  toastAt(
     `The ${GAME_DATA.press.name} is bigger now (level ${e.level}): another press in the yard.`,
     'good',
+    at.col,
+    at.row,
   );
   renderer.particles.emit('sparkle', (at.col + 0.5) * PX, at.row * PX, 1);
 });
