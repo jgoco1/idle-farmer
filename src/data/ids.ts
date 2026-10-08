@@ -588,8 +588,13 @@ export function isNorthFieldId(id: string): id is NorthFieldId {
   return (NORTH_FIELD_IDS as readonly string[]).includes(id);
 }
 
+const SEED_OF = Object.fromEntries(CROP_IDS.map((c) => [c, `seed_${c}` as SeedId])) as Readonly<
+  Record<CropId, SeedId>
+>;
+
+/** The seed item of `crop` (from a table: the planter asks for it once per seed). */
 export function seedOf(crop: CropId): SeedId {
-  return `seed_${crop}`;
+  return SEED_OF[crop];
 }
 
 export function cropOfSeed(seed: SeedId): CropId {

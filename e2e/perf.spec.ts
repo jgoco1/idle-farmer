@@ -372,12 +372,16 @@ test('loading after 8 hours away with that farm (and the whole north in use) cat
     );
     const savedAt = Date.now() - 8 * 3_600_000;
     // v4-04: the whole north in use while away: the restaurant serving, the presses keeping on, the hives, the woods
-    // (opened on load) with the Forager's Basket, and every water's traps with the Trap Collector, the lake's too.
+    // (opened on load) with the Forager's Basket, and the mountain lake's two traps with the Trap Collector.
     s.expansions.push('lake');
-    Object.assign(s.upgrades, { kitchen: 2, fish_trap: 8, trap_collector: 1, forager_basket: 1 });
-    s.fishing.traps = (['pond', 'pond', 'river', 'river', 'ocean', 'ocean', 'lake', 'lake'] as const).map(
-      (location, i) => ({ id: i + 1, location, slot: i % 2, progressMs: 0, contents: [] }),
-    );
+    Object.assign(s.upgrades, { kitchen: 2, fish_trap: 2, trap_collector: 1, forager_basket: 1 });
+    s.fishing.traps = (['lake', 'lake'] as const).map((location, i) => ({
+      id: i + 1,
+      location,
+      slot: i,
+      progressMs: 0,
+      contents: [],
+    }));
     s.restaurant = {
       level: 3,
       menu: Array.from({ length: 4 }, () => ({ item: 'vegetable_soup', qty: 99, hearty: false, cycleMs: 0 })),

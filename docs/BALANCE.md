@@ -1793,7 +1793,7 @@ The whole catalogue is **23,930,030** as built in v4-04 (the simulator's count, 
 
 | Day | 7 | 14 | 21 | 30 | 45 | 60 |
 |---|---|---|---|---|---|---|
-| Greedy Farmer | 85–95% | 55–75% | 30–50% | 10–30% | 0–10% | 0–5% |
+| Greedy Farmer | 85–95% | 55–75% | 35–55% (v4-00: 30–50%; v4-04, §14.12) | 10–30% | 0–10% | 0–5% |
 | Active Player | 90–97% | 75–90% | 60–80% | 40–60% | 15–40% | 0–20% |
 
 Reading it: v2's content is still bought on days 2–21 as now, the north's on days 8–30 for a keen player and 14–55 for the hour-a-day player. A keen player spends out around **day 35–40**; after that, as in v1's last weeks, gold has nothing left to buy (IDEAS.md: a later repeatable sink). Checks 1–3 of §13.4 keep their form with the new days: `toSpend(day 30) > 0` for every strategy bot; for the Active Player `toSpend(day 45) > 0` and more than its gold in hand on day 45; no hoard while there is still something to buy. If the curve misses, the levers in order are the Upper Terraces' price, `TOWN_PROJECT_SCALE`, then decoration prices.
@@ -1933,3 +1933,61 @@ Before (v4-02, §14.13): Greedy Farmer 35.7M, Angler 38.3M, Chef 45.3M, Chef who
 | Runaway growth, day 28 / day 14 (Farmer · Angler · Chef) | ≤ 3× (§14.9 allows 1.5× from the fields) | 1.46× · 1.62× · 1.15× |
 
 The rest (early dead time, the Casual Idler at 195% of the Active Player on day 3, orchard 3.4%, animals 3% and 1%) passes as in v4-02. Pacing against §14.9: the Press House comes on day 8.8 (Greedy Farmer, 8–12), 6.8 (Chef, 7–11: a few hours early, straight after its restaurant) and 10.0 (Active Player, 12–18: early, the Active Player opens the restaurant on day 9.5 and the Press House with it); the first hive with it and the first honey within the hour.
+
+**v4 phase 04 notes** (`npm run simulate -- --seeds 1,2,3,4,5,6,7,8 --days 60`, medians; the buffs check on its own 24 seeds; **every check passes, 53 of 53**). The full report is §14.15.
+- **The woods and the lake are side income, as planned (§14.9: reported, no check).** Forage is picked at 19–23 a day and sold for 1,100–1,700 gold a day (0.1% of gold; §14.7 estimated 3–5k at base, but the presses and the two dishes use part of it); the lake's fish are 2.3% of the Angler's gold (57,653 a day) and 0.1% of everyone else's. Forage tables, lake fish, the two forage drinks and dishes are as §14.4 and §14.7 print, except Herbal Tea's price: **113** (the formula's `round(90 × 1.25)`; the table had 112).
+- **Upper Terraces 4,500,000 → 6,500,000** (§14.1). The 60-day runs read v4-01's open question: at 4,500,000 the Terraces paid back in **8.2 days** (floor 10). At 6,500,000 they pay back in **11.5** (Greedy Farmer; 11.5–12.0 for the strategy bots) and the Active Player's catalogue lasts past day 45 (`toSpend(45)` 2.7M against 1.5M in hand; at 4,500,000 it held more gold than was left to buy). 6,000,000 would put the payback near 10.6 days and the Farmer's day-21 share still above 55%.
+- **`TOWN_PROJECT_SCALE` stays 0.6.** §14.8's second lever was tried at 0.55: the Greedy Farmer's day-21 share rose from 59% to 61% (cheaper projects finish sooner, and while the Farmer saves for the Terraces decorations wait, so less is spent by day 21) and the Active Player again held more gold on day 45 than was left to buy. `tests/townProjects.test.ts` keeps the scale above 0.5.
+- **Checks that moved, with the reasons:**
+  - The Greedy Farmer's **day-21 share still to spend is 35–55%** (±10; §14.8 had 30–50%). §14.8's curve assumed the North Fields on days 9–13 and the Terraces on 14–18; as built (v4-01, for the buffs check) they come on days 17 and 31, so at day 21 the Terraces alone are 27% of the catalogue. Measured 59% (52–59% per seed at the old price, 56–62% at the new one). Every other day of §14.8's curve keeps its band.
+  - **§14.9's north, restaurant and drink bands are read on days 14–30**, as §14.9 states them, on a 60-day run too (over days 14–60 the Terraces lift the north's share to 44–46%, as they should).
+  - **Gold stays meaningful** is judged on day 30 (§14.8: `toSpend(day 30) > 0`), the Active Player's "more to buy than in hand" on day 45, and **no strategy dominates** at day 60 too.
+- **The buffs check reads +12%** (day 10, 24 seeds; v4-03: +12%). This phase's content first moved it to +9%: the Elderflower Cordial card opened with the Press House, both Chefs bought it on days 5–8 and the presses ranked a drink whose flower does not exist before the woods. Its card now also needs `m28_first_forage` (§14.4), which is also the honest unlock. Day 14 reads +31%. No buff constant moved.
+- **What the brain learned** (§14.10): every bot picks the woods at each look; the lake, two traps there and the Forager's Basket close the farm list (the Angler buys the lake and three traps a water straight after the North Fields); the fishing rate counts each water's bite wait (`biteWaitMult`); `spendV2` makes up to 32 purchases a leave (was 8: once only decorations were left, fences and paths ten tiles at a time left the Active Player holding about four days' income against the catalogue's last 1.3M).
+- **Pacing against §14.9:** the Mountain Lake on day 17.5 (Greedy Farmer, 12–16), 16.0 (Angler, 9–12) and 24.0 (Active Player, 18–25): it needs the North Fields, which come on days 16–17 (v4-01). The first forage is in the session the woods open (the North Fields' purchase). The Terraces come on days 26.5–31 (strategy bots) and 41.5 (Active Player); §14.9's 14–18 and 22–30 were planned with the earlier fields.
+- **The v4-01 Known issue of the eating Chef's bag** no longer shows: its gold per simulated hour holds at 100–112k from day 14 to day 30 (it fell to 53–59k in v4-01).
+- **The spent-out tail:** every keen bot is down to the catalogue's never-bought floor (1–2%) by day 45 and the Active Player by day 60 (IDEAS.md: a repeatable late sink).
+
+### 14.15 v4 balance report
+
+`npm run simulate -- --seeds 1,2,3,4,5,6,7,8 --days 60` on the v4-04 branch, 60 days from Wed 25 Feb 2026 19:00 in New York, medians; the buffs check on its own 24 seeds at day 10. **53 of 53 checks pass.** The 30-day run (`--seeds 1,2,3,4,5,6,7,8`) passes all of its 47 checks (day 30: Greedy Farmer 37,283,533, Angler 39,800,054, Chef 45,338,600, spread 1.22×; its last evening's absence is cut at day 30, so day-30 figures differ from the 60-day run's by under 1%).
+
+| Bot | Gold d7 | Gold d14 | Gold d30 | Gold d45 | Gold d60 | North Fields · Terraces · Lake bought | Gold still to spend d21 · d30 · d45 · d60 |
+|---|---|---|---|---|---|---|---|
+| Greedy Farmer | 2,895,900 | 8,277,260 | 37,009,188 | 80,800,702 | 115,032,656 | d17.0 · d30.8 · d17.5 | 59 · 40 · 2 · 2% |
+| Angler | 2,955,096 | 9,575,703 | 39,523,242 | 85,176,775 | 122,325,146 | d16.0 · d28.5 · d16.0 | 50 · 8 · 1 · 1% |
+| Chef | 2,990,218 | 11,770,980 | 45,014,562 | 94,225,160 | 128,101,799 | d15.7 · d26.5 · d16.0 | 46 · 2 · 1 · 1% |
+| Chef who sells (control) | 2,826,912 | 8,338,282 | 33,001,443 | 77,024,823 | 110,787,006 | d19.7 · d31.3 · d20.2 | 60 · 39 · 1 · 1% |
+| Casual Idler | 2,062,605 | 7,076,368 | 39,628,359 | 65,655,349 | 102,473,443 | d14.9 · d27.5 · d15.3 | 51 · 2 · 2 · 2% |
+| Active Player | 900,245 | 4,688,854 | 18,853,381 | 42,444,038 | 64,710,970 | d23.5 · d41.5 · d24.0 | 86 · 67 · 11 · 1% |
+
+The catalogue is **23,930,030** (v1 776,030 + land 10,180,000 + saplings 1,036,000 + ranch 1,140,000 + decorations 2,773,000 + town projects 5,100,000 + restaurant 1,270,000 + Press House and hives 1,221,000 + the woods and the lake 434,000).
+
+**Side incomes, days 14–30** (the §14.9 checks; gold a day · share of the gold earned):
+
+| Bot | North fields' share of crop gold | Restaurant | Drinks | Forage (days 14–60) | Lake fish (days 14–60) |
+|---|---|---|---|---|---|
+| Greedy Farmer | 28% | – (cooks little) | 68,981 · 3.9% | 1,524 · 0.1% | 0 |
+| Angler | – | – | – | 1,553 · 0.1% | 57,653 · 2.3% |
+| Chef | 33% | 103,305 · 5.1% | 57,444 · 2.7% | 1,553 · 0.1% | 3,332 · 0.1% |
+| Chef who sells (control) | – | 107,300 · 6.6% | – | 1,111 · 0.1% | 2,443 · 0.1% |
+| Active Player | 19% | 28,391 · 3.2% | 19,892 · 2.3% | 1,162 · 0.1% | 1,581 · 0.1% |
+
+Before (v4-03, §14.14, 30 days): Greedy Farmer 37.7M, Angler 40.2M, Chef 46.1M, Chef who sells 32.9M at day 30; this phase's code before the brain learned the woods: 37.7M, 40.2M, 45.7M, 35.2M, with the buffs check at +9% (the Elderflower card, above).
+
+| Check | Target | Measured |
+|---|---|---|
+| No strategy dominates (days 3 · 7 · 30 · 60) | ≤ 1.5× | 1.08× · 1.03× · 1.22× · 1.11× |
+| Buffs kept up (day 10, 24 seeds) | +10% to +25% | **+12%** (day 3 +3%, day 7 +5%, day 14 +31%) |
+| Greedy Farmer · Chef · Active Player: drink income (days 14–30) | ≤ 5% · 2–10% · ≤ 10% | 3.9% · 2.7% · 2.3% |
+| Chef who sells · Chef · Active Player: restaurant income (days 14–30) | 5–15% · 3–15% · ≤ 15% | 6.6% · 5.1% · 3.2% |
+| North fields' share of crop gold (days 14–30): Greedy Farmer · Chef · Active Player | 25–45% · 20–45% · 15–40% | 28% · 33% · 19% |
+| The North Fields · the Upper Terraces pay back (Greedy Farmer) | ≤ 10 · 10–20 days | 5.8 · 11.5 days |
+| Gold still to spend, Greedy Farmer d7 · d14 · d21 · d30 · d45 · d60 | 85–95 · 55–75 · 35–55 · 10–30 · 0–10 · 0–5% (±10) | 94 · 84 · 59 · 40 · 2 · 2% |
+| Gold still to spend, Active Player d7 · d14 · d21 · d30 · d45 · d60 | 90–97 · 75–90 · 60–80 · 40–60 · 15–40 · 0–20% (±10) | 97 · 90 · 86 · 67 · 11 · 1% |
+| Gold stays meaningful (day 30): Farmer · Angler · Chef · Active | > 0 | 9.5M · 2.0M · 0.56M · 15.9M |
+| Active Player: to spend on day 45 vs gold in hand | more to spend | 2.74M vs 1.50M |
+| No hoard (Greedy Farmer · Angler · Chef · Active Player) | ≤ 3 days' income | 0.59 · 0.60 · 0.63 · 1.15 |
+| Runaway growth, day 28 / day 14 (Farmer · Angler · Chef) | ≤ 3× (§14.9 allows 1.5× from the fields) | 1.44× · 1.34× · 1.10× |
+
+The rest (early dead time, the Casual Idler at 195% of the Active Player on day 3, orchard 3.3%, animals 2% and 1%) passes as in v4-03.

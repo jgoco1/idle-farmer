@@ -315,7 +315,9 @@ const fishing = fishingPanel({
     const exp = expansionFor(GAME_DATA, location);
     if (!exp) return '';
     const needs = unlockHints(game.state, GAME_DATA, exp.requires).join(' ');
-    return `${LOCATION_NAMES[location]}: ${exp.name}, ${exp.price.toLocaleString('en-US')}g in Upgrades. ${needs}`.trim();
+    const what =
+      exp.name === LOCATION_NAMES[location] ? exp.name : `${LOCATION_NAMES[location]}: ${exp.name}`;
+    return `${what}, ${exp.price.toLocaleString('en-US')}g in Upgrades. ${needs}`.trim();
   },
 });
 panels.register(fishing.def);
@@ -981,13 +983,9 @@ game.bus.on('foragePicked', (e) => {
   renderer.addTileFx(at.col, at.row - 1, `item_${e.item}`, performance.now());
   toasts.show(`+${e.qty} ${GAME_DATA.items[e.item]!.name}${e.shipped > 0 ? ' (shipped)' : ''}`, 'good');
 });
+// The woods open with the North Fields: the parcel's toast says so, and the day's first growth needs no toast of its own.
 let lastForageToast = -1e9;
-game.bus.on('woodsOpened', () => {
-  lastForageToast = performance.now(); // the day's first growth comes with it: one toast, not two
-  if (catchingUp()) return;
-  const at = WORLD_LAYOUT.forageSpots[0]!;
-  toastAt('The North Woods are open: wild things grow there every day.', 'good', at.col, at.row);
-});
+game.bus.on('woodsOpened', () => (lastForageToast = performance.now()));
 game.bus.on('forageGrown', () => {
   if (catchingUp() || performance.now() - lastForageToast < 5000) return;
   lastForageToast = performance.now();
@@ -1007,9 +1005,12 @@ game.bus.on('parcelBought', (e) => {
     }
     renderer.panToTile(r.col + Math.floor(r.cols / 2), r.row + Math.floor(r.rows / 2));
   }
+  // v4-04: the North Fields also open the woods beyond the road (one toast, not two).
+  const woods =
+    e.parcel === 'north_fields' ? ' The North Woods are open too: wild things grow there every day.' : '';
   toasts.showKept(
     def.field
-      ? `${def.name} is yours! The brambles are cleared: ${def.opens.toLowerCase()} waits for the hoe.`
+      ? `${def.name} is yours! The brambles are cleared: ${def.opens.toLowerCase()} waits for the hoe.${woods}`
       : `${def.name} is yours! The brambles are cleared. ${def.opens}, later on.`,
     'good',
   );

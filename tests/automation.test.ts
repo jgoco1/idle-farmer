@@ -687,6 +687,34 @@ describe('the seed planter', () => {
     expect(s.lastPlantedCrop[2]).toBe('potato');
   });
 
+  it('the fallback moves to the next best seed when the best runs out within one plan (v4-04 cache)', () => {
+    const s = farmAt();
+    tilledField(s, 4, 2);
+    own(s, { farmhand: 1, seed_planter: 2 });
+    stock(s, 'turnip', 3);
+    stock(s, 'potato', 2);
+    s.lastPlantedCrop.fill(null);
+    s.lastPlantedCrop[5] = 'turnip'; // remembered, but the fallback has used the last turnip by then
+    const jobs = planPlanter(s, ctxAt(s), 8, []);
+    expect(jobs.map((j) => [j.index, j.crop])).toEqual([
+      [0, 'potato'],
+      [1, 'potato'],
+      [2, 'turnip'], // potatoes gone: the next most valuable seed
+      [3, 'turnip'],
+      [4, 'turnip'],
+    ]);
+  });
+
+  it('with no usable seed it plans nothing however many plots are tilled (v4-04: no walk)', () => {
+    const s = farmAt();
+    tilledField(s, 8, 6);
+    own(s, { farmhand: 1, seed_planter: 3 });
+    s.lastPlantedCrop.fill('turnip');
+    expect(planPlanter(s, ctxAt(s), 48, [])).toEqual([]);
+    stock(s, 'turnip', 1);
+    expect(planPlanter(s, ctxAt(s), 48, [])).toEqual([{ index: 0, crop: 'turnip', till: false }]);
+  });
+
   it('level 3 clears dead crops and tills bare soil, but only when it has a seed to plant', () => {
     const s = farmAt();
     tilledField(s, 4, 2);

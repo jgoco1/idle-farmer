@@ -166,8 +166,8 @@ test('the Fish tab and the Stats tab', async ({ page }) => {
   await page.getByRole('button', { name: /Goals/ }).click();
   const panel = page.getByRole('dialog', { name: 'Goals' });
   await panel.getByRole('tab', { name: 'Fish' }).click();
-  await expect(panel.locator('.fish-card')).toHaveCount(16);
-  await expect(panel).toContainText('0 of 16 fish found.');
+  await expect(panel.locator('.fish-card')).toHaveCount(22); // v4-04: the mountain lake's six
+  await expect(panel).toContainText('0 of 22 fish found.');
   await panel.getByRole('tab', { name: 'Stats' }).click();
   await expect(panel.locator('[data-stat="Lifetime gold"]')).toHaveText('0g');
   await expect(panel.locator('[data-stat="Farm Level"]')).toHaveText('1');
