@@ -17,6 +17,7 @@ const ICON: Record<PipKind, string> = {
   menu: 'obj_table',
   drink: 'item_apple_cider',
   hive: 'item_honey',
+  forage: 'item_chanterelle',
 };
 const LABEL: Record<PipKind, string> = {
   crop: 'Ready crops',
@@ -28,6 +29,7 @@ const LABEL: Record<PipKind, string> = {
   menu: 'A restaurant table waiting for dishes',
   drink: 'Drinks ready at the Press House',
   hive: 'A hive full of honey',
+  forage: 'Wild things to pick in the North Woods',
 };
 const ROTATE = { right: 0, bottom: 90, left: 180, top: 270 } as const;
 

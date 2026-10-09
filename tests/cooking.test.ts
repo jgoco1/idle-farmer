@@ -11,7 +11,9 @@ import { BASE_BUFF_SLOTS, HEARTY_DURATION_BONUS, MAX_BUFF_SLOTS, TIER_SELL_MULT 
 import { BUFF_TYPES } from '../src/data/buffs';
 import { CROPS } from '../src/data/crops';
 import { FISH } from '../src/data/fish';
+import { forageInSeason } from '../src/systems/forage';
 import {
+  isForageId,
   ALL_RECIPE_IDS,
   DRINK_IDS,
   RECIPE_IDS,
@@ -97,12 +99,12 @@ function giveBuff(s: GameState, type: BuffType, tier: RecipeTier, remainingMs: n
 }
 
 describe('recipe data (phase 06)', () => {
-  it('has the 34 dishes of BALANCE.md (§7, §13.8, §14.5): 8 T1, 13 T2, 9 T3 and 4 T4, and the 10 drinks', () => {
-    expect(RECIPE_IDS).toHaveLength(34);
-    expect(DRINK_IDS).toHaveLength(10);
+  it('has the 36 dishes of BALANCE.md (§7, §13.8, §14.5, §14.7): 8 T1, 13 T2, 11 T3 and 4 T4, and the 12 drinks', () => {
+    expect(RECIPE_IDS).toHaveLength(36);
+    expect(DRINK_IDS).toHaveLength(12);
     expect(Object.keys(RECIPES).sort()).toEqual([...ALL_RECIPE_IDS].sort());
     const count = (t: RecipeTier) => RECIPE_IDS.filter((r) => RECIPES[r].tier === t).length;
-    expect([count(1), count(2), count(3), count(4)]).toEqual([8, 13, 9, 4]);
+    expect([count(1), count(2), count(3), count(4)]).toEqual([8, 13, 11, 4]);
     for (const id of RECIPE_IDS) expect(RECIPES[id].station ?? 'kitchen', id).toBe('kitchen');
     for (const id of DRINK_IDS) expect(RECIPES[id].station, id).toBe('press');
   });
@@ -136,11 +138,11 @@ describe('recipe data (phase 06)', () => {
     expect(TIER_SELL_MULT).toEqual({ 1: 1.25, 2: 1.4, 3: 1.6, 4: 2 });
   });
 
-  it('uses only crops, fruit, eggs and milk, fish and seaweed as ingredients, and never a dish', () => {
+  it('uses only crops, fruit, eggs and milk, fish, seaweed and (v4-04) forage as ingredients, and never a dish', () => {
     for (const id of RECIPE_IDS) {
       for (const i of RECIPES[id].ingredients) {
         const cat = GAME_DATA.items[i.item]?.category;
-        expect(['crop', 'fruit', 'animal', 'fish', 'junk'], `${id}: ${i.item}`).toContain(cat);
+        expect(['crop', 'fruit', 'animal', 'fish', 'junk', 'forage'], `${id}: ${i.item}`).toContain(cat);
         expect(i.qty).toBeGreaterThan(0);
       }
     }
@@ -154,6 +156,7 @@ describe('recipe data (phase 06)', () => {
       const fruitTree = GAME_DATA.trees[`${item}_tree` as keyof typeof GAME_DATA.trees];
       if (fruitTree) return fruitTree.seasons.includes(season);
       if (item in FISH) return FISH[item as keyof typeof FISH].seasons.includes(season);
+      if (isForageId(item)) return forageInSeason(GAME_DATA, item, season); // v4-04: the woods by season
       return item === 'seaweed'; // junk from the pond and the sea, all year
     };
     const seasons: SeasonId[] = ['spring', 'summer', 'autumn', 'winter'];
@@ -169,7 +172,7 @@ describe('recipe data (phase 06)', () => {
 
   it('spreads the buffs as BALANCE.md says', () => {
     const per = (b: BuffType) => RECIPE_IDS.filter((r) => RECIPES[r].buff === b).length;
-    expect(BUFF_TYPES.map(per)).toEqual([5, 7, 4, 3, 5, 5, 5]); // v4-03: Honey-Roast Yams (growth), Honey Cake (automationSpeed); phase 09: Blueberry Muffin is Silver Tongue; v2-03 adds Baked Apple, Cherry Jam, Pear Crumble and Peach Cobbler; v2-04 Fried Egg, Soft Cheese, Garden Omelette, Apricot Custard, Lemon Meringue Pie and Persimmon Pudding
+    expect(BUFF_TYPES.map(per)).toEqual([5, 7, 4, 4, 5, 5, 6]); // v4-04: Blackberry Tart (fishingSpeed), Mushroom Risotto (xp); v4-03: Honey-Roast Yams (growth), Honey Cake (automationSpeed); phase 09: Blueberry Muffin is Silver Tongue; v2-03 adds Baked Apple, Cherry Jam, Pear Crumble and Peach Cobbler; v2-04 Fried Egg, Soft Cheese, Garden Omelette, Apricot Custard, Lemon Meringue Pie and Persimmon Pudding
   });
 
   it('has three starter recipes, and a card or another way to find every other one', () => {
@@ -177,7 +180,7 @@ describe('recipe data (phase 06)', () => {
     expect(kinds.filter((k) => k === 'starter')).toHaveLength(3);
     expect(kinds.filter((k) => k === 'experiment')).toHaveLength(6);
     expect(kinds.filter((k) => k === 'milestone')).toHaveLength(9);
-    expect(kinds.filter((k) => k === 'card')).toHaveLength(16);
+    expect(kinds.filter((k) => k === 'card')).toHaveLength(18); // v4-04: the two forage dishes
     expect(createInitialState(0, NY).kitchen.known).toEqual([
       'roasted_turnip',
       'baked_potato',
@@ -825,7 +828,7 @@ describe('recipe discovery', () => {
   it('sells recipe cards, showing what locks each one', () => {
     const s = farm();
     const cards = recipeCards(s, GAME_DATA);
-    expect(cards).toHaveLength(16); // the kitchen's cards only: drink cards are in the Press House
+    expect(cards).toHaveLength(18); // the kitchen's cards only (v4-04: the two forage dishes): drink cards are in the Press House
     expect(cards.find((c) => c.id === 'honey_roast_yams')!.hint).toBe('Build the Press House first.');
     expect(cards.map((c) => c.price)).toEqual([...cards.map((c) => c.price)].sort((a, b) => a - b));
     expect(cards[0]).toMatchObject({ id: 'wheat_flatbread', price: 120, unlocked: true });
@@ -954,7 +957,7 @@ describe('cooking art', () => {
   it('gives every dish and every buff type its own icon, plus the hearty badge and the chimney steam', () => {
     const dishes = RECIPE_IDS.map((id) => SPRITES[`item_${id}`]);
     for (const d of dishes) expect(d).toBeDefined();
-    expect(new Set(dishes.map((d) => d!.frames[0]!.join(''))).size).toBe(34);
+    expect(new Set(dishes.map((d) => d!.frames[0]!.join(''))).size).toBe(36);
     const buffs = BUFF_TYPES.map((t) => SPRITES[GAME_DATA.buffs[t].icon]);
     for (const b of buffs) expect(b).toBeDefined();
     expect(new Set(buffs.map((b) => b!.frames[0]!.join(''))).size).toBe(7);

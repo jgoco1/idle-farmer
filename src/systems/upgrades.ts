@@ -61,7 +61,7 @@ export function requirementsFor(def: UpgradeDef, level: number): UnlockCondition
  */
 export function purchaseBlock(state: GameState, data: GameData, id: UpgradeId): string | null {
   if (id === 'fish_trap' && upgradeLevel(state, id) >= maxTraps(state, data)) {
-    return `Every water you can reach already has its ${trapsPerLocation(state, data)} traps. Open the River or the Old Dock for more.`;
+    return `Every water you can reach already has its ${trapsPerLocation(state, data)} traps. Open another water (the River, the Old Dock or the Mountain Lake) for more.`;
   }
   return null;
 }

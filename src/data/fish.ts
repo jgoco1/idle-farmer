@@ -1,20 +1,33 @@
-// Fish and junk (docs/BALANCE.md §6): 16 fish over 3 locations, one legendary per season, and 3
-// junk items. Hours are on the player's local clock and may wrap past midnight (start > end).
+// Fish and junk (docs/BALANCE.md §6, §14.7): 22 fish over 4 locations (v4-04 adds the mountain
+// lake's six), one legendary per season, and 3 junk items. Hours are on the player's local clock and may wrap past midnight (start > end).
 // Prices are market base prices; sizes only matter to the Fish Collection.
 
 import type { FishId, FishLocationId, JunkId, SeasonId } from './ids';
-import type { FishDef, JunkDef } from './types';
+import type { FishDef, JunkDef, ReelTuning } from './types';
 
 const ALL: readonly SeasonId[] = ['spring', 'summer', 'autumn', 'winter'];
 const WARM: readonly SeasonId[] = ['spring', 'summer', 'autumn'];
 const ANY_HOUR = { start: 0, end: 24 } as const;
 
-export const FISH_LOCATIONS: readonly FishLocationId[] = ['pond', 'river', 'ocean'];
+export const FISH_LOCATIONS: readonly FishLocationId[] = ['pond', 'river', 'ocean', 'lake'];
 
 export const LOCATION_NAMES: Readonly<Record<FishLocationId, string>> = {
   pond: 'Pond',
   river: 'River',
   ocean: 'Ocean',
+  lake: 'Mountain Lake',
+};
+
+/**
+ * Each water's reel tuning (BALANCE.md §14.7): multiplied into the reel's zone speed and width and the
+ * wait for a bite. The lake's still water drifts the zone more slowly but a little narrower, and bites
+ * come later. Relaxed fishing multiplies on top, as elsewhere.
+ */
+export const LOCATION_REEL: Readonly<Record<FishLocationId, ReelTuning>> = {
+  pond: { zoneSpeedMult: 1, zoneWidthMult: 1, biteWaitMult: 1 },
+  river: { zoneSpeedMult: 1, zoneWidthMult: 1, biteWaitMult: 1 },
+  ocean: { zoneSpeedMult: 1, zoneWidthMult: 1, biteWaitMult: 1 },
+  lake: { zoneSpeedMult: 0.85, zoneWidthMult: 0.92, biteWaitMult: 1.15 },
 };
 
 export const FISH: Readonly<Record<FishId, FishDef>> = Object.freeze({
@@ -226,6 +239,85 @@ export const FISH: Readonly<Record<FishId, FishDef>> = Object.freeze({
     trappable: false,
     description: 'A pale, glimmering fish that rises on long winter nights.',
   },
+  // ---- the mountain lake (v4 phase 04, BALANCE.md §14.7): no legendary (one a season stays)
+  whitefish: {
+    id: 'whitefish',
+    name: 'Whitefish',
+    location: 'lake',
+    seasons: ALL,
+    hours: ANY_HOUR,
+    rarity: 'common',
+    difficulty: 25,
+    sizeCm: { min: 25, max: 50 },
+    basePrice: 45,
+    trappable: true,
+    description: 'Silvery and patient, cruising the cold middle of the lake in every season.',
+  },
+  lake_trout: {
+    id: 'lake_trout',
+    name: 'Lake Trout',
+    location: 'lake',
+    seasons: WARM,
+    hours: { start: 5, end: 21 },
+    rarity: 'common',
+    difficulty: 35,
+    sizeCm: { min: 30, max: 70 },
+    basePrice: 70,
+    trappable: true,
+    description: 'A big, spotted trout of deep mountain water.',
+  },
+  crayfish: {
+    id: 'crayfish',
+    name: 'Crayfish',
+    location: 'lake',
+    seasons: WARM,
+    hours: { start: 18, end: 8 },
+    rarity: 'uncommon',
+    difficulty: 40,
+    sizeCm: { min: 8, max: 15 },
+    basePrice: 120,
+    trappable: true,
+    description: 'A little freshwater lobster that wanders out from under the stones after dark.',
+  },
+  pike: {
+    id: 'pike',
+    name: 'Pike',
+    location: 'lake',
+    seasons: ['autumn', 'winter', 'spring'],
+    hours: ANY_HOUR,
+    rarity: 'uncommon',
+    difficulty: 55,
+    sizeCm: { min: 50, max: 120 },
+    basePrice: 170,
+    trappable: true,
+    description: 'Long, green and all teeth, waiting in the reeds for whatever swims past.',
+  },
+  golden_trout: {
+    id: 'golden_trout',
+    name: 'Golden Trout',
+    location: 'lake',
+    seasons: ['summer'],
+    hours: { start: 8, end: 18 },
+    rarity: 'rare',
+    difficulty: 75,
+    sizeCm: { min: 25, max: 55 },
+    basePrice: 460,
+    trappable: false,
+    description: 'A trout painted gold and red, rising only on bright summer days.',
+  },
+  alpine_char: {
+    id: 'alpine_char',
+    name: 'Alpine Char',
+    location: 'lake',
+    seasons: ['winter'],
+    hours: ANY_HOUR,
+    rarity: 'rare',
+    difficulty: 72,
+    sizeCm: { min: 30, max: 70 },
+    basePrice: 480,
+    trappable: false,
+    description: 'A red-bellied char from under the winter ice, bright as a berry.',
+  },
 });
 
 export const JUNK: Readonly<Record<JunkId, JunkDef>> = Object.freeze({
@@ -233,7 +325,7 @@ export const JUNK: Readonly<Record<JunkId, JunkDef>> = Object.freeze({
     id: 'old_boot',
     name: 'Old Boot',
     basePrice: 5,
-    locations: ['pond', 'river', 'ocean'],
+    locations: ['pond', 'river', 'ocean', 'lake'],
     description: 'Somebody lost this a long time ago. It still has a lace.',
   },
   seaweed: {
@@ -247,7 +339,7 @@ export const JUNK: Readonly<Record<JunkId, JunkDef>> = Object.freeze({
     id: 'driftwood',
     name: 'Driftwood',
     basePrice: 8,
-    locations: ['river', 'ocean'],
+    locations: ['river', 'ocean', 'lake'],
     description: 'A smooth, sun-bleached branch. Nice for a fire.',
   },
 });

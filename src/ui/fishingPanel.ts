@@ -41,6 +41,7 @@ const WATER_TILE: Record<FishLocationId, string> = {
   pond: 'tile_water',
   river: 'tile_river',
   ocean: 'tile_sea',
+  lake: 'tile_lake_a',
 };
 
 const RARITY_LABEL = {

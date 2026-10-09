@@ -107,6 +107,7 @@ import {
 } from './render/pressLife';
 import { pressBuilt } from './systems/press';
 import { hiveOnSpot } from './systems/apiary';
+import { ripeForageSpots } from './systems/forage';
 import { BuildMode } from './ui/buildMode';
 import { buildingById, ranchOpen, storeCount, storeIsFull, troughIsEmpty, troughSize } from './systems/ranch';
 import { BUILDINGS } from './data/animals';
@@ -314,7 +315,9 @@ const fishing = fishingPanel({
     const exp = expansionFor(GAME_DATA, location);
     if (!exp) return '';
     const needs = unlockHints(game.state, GAME_DATA, exp.requires).join(' ');
-    return `${LOCATION_NAMES[location]}: ${exp.name}, ${exp.price.toLocaleString('en-US')}g in Upgrades. ${needs}`.trim();
+    const what =
+      exp.name === LOCATION_NAMES[location] ? exp.name : `${LOCATION_NAMES[location]}: ${exp.name}`;
+    return `${what}, ${exp.price.toLocaleString('en-US')}g in Upgrades. ${needs}`.trim();
   },
 });
 panels.register(fishing.def);
@@ -537,6 +540,7 @@ const WATER_SPOT: Record<FishLocationId, { col: number; row: number }> = {
   pond: { col: 3, row: 9 },
   river: { col: 10, row: 11 },
   ocean: { col: 17, row: 11 },
+  lake: { col: 30, row: -11 },
 };
 function plotPx(plot: number): { x: number; y: number } {
   const t = tileOfPlot(game.state.farm.grid, plot);
@@ -677,16 +681,18 @@ const restaurantTile = (): { col: number; row: number } => {
 game.bus.on('restaurantBuilt', () => {
   if (quiet()) return;
   const at = restaurantTile();
-  toasts.show(`${GAME_DATA.restaurant.name} is open! Put some dishes on the menu.`, 'good');
+  toastAt(`${GAME_DATA.restaurant.name} is open! Put some dishes on the menu.`, 'good', at.col, at.row);
   for (let i = 0; i < 8; i++)
     renderer.particles.emit('leaf', (at.col - 2 + (i % 5) + 0.5) * PX, (at.row + 1.5) * PX, 1);
 });
 game.bus.on('restaurantUpgraded', (e) => {
   if (quiet()) return;
   const at = restaurantTile();
-  toasts.show(
+  toastAt(
     `${GAME_DATA.restaurant.name} is bigger now (level ${e.level}): another table on the terrace.`,
     'good',
+    at.col,
+    at.row,
   );
   renderer.particles.emit('sparkle', (at.col + 0.5) * PX, at.row * PX, 1);
 });
@@ -716,9 +722,11 @@ const pressTile = (): { col: number; row: number } => {
 game.bus.on('pressBuilt', () => {
   if (quiet()) return;
   const at = pressTile();
-  toasts.show(
+  toastAt(
     `The ${GAME_DATA.press.name} is built! Start a drink in a press, and buy a hive or two.`,
     'good',
+    at.col,
+    at.row,
   );
   for (let i = 0; i < 8; i++)
     renderer.particles.emit('leaf', (at.col - 2 + (i % 4) + 0.5) * PX, (at.row + 1.5) * PX, 1);
@@ -726,9 +734,11 @@ game.bus.on('pressBuilt', () => {
 game.bus.on('pressUpgraded', (e) => {
   if (quiet()) return;
   const at = pressTile();
-  toasts.show(
+  toastAt(
     `The ${GAME_DATA.press.name} is bigger now (level ${e.level}): another press in the yard.`,
     'good',
+    at.col,
+    at.row,
   );
   renderer.particles.emit('sparkle', (at.col + 0.5) * PX, at.row * PX, 1);
 });
@@ -874,15 +884,24 @@ game.bus.on('seedsOrdered', (e) => {
 game.bus.on('purchased', (e) => {
   if (e.what in GAME_DATA.expansions) {
     const exp = GAME_DATA.expansions[e.what as keyof typeof GAME_DATA.expansions];
-    toasts.show(
-      exp.kind === 'fishing'
-        ? `${exp.name}: the ${LOCATION_NAMES[exp.location as FishLocationId].toLowerCase()} is open for fishing!`
-        : 'The farm grows! New soil is waiting to be tilled.',
-      'good',
-    );
-  } else if (e.what === 'fish_trap')
-    toasts.show('A fish trap bobs on the water. It fills on its own.', 'good');
-  else if (e.what === 'sprinkler' || e.what === 'scarecrow') {
+    if (exp.kind === 'fishing') {
+      // A water may be far from the view (v4-04: the mountain lake), so the toast names it and pans there.
+      const at = WATER_SPOT[exp.location as FishLocationId];
+      const water = LOCATION_NAMES[exp.location as FishLocationId];
+      toastAt(
+        water === exp.name
+          ? `The ${water} is open for fishing!`
+          : `${exp.name}: the ${water.toLowerCase()} is open for fishing!`,
+        'good',
+        at.col,
+        at.row,
+      );
+    } else toasts.show('The farm grows! New soil is waiting to be tilled.', 'good');
+  } else if (e.what === 'fish_trap') {
+    const trap = game.state.fishing.traps[game.state.fishing.traps.length - 1];
+    const at = trap ? trapTile(trap.location, trap.slot) : WATER_SPOT.pond;
+    toastAt('A fish trap bobs on the water. It fills on its own.', 'good', at.col, at.row);
+  } else if (e.what === 'sprinkler' || e.what === 'scarecrow') {
     toasts.show(`${GAME_DATA.upgrades[e.what]!.name} bought. Click a plot to put it down.`, 'good');
     panels.close(); // clear the way to the field
     placement.start(e.what);
@@ -949,6 +968,31 @@ game.bus.on('fruitGrown', (e) => {
   const at = spotTile(e.tree);
   toastAt('Fruit is ripe in the orchard.', 'good', at.col, at.row);
 });
+// The North Woods (v4-04): forage picked, the woods opening, wild things ripening overnight.
+function pickForageAt(spot: number): void {
+  const r = game.dispatch({ type: 'pickForage', spot: Math.max(0, spot) });
+  if (!r.ok) toasts.show(r.reason, 'warn');
+}
+game.bus.on('foragePicked', (e) => {
+  if (quiet()) return;
+  const at = WORLD_LAYOUT.forageSpots[e.spot]!;
+  if (e.auto) {
+    renderer.particles.emit('leaf', (at.col + 0.5) * PX, (at.row + 0.5) * PX, 0.6);
+    return;
+  }
+  renderer.addTileFx(at.col, at.row - 1, `item_${e.item}`, performance.now());
+  toasts.show(`+${e.qty} ${GAME_DATA.items[e.item]!.name}${e.shipped > 0 ? ' (shipped)' : ''}`, 'good');
+});
+// The woods open with the North Fields: the parcel's toast says so, and the day's first growth needs no toast of its own.
+let lastForageToast = -1e9;
+game.bus.on('woodsOpened', () => (lastForageToast = performance.now()));
+game.bus.on('forageGrown', () => {
+  if (catchingUp() || performance.now() - lastForageToast < 5000) return;
+  lastForageToast = performance.now();
+  const ripe = ripeForageSpots(game.state)[0];
+  const at = WORLD_LAYOUT.forageSpots[ripe?.spot ?? 0]!;
+  toastAt('Wild things are ready in the North Woods.', 'good', at.col, at.row);
+});
 // A parcel is bought: the overgrowth goes in a puff of leaves and the camera shows the new land.
 game.bus.on('parcelBought', (e) => {
   const def = GAME_DATA.parcels[e.parcel];
@@ -961,9 +1005,12 @@ game.bus.on('parcelBought', (e) => {
     }
     renderer.panToTile(r.col + Math.floor(r.cols / 2), r.row + Math.floor(r.rows / 2));
   }
+  // v4-04: the North Fields also open the woods beyond the road (one toast, not two).
+  const woods =
+    e.parcel === 'north_fields' ? ' The North Woods are open too: wild things grow there every day.' : '';
   toasts.showKept(
     def.field
-      ? `${def.name} is yours! The brambles are cleared: ${def.opens.toLowerCase()} waits for the hoe.`
+      ? `${def.name} is yours! The brambles are cleared: ${def.opens.toLowerCase()} waits for the hoe.${woods}`
       : `${def.name} is yours! The brambles are cleared. ${def.opens}, later on.`,
     'good',
   );
@@ -1209,6 +1256,13 @@ const renderer = new Renderer({
         return openWater('river');
       case 'dock':
         return openWater('ocean');
+      case 'lake':
+        return openWater('lake');
+      case 'forage': {
+        // The renderer sends spots with something on them to onForageClick; a bare spot or closed woods come here.
+        const spot = WORLD_LAYOUT.forageSpots.findIndex((t) => t.col === col && t.row === row);
+        return pickForageAt(spot);
+      }
       case 'board':
         return panels.open('goals');
       case 'restaurant':
@@ -1275,6 +1329,7 @@ const renderer = new Renderer({
     const r = game.dispatch({ type: 'pickTree', id });
     if (!r.ok) toasts.show(r.reason, 'warn');
   },
+  onForageClick: (spot) => pickForageAt(spot),
   onSignClick(parcel) {
     buyParcelDialog(parcel, {
       state: () => game.state,
@@ -1342,6 +1397,12 @@ function updatePips(): void {
     if (hv.honey < GAME_DATA.hive.store) continue;
     const spot = WORLD_LAYOUT.hiveSpots[hv.spot]!;
     pipTargets.push({ kind: 'hive', col: spot.col, row: spot.row });
+  }
+  // The North Woods (v4-04): a ripe forage spot.
+  for (const fs of s.forage.spots) {
+    if (fs.qty <= 0) continue;
+    const spot = WORLD_LAYOUT.forageSpots[fs.spot]!;
+    pipTargets.push({ kind: 'forage', col: spot.col, row: spot.row });
   }
   pips.update(pipTargets);
 }
@@ -1448,6 +1509,7 @@ const view$: SceneView = {
   ranch: { buildings: [], animals: [], troughLevel: [] },
   restaurant: { level: 0, tables: 0, serving: new Uint8Array(MAX_TABLES) },
   press: { level: 0, presses: 0, slot: new Uint8Array(MAX_PRESSES), hive: new Uint8Array(MAX_HIVES) },
+  forage: [],
   cosmetics: { bakerySmoke: false, band: false, lighthouseBeam: false, festival: false },
   cat: GAME_DATA.cats.cat_tabby.sprite,
 };
@@ -1535,6 +1597,7 @@ function sceneView(): SceneView {
   for (const j of s.kitchen.queue) if (j.remainingMs > 0) view$.cooking = true;
   view$.decor = s.decor.placed;
   view$.trees = s.orchard.trees;
+  view$.forage = s.forage.spots;
   const cos = view$.cosmetics;
   cos.bakerySmoke = hasCosmetic(s, GAME_DATA, 'bakerySmoke');
   cos.band = hasCosmetic(s, GAME_DATA, 'bandSaturday');
@@ -1578,7 +1641,7 @@ const loop = startLoop(game, {
       const canvas = byId<HTMLCanvasElement>('scene-canvas');
       if (canvas.title !== (why ?? '')) canvas.title = why ?? '';
     }
-    if (!decorate.on && !plant.on && !build.on) label.update(cal.dayIndex);
+    if (!decorate.on && !plant.on && !build.on) label.update(cal.dayIndex, cal.season);
     else label.hide();
     hud.update(game.state, cal);
     tools.update();

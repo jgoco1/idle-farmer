@@ -7,6 +7,7 @@ import { PARCEL_IDS, type ParcelId } from '../data/ids';
 import { fail, OK, type ActionResult, type SimContext } from './context';
 import { canAfford, spend } from './economy';
 import { newNorthField } from './farming';
+import { openWoods } from './forage';
 import { isUnlocked, unlockHint } from './unlocks';
 
 export type ParcelStatus = 'owned' | 'available' | 'locked';
@@ -41,5 +42,6 @@ export function buyParcel(state: GameState, ctx: SimContext, id: ParcelId): Acti
   ctx.events.push({ type: 'purchased', what: id, gold: def.price });
   ctx.events.push({ type: 'parcelBought', parcel: id });
   if (def.field) ctx.events.push({ type: 'northFieldBought', field: def.field });
+  openWoods(state, ctx); // the road to the North Fields runs past the woods (v4-04)
   return OK;
 }

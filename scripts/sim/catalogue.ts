@@ -4,7 +4,9 @@
 // (the counted copies of each piece, 40 path and 30 fence tiles a set, the farmhouse pieces) and the town
 // projects' gold, (v2-03) the saplings and (v2-04) the ranch: every building level, the hens and cows the buildings
 // hold at their top level, the Collecting Basket and the two recipe cards that need a building; (v4-02) the
-// restaurant's levels; (v4-03) the Press House's levels, the six hives and the drink cards (and Honey-Roast Yams).
+// restaurant's levels; (v4-03) the Press House's levels, the six hives and the drink cards (and Honey-Roast Yams);
+// (v4-04) the woods: the Mountain Lake, the Forager's Basket and the two forage dishes' cards (the lake's three fish
+// traps are in v1 with the others, and Elderflower Cordial's card with the Press House's).
 
 import type { GameState } from '../../src/core/state';
 import type { GameData } from '../../src/data';
@@ -61,6 +63,11 @@ function cardNeedsPress(unlock: readonly { kind: string }[]): boolean {
   return unlock.some((c) => c.kind === 'press');
 }
 
+/** v4-04: a recipe card that opens with the first forage (the two forage dishes). */
+function cardNeedsWoods(unlock: readonly { kind: string; id?: string }[]): boolean {
+  return unlock.some((c) => c.kind === 'milestone' && c.id === 'm28_first_forage');
+}
+
 /** v4-03: the price of the first `n` hives. */
 function hivesPrice(data: GameData, n: number): number {
   let sum = 0;
@@ -78,21 +85,28 @@ export function catalogueParts(data: GameData): {
   projects: number;
   restaurant: number;
   press: number;
+  woods: number;
 } {
   let v1 = 0;
   let ranch = 0;
+  let woods = 0;
   for (const id of Object.keys(data.upgrades) as UpgradeId[]) {
     const spend = upgradeSpend(data, id, data.upgrades[id]!.max);
     if (data.upgrades[id]!.category === 'ranch') ranch += spend;
+    else if (id === 'forager_basket') woods += spend;
     else v1 += spend;
   }
-  for (const id of Object.keys(data.expansions) as ExpansionId[]) v1 += data.expansions[id].price;
+  for (const id of Object.keys(data.expansions) as ExpansionId[]) {
+    if (id === 'lake') woods += data.expansions[id].price;
+    else v1 += data.expansions[id].price;
+  }
   let press = data.press.levels.reduce((sum, l) => sum + l.price, 0) + hivesPrice(data, 6); // v4-03
   for (const id of ALL_RECIPE_IDS) {
     const d = data.recipes[id].discovery;
     if (d.kind !== 'card') continue;
     if (cardNeedsBuilding(d.unlock)) ranch += d.price;
     else if (cardNeedsPress(d.unlock)) press += d.price;
+    else if (cardNeedsWoods(d.unlock)) woods += d.price;
     else v1 += d.price;
   }
   for (const id of BUILDING_IDS) ranch += data.buildings[id].levels.reduce((sum, l) => sum + l.price, 0);
@@ -112,12 +126,12 @@ export function catalogueParts(data: GameData): {
     0,
   );
   const restaurant = data.restaurant.levels.reduce((sum, l) => sum + l.price, 0); // v4-02
-  return { v1, parcels, saplings, ranch, decor, projects, restaurant, press };
+  return { v1, parcels, saplings, ranch, decor, projects, restaurant, press, woods };
 }
 
 export function catalogueTotal(data: GameData): number {
   const p = catalogueParts(data);
-  return p.v1 + p.parcels + p.saplings + p.ranch + p.decor + p.projects + p.restaurant + p.press;
+  return p.v1 + p.parcels + p.saplings + p.ranch + p.decor + p.projects + p.restaurant + p.press + p.woods;
 }
 
 /** The list price of everything in the catalogue this farm already owns (a known recipe card counts). */

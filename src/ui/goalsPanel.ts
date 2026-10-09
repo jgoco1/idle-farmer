@@ -381,6 +381,7 @@ export function goalsPanel(hooks: GoalsHooks): { def: PanelDef; showTown(): void
           ['Fish caught', st.stats.fishCaught.toLocaleString('en-US')],
           ['Dishes cooked', st.stats.dishesCooked.toLocaleString('en-US')],
           ['Fruit picked', st.stats.fruitPicked.toLocaleString('en-US')],
+          ['Wild things foraged', st.stats.foraged.toLocaleString('en-US')],
           ['Eggs and milk collected', st.stats.productsCollected.toLocaleString('en-US')],
           ['Dishes eaten', st.stats.dishesEaten.toLocaleString('en-US')],
           ['Items shipped', st.stats.itemsShipped.toLocaleString('en-US')],

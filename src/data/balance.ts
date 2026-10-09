@@ -335,3 +335,9 @@ export const HIVE_PRICE_RATIO = 1.5;
 export const COCOA_AMOUNTS: readonly number[] = [1, 10];
 /** Finished drinks a press slot holds before a "keep pressing" slot waits for them to be collected. */
 export const PRESS_SLOT_STORE = 24;
+
+// ---- the North Woods and the mountain lake (v4 phase 04, BALANCE.md §14.7)
+
+/** A forage spot holds at most this many days' worth of its item (the Forager bundle adds FORAGER_BONUS_DAYS). */
+export const FORAGE_CAP_DAYS = 3;
+export const FORAGER_BONUS_DAYS = 1;

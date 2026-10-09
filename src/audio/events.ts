@@ -29,6 +29,7 @@ export function bindAudioEvents(bus: EventBus, sfx: Sfx, quiet: () => boolean): 
   });
   on('trapCollected', () => sfx.play('harvest'));
   on('fruitPicked', (e) => e.auto || sfx.play('harvest'));
+  on('foragePicked', (e) => e.auto || sfx.play('harvest')); // v4-04
   on('treePlanted', () => sfx.play('plant'));
   // The ranch: a cluck or a moo when a batch is ready, and a collect sound when the player takes it (the Collecting
   // Basket is quiet, like the farmhand).

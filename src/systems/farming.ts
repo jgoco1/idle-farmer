@@ -463,7 +463,11 @@ export function plantOne(state: GameState, index: number, crop: CropId): boolean
   const plot = plotAt(state, index);
   if (!plot || plot.state !== 'tilled') return false;
   if (!removeItem(state.inventory, seedOf(crop), 1)) return false;
-  Object.assign(plot, emptyPlot('planted'), { crop, waterMsLeft: plot.waterMsLeft });
+  // Field by field (an emptyPlot merged in would allocate twice per seed, the hottest path of a long catch-up).
+  plot.state = 'planted';
+  plot.crop = crop;
+  plot.growthMs = 0;
+  plot.harvests = 0;
   setLastPlanted(state, index, crop);
   return true;
 }
@@ -533,7 +537,10 @@ export function harvestOne(state: GameState, ctx: SimContext, index: number, aut
     plot.harvests += 1;
     plot.growthMs = 0;
   } else {
-    Object.assign(plot, emptyPlot('tilled'), { waterMsLeft: plot.waterMsLeft });
+    plot.state = 'tilled'; // as emptyPlot('tilled'), keeping the hand watering
+    plot.crop = null;
+    plot.growthMs = 0;
+    plot.harvests = 0;
   }
   ctx.events.push({ type: 'harvested', crop: crop.id, qty, plot: index, auto, shipped: stowed.bin });
   return 'harvested';

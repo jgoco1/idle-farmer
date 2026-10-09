@@ -61,7 +61,7 @@ export const PARCELS: Readonly<Record<ParcelId, ParcelDef>> = Object.freeze({
     name: 'Upper Terraces',
     description: 'Old terraces stepping up the hill toward the pines. The walls just need a mend.',
     rect: rectOf('terraces'),
-    price: 4_500_000,
+    price: 6_500_000, // v4-04 (BALANCE §14.12): 4,500,000 paid back in 8 days on 60-day runs (band 10–20)
     requires: [
       { kind: 'parcel', id: 'north_fields' },
       { kind: 'farmLevel', level: 8 },

@@ -86,6 +86,26 @@ const SPARKLE_FISH: readonly Dot[] = [
   [7, 2, 'w'],
 ];
 
+// A crayfish (v4-04): claws to the left, a jointed tail to the right; recoloured like the fish.
+const CRAY = [
+  '................',
+  '................',
+  '................',
+  '................',
+  '.DD.............',
+  'DBBD..DDDDD.....',
+  '.DDBDDBBBBBDDD..',
+  '...DEBBBBBBBBBTT',
+  '.DDBDDBBBBBDDTTT',
+  'DBBD..LLLLLL..TT',
+  '.DD...D.D.D.....',
+  '................',
+  '................',
+  '................',
+  '................',
+  '................',
+];
+
 const FISH_ART: Record<FishId, FishArt> = {
   bluegill: {
     body: ROUND,
@@ -253,6 +273,64 @@ const FISH_ART: Record<FishId, FishArt> = {
       [7, 3, 'f'],
       [8, 4, 'f'],
       ...SPARKLE_FISH,
+    ],
+  },
+  // ---- the mountain lake (v4-04, ART_STYLE §7.5): cool, deep-water colours
+  whitefish: {
+    body: SLENDER,
+    colors: { D: 'n', B: 'N', L: 'w', T: 'N', E: 'k' },
+    extra: [
+      [6, 7, 'w'],
+      [9, 7, 'w'],
+    ],
+  },
+  lake_trout: {
+    body: SLENDER,
+    colors: { D: 'h', B: 'g', L: 'x', T: 'h', E: 'k' },
+    extra: [
+      [5, 6, 'H'],
+      [8, 7, 'H'],
+      [11, 6, 'H'],
+      [6, 8, 'x'],
+      [10, 8, 'x'],
+    ],
+  },
+  crayfish: {
+    body: CRAY,
+    colors: { D: 'r', B: 'q', L: 'R', T: 'r', E: 'k' },
+    extra: [
+      [8, 7, 'Q'],
+      [11, 7, 'Q'],
+    ],
+  },
+  pike: {
+    body: SLENDER,
+    colors: { D: 'l', B: 'g', L: 'L', T: 'l', E: 'k' },
+    extra: [
+      [5, 7, 'L'],
+      [8, 8, 'L'],
+      [11, 7, 'L'],
+      [1, 8, 'w'],
+    ],
+  },
+  golden_trout: {
+    body: SLENDER,
+    colors: { D: 'F', B: 'f', L: 'q', T: 'o', E: 'k' },
+    extra: [
+      [5, 8, 'q'],
+      [7, 8, 'q'],
+      [9, 8, 'q'],
+      [7, 2, 'w'],
+    ],
+  },
+  alpine_char: {
+    body: ROUND,
+    colors: { D: 'A', B: 'n', L: 'q', T: 'A', E: 'k' },
+    extra: [
+      [5, 6, 'x'],
+      [8, 7, 'x'],
+      [10, 6, 'x'],
+      [4, 9, 'Q'],
     ],
   },
   moonfin: {

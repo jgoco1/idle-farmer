@@ -54,6 +54,7 @@ import {
   upgradePress,
 } from '../systems/press';
 import { buyHive, collectHive } from '../systems/apiary';
+import { pickForage } from '../systems/forage';
 import { runProgression } from '../systems/progression';
 import type {
   AnimalId,
@@ -181,6 +182,8 @@ export type Action =
   /** The apiary: a hive on the next free spot; collect one hive's honey (by id) or every hive's. */
   | { type: 'buyHive' }
   | { type: 'collectHive'; hive?: number }
+  // the North Woods (v4 phase 04)
+  | { type: 'pickForage'; spot: number }
   | { type: 'debugSetTimeWarp'; on: boolean };
 
 export const TIME_WARP_SPEED = 60;
@@ -337,6 +340,8 @@ function handleAction(state: GameState, ctx: SimContext, action: Action): Action
       return buyHive(state, ctx);
     case 'collectHive':
       return collectHive(state, ctx, action.hive);
+    case 'pickForage':
+      return pickForage(state, ctx, action.spot);
     case 'debugSetTimeWarp':
       state.clock.speed = action.on ? TIME_WARP_SPEED : 1;
       return OK;

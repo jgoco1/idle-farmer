@@ -60,10 +60,10 @@ describe('fishing scenery', () => {
   });
 
   it('every location has a clickable water zone, and its trap spots float inside it on water', () => {
-    expect(LOCATION_ZONE).toEqual({ pond: 'pond', river: 'river', ocean: 'dock' });
-    const layout = buildLayout(START_GRID, ['river', 'ocean']);
-    const water = new Set(['tile_water', 'tile_river', 'tile_sea']);
-    for (const loc of ['pond', 'river', 'ocean'] as const) {
+    expect(LOCATION_ZONE).toEqual({ pond: 'pond', river: 'river', ocean: 'dock', lake: 'lake' });
+    const layout = buildLayout(START_GRID, ['river', 'ocean', 'lake']);
+    const water = new Set(['tile_water', 'tile_river', 'tile_sea', 'tile_lake_a', 'tile_lake_b']);
+    for (const loc of ['pond', 'river', 'ocean', 'lake'] as const) {
       expect(TRAP_TILES[loc]).toHaveLength(3); // two, and a third once the Pond Fish bundle is done
       for (const t of TRAP_TILES[loc]) {
         expect(inRect(zoneOf(LOCATION_ZONE[loc]).rect, t.col, t.row), `${loc} ${t.col},${t.row}`).toBe(true);
@@ -88,7 +88,7 @@ describe('fishing sprites', () => {
       expect(def!.frames[0]).toHaveLength(16);
       looks.add(def!.frames[0]!.join(''));
     }
-    expect(looks.size).toBe(19);
+    expect(looks.size).toBe(25); // v4-04: the lake's six
   });
 
   it('has the trap, bobber, bite bubble, splash, river, sea, bridge, dock and rod', () => {

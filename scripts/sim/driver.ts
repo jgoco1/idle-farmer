@@ -22,7 +22,7 @@ import {
   type LocalClock,
 } from '../../src/core/time';
 import type { GameData } from '../../src/data';
-import { PARCEL_IDS, type MilestoneId, type NorthFieldId } from '../../src/data/ids';
+import { PARCEL_IDS, type FishId, type MilestoneId, type NorthFieldId } from '../../src/data/ids';
 import { isUnlocked } from '../../src/systems/unlocks';
 import { northFieldOf, plotCount } from '../../src/systems/farming';
 import { farmLevel as farmLevelOf } from '../../src/systems/unlocks';
@@ -76,6 +76,10 @@ export interface Snapshot {
   drinksPressed: number;
   honeyGold: number;
   honeyCollected: number;
+  /** v4-04: gold from selling forage, forage picked, and gold from selling the mountain lake's fish. */
+  forageGold: number;
+  foraged: number;
+  lakeGold: number;
 }
 
 export interface Metrics {
@@ -121,6 +125,10 @@ export interface Metrics {
   drinksPressed: number;
   honeyGold: number;
   honeyCollected: number;
+  /** v4-04: gold from selling forage, forage picked, and gold from selling the mountain lake's fish. */
+  forageGold: number;
+  foraged: number;
+  lakeGold: number;
   /** Every absence: when it began (real ms since the start), how long it was, and the gold earned during it (v2 phase 06). */
   aways: { startMs: number; ms: number; gold: number }[];
 }
@@ -163,6 +171,9 @@ export class SimRun {
     drinksPressed: 0,
     honeyGold: 0,
     honeyCollected: 0,
+    forageGold: 0,
+    foraged: 0,
+    lakeGold: 0,
     aways: [],
   };
   private lastUsefulPlayMs = 0;
@@ -194,6 +205,17 @@ export class SimRun {
       else if (cat === 'fruit') this.metrics.orchardGold += e.gold;
       else if (cat === 'animal') this.metrics.animalGold += e.gold;
       else if (cat === 'crop') this.metrics.cropGold += e.gold;
+      else if (cat === 'forage')
+        this.metrics.forageGold += e.gold; // v4-04
+      else if (cat === 'fish' && data.fish[e.item as FishId]?.location === 'lake')
+        this.metrics.lakeGold += e.gold;
+    });
+    bus.on('foragePicked', (e) => {
+      this.mark('first_forage');
+      this.metrics.foraged += e.qty;
+    });
+    bus.on('caught', (e) => {
+      if (e.location === 'lake' && e.catch in data.fish) this.mark('first_lake_fish');
     });
     bus.on('harvested', (e) => {
       this.mark('first_harvest');
@@ -406,6 +428,9 @@ export class SimRun {
       drinksPressed: this.metrics.drinksPressed,
       honeyGold: this.metrics.honeyGold,
       honeyCollected: this.metrics.honeyCollected,
+      forageGold: this.metrics.forageGold,
+      foraged: this.metrics.foraged,
+      lakeGold: this.metrics.lakeGold,
     });
   }
 }

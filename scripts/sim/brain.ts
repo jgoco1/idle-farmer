@@ -117,6 +117,7 @@ import {
   pressSlotFor,
 } from '../../src/systems/press';
 import { hiveBlock, honeyWaiting, nextHivePrice } from '../../src/systems/apiary';
+import { ripeForageSpots } from '../../src/systems/forage';
 import { orderedCrops } from '../../src/systems/seedOrder';
 import { isUnlocked } from '../../src/systems/unlocks';
 import { purchaseBlock, requirementsFor, upgradeCost, upgradeLevel } from '../../src/systems/upgrades';
@@ -214,6 +215,11 @@ export const FARM_SHOPPING: readonly Want[] = [
   up('scarecrow', 5),
   ...sprinklers(15, 16),
   up('scarecrow', 6),
+  // v4-04 (BALANCE §14.10): the Mountain Lake and its two traps last (a farmer only traps there), then the
+  // Forager's Basket.
+  ex('lake'),
+  up('fish_trap', 4),
+  up('forager_basket', 1),
 ];
 
 /** The farm-first order without the Seed Order: the control bots of the v2-06 report row never buy it. */
@@ -260,7 +266,10 @@ export const FISH_SHOPPING: readonly Want[] = [
   up('fish_trap', 6),
   up('fishing_rod', 3),
   up('fish_trap', 9),
-  ...FARM_SHOPPING,
+  // v4-04: the Angler buys the Mountain Lake and its traps as soon as the North Fields open the road to it.
+  ...FARM_SHOPPING.flatMap((w) =>
+    w.kind === 'parcel' && w.id === 'north_fields' ? [w, ex('lake'), up('fish_trap', 12)] : [w],
+  ),
 ];
 
 /** The kitchen-first order: stove slots and speed early, then the farm list. */
@@ -286,6 +295,8 @@ const PULL_UP_MIN_GOLD = 20_000;
 const DONATE_MIN_GOLD = 200;
 /** Share of the gold above the seed reserve that a session spends on decorations and town projects (BALANCE.md §13.11). */
 export const V2_SPEND_SHARE = 0.6;
+/** Most purchases `spendV2` makes when leaving (v4-04: 32, was 8). */
+const V2_PURCHASES_PER_LEAVE = 32;
 /** Catches per real minute while fishing for the items a town project asks for. */
 const ERRAND_FISH_PER_MIN = 3;
 /** Decoration pieces bought in one go for the bulk pieces (paths and fences). */
@@ -424,14 +435,18 @@ export class Brain {
     // third of the ~20 s a catch takes).
     if (this.style.fishPerMin > 0) {
       const speed = computeModifiers(s, data).fishingSpeedModifier;
-      const rate = (this.style.fishPerMin * 20) / (13.5 + 6.5 / Math.max(0.1, speed));
+      const base = 13.5 + 6.5 / Math.max(0.1, speed);
+      const rate = (this.style.fishPerMin * 20) / base;
       this.fishBudget += (rate * dt) / MIN;
-      while (this.fishBudget >= 1) {
-        this.fishBudget -= 1;
-        const events: GameEvent[] = [];
-        const ctx = makeContext(s, data, game.calendar(), events);
+      for (;;) {
         const waters = unlockedLocations(s);
         const where = this.style.rotateWaters ? waters[this.fishedAt % waters.length]! : waters.at(-1)!;
+        // v4-04: a water's own bite wait (the lake's still water bites later) makes its catches a little slower.
+        const cost = (13.5 + (6.5 * data.locationReel[where].biteWaitMult) / Math.max(0.1, speed)) / base;
+        if (this.fishBudget < cost) break;
+        this.fishBudget -= cost;
+        const events: GameEvent[] = [];
+        const ctx = makeContext(s, data, game.calendar(), events);
         const pick = chooseCatch(s, ctx, where, 'active', 0.6);
         landCatch(s, ctx, pick.id, pick.sizeCm, where);
         runProgression(s, ctx); // what the `fishTick` action does after a catch
@@ -475,6 +490,7 @@ export class Brain {
     if (this.style.cook === 'eat') useful = this.eat(run, false) || useful;
     else if (s.stats.dishesEaten === 0) useful = this.eatAny(run) || useful; // the "eat a dish" milestone
     useful = this.menu(run, false) || useful; // v4-02: eat first, the restaurant second, sell the rest
+    useful = this.forage(run) || useful; // v4-04: a walk through the woods each look
     useful = this.apiary(run) || useful; // v4-03: honey in, before the presses want it
     useful = this.presses(run, false) || useful; // v4-03: finished drinks in, idle presses started
     useful = this.sell(run, keep, false) || useful;
@@ -1260,6 +1276,14 @@ export class Brain {
   }
 
   /** Collects the honey (until the Collecting Basket does it at each pickup). */
+  /** v4-04: picks every ripe forage spot (the Forager's Basket does it at each pickup once bought). */
+  private forage(run: SimRun): boolean {
+    let useful = false;
+    for (const spot of ripeForageSpots(run.state))
+      if (run.game.dispatch({ type: 'pickForage', spot: spot.spot }).ok) useful = true;
+    return useful;
+  }
+
   private apiary(run: SimRun): boolean {
     const s = run.state;
     if (honeyWaiting(s) === 0) return false;
@@ -1578,7 +1602,9 @@ export class Brain {
               .ok || useful;
       }
     }
-    for (let guard = 0; guard < 8 && budget > 0; guard++) {
+    // v4-04: up to 32 purchases a leave (was 8): with only decorations left, fences and paths come ten tiles at a
+    // time, and 8 a session left the Active Player holding four days' income against the catalogue's last 1.3M.
+    for (let guard = 0; guard < V2_PURCHASES_PER_LEAVE && budget > 0; guard++) {
       const turn = this.v2Turn++ % 3;
       let spent = 0;
       if (turn === 0) spent = this.ranchOne(run, reserve + hold);

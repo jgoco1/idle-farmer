@@ -81,6 +81,9 @@ const DRINK_ICONS: Record<DrinkId, () => string[]> = {
       [7, 8, 'u'],
       [9, 10, 'O'],
     ]),
+  // v4-04: the forage drinks
+  herbal_tea: () => mug('h', 'G'),
+  elderflower_cordial: () => bottle('U', 'w'),
 };
 
 /** A squat jar of honey with a wooden lid and a label. */

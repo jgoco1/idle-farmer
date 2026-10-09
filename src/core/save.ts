@@ -17,16 +17,24 @@ import {
   isDecorId,
   isDishId,
   isDrinkId,
+  isForageId,
   isFruitId,
   isNorthFieldId,
   isParcelId,
   isTownProjectId,
 } from '../data/ids';
 import { GAME_DATA } from '../data';
-import { HIVE_STORE, MENU_SLOT_CAP, PRESS_SLOT_STORE, SEED_ORDER_RESERVES } from '../data/balance';
+import {
+  FORAGE_CAP_DAYS,
+  FORAGER_BONUS_DAYS,
+  HIVE_STORE,
+  MENU_SLOT_CAP,
+  PRESS_SLOT_STORE,
+  SEED_ORDER_RESERVES,
+} from '../data/balance';
 import { WORLD_BOTTOM, WORLD_COLS, WORLD_LAYOUT, WORLD_TOP } from '../data/world';
 
-export const SAVE_VERSION = 17;
+export const SAVE_VERSION = 18;
 /** The most menu slots a save may hold: the top level's tables plus the Press House bundle's fifth (v4-03). */
 const MAX_MENU_SLOTS = 5;
 /** What a menu slot may hold: a dish or (v4-03) a drink. */
@@ -280,6 +288,16 @@ export const migrations: Record<number, Migration> = {
     apiary: { hives: [] },
     stats: { ...old.stats, drinksPressed: 0, honeyCollected: 0 },
   }),
+  /**
+   * v17 → v18 (v4 phase 04, the North Woods): no forage spots yet (they are created when the woods open,
+   * which a save owning the North Fields does when it is loaded) and the statistic at zero. The mountain
+   * lake needs no state: `'lake'` joins `expansions`, trap locations and the collection when bought.
+   */
+  17: (old) => ({
+    ...old,
+    forage: { spots: [] },
+    stats: { ...old.stats, foraged: 0 },
+  }),
 };
 
 export class SaveError extends Error {
@@ -401,6 +419,7 @@ function economyProblem(s: Record<string, unknown>): string | null {
     'served',
     'drinksPressed',
     'honeyCollected',
+    'foraged',
   ]) {
     if (!isInt(stats[k])) return 'bad stats';
   }
@@ -472,7 +491,7 @@ function progressionProblem(s: Record<string, unknown>): string | null {
   return null;
 }
 
-const LOCATIONS = ['pond', 'river', 'ocean'];
+const LOCATIONS = ['pond', 'river', 'ocean', 'lake']; // v4-04: the mountain lake
 const PHASES = ['charging', 'waiting', 'bite', 'reeling'];
 
 function sessionProblem(x: unknown): string | null {
@@ -678,6 +697,30 @@ function apiaryProblem(s: Record<string, unknown>): string | null {
   return null;
 }
 
+/** The most a forage spot can hold: four days (with the Forager bundle) of the largest daily yield. */
+const MAX_FORAGE_QTY = (() => {
+  let perDay = 0;
+  for (const kind of Object.values(GAME_DATA.forage.kinds))
+    for (const y of Object.values(kind)) if (y) perDay = Math.max(perDay, y.perDay);
+  return (FORAGE_CAP_DAYS + FORAGER_BONUS_DAYS) * perDay;
+})();
+
+function forageProblem(s: Record<string, unknown>): string | null {
+  const { forage } = s;
+  if (!isObj(forage) || !Array.isArray(forage.spots)) return 'bad forage';
+  const n = forage.spots.length;
+  if (n !== 0 && n !== WORLD_LAYOUT.forageSpots.length) return 'bad forage';
+  for (let i = 0; i < n; i++) {
+    const f: unknown = forage.spots[i];
+    if (!isObj(f) || f.spot !== i || !isInt(f.qty) || !isInt(f.lastDay)) return 'bad forage';
+    if (f.qty < 0 || f.qty > MAX_FORAGE_QTY) return 'bad forage';
+    if (f.item === null) {
+      if (f.qty !== 0) return 'bad forage';
+    } else if (typeof f.item !== 'string' || !isForageId(f.item)) return 'bad forage';
+  }
+  return null;
+}
+
 function catsProblem(s: Record<string, unknown>): string | null {
   const { cats } = s;
   if (!isObj(cats) || !Array.isArray(cats.adopted) || typeof cats.active !== 'string') return 'bad cats';
@@ -764,7 +807,8 @@ export function validateState(s: unknown): string | null {
     seedOrderProblem(s) ??
     restaurantProblem(s) ??
     pressProblem(s) ??
-    apiaryProblem(s)
+    apiaryProblem(s) ??
+    forageProblem(s)
   );
 }
 

@@ -67,7 +67,8 @@ export interface BotSummary {
   goldPerPlayHour: number[];
 }
 
-export const REPORT_DAYS = [1, 3, 7, 14, 30] as const;
+/** v4-04: a 60-day run (`--days 60`) also reports days 45 and 60. */
+export const REPORT_DAYS = [1, 3, 7, 14, 30, 45, 60] as const;
 
 export function summarize(bot: BotId, runs: readonly RunResult[], days: number): BotSummary {
   const med = (f: (r: RunResult) => number): number => median(runs.map(f));
@@ -135,6 +136,42 @@ export function orchardShare(
   return {
     share: median(per.map((p) => p.gold / p.total)),
     perDay: median(per.map((p) => p.gold)) / Math.max(1, to - from),
+  };
+}
+
+/**
+ * v4-04 (BALANCE §14.9: reported, no check): gold from selling forage and the mountain lake's fish as shares of the gold
+ * earned between real days `from` and `to`, and forage picked a day (medians over seeds).
+ */
+export function woodsShare(
+  runs: readonly RunResult[],
+  from: number,
+  to: number,
+): {
+  forageShare: number;
+  foragePerDay: number;
+  pickedPerDay: number;
+  lakeShare: number;
+  lakePerDay: number;
+} {
+  const per = runs.map((r) => {
+    const a = snapshotAt(r, from * DAY);
+    const b = snapshotAt(r, to * DAY);
+    const total = Math.max(1, b.lifetimeGold - a.lifetimeGold);
+    return {
+      forage: b.forageGold - a.forageGold,
+      picked: b.foraged - a.foraged,
+      lake: b.lakeGold - a.lakeGold,
+      total,
+    };
+  });
+  const days = Math.max(1, to - from);
+  return {
+    forageShare: median(per.map((p) => p.forage / p.total)),
+    foragePerDay: median(per.map((p) => p.forage)) / days,
+    pickedPerDay: median(per.map((p) => p.picked)) / days,
+    lakeShare: median(per.map((p) => p.lake / p.total)),
+    lakePerDay: median(per.map((p) => p.lake)) / days,
   };
 }
 
@@ -340,6 +377,10 @@ export const MOMENTS: readonly [key: string, label: string][] = [
   ['press_l3', 'Press House L3'],
   ['bought_hive', 'First hive'],
   ['first_honey', 'First honey collected'],
+  ['first_forage', 'First forage picked'],
+  ['bought_lake', 'Mountain Lake'],
+  ['first_lake_fish', 'First fish from the lake'],
+  ['bought_forager_basket', "Forager's Basket"],
   ['first_sapling', 'First sapling bought'],
   ['first_mature_tree', 'First mature tree'],
   ['first_fruit', 'First fruit picked'],
@@ -358,7 +399,7 @@ export const MOMENTS: readonly [key: string, label: string][] = [
 ];
 
 /** Days of the "Gold still to spend" table (BALANCE.md §13.4). */
-export const SPEND_DAYS = [1, 3, 7, 14, 21, 30] as const;
+export const SPEND_DAYS = [1, 3, 7, 14, 21, 30, 45, 60] as const;
 
 /** Median gold still to spend at the end of real day `day`, and as a share of the catalogue. */
 export function toSpendAtDay(
@@ -439,7 +480,7 @@ export function markdownReport(result: SimResult): string {
   }
   lines.push('');
   // Gold per hour
-  const curveDays = [1, 2, 3, 5, 7, 10, 14, 21, 28, 30].filter((d) => d <= days);
+  const curveDays = [1, 2, 3, 5, 7, 10, 14, 21, 28, 30, 45, 60].filter((d) => d <= days);
   lines.push(
     'Gold per simulated hour on real day *n* (the gold-per-hour curve):',
     '',
@@ -456,7 +497,7 @@ export function markdownReport(result: SimResult): string {
   const total = catalogueTotal(GAME_DATA);
   const spendDays = SPEND_DAYS.filter((d) => d <= days);
   lines.push(
-    `Gold still to spend (BALANCE.md §13.4): the catalogue so far is v1 ${fmt(parts.v1)} + land ${fmt(parts.parcels)} + saplings ${fmt(parts.saplings)} + ranch ${fmt(parts.ranch)} + decorations ${fmt(parts.decor)} + town projects ${fmt(parts.projects)} + restaurant ${fmt(parts.restaurant)} + Press House and hives ${fmt(parts.press)} = **${fmt(total)}**; gold still to spend · share of the catalogue at the end of real day *n*, and the day it reaches 0:`,
+    `Gold still to spend (BALANCE.md §13.4): the catalogue so far is v1 ${fmt(parts.v1)} + land ${fmt(parts.parcels)} + saplings ${fmt(parts.saplings)} + ranch ${fmt(parts.ranch)} + decorations ${fmt(parts.decor)} + town projects ${fmt(parts.projects)} + restaurant ${fmt(parts.restaurant)} + Press House and hives ${fmt(parts.press)} + the woods and the lake ${fmt(parts.woods)} = **${fmt(total)}**; gold still to spend · share of the catalogue at the end of real day *n*, and the day it reaches 0:`,
     '',
     `| Bot | ${spendDays.map((d) => `d${d}`).join(' | ')} | Spent out |`,
     `|---|${spendDays.map(() => '---|').join('')}---|`,
@@ -577,6 +618,22 @@ export function markdownReport(result: SimResult): string {
     }
     lines.push('');
   }
+  // The North Woods and the mountain lake (v4-04)
+  if (days >= 14) {
+    lines.push(
+      `The North Woods and the mountain lake (BALANCE §14.9: reported, no check): forage sold a day · its share of the gold earned, forage picked a day, and the lake's fish sold a day · share (medians, days 14–${days}):`,
+      '',
+      '| Bot | forage: gold a day · share | forage picked a day | lake fish: gold a day · share |',
+      '|---|---|---|---|',
+    );
+    for (const b of bots) {
+      const w = woodsShare(runs[b]!, 14, days);
+      lines.push(
+        `| ${BOTS[b].name} | ${fmt(w.foragePerDay)} · ${fmtShare(w.forageShare)} | ${fmt(w.pickedPerDay)} | ${fmt(w.lakePerDay)} · ${fmtShare(w.lakeShare)} |`,
+      );
+    }
+    lines.push('');
+  }
   // Seed Order (v2 phase 06)
   if (runs.farmer && (runs.farmer_plain || runs.farmer_forgetful)) {
     lines.push(
@@ -624,7 +681,7 @@ export function tuningChecks(result: SimResult, sums: Map<BotId, BotSummary>): C
   const days = result.days;
   const has = (b: BotId): boolean => sums.has(b);
   const strat = STRATEGY_BOTS.filter(has);
-  for (const d of [3, 7, 30].filter((x) => x <= days)) {
+  for (const d of [3, 7, 30, 60].filter((x) => x <= days)) {
     if (strat.length < 2) break;
     const golds = strat.map((b) => sums.get(b)!.lifetime[d] ?? 0);
     const ratio = Math.max(...golds) / Math.max(1, Math.min(...golds));
@@ -724,6 +781,8 @@ export function tuningChecks(result: SimResult, sums: Map<BotId, BotSummary>): C
       });
     }
   }
+  // BALANCE §14.9 sets the north, restaurant and drink bands on days 14–30; a longer run reads them there too.
+  const band = Math.min(30, days);
   // v4-01 (BALANCE §14.9): the north fields' share of crop gold from day 14, and the North Fields' payback.
   if (days >= 21) {
     const bands: [BotId, number, number][] = [
@@ -733,9 +792,9 @@ export function tuningChecks(result: SimResult, sums: Map<BotId, BotSummary>): C
     ];
     for (const [b, lo, hi] of bands) {
       if (!result.runs[b]) continue;
-      const w = northShare(result.runs[b]!, 14, days);
+      const w = northShare(result.runs[b]!, 14, band);
       out.push({
-        what: `${BOTS[b].name}: north fields' share of crop gold (days 14–${days})`,
+        what: `${BOTS[b].name}: north fields' share of crop gold (days 14–${band})`,
         target: `${pct(lo)}–${pct(hi)}`,
         measured: `${pct(w.total)} (${pct(w.north_fields)} · ${pct(w.terraces)})`,
         ok: w.total >= lo && w.total <= hi,
@@ -750,6 +809,16 @@ export function tuningChecks(result: SimResult, sums: Map<BotId, BotSummary>): C
         ok: d !== null && d <= 10,
       });
     }
+    // v4-04 (BALANCE §14.1): the Upper Terraces are bought around day 21–28, so their payback is read on 60-day runs.
+    if (result.runs.farmer && days >= 60) {
+      const d = northPayback(result.runs.farmer, 'terraces');
+      out.push({
+        what: `${BOTS.farmer.name}: the Upper Terraces pay back`,
+        target: '10–20 days after buying (gross)',
+        measured: d === null ? 'not bought' : Number.isFinite(d) ? `${fmt(d, 1)} days` : 'not yet',
+        ok: d !== null && d >= 10 && d <= 20,
+      });
+    }
   }
   // v4-02 (BALANCE §14.9, §14.12): the restaurant is a side income for a cook, never the main farm. The 5–15% band is
   // read on the Chef who sells, whose income is the cooking itself; the eating Chef serves as much (its absolute
@@ -762,9 +831,9 @@ export function tuningChecks(result: SimResult, sums: Map<BotId, BotSummary>): C
     ];
     for (const [b, lo, hi] of bands) {
       if (!result.runs[b]) continue;
-      const w = restaurantShare(result.runs[b]!, 14, days);
+      const w = restaurantShare(result.runs[b]!, 14, band);
       out.push({
-        what: `${BOTS[b].name}: restaurant income (days 14–${days})`,
+        what: `${BOTS[b].name}: restaurant income (days 14–${band})`,
         target: lo > 0 ? `${pct(lo)}–${pct(hi)} of gold` : `≤ ${pct(hi)} of gold`,
         measured: `${fmtShare(w.share)} (${fmt(w.perDay)} gold and ${fmt(w.servedPerDay)} servings a day)`,
         ok: w.share >= lo && w.share <= hi,
@@ -780,9 +849,9 @@ export function tuningChecks(result: SimResult, sums: Map<BotId, BotSummary>): C
     ];
     for (const [b, lo, hi] of bands) {
       if (!result.runs[b]) continue;
-      const w = drinkShare(result.runs[b]!, 14, days);
+      const w = drinkShare(result.runs[b]!, 14, band);
       out.push({
-        what: `${BOTS[b].name}: drink income (days 14–${days})`,
+        what: `${BOTS[b].name}: drink income (days 14–${band})`,
         target: lo > 0 ? `${pct(lo)}–${pct(hi)} of gold` : `≤ ${pct(hi)} of gold`,
         measured: `${fmtShare(w.share)} (${fmt(w.perDay)} gold and ${fmt(w.pressedPerDay)} drinks a day)`,
         ok: w.share >= lo && w.share <= hi,
@@ -800,8 +869,26 @@ export function tuningChecks(result: SimResult, sums: Map<BotId, BotSummary>): C
 export const SPEND_TARGETS: Readonly<
   Partial<Record<BotId, Readonly<Record<number, readonly [number, number]>>>>
 > = {
-  active: { 1: [0.99, 1], 3: [0.97, 1], 7: [0.9, 0.97], 14: [0.75, 0.9], 21: [0.6, 0.8], 30: [0.4, 0.6] },
-  farmer: { 1: [0.99, 1], 3: [0.9, 0.97], 7: [0.85, 0.95], 14: [0.55, 0.75], 21: [0.3, 0.5], 30: [0.1, 0.3] },
+  active: {
+    1: [0.99, 1],
+    3: [0.97, 1],
+    7: [0.9, 0.97],
+    14: [0.75, 0.9],
+    21: [0.6, 0.8],
+    30: [0.4, 0.6],
+    45: [0.15, 0.4],
+    60: [0, 0.2],
+  },
+  farmer: {
+    1: [0.99, 1],
+    3: [0.9, 0.97],
+    7: [0.85, 0.95],
+    14: [0.55, 0.75],
+    21: [0.35, 0.55], // v4-04: §14.8 had 30–50%, for fields bought on days 9–18; they come on days 17 and 30 (§14.12)
+    30: [0.1, 0.3],
+    45: [0, 0.1],
+    60: [0, 0.05],
+  },
 };
 /**
  * What the bots never buy, as a share of the catalogue: below this nothing is "still to buy". The v1 content the wish
@@ -823,19 +910,23 @@ export function spendChecks(result: SimResult): Check[] {
   for (const b of bots) {
     const runs = result.runs[b]!;
     if (days >= 21) {
-      const d21 = toSpendAtDay(runs, 21, total).gold;
+      // v4-04 (BALANCE §14.8): day 30 once the run reaches it (day 21 before v4).
+      const day = days >= 30 ? 30 : 21;
+      const left = toSpendAtDay(runs, day, total).gold;
       out.push({
-        what: `${BOTS[b].name}: gold stays meaningful (day 21)`,
+        what: `${BOTS[b].name}: gold stays meaningful (day ${day})`,
         target: 'gold still to spend > 0',
-        measured: fmt(d21),
-        ok: d21 > 0,
+        measured: fmt(left),
+        ok: left > 0,
       });
     }
     if (b === 'active' && days >= 30) {
-      const left = toSpendAtDay(runs, 30, total).gold;
-      const inHand = median(runs.map((r) => snapshotAt(r, 30 * DAY).gold));
+      // v4-04 (BALANCE §14.8): read on day 45 when the run is that long.
+      const day = days >= 45 ? 45 : 30;
+      const left = toSpendAtDay(runs, day, total).gold;
+      const inHand = median(runs.map((r) => snapshotAt(r, day * DAY).gold));
       out.push({
-        what: 'Active Player: gold still to spend on day 30',
+        what: `Active Player: gold still to spend on day ${day}`,
         target: '> 0 and more than the gold in hand',
         measured: `${fmt(left)} to spend vs ${fmt(inHand)} in hand`,
         ok: left > 0 && left > inHand,

@@ -119,7 +119,7 @@ function stepIn(s: GameState, total: number, pieces: readonly number[], data: Ga
 }
 
 describe('the drink data (BALANCE.md §14.4)', () => {
-  it('has the ten v4-03 drinks of the table, with their press times, tiers, prices, buffs and discovery', () => {
+  it('has the twelve drinks of the table (v4-04: the two forage drinks), with their press times, tiers, prices, buffs and discovery', () => {
     const row = (id: DrinkId) => {
       const r = RECIPES[id];
       return [r.cookSec / 60, r.tier, r.basePrice, r.buff, r.discovery.kind];
@@ -135,6 +135,8 @@ describe('the drink data (BALANCE.md §14.4)', () => {
       [60, 3, 978, 'fishingLuck', 'card'],
       [45, 3, 1104, 'xp', 'card'],
       [180, 4, 3372, 'automationSpeed', 'card'],
+      [20, 1, 113, 'xp', 'milestone'],
+      [60, 3, 528, 'cookSpeed', 'card'],
     ]);
   });
 
@@ -158,9 +160,9 @@ describe('the drink data (BALANCE.md §14.4)', () => {
       sellPrice: 0,
       fishingLuck: 2,
       fishingSpeed: 2,
-      cookSpeed: 1, // Elderflower Cordial (v4-04) is the second
+      cookSpeed: 2, // Lemonade and (v4-04) Elderflower Cordial
       automationSpeed: 2,
-      xp: 1, // Herbal Tea (v4-04) is the second
+      xp: 2, // Hot Cocoa and (v4-04) Herbal Tea
     });
   });
 
@@ -227,10 +229,11 @@ describe('building the Press House', () => {
       'apple_cider',
       'peach_iced_tea',
       'melon_cooler',
+      'elderflower_cordial',
       'hot_cocoa',
       'orchard_punch',
     ]);
-    expect(cards.reduce((n, c) => n + c.price, 0)).toBe(58_000); // + Elderflower Cordial (v4-04) = 67,000
+    expect(cards.reduce((n, c) => n + c.price, 0)).toBe(67_000); // v4-04: with Elderflower Cordial
     expect(cards.find((c) => c.id === 'orchard_punch')).toMatchObject({ unlocked: false });
     expect(why(act(s, { type: 'buyRecipe', recipe: 'orchard_punch' }))).toMatch(/level 2/);
     expect(act(s, { type: 'buyRecipe', recipe: 'hot_cocoa' }).ok).toBe(true);

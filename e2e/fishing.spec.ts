@@ -135,7 +135,7 @@ test('cast, wait for the bite and reel a fish in with scripted input', async ({ 
 
   // The Collection tab lists what was caught (fish, or a junk item that has no entry).
   await panel.getByRole('tab', { name: 'Collection' }).click();
-  await expect(panel).toContainText(/of 16 fish found/);
+  await expect(panel).toContainText(/of 22 fish found/);
   await page.screenshot({ path: 'test-results/fishing-collection.png' });
   expect(errors).toEqual([]);
 });

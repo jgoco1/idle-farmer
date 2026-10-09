@@ -94,7 +94,12 @@ describe('the restaurant data (BALANCE.md §14.3)', () => {
   it('the special rota has 28 entries, every T2–T4 dish at least once, seasonal ones in their season', () => {
     const rota = RESTAURANT.specialRota;
     expect(rota).toHaveLength(28);
-    for (const id of RECIPE_IDS) if (GAME_DATA.recipes[id].tier >= 2) expect(rota, id).toContain(id);
+    // v4-04: the two forage dishes are not on it (28 days cannot hold 28 dishes and the two winter drinks;
+    // the woods' finds are the cook's luck, not the inn's calendar).
+    const wild = (id: RecipeId): boolean =>
+      GAME_DATA.recipes[id].ingredients.some((i) => GAME_DATA.items[i.item]?.category === 'forage');
+    for (const id of RECIPE_IDS)
+      if (GAME_DATA.recipes[id].tier >= 2) expect(rota.includes(id), id).toBe(!wild(id));
     for (const id of rota) expect(GAME_DATA.recipes[id].tier).toBeGreaterThanOrEqual(2);
     // Spring's week has the spring feast, summer's the sturgeon, autumn's the harvest feast, winter's the moonfin.
     expect(rota.slice(0, 7)).toContain('garden_banquet');

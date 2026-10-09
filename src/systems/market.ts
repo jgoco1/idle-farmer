@@ -313,6 +313,7 @@ export function recordHistory(state: GameState, data: GameData): void {
     )
       continue;
     if (def.category === 'fruit' && !hasTreeOf(state, def.id as FruitId)) continue;
+    if (def.category === 'forage' && state.forage.spots.length === 0) continue; // v4-04: once the woods open
     if (def.category === 'animal' && !hasAnimalFor(state, def.id as AnimalProductId | 'honey')) continue;
     const e = entry(state, def.id);
     e.history.push(Math.round(effectiveMultiplier(state, def.id) * 1000) / 1000);

@@ -18,6 +18,7 @@ import { runSeedOrder } from './seedOrder';
 import { ranchPickup, tickRanch } from './ranch';
 import { openRestaurantDay, tickRestaurant } from './restaurant';
 import { tickApiary } from './apiary';
+import { growForage, hasForagerBasket, pickAllForage } from './forage';
 import { msToNextPressFinish, tickPress } from './press';
 import { resetDailyGoals, revalidateGoals, runProgression } from './progression';
 
@@ -39,6 +40,13 @@ export function tickSystems(state: GameState, ctx: SimContext, dtMs: number): vo
   }
   // The silo tops up the troughs and the Collecting Basket empties the stores, again just before the pickup.
   if (dtMs >= state.shippingBin.msToPickup) ranchPickup(state, ctx);
+  // The Forager's Basket picks the North Woods into the bag (or the bin) at the same moment (v4-04).
+  if (
+    dtMs >= state.shippingBin.msToPickup &&
+    state.forage.spots.length > 0 &&
+    hasForagerBasket(state, ctx.data)
+  )
+    pickAllForage(state, ctx);
   const pickup = dtMs >= state.shippingBin.msToPickup;
   tickShippingBin(state, ctx, dtMs); // a pickup lands at the end of the step, at that moment's prices
   if (pickup) runSeedOrder(state, ctx); // the Seed Order buys with what the pickup just paid (v2-06)
@@ -70,6 +78,7 @@ export function msToNextSimEvent(state: GameState, ctx: SimContext): number {
 /** Daily refresh at 06:00 local (BALANCE.md §1): fruit on the trees, market specials and sparkline, goldToday, per-day goals. */
 export function onDayStarted(state: GameState, ctx: SimContext): void {
   growOrchard(state, ctx); // trees count real days: first, so today's market already knows a tree turned mature
+  growForage(state, ctx); // the North Woods count real days too (v4-04)
   openMarketDay(state, ctx.data, ctx.rng, ctx.calendar.season);
   state.stats.goldToday = 0;
   openRestaurantDay(state, ctx); // today's takings start again

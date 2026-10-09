@@ -485,6 +485,37 @@ const DISHES: Readonly<Record<DishId, RecipeDef>> = Object.freeze({
     discovery: { kind: 'card', price: 5_000, unlock: [{ kind: 'press', level: 1 }] },
     description: 'Sticky, caramel-edged yams. The garden leans in to smell them.',
   },
+  // ---- forage dishes (v4 phase 04, BALANCE.md §14.7)
+  mushroom_risotto: {
+    id: 'mushroom_risotto',
+    name: 'Mushroom Risotto',
+    ingredients: [
+      { item: 'chanterelle', qty: 2 },
+      { item: 'wheat', qty: 1 },
+      { item: 'milk', qty: 1 },
+    ],
+    cookSec: 90,
+    tier: 3,
+    buff: 'xp',
+    basePrice: 872,
+    discovery: { kind: 'card', price: 8_000, unlock: [{ kind: 'milestone', id: 'm28_first_forage' }] },
+    description: 'Golden chanterelles stirred slowly into creamy grains. A bowl that makes you think.',
+  },
+  blackberry_tart: {
+    id: 'blackberry_tart',
+    name: 'Blackberry Tart',
+    ingredients: [
+      { item: 'blackberry', qty: 4 },
+      { item: 'wheat', qty: 2 },
+      { item: 'egg', qty: 1 },
+    ],
+    cookSec: 60,
+    tier: 3,
+    buff: 'fishingSpeed',
+    basePrice: 544,
+    discovery: { kind: 'card', price: 6_000, unlock: [{ kind: 'milestone', id: 'm28_first_forage' }] },
+    description: 'Bramble berries baked in a crisp crust, purple to the edges. Packed for a day at the lake.',
+  },
 });
 
 /** Every recipe: the kitchen's dishes and (v4-03) the Press House's drinks (`station: 'press'`). */

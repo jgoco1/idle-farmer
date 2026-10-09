@@ -4,7 +4,7 @@
 // modifier shortens. `tier` and `basePrice` are declared for readability and checked by a test against
 // the dish formula with a press time term (`TIER_PRESS_DIV`). Buffs are the seven existing types, in the
 // existing slots; no drink gives Silver Tongue (drinks add choice, not gold power). A drink is an item
-// whose id is the recipe id (see items.ts). The two forage drinks arrive in v4-04.
+// whose id is the recipe id (see items.ts). The two forage drinks came with the woods in v4-04.
 
 import type { DrinkId } from './ids';
 import type { RecipeDef } from './types';
@@ -173,5 +173,44 @@ export const DRINKS: Readonly<Record<DrinkId, RecipeDef>> = Object.freeze({
     fresh: ['autumn'],
     discovery: { kind: 'card', price: 20_000, unlock: [{ kind: 'press', level: 2 }] },
     description: 'The whole autumn orchard in one bowl, slow-pressed all afternoon. The farm fairly buzzes.',
+  },
+  // ---- forage drinks (v4 phase 04, BALANCE.md §14.4)
+  herbal_tea: {
+    id: 'herbal_tea',
+    name: 'Herbal Tea',
+    station: 'press',
+    ingredients: [{ item: 'wild_mint', qty: 2 }],
+    cookSec: 20 * 60,
+    tier: 1,
+    buff: 'xp',
+    basePrice: 113,
+    fresh: ['spring', 'summer', 'autumn'],
+    discovery: { kind: 'milestone', id: 'm28_first_forage' },
+    description:
+      'Wild mint steeped in a brown pot. Clears the head, and every lesson sticks a little better.',
+  },
+  elderflower_cordial: {
+    id: 'elderflower_cordial',
+    name: 'Elderflower Cordial',
+    station: 'press',
+    ingredients: [
+      { item: 'elderflower', qty: 3 },
+      { item: 'honey', qty: 1 },
+    ],
+    cookSec: 60 * 60,
+    tier: 3,
+    buff: 'cookSpeed',
+    basePrice: 528,
+    fresh: ['spring'],
+    // Its card opens once the woods have been foraged: elderflower grows nowhere else.
+    discovery: {
+      kind: 'card',
+      price: 9_000,
+      unlock: [
+        { kind: 'press', level: 1 },
+        { kind: 'milestone', id: 'm28_first_forage' },
+      ],
+    },
+    description: 'Flower heads steeped overnight with honey and lemon peel. The kitchen fairly flies.',
   },
 } satisfies Record<DrinkId, RecipeDef>);

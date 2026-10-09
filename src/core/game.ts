@@ -4,6 +4,7 @@
 import type { GameData } from '../data';
 import type { ActionResult } from '../systems/context';
 import { plotWatered } from '../systems/farming';
+import { openWoods } from '../systems/forage';
 import { syncBagSlots } from '../systems/upgrades';
 import { applyAction, type Action } from './actions';
 import { EventBus, type GameEvent } from './events';
@@ -49,7 +50,14 @@ export class Game {
     this.data = opts.data;
     this.lc = opts.lc;
     this.now = opts.now;
+    this.prepareState();
+  }
+
+  /** Brings a loaded state up to what this build adds outside migrations (bag slots, the woods). */
+  private prepareState(): void {
     syncBagSlots(this.state, this.data); // a save from before the bigger Backpack levels gets its new slots
+    // A save that owned the North Fields before v4-04 opens the woods on load (DATA_SCHEMAS §10.9).
+    openWoods(this.state, makeContext(this.state, this.data, this.calendar(), []));
   }
 
   /** Calendar time now (real time plus the debug offset). */
@@ -119,6 +127,7 @@ export class Game {
     this.stepper.reset();
     this.playCarry = 0;
     this.warpCarry = 0;
+    this.prepareState();
   }
 
   // ---- debug helpers (used only by the debug overlay)

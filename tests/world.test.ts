@@ -110,7 +110,7 @@ describe('the world layout (DATA_SCHEMAS §9.3)', () => {
 
   it('parcels in the data match the layout and BALANCE §13.1, §14.1', () => {
     expect(PARCEL_IDS.map((id) => GAME_DATA.parcels[id].price)).toEqual([
-      30_000, 150_000, 500_000, 3_000_000, 4_500_000,
+      30_000, 150_000, 500_000, 3_000_000, 6_500_000,
     ]);
     expect(GAME_DATA.parcels.north_fields.field).toBe('north_fields');
     expect(GAME_DATA.parcels.terraces.field).toBe('terraces');
@@ -340,7 +340,7 @@ describe('land parcels (BALANCE §13.1)', () => {
     setFarmLevel(s, 8);
     expect(buyParcel(s, ctx(s), 'terraces').ok).toBe(true);
     expect(nextParcel(s)).toBeNull();
-    expect(s.gold).toBe(10_000_000 - 7_500_000);
+    expect(s.gold).toBe(10_000_000 - 9_500_000);
   });
 
   it('need the gold, and go through dispatch as the buyParcel action', () => {
@@ -360,7 +360,7 @@ describe('land parcels (BALANCE §13.1)', () => {
   it('a bought parcel loses its overgrowth and sign, and changes no zone', () => {
     const before = buildLayout(GAME_DATA.startGrid, [], []);
     const after = buildLayout(GAME_DATA.startGrid, [], ['orchard']);
-    const inOrchard = (o: { x: number; y: number }) => o.x >= 21 * 16 && o.y < 7 * 16;
+    const inOrchard = (o: { x: number; y: number }) => o.x >= 21 * 16 && o.y >= 0 && o.y < 7 * 16;
     expect(before.objects.filter(inOrchard).some((o) => o.sprite === 'obj_tall_grass')).toBe(true);
     expect(
       after.objects
@@ -414,15 +414,18 @@ describe('gold still to spend (BALANCE §13.4, simulator)', () => {
   it('counts v1, the land, decorations (2,773,000) and the town projects, less what the farm owns', async () => {
     const { catalogueParts, catalogueTotal, toSpend } = await import('../scripts/sim/catalogue');
     const parts = catalogueParts(GAME_DATA);
-    expect(parts.parcels).toBe(680_000 + 7_500_000); // v4-01: the North Fields and the Upper Terraces
+    expect(parts.parcels).toBe(680_000 + 9_500_000); // v4-01: the North Fields; v4-04: the Upper Terraces at 6,500,000
     expect(parts.decor).toBe(2_773_000);
     // v2-04: every building level (955,000), 12 hens and 6 cows (108,000), the Collecting Basket (50,000) and the two building cards (27,000).
     expect(parts.ranch).toBe(1_140_000);
     expect(parts.projects).toBe(Math.round(8_500_000 * TOWN_PROJECT_SCALE));
     // v4-03: the Press House's three levels (940,000), six hives (209,000), the drink cards (58,000) and Honey-Roast Yams (5,000).
-    expect(parts.press).toBe(940_000 + 209_000 + 58_000 + 5_000);
+    expect(parts.press).toBe(940_000 + 209_000 + 58_000 + 5_000 + 9_000); // v4-04: Elderflower Cordial's card
+    // v4-04: the Mountain Lake (300,000), the Forager's Basket (120,000), Mushroom Risotto and Blackberry Tart (14,000).
+    expect(parts.woods).toBe(300_000 + 120_000 + 14_000);
     expect(parts.v1).toBeGreaterThan(560_000); // ≈ 590,000: 538,000 before v2-06 plus the Seed Order's 4,000 + 12,000 + 36,000
-    expect(parts.v1).toBeLessThan(620_000 + 90_300); // v4-01: sprinklers 13–16 and scarecrows 5–6 add 90,300
+    // v4-01: sprinklers 13–16 and scarecrows 5–6 add 90,300; v4-04: fish traps 10–12 add 91,000
+    expect(parts.v1).toBeLessThan(620_000 + 90_300 + 91_000);
     const s = createInitialState(CREATED, NY, 1);
     expect(toSpend(s, GAME_DATA)).toBe(catalogueTotal(GAME_DATA) - 0);
     s.land.parcels.push('orchard');

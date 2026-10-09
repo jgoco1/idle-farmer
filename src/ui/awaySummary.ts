@@ -4,7 +4,16 @@
 import type { OfflineReport } from '../core/offline';
 import { capitalize, formatDuration } from '../core/time';
 import { GAME_DATA } from '../data';
-import type { AnimalId, AnimalProductId, CropId, FruitId, RecipeId, SkillId, TreeId } from '../data/ids';
+import type {
+  AnimalId,
+  AnimalProductId,
+  CropId,
+  ForageId,
+  FruitId,
+  RecipeId,
+  SkillId,
+  TreeId,
+} from '../data/ids';
 import { fruitOfTree, isDrinkId } from '../data/ids';
 import { SKILL_ICONS, SKILL_NAMES } from '../data/skills';
 import { spriteDataUrl } from '../render/spriteCache';
@@ -56,6 +65,10 @@ export interface AwayTotals {
   honeyMade: number;
   honeyByBasket: number;
   drinksByBasket: number;
+  /** The North Woods (v4 phase 04): wild things that grew at the refreshes, and what the Forager's Basket picked. */
+  forageGrown: Partial<Record<ForageId, number>>;
+  forageGrownTotal: number;
+  forageByBasket: number;
 }
 
 export function awayTotals(report: OfflineReport): AwayTotals {
@@ -91,6 +104,9 @@ export function awayTotals(report: OfflineReport): AwayTotals {
     pressStopped: 0,
     honeyMade: 0,
     honeyByBasket: 0,
+    forageGrown: {},
+    forageGrownTotal: 0,
+    forageByBasket: 0,
     drinksByBasket: 0,
   };
   for (const e of report.events) {
@@ -141,6 +157,11 @@ export function awayTotals(report: OfflineReport): AwayTotals {
       t.honeyMade += e.qty;
     } else if (e.type === 'honeyCollected') {
       if (e.auto) t.honeyByBasket += e.qty;
+    } else if (e.type === 'forageGrown') {
+      t.forageGrown[e.item] = (t.forageGrown[e.item] ?? 0) + e.qty;
+      t.forageGrownTotal += e.qty;
+    } else if (e.type === 'foragePicked') {
+      if (e.auto) t.forageByBasket += e.qty;
     } else if (e.type === 'pressCollected') {
       if (e.auto) t.drinksByBasket += e.qty;
     } else if (e.type === 'menuEmpty') {
@@ -277,6 +298,19 @@ export function awayRows(report: OfflineReport, farm: AwayFarm): AwayRow[] {
     rows.push({
       icon: 'item_honey',
       text: `The Collecting Basket brought in ${t.honeyByBasket} jars of honey.`,
+    });
+  }
+  if (t.forageGrownTotal > 0) {
+    const [first] = (Object.entries(t.forageGrown) as [ForageId, number][]).sort((a, b) => b[1] - a[1]);
+    const basket = t.forageByBasket > 0 ? ` The Forager's Basket picked ${t.forageByBasket}.` : '';
+    rows.push({
+      icon: `item_${first![0]}`,
+      text: `${t.forageGrownTotal} wild thing${t.forageGrownTotal === 1 ? '' : 's'} grew in the North Woods.${basket}`,
+    });
+  } else if (t.forageByBasket > 0) {
+    rows.push({
+      icon: 'item_chanterelle',
+      text: `The Forager's Basket picked ${t.forageByBasket} wild thing${t.forageByBasket === 1 ? '' : 's'} in the North Woods.`,
     });
   }
   if (t.menuEmptied > 0) {

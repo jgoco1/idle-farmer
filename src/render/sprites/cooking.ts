@@ -288,6 +288,17 @@ const DISH_ART: Record<DishId, readonly string[]> = {
     '....u......u',
     '',
   ]),
+  // v4-04: the forage dishes
+  mushroom_risotto: inBowl(['....u.O..O.u....', '...xOuxOuxOux...', '..xxxxxxxxxxxx..']),
+  blackberry_tart: onPlate([
+    '',
+    '...pPPPPPPPPp',
+    '..pvkvjvkvjvkp',
+    '..pkvjvkvjvkvp',
+    '..pvjvkvjvkvjp',
+    '...ppppppppppp',
+    '',
+  ]),
   moonfin_sushi: onPlate([
     '',
     '',

@@ -56,6 +56,7 @@ export interface BundleBonuses {
   treeSpots: number;
   troughBonus: number;
   menuSlots: number; // v4-03: the Press House bundle's fifth restaurant table
+  forageCapDays: number; // v4-04: the Forager bundle's extra day of forage
 }
 
 const NO_BUNDLE_BONUSES: Readonly<BundleBonuses> = Object.freeze({
@@ -68,6 +69,7 @@ const NO_BUNDLE_BONUSES: Readonly<BundleBonuses> = Object.freeze({
   treeSpots: 0,
   troughBonus: 0,
   menuSlots: 0,
+  forageCapDays: 0,
 });
 
 /** What the completed bundles give, in total. Do not modify the result. */
@@ -83,6 +85,7 @@ export function bundleBonuses(state: GameState, data: GameData): Readonly<Bundle
     treeSpots: 0,
     troughBonus: 0,
     menuSlots: 0,
+    forageCapDays: 0,
   };
   for (const id of state.progression.completedBundles) {
     const r = data.bundles[id].reward;
@@ -110,6 +113,9 @@ export function bundleBonuses(state: GameState, data: GameData): Readonly<Bundle
         break;
       case 'menuSlot':
         b.menuSlots += r.count;
+        break;
+      case 'forageCap':
+        b.forageCapDays += r.days;
         break;
       case 'unlockGreenhouse':
         b.greenhouse = true;

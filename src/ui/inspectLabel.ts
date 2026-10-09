@@ -1,4 +1,4 @@
-// The scene label for a tree or an animal (v2-03 trees, v2-05 animals and touch). Under a mouse it follows the
+// The scene label for a tree, an animal or (v4-04) a forage spot (v2-03 trees, v2-05 animals and touch). Under a mouse it follows the
 // hovered tree or animal; on a touch screen the first tap on one sets the renderer's `inspected` target and the
 // label shows until the next tap elsewhere or a pan (the second tap picks or pets). A small parchment DOM label
 // placed through the camera helpers (a native `title` does not show on touch screens or in screenshots).
@@ -10,7 +10,10 @@ import { formatDuration } from '../core/time';
 import type { GameData } from '../data';
 import { WORLD_LAYOUT } from '../data/world';
 import type { Renderer } from '../render/renderer';
-import { INSPECT_ANIMAL, INSPECT_NONE, INSPECT_TREE } from '../render/sceneInput';
+import { INSPECT_ANIMAL, INSPECT_FORAGE, INSPECT_NONE, INSPECT_TREE } from '../render/sceneInput';
+import { FORAGE_KIND_NAMES } from '../data/forage';
+import { forageCap, forageSpot, spotKind, spotYield } from '../systems/forage';
+import type { SeasonId } from '../data/ids';
 import type { Modifiers } from '../systems/modifiers';
 import { daysToMature, treeAtTile, treeStage } from '../systems/orchard';
 import { buildingById, levelDef, msToNextProduct, storeCount, storeSize, troughSize } from '../systems/ranch';
@@ -19,6 +22,8 @@ import { h } from './dom';
 const KIND_NONE = 0;
 const KIND_TREE = 1;
 const KIND_ANIMAL = 2;
+const KIND_FORAGE = 3;
+const SEASONS: readonly SeasonId[] = ['spring', 'summer', 'autumn', 'winter'];
 
 /** Room (CSS px) the label needs above its anchor; with less it goes below. */
 const ROOM_ABOVE = 110;
@@ -54,8 +59,8 @@ export class InspectLabel {
     this.el.hidden = true;
   }
 
-  /** Runs every frame. `dayIndex` is the calendar's (a tree's age and stage depend on it). */
-  update(dayIndex: number): void {
+  /** Runs every frame. `dayIndex` is the calendar's (a tree's age and stage depend on it); `season` names what a forage spot grows. */
+  update(dayIndex: number, season: SeasonId = 'spring'): void {
     const r = this.deps.renderer;
     const state = this.deps.state();
     let kind = KIND_NONE;
@@ -66,6 +71,9 @@ export class InspectLabel {
       id = picked.id;
     } else if (picked.kind === INSPECT_ANIMAL) {
       kind = KIND_ANIMAL;
+      id = picked.id;
+    } else if (picked.kind === INSPECT_FORAGE) {
+      kind = KIND_FORAGE;
       id = picked.id;
     } else {
       const animal = r.hoverAnimal();
@@ -78,12 +86,20 @@ export class InspectLabel {
         if (tree) {
           kind = KIND_TREE;
           id = tree.id;
+        } else if (hover && state.forage.spots.length > 0) {
+          const spots = WORLD_LAYOUT.forageSpots;
+          for (let i = 0; i < spots.length; i++)
+            if (spots[i]!.col === hover.col && spots[i]!.row === hover.row) {
+              kind = KIND_FORAGE;
+              id = i;
+            }
         }
       }
     }
     this.touch = picked.kind !== INSPECT_NONE;
     if (kind === KIND_TREE) this.showTree(state, id, dayIndex);
     else if (kind === KIND_ANIMAL) this.showAnimal(state, id);
+    else if (kind === KIND_FORAGE) this.showForage(state, id, season);
     else this.hide();
   }
 
@@ -159,6 +175,42 @@ export class InspectLabel {
     }
     const at = this.deps.renderer.worldToClient(this.head.x, this.head.y - 4);
     if (!this.place(at.x, at.y)) this.placeAt(at.x, at.y + 28, true);
+  }
+
+  private showForage(state: GameState, spot: number, season: SeasonId): void {
+    const s = forageSpot(state, spot);
+    if (!s) return this.hide();
+    this.retarget(KIND_FORAGE, spot);
+    const data = this.deps.data;
+    const y = spotYield(data, spot, season);
+    // The quantity, the season and touch: the text changes only when one of them does.
+    const sig = (s.qty * 4 + SEASONS.indexOf(season)) * 2 + (this.touch ? 1 : 0);
+    if (sig !== this.sig) {
+      this.sig = sig;
+      const kind = FORAGE_KIND_NAMES[spotKind(data, spot)];
+      const lines = [h('strong', { text: kind })];
+      if (s.item && s.qty > 0) {
+        const name = data.forage.items[s.item].name;
+        const act = this.touch ? 'tap again to pick' : 'click to pick';
+        lines.push(
+          h('span', { text: `${name} ${s.qty} / ${forageCap(state, data, spot, s.item)} · ${act}` }),
+        );
+      }
+      lines.push(
+        h('span', {
+          text: y
+            ? `${data.forage.items[y.item].name} grows here this season: ${y.perDay} by 6:00 each day`
+            : 'Resting this season',
+        }),
+      );
+      this.el.replaceChildren(...lines);
+    }
+    const t = WORLD_LAYOUT.forageSpots[spot]!;
+    const r = this.deps.renderer;
+    const above = r.tileClientCenter(t.col, t.row - 1);
+    if (this.place(above.x, above.y)) return;
+    const below = r.tileClientCenter(t.col, t.row + 1);
+    this.placeAt(below.x, below.y, true);
   }
 
   /** Puts the label above a client point if there is room; false when there is not. */

@@ -22,7 +22,7 @@ export type CropId =
 
 export type SeedId = `seed_${CropId}`;
 
-export type FishLocationId = 'pond' | 'river' | 'ocean';
+export type FishLocationId = 'pond' | 'river' | 'ocean' | 'lake';
 
 export type FishId =
   | 'bluegill'
@@ -40,7 +40,11 @@ export type FishId =
   | 'petal_koi'
   | 'ember_salmon'
   | 'sun_marlin'
-  | 'moonfin';
+  | 'moonfin'
+  | LakeFishId;
+
+/** The mountain lake's fish (v4 phase 04, BALANCE.md §14.7). */
+export type LakeFishId = 'whitefish' | 'lake_trout' | 'crayfish' | 'pike' | 'golden_trout' | 'alpine_char';
 
 export type JunkId = 'old_boot' | 'seaweed' | 'driftwood';
 
@@ -84,7 +88,10 @@ export type DishId =
   | 'moonfin_sushi'
   // v4-03: honey dishes
   | 'honey_cake'
-  | 'honey_roast_yams';
+  | 'honey_roast_yams'
+  // v4-04: forage dishes
+  | 'mushroom_risotto'
+  | 'blackberry_tart';
 
 /** The Press House's drinks (v4 phase 03, BALANCE.md §14.4); v4-04 adds the two forage drinks. Non-alcoholic. */
 export type DrinkId =
@@ -97,7 +104,10 @@ export type DrinkId =
   | 'peach_iced_tea'
   | 'melon_cooler'
   | 'hot_cocoa'
-  | 'orchard_punch';
+  | 'orchard_punch'
+  // v4-04: forage drinks
+  | 'herbal_tea'
+  | 'elderflower_cordial';
 
 /**
  * Every recipe: the kitchen's dishes and (v4-03) the Press House's drinks, which are recipes with
@@ -122,6 +132,12 @@ export type BuildingId = 'coop' | 'barn' | 'silo';
 /** The apiary's honey and the Press House shelf's cocoa (v4 phase 03). */
 export type PressItemId = 'honey' | 'cocoa';
 
+/** What the North Woods' forage spots grow (v4 phase 04, BALANCE.md §14.7). */
+export type ForageId =
+  'morel' | 'chanterelle' | 'wild_mint' | 'elderflower' | 'blackberry' | 'rose_hip' | 'hazelnut';
+/** A forage spot's kind; the season picks its item (`FORAGE_KINDS` in src/data/forage.ts). */
+export type ForageKind = 'mushroom' | 'herb' | 'flower' | 'nut';
+
 export type ItemId =
   | CropId
   | SeedId
@@ -133,7 +149,8 @@ export type ItemId =
   | SaplingId
   | AnimalProductId
   | FeedId
-  | PressItemId;
+  | PressItemId
+  | ForageId;
 
 export type UpgradeId =
   // farm automation and tools (phase 04)
@@ -157,9 +174,11 @@ export type UpgradeId =
   // cooking (phase 06)
   | 'kitchen'
   // the ranch (v2 phase 04)
-  | 'ranch_collector';
+  | 'ranch_collector'
+  // the North Woods (v4 phase 04)
+  | 'forager_basket';
 
-export type ExpansionId = 'farm_1' | 'farm_2' | 'farm_3' | 'farm_4' | 'river' | 'ocean';
+export type ExpansionId = 'farm_1' | 'farm_2' | 'farm_3' | 'farm_4' | 'river' | 'ocean' | 'lake';
 
 /** Land parcels, bought in this order (v2 phase 01, BALANCE.md §13.1; the north fields v4-01, §14.1). */
 export type ParcelId = 'orchard' | 'yard' | 'meadow' | NorthFieldId;
@@ -257,7 +276,10 @@ export type MilestoneId =
   | 'm25_first_serving'
   // v4-03
   | 'm26_first_drink'
-  | 'm27_first_honey';
+  | 'm27_first_honey'
+  // v4-04
+  | 'm28_first_forage'
+  | 'm29_lake_fish';
 
 export type BundleId =
   | 'spring_crops'
@@ -269,7 +291,9 @@ export type BundleId =
   | 'orchard_basket'
   | 'barnyard'
   // v4-03
-  | 'press_house';
+  | 'press_house'
+  // v4-04
+  | 'forager';
 
 export type GoalTemplateId =
   | 'harvest_crop'
@@ -337,6 +361,13 @@ export const FISH_IDS: readonly FishId[] = [
   'ember_salmon',
   'sun_marlin',
   'moonfin',
+  // v4-04: the mountain lake
+  'whitefish',
+  'lake_trout',
+  'crayfish',
+  'pike',
+  'golden_trout',
+  'alpine_char',
 ];
 
 export const JUNK_IDS: readonly JunkId[] = ['old_boot', 'seaweed', 'driftwood'];
@@ -377,6 +408,8 @@ export const RECIPE_IDS: readonly DishId[] = [
   'moonfin_sushi',
   'honey_cake',
   'honey_roast_yams',
+  'mushroom_risotto',
+  'blackberry_tart',
 ];
 
 /** The Press House's drinks in table order (T1 first). */
@@ -391,6 +424,8 @@ export const DRINK_IDS: readonly DrinkId[] = [
   'melon_cooler',
   'hot_cocoa',
   'orchard_punch',
+  'herbal_tea',
+  'elderflower_cordial',
 ];
 
 /** Every recipe: dishes, then drinks. */
@@ -446,6 +481,23 @@ export const DECOR_IDS: readonly DecorId[] = [
   'fair_stall',
   'windmill',
 ];
+
+/** The North Woods' forage items (v4-04). */
+export const FORAGE_IDS: readonly ForageId[] = [
+  'morel',
+  'chanterelle',
+  'wild_mint',
+  'elderflower',
+  'blackberry',
+  'rose_hip',
+  'hazelnut',
+];
+
+export const FORAGE_KINDS_IDS: readonly ForageKind[] = ['mushroom', 'herb', 'flower', 'nut'];
+
+export function isForageId(id: string): id is ForageId {
+  return (FORAGE_IDS as readonly string[]).includes(id);
+}
 
 export const FRUIT_IDS: readonly FruitId[] = [
   'cherry',
@@ -536,8 +588,13 @@ export function isNorthFieldId(id: string): id is NorthFieldId {
   return (NORTH_FIELD_IDS as readonly string[]).includes(id);
 }
 
+const SEED_OF = Object.fromEntries(CROP_IDS.map((c) => [c, `seed_${c}` as SeedId])) as Readonly<
+  Record<CropId, SeedId>
+>;
+
+/** The seed item of `crop` (from a table: the planter asks for it once per seed). */
 export function seedOf(crop: CropId): SeedId {
-  return `seed_${crop}`;
+  return SEED_OF[crop];
 }
 
 export function cropOfSeed(seed: SeedId): CropId {

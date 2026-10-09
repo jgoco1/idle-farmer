@@ -17,6 +17,7 @@
 import { emptyPlot, type GameState } from '../core/state';
 import type { GameData } from '../data';
 import { CROP_IDS, seedOf, type CropId } from '../data/ids';
+import { GREENHOUSE_BASE } from '../data/balance';
 import { shipsAutomatically } from './autoSeller';
 import type { SimContext } from './context';
 import {
@@ -96,21 +97,39 @@ export function planPlanter(
   };
   const usable = (c: CropId, index: number): boolean =>
     seedsLeft(c) > 0 && (isGreenhouseIndex(index) || inSeason(data.crops[c], season));
+  // The most valuable usable seed depends only on field or greenhouse and on the seeds left, so it is worked out
+  // once per kind and again only when that seed runs out (a farm out of seeds otherwise scanned every crop for
+  // every tilled plot at every step; v4-04's catch-up budget found it). `undefined` = not worked out yet.
+  const bestFor: [CropId | null | undefined, CropId | null | undefined] = [undefined, undefined];
+  const fallbackFor = (index: number): CropId | null => {
+    const k = isGreenhouseIndex(index) ? 1 : 0;
+    const cached = bestFor[k];
+    if (cached !== undefined) return cached;
+    let pick: CropId | null = null;
+    let best = -1;
+    for (const c of CROP_IDS) {
+      if (!usable(c, index)) continue;
+      const value = data.crops[c].basePrice * averageYield(data, c);
+      if (value > best) {
+        best = value;
+        pick = c;
+      }
+    }
+    bestFor[k] = pick;
+    return pick;
+  };
   const choose = (index: number, fallback: boolean): CropId | null => {
     const last = lastPlanted(state, index);
     let pick: CropId | null = last && usable(last, index) ? last : null;
-    if (!pick && fallback) {
-      let best = -1;
-      for (const c of CROP_IDS) {
-        if (!usable(c, index)) continue;
-        const value = data.crops[c].basePrice * averageYield(data, c);
-        if (value > best) {
-          best = value;
-          pick = c;
-        }
+    if (!pick && fallback) pick = fallbackFor(index);
+    if (pick) {
+      const left = seedsLeft(pick) - 1;
+      seeds.set(pick, left);
+      if (left <= 0) {
+        if (bestFor[0] === pick) bestFor[0] = undefined;
+        if (bestFor[1] === pick) bestFor[1] = undefined;
       }
     }
-    if (pick) seeds.set(pick, seedsLeft(pick) - 1);
     return pick;
   };
 
@@ -127,7 +146,8 @@ export function planPlanter(
       }
     }
   }
-  if (fill || till) {
+  // No usable seed for a field or a greenhouse plot: nothing can be planted (or tilled for planting), so skip the walk.
+  if ((fill || till) && (fallbackFor(0) !== null || fallbackFor(GREENHOUSE_BASE) !== null)) {
     const used = state.placed.length > 0 ? occupiedPlots(state) : null;
     const fields = plotFields(state);
     outer: for (let f = 0; f < fields.length; f++) {

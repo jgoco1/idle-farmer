@@ -2,7 +2,7 @@
 // the 6 Community Board bundles. Progression listens to events (src/systems/progression.ts); nothing
 // here is wired into the other systems.
 
-import { BARNYARD_TROUGH_BONUS } from './balance';
+import { BARNYARD_TROUGH_BONUS, FORAGER_BONUS_DAYS } from './balance';
 import type { BundleId, GoalTemplateId, MilestoneId } from './ids';
 import type { BundleDef, QuestDef } from './types';
 
@@ -253,6 +253,25 @@ export const MILESTONES: readonly QuestDef[] = Object.freeze([
     flavor: 'A jar of gold from the hives, and only one bee followed you home.',
     objective: { kind: 'collectHoney', count: 1 },
     rewards: [{ kind: 'recipe', id: 'honey_cake' }],
+    requires: [],
+  },
+  // v4-04: the North Woods and the mountain lake (BALANCE.md §14.6)
+  {
+    id: 'm28_first_forage',
+    kind: 'milestone',
+    title: 'Pick something in the North Woods',
+    flavor: 'A pocketful of the woods. The kettle is already thinking about it.',
+    objective: { kind: 'forage', count: 1 },
+    rewards: [{ kind: 'recipe', id: 'herbal_tea' }],
+    requires: [],
+  },
+  {
+    id: 'm29_lake_fish',
+    kind: 'milestone',
+    title: 'Catch a fish in the mountain lake',
+    flavor: 'Cold, clear water and a fish that has never seen a hook. Until today.',
+    objective: { kind: 'catch', location: 'lake', count: 1 },
+    rewards: [{ kind: 'gold', amount: 40_000 }],
     requires: [],
   },
 ] satisfies QuestDef[]);
@@ -514,6 +533,21 @@ export const BUNDLES: Readonly<Record<BundleId, BundleDef>> = Object.freeze({
     reward: { kind: 'menuSlot', count: 1 },
     rewardText: 'A fifth table on the restaurant terrace',
   },
+  // v4-04: forage across the seasons
+  forager: {
+    id: 'forager',
+    name: 'Forager',
+    flavor: 'A basket of the woods through the year: mushrooms, mint, berries and nuts.',
+    slots: [
+      { item: 'morel', qty: 5 },
+      { item: 'chanterelle', qty: 5 },
+      { item: 'wild_mint', qty: 10 },
+      { item: 'blackberry', qty: 10 },
+      { item: 'hazelnut', qty: 10 },
+    ],
+    reward: { kind: 'forageCap', days: FORAGER_BONUS_DAYS },
+    rewardText: "Forage spots hold four days' worth",
+  },
 } satisfies Record<BundleId, BundleDef>);
 
 export const BUNDLE_IDS: readonly BundleId[] = [
@@ -526,4 +560,5 @@ export const BUNDLE_IDS: readonly BundleId[] = [
   'orchard_basket',
   'barnyard',
   'press_house',
+  'forager',
 ];
